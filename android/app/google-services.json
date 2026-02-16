@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "565170721970",
+    "project_id": "startup-expense-tracker-3df6b",
+    "storage_bucket": "startup-expense-tracker-3df6b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:565170721970:android:fdab53daefaaf19675e5ab",
+        "android_client_info": {
+          "package_name": "com.example.startup_expense_tracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXeAS_EzI0p_mujS-PUVMmO_e5Ke60o1k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -12,13 +14,19 @@ class CompanyDetailsScreen extends StatefulWidget {
 
 class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   // 1. Controllers (Pre-filled with Mock Data)
-  late TextEditingController _companyNameController;
-  late TextEditingController _ownerNameController;
-  late TextEditingController _emailController;
-  late TextEditingController _addressController;
-  late TextEditingController _descController;
-  late TextEditingController _fundingController;
-  late TextEditingController _runwayController;
+  final TextEditingController _companyNameController = TextEditingController();
+  final TextEditingController _ownerNameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _descController = TextEditingController();
+  final TextEditingController _fundingController = TextEditingController();
+  final TextEditingController _runwayController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    loadCompanyData();
+  }
 
   final companyTypes = {
     'sole_proprietorship': 'Sole Proprietorship',
@@ -31,26 +39,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
 
   // 2. Dynamic Data: Bank Accounts
   final List<Map<String, TextEditingController>> _bankAccounts = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _companyNameController = TextEditingController(text: "BullXchange");
-    _ownerNameController = TextEditingController(text: "Sahil Mishra");
-    _emailController = TextEditingController(text: "admin@bullxchange.com");
-    _addressController = TextEditingController(
-      text: "123 Startup Hub, Bengaluru, India",
-    );
-    _descController = TextEditingController(
-      text: "Paper trading platform for Indian Stock Market.",
-    );
-    _fundingController = TextEditingController(text: "482,000");
-    _runwayController = TextEditingController(text: "18");
-
-    // Add one default bank account
-    _addBankAccount("HDFC Bank", "8932749231");
-    _addBankAccount("SBI Current", "1122334455");
-  }
 
   void _addBankAccount([String name = "", String number = ""]) {
     setState(() {
@@ -83,6 +71,89 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       account["number"]?.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> loadCompanyData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        return;
+      }
+      final snapshot = await FirebaseFirestore.instance
+          .collection("companies")
+          .where("uid", isEqualTo: user.uid)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isNotEmpty) {
+        final data = snapshot.docs.first.data();
+        setState(() {
+          _companyNameController.text = data["Company Name"] ?? "";
+          _ownerNameController.text = data["Owner Name"] ?? "";
+          _emailController.text = data["Email"] ?? "";
+          _addressController.text = data["Company Address"] ?? "";
+          _descController.text = data["Company Work"] ?? "";
+          _fundingController.text = data["Funding"] ?? "";
+          _runwayController.text = data["Runway"] ?? "";
+          _selectedType = data["Company Type"] ?? "sole_proprietorship";
+
+          // Load bank accounts
+          final bankAccountsData =
+              data["Bank Accounts"] as List<dynamic>? ?? [];
+          _bankAccounts.clear();
+          for (var account in bankAccountsData) {
+            _addBankAccount(account["name"] ?? "", account["number"] ?? "");
+          }
+        });
+      }
+    } catch (e) {
+      print(e.toString());
+    }
+  }
+
+  Future<void> updateCompanyData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      await FirebaseFirestore.instance
+          .collection("companies")
+          .doc(user.uid)
+          .set({
+            "uid": FirebaseAuth.instance.currentUser!.uid,
+            "Company Name": _companyNameController.text.trim(),
+            "Owner Name": _ownerNameController.text.trim(),
+            "Email": _emailController.text.trim(),
+            "Company Address": _addressController.text.trim(),
+            "Company Work": _descController.text.trim(),
+            "Funding": _fundingController.text.trim(),
+            "Runway": _runwayController.text.trim(),
+            "Company Type": _selectedType,
+            "Bank Accounts": _bankAccounts.map((account) {
+              return {
+                "name": account["name"]!.text,
+                "number": account["number"]!.text,
+              };
+            }).toList(),
+          }, SetOptions(merge: true));
+
+      // Sync owner name to users collection
+      await _syncOwnerNameToUsers();
+    } catch (e) {
+      print(e.toString());
+    }
+  }
+
+  Future<void> _syncOwnerNameToUsers() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
+        "name": _ownerNameController.text.trim(),
+        "updatedAt": Timestamp.now(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print(e.toString());
+    }
   }
 
   @override
@@ -120,7 +191,10 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
 
                       // --- SECTION 2: LEGAL & LOCATION ---
                       _buildSectionLabel("LEGAL & LOCATION"),
-                      _buildDropdownGroup("COMPANY TYPE", _selectedType),
+                      _buildDropdownGroup(
+                        "COMPANY TYPE",
+                        companyTypes[_selectedType] ?? "Not Set",
+                      ),
                       const SizedBox(height: 24),
                       _buildInputGroup(
                         "DESCRIPTION",
@@ -440,14 +514,16 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF09090B),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        ),
       ),
       child: SizedBox(
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () {
-            // Save logic here
+          onPressed: () async {
+            await updateCompanyData();
             Navigator.pop(context);
           },
           style: ElevatedButton.styleFrom(

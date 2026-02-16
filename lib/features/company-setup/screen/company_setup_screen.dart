@@ -1,8 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:startup_expense_tracker/features/navigation/screens/navigation_wrapper.dart';
+import 'package:startup_expense_tracker/features/navigation/screens/main_navigation_wrapper.dart';
+import 'package:uuid/uuid.dart';
 
 class CompanySetupScreen extends StatefulWidget {
   const CompanySetupScreen({super.key});
@@ -22,12 +25,12 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   // --- CONTROLLERS & STATE ---
 
   // Step 1: Identity
-  final TextEditingController _ownerNameController = TextEditingController();
-  final TextEditingController _companyNameController = TextEditingController();
+  final _ownerNameController = TextEditingController();
+  final _companyNameController = TextEditingController();
 
   // Step 2: Legal & Loc
-  final TextEditingController _addressController = TextEditingController();
-  final TextEditingController _workDescController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _workDescController = TextEditingController();
 
   final companyTypes = {
     'sole_proprietorship': 'Sole Proprietorship',
@@ -35,6 +38,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     'llp': 'LLP',
     'pvt_ltd': 'Pvt Ltd',
   };
+  String? _selectedCompanyType;
 
   // Step 3: Financials
   final TextEditingController _fundingController = TextEditingController();
@@ -79,6 +83,34 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       setState(() {
         _bankAccounts.removeAt(index);
       });
+    }
+  }
+
+  Future<void> uploadCompanyData() async {
+    try {
+      final formattedBankAccounts = _bankAccounts.map((account) {
+        return {
+          "name": account["name"]!.text.trim(),
+          "number": account["number"]!.text.trim(),
+        };
+      }).toList();
+      final id = const Uuid().v4();
+      await FirebaseFirestore.instance.collection('companies').doc(id).set({
+        "uid": FirebaseAuth.instance.currentUser!.uid,
+        "Owner Name": _ownerNameController.text.trim(),
+        "Company Name": _companyNameController.text.trim(),
+        "Company Type": _selectedCompanyType,
+        "Company Work": _workDescController.text.trim(),
+        "Company Address": _addressController.text.trim(),
+        "Funding": _fundingController.text.trim(),
+        "Runway": _runwayController.text.trim(),
+        "Bank Accounts": formattedBankAccounts,
+        "Categories": _selectedCategories.toList(),
+        "Departments": _departments,
+      });
+      print("Company uploaded successfully!");
+    } catch (e) {
+      print(e);
     }
   }
 
@@ -165,6 +197,11 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               companyTypes[value]!,
               style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
             ),
+            onChanged: (value) {
+              setState(() {
+                _selectedCompanyType = value;
+              });
+            },
           ),
         ),
         const SizedBox(height: 32),
@@ -600,11 +637,15 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 curve: Curves.easeInOut,
               );
             } else {
-              // Finish Logic - Navigate to Homepage
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const HomeScreen()),
-              );
+              // Finish Logic - Upload data and navigate to Homepage with bottom navigation
+              uploadCompanyData().then((_) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => MainNavigationWrapper(),
+                  ),
+                );
+              });
             }
           },
           style: ElevatedButton.styleFrom(

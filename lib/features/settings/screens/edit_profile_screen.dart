@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,18 +13,17 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   // Controllers pre-filled with User Context
-  late TextEditingController _nameController;
-  late TextEditingController _emailController;
-  late TextEditingController _phoneController;
-  late TextEditingController _locationController;
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
+  final uid = FirebaseAuth.instance.currentUser!.uid;
+  final String email = FirebaseAuth.instance.currentUser!.email!;
 
   @override
   void initState() {
+    loadUserProfile();
     super.initState();
-    _nameController = TextEditingController(text: "Sahil Mishra");
-    _emailController = TextEditingController(text: "sahil@bullxchange.com");
-    _phoneController = TextEditingController(text: "+91 8299217240");
-    _locationController = TextEditingController(text: "India");
   }
 
   @override
@@ -32,6 +33,69 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _phoneController.dispose();
     _locationController.dispose();
     super.dispose();
+  }
+
+  Future<void> loadUserProfile() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(uid)
+          .get();
+
+      if (snapshot.exists) {
+        final data = snapshot.data()!;
+
+        setState(() {
+          _nameController.text = data['name'] ?? '';
+          _emailController.text = email;
+          _phoneController.text = data['phone'] ?? '';
+          _locationController.text = data['location'] ?? '';
+        });
+      }
+    } catch (e) {
+      print(e.toString());
+    }
+  }
+
+  Future<void> updateUserProfile() async {
+    try {
+      // Update user profile in users collection
+      await FirebaseFirestore.instance.collection("users").doc(uid).set({
+        "name": _nameController.text,
+        "email": _emailController.text,
+        "phone": _phoneController.text,
+        "location": _locationController.text,
+        "uid": uid,
+        "updatedAt": Timestamp.now(),
+      }, SetOptions(merge: true));
+
+      // Sync name to companies collection
+      await _syncNameToCompanies();
+    } catch (e) {
+      print(e.toString());
+    }
+  }
+
+  Future<void> _syncNameToCompanies() async {
+    try {
+      final companySnapshot = await FirebaseFirestore.instance
+          .collection("companies")
+          .where("uid", isEqualTo: uid)
+          .limit(1)
+          .get();
+
+      if (companySnapshot.docs.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection("companies")
+            .doc(companySnapshot.docs.first.id)
+            .set({
+              "Owner Name": _nameController.text,
+              "updatedAt": Timestamp.now(),
+            }, SetOptions(merge: true));
+      }
+    } catch (e) {
+      print(e.toString());
+    }
   }
 
   @override
@@ -148,7 +212,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           height: 120,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.1),
+              width: 1,
+            ),
             image: const DecorationImage(
               image: NetworkImage(
                 "https://i.pravatar.cc/150?img=12",
@@ -224,14 +291,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF09090B),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        ),
       ),
       child: SizedBox(
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
           onPressed: () {
-            // Save Logic
+            updateUserProfile();
             Navigator.pop(context);
           },
           style: ElevatedButton.styleFrom(

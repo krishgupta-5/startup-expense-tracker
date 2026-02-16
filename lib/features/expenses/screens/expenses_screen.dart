@@ -18,113 +18,99 @@ class ExpensesScreen extends StatefulWidget {
 class _ExpensesScreenState extends State<ExpensesScreen> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
-      body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
-        child: SafeArea(
-          bottom: false,
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. Header (Minimal Text Only)
-                _buildMinimalHeader(),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Header (Minimal Text Only)
+              _buildMinimalHeader(),
 
-                const SizedBox(height: 32),
+              const SizedBox(height: 32),
 
-                // 2. Metrics (Flat Cards)
-                SizedBox(
-                  height: 130,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    clipBehavior: Clip.none,
-                    children: [
-                      _buildFlatMetric(
-                        "Budget Left",
-                        "\$12,400",
-                        "72%",
-                        const Color(0xFF30D158),
-                      ),
-                      const SizedBox(width: 16),
-                      _buildFlatMetric(
-                        "Spent",
-                        "\$4,850",
-                        "+12%",
-                        Colors.white,
-                      ),
-                      const SizedBox(width: 16),
-                      _buildFlatMetric(
-                        "Avg. Daily",
-                        "\$182",
-                        "-5%",
-                        Colors.grey,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 40),
-
-                // 3. Actions (Outline Style)
-                Text(
-                  "QUICK ACTIONS",
-                  style: GoogleFonts.inter(
-                    color: Colors.white24,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildFlatActionGrid(context),
-
-                const SizedBox(height: 40),
-
-                // 5. Transactions (Clean List)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // 2. Metrics (Flat Cards)
+              SizedBox(
+                height: 130,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  clipBehavior: Clip.none,
                   children: [
-                    Text(
-                      "TRANSACTIONS",
+                    _buildFlatMetric(
+                      "Budget Left",
+                      "\$12,400",
+                      "72%",
+                      const Color(0xFF30D158),
+                    ),
+                    const SizedBox(width: 16),
+                    _buildFlatMetric("Spent", "\$4,850", "+12%", Colors.white),
+                    const SizedBox(width: 16),
+                    _buildFlatMetric("Avg. Daily", "\$182", "-5%", Colors.grey),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 40),
+
+              // 3. Actions (Outline Style)
+              Text(
+                "QUICK ACTIONS",
+                style: GoogleFonts.inter(
+                  color: Colors.white24,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildFlatActionGrid(context),
+
+              const SizedBox(height: 40),
+
+              // 5. Transactions (Clean List)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "TRANSACTIONS",
+                    style: GoogleFonts.inter(
+                      color: Colors.white24,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SearchExpenseScreen(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      "VIEW ALL",
                       style: GoogleFonts.inter(
-                        color: Colors.white24,
+                        color: Colors.white38,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.5,
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SearchExpenseScreen(),
-                          ),
-                        );
-                      },
-                      child: Text(
-                        "VIEW ALL",
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          decoration: TextDecoration.underline,
-                          decorationColor: Colors.white54,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildFlatTransactionList(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildFlatTransactionList(),
 
-                const SizedBox(height: 80), // Bottom padding for navbar
-              ],
-            ),
+              const SizedBox(height: 80), // Bottom padding for navbar
+            ],
           ),
         ),
       ),
