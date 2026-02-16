@@ -1,6 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:startup_expense_tracker/features/settings/screens/edit_profile_screen.dart';
 import 'package:startup_expense_tracker/features/settings/screens/company_details_screen.dart';
 

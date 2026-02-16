@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 // NOTE: Ensure these files exist or comment them out if testing in isolation
-import 'create_team_screen.dart';
 import 'team_detail_screen.dart';
 
 class TeamScreen extends StatefulWidget {
