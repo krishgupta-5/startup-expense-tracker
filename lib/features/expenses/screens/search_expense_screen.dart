@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'expense_details_screen.dart';
 
 class SearchExpenseScreen extends StatefulWidget {
@@ -11,42 +12,45 @@ class SearchExpenseScreen extends StatefulWidget {
 }
 
 class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
-  // 1. FILTER STATE
+  // 1. CONTROLLERS
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
 
-  // 2. FILTER OPTIONS
-  final years = {'2024': '2024', '2023': '2023', '2022': '2022'};
-  final months = {
-    'all': 'All',
-    'jan': 'Jan',
-    'feb': 'Feb',
-    'mar': 'Mar',
-    'apr': 'Apr',
-    'may': 'May',
-    'jun': 'Jun',
-    'jul': 'Jul',
-    'aug': 'Aug',
-    'sep': 'Sep',
-    'oct': 'Oct',
-    'nov': 'Nov',
-    'dec': 'Dec',
-  };
-  final categories = {
-    'all': 'All',
-    'infrastructure': 'Infrastructure',
-    'software': 'Software',
-    'office': 'Office',
-    'marketing': 'Marketing',
-    'meals': 'Meals',
-    'transport': 'Transport',
-  };
-
+  // 2. FILTER STATE
   String _selectedYear = "2024";
-  String _selectedMonth = "nov"; // Default to current month
-  String _selectedCategory = "all";
+  String _selectedMonthKey = "all";
+  String _selectedCategoryKey = "all";
+  String _sortOrder = "newest";
+  DateTime _selectedDate = DateTime.now();
 
-  // 3. MOCK DATA (With formatted dates)
+  // 3. CONSTANTS & MAPPINGS
+  final Map<String, String> _months = {
+    'all': 'All',
+    'Jan': 'Jan',
+    'Feb': 'Feb',
+    'Mar': 'Mar',
+    'Apr': 'Apr',
+    'May': 'May',
+    'Jun': 'Jun',
+    'Jul': 'Jul',
+    'Aug': 'Aug',
+    'Sep': 'Sep',
+    'Oct': 'Oct',
+    'Nov': 'Nov',
+    'Dec': 'Dec',
+  };
+
+  final Map<String, String> _categories = {
+    'all': 'All',
+    'Infrastructure': 'Infrastructure',
+    'Software': 'Software',
+    'Office': 'Office',
+    'Marketing': 'Marketing',
+    'Meals': 'Meals',
+    'Transport': 'Transport',
+  };
+
+  // 4. MOCK DATA
   final List<Map<String, dynamic>> _allTransactions = [
     {
       "title": "AWS Server",
@@ -95,143 +99,142 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
       "cat": "Infrastructure",
       "amt": "2200.00",
       "date": "Nov 15, 2023",
-    }, // Old year
+    },
   ];
 
-  // 4. FILTER LOGIC
-  List<Map<String, dynamic>> get _filteredTransactions {
-    return _allTransactions.where((tx) {
-      final dateStr = tx["date"] as String; // e.g., "Nov 24, 2024"
+  // 5. HELPER: Parse "Nov 24, 2024" to DateTime
+  DateTime? _parseDate(String dateStr) {
+    try {
+      final parts = dateStr.replaceAll(',', '').split(' ');
+      if (parts.length != 3) return null;
 
-      // Text Search
+      final monthStr = parts[0];
+      final day = int.parse(parts[1]);
+      final year = int.parse(parts[2]);
+
+      final monthMap = {
+        'Jan': 1,
+        'Feb': 2,
+        'Mar': 3,
+        'Apr': 4,
+        'May': 5,
+        'Jun': 6,
+        'Jul': 7,
+        'Aug': 8,
+        'Sep': 9,
+        'Oct': 10,
+        'Nov': 11,
+        'Dec': 12,
+      };
+
+      final month = monthMap[monthStr] ?? 1;
+      return DateTime(year, month, day);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 6. FILTER LOGIC
+  List<Map<String, dynamic>> get _filteredTransactions {
+    // A. FILTER
+    final filtered = _allTransactions.where((tx) {
+      final txDate = _parseDate(tx["date"]);
+      if (txDate == null) return false;
+
+      // 1. Search Query
       final matchesQuery = tx["title"].toString().toLowerCase().contains(
         _searchQuery.toLowerCase(),
       );
 
-      // Category Filter
-      final matchesCategory =
-          _selectedCategory == "all" ||
-          tx["cat"] == categories[_selectedCategory];
+      // 2. Category Filter (Always applies)
+      bool matchesCategory = true;
+      if (_selectedCategoryKey != 'all') {
+        matchesCategory = tx["cat"] == _categories[_selectedCategoryKey];
+      }
 
-      // Year Filter
-      final matchesYear = dateStr.contains(_selectedYear);
+      // 3. Date Logic (Month/Year only)
+      final matchesYear = txDate.year.toString() == _selectedYear;
 
-      // Month Filter - Convert month key to full name for comparison
-      final monthName = _selectedMonth == "all" ? "" : months[_selectedMonth];
-      final matchesMonth =
-          _selectedMonth == "all" || dateStr.startsWith(monthName ?? "");
+      bool matchesMonth = true;
+      if (_selectedMonthKey != 'all') {
+        final dataMonth = tx["date"].toString().split(' ')[0];
+        matchesMonth =
+            dataMonth.toLowerCase() == _selectedMonthKey.toLowerCase();
+      }
+      final matchesDateLogic = matchesYear && matchesMonth;
 
-      return matchesQuery && matchesCategory && matchesYear && matchesMonth;
+      return matchesQuery && matchesCategory && matchesDateLogic;
     }).toList();
+
+    // B. SORT
+    filtered.sort((a, b) {
+      final dateA = _parseDate(a["date"]) ?? DateTime.now();
+      final dateB = _parseDate(b["date"]) ?? DateTime.now();
+      if (_sortOrder == 'newest') {
+        return dateB.compareTo(dateA);
+      } else {
+        return dateA.compareTo(dateB);
+      }
+    });
+
+    return filtered;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: const Color(0xFF09090B),
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: SafeArea(
           child: Column(
             children: [
               // --- HEADER & SEARCH ---
-              Container(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "Filter Expenses",
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF141416),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.04),
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Search Bar
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF141416),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.04),
-                        ),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 15,
-                        ),
-                        cursorColor: const Color(0xFF30D158),
-                        decoration: InputDecoration(
-                          hintText: "Search title...",
-                          hintStyle: GoogleFonts.inter(color: Colors.white24),
-                          border: InputBorder.none,
-                          icon: const Icon(
-                            Icons.search,
-                            color: Colors.white38,
-                            size: 20,
-                          ),
-                        ),
-                        onChanged: (val) => setState(() => _searchQuery = val),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildHeader(),
 
               const SizedBox(height: 24),
 
-              // --- FILTERS SECTION ---
-              SizedBox(
-                height: 40,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  children: [
-                    // YEAR SELECTOR
-                    _buildDropdownTrigger(
-                      label: "Year: ${years[_selectedYear]}",
-                      onTap: () => _showBottomSheet(years.keys.toList(), (val) {
-                        setState(() => _selectedYear = val);
-                      }),
-                    ),
-                    const SizedBox(width: 12),
+              // --- FILTERS ---
 
-                    // MONTH SELECTOR
-                    _buildHorizontalSelector(
-                      months.keys.toList(),
-                      _selectedMonth,
-                      (val) {
-                        setState(() => _selectedMonth = val);
-                      },
+              // 1. TOP ROW: Year/Date Controls + Sort
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    // Year Dropdown
+                    _buildDropdownTrigger(
+                      label: "Year: $_selectedYear",
+                      onTap: () => _showYearSelector(),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Date Picker Button (ShadCN Calendar)
+                    GestureDetector(
+                      onTap: () => _showDatePicker(),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141416),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.1),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.calendar_month,
+                          color: Colors.white54,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    // Sort Dropdown (Always visible)
+                    _buildDropdownTrigger(
+                      label: _sortOrder == 'newest' ? "Newest" : "Oldest",
+                      onTap: () => _showSortSelector(),
+                      icon: Icons.sort,
                     ),
                   ],
                 ),
@@ -239,20 +242,70 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
 
               const SizedBox(height: 16),
 
-              // CATEGORY CHIPS
+              // 2. MONTH ROW
               SizedBox(
                 height: 36,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 24),
-                  itemCount: categories.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 8),
+                  itemCount: _months.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (context, index) {
-                    final cat = categories.keys.toList()[index];
-                    final isSelected = _selectedCategory == cat;
+                    final key = _months.keys.elementAt(index);
+                    final label = _months[key]!;
+                    final isSelected =
+                        _selectedMonthKey.toLowerCase() == key.toLowerCase();
+
                     return GestureDetector(
-                      onTap: () => setState(() => _selectedCategory = cat),
+                      onTap: () => setState(() => _selectedMonthKey = key),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF30D158).withValues(alpha: 0.15)
+                              : const Color(0xFF141416),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF30D158)
+                                : Colors.white.withValues(alpha: 0.04),
+                          ),
+                        ),
+                        child: Text(
+                          label,
+                          style: GoogleFonts.inter(
+                            color: isSelected
+                                ? const Color(0xFF30D158)
+                                : Colors.white54,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 3. CATEGORY ROW
+              SizedBox(
+                height: 36,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  itemCount: _categories.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final key = _categories.keys.elementAt(index);
+                    final label = _categories[key]!;
+                    final isSelected = _selectedCategoryKey == key;
+
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedCategoryKey = key),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -270,7 +323,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                           ),
                         ),
                         child: Text(
-                          categories[cat]!,
+                          label,
                           style: GoogleFonts.inter(
                             color: isSelected ? Colors.black : Colors.white54,
                             fontSize: 12,
@@ -307,11 +360,71 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     );
   }
 
-  // --- WIDGETS ---
+  // --- WIDGET HELPERS ---
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Filter Expenses",
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141416),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.04),
+                    ),
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white, size: 20),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141416),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            ),
+            child: TextField(
+              controller: _searchController,
+              style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+              cursorColor: const Color(0xFF30D158),
+              decoration: InputDecoration(
+                hintText: "Search title...",
+                hintStyle: GoogleFonts.inter(color: Colors.white24),
+                border: InputBorder.none,
+                icon: const Icon(Icons.search, color: Colors.white38, size: 20),
+              ),
+              onChanged: (val) => setState(() => _searchQuery = val),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildDropdownTrigger({
     required String label,
     required VoidCallback onTap,
+    IconData icon = Icons.keyboard_arrow_down,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -333,63 +446,10 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               ),
             ),
             const SizedBox(width: 6),
-            const Icon(
-              Icons.keyboard_arrow_down,
-              color: Colors.white54,
-              size: 16,
-            ),
+            Icon(icon, color: Colors.white54, size: 16),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildHorizontalSelector(
-    List<String> items,
-    String selected,
-    Function(String) onSelect,
-  ) {
-    return ListView.separated(
-      scrollDirection: Axis.horizontal,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: items.length,
-      separatorBuilder: (context, index) => const SizedBox(width: 8),
-      itemBuilder: (context, index) {
-        // Only showing first 4 months for demo space in horizontal list logic
-        // In real app, remove shrinkWrap/physics to scroll all months
-        if (index > 4 && selected != items[index]) {
-          return const SizedBox.shrink();
-        }
-
-        final item = items[index];
-        final isSelected = selected == item;
-        return GestureDetector(
-          onTap: () => onSelect(item),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? const Color(0xFF30D158).withValues(alpha: 0.15)
-                  : const Color(0xFF141416),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isSelected
-                    ? const Color(0xFF30D158)
-                    : Colors.white.withValues(alpha: 0.04),
-              ),
-            ),
-            child: Text(
-              months[item]!,
-              style: GoogleFonts.inter(
-                color: isSelected ? const Color(0xFF30D158) : Colors.white54,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 
@@ -416,7 +476,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               child: const Icon(Icons.receipt, color: Colors.white38, size: 20),
             ),
             const SizedBox(width: 16),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -441,7 +500,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                 ],
               ),
             ),
-
             Text(
               "-\$${tx["amt"]}",
               style: GoogleFonts.inter(
@@ -462,7 +520,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.filter_list_off, color: Colors.white12, size: 48),
+          const Icon(Icons.filter_list_off, color: Colors.white12, size: 48),
           const SizedBox(height: 16),
           Text(
             "No expenses found",
@@ -473,31 +531,220 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     );
   }
 
-  void _showBottomSheet(List<String> items, Function(String) onSelect) {
-    showModalBottomSheet(
+  void _showDatePicker() {
+    showDialog(
       context: context,
-      backgroundColor: const Color(0xFF141416),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return ListView.builder(
-          shrinkWrap: true,
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          itemCount: items.length,
-          itemBuilder: (context, index) {
-            return ListTile(
-              title: Text(
-                items[index],
-                style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-              onTap: () {
-                onSelect(items[index]);
-                Navigator.pop(context);
-              },
-            );
-          },
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF09090B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Select Date",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Colors.white38),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                ShadCalendar(
+                  selected: _selectedDate,
+                  fromMonth: DateTime(_selectedDate.year - 1),
+                  toMonth: DateTime(_selectedDate.year + 1, 12),
+                  onChanged: (DateTime? date) {
+                    if (date != null) {
+                      setState(() {
+                        _selectedDate = date;
+                        // Update year and month based on selected date
+                        _selectedYear = date.year.toString();
+                        _selectedMonthKey = _months.keys.elementAt(
+                          date.month - 1,
+                        );
+                      });
+                      Navigator.pop(context);
+                    }
+                  },
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showYearSelector() {
+    final years = ['2025', '2024', '2023', '2022'];
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF09090B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Select Year",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Colors.white38),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                ...years.map(
+                  (year) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() => _selectedYear = year);
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _selectedYear == year
+                              ? const Color(0xFF30D158).withValues(alpha: 0.15)
+                              : const Color(0xFF141416),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _selectedYear == year
+                                ? const Color(0xFF30D158)
+                                : Colors.white.withValues(alpha: 0.04),
+                          ),
+                        ),
+                        child: Text(
+                          year,
+                          style: GoogleFonts.inter(
+                            color: _selectedYear == year
+                                ? const Color(0xFF30D158)
+                                : Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSortSelector() {
+    final sortOptions = ['Newest', 'Oldest'];
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF09090B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Sort Order",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: Colors.white38),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                ...sortOptions.map(
+                  (option) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() => _sortOrder = option.toLowerCase());
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _sortOrder == option.toLowerCase()
+                              ? const Color(0xFF30D158).withValues(alpha: 0.15)
+                              : const Color(0xFF141416),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _sortOrder == option.toLowerCase()
+                                ? const Color(0xFF30D158)
+                                : Colors.white.withValues(alpha: 0.04),
+                          ),
+                        ),
+                        child: Text(
+                          option,
+                          style: GoogleFonts.inter(
+                            color: _sortOrder == option.toLowerCase()
+                                ? const Color(0xFF30D158)
+                                : Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
