@@ -54,109 +54,107 @@ class _AiScreenState extends State<AiScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
-      body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              _buildHeader(context),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            _buildHeader(context),
 
-              // Content
-              Expanded(
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: (scrollInfo) {
-                    if (scrollInfo.metrics.pixels > 200) {
-                      _loadSection('runway');
-                      _loadSection('investment');
-                    }
-                    if (scrollInfo.metrics.pixels > 600) {
-                      _loadSection('burn');
-                      _loadSection('staffing');
-                    }
-                    if (scrollInfo.metrics.pixels > 1000) {
-                      _loadSection('performance');
-                      _loadSection('team');
-                    }
-                    if (scrollInfo.metrics.pixels > 1400) {
-                      _loadSection('expense');
-                      _loadSection('subscription');
-                    }
-                    return false;
-                  },
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 16,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Main Insight Card
-                        _buildMainInsightCard(),
+            // Content
+            Expanded(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (scrollInfo) {
+                  if (scrollInfo.metrics.pixels > 200) {
+                    _loadSection('runway');
+                    _loadSection('investment');
+                  }
+                  if (scrollInfo.metrics.pixels > 600) {
+                    _loadSection('burn');
+                    _loadSection('staffing');
+                  }
+                  if (scrollInfo.metrics.pixels > 1000) {
+                    _loadSection('performance');
+                    _loadSection('team');
+                  }
+                  if (scrollInfo.metrics.pixels > 1400) {
+                    _loadSection('expense');
+                    _loadSection('subscription');
+                  }
+                  return false;
+                },
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Main Insight Card
+                      _buildMainInsightCard(),
 
-                        const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                        // Key Points
+                      // Key Points
+                      if (_sectionLoadStates['keyPoints']!)
                         _buildKeyPointsSection(),
 
-                        const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                        // Runway Recommendations
-                        if (_sectionLoadStates['runway']!)
-                          _buildRunwayRecommendationsSection(),
+                      // Runway Recommendations
+                      if (_sectionLoadStates['runway']!)
+                        _buildRunwayRecommendationsSection(),
 
-                        const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                        // Investment Insights
-                        if (_sectionLoadStates['investment']!)
-                          _buildInvestmentInsightsSection(),
+                      // Investment Insights
+                      if (_sectionLoadStates['investment']!)
+                        _buildInvestmentInsightsSection(),
 
-                        const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                        // Burn Optimization
-                        if (_sectionLoadStates['burn']!)
-                          _buildBurnOptimizationSection(),
+                      // Burn Optimization
+                      if (_sectionLoadStates['burn']!)
+                        _buildBurnOptimizationSection(),
 
-                        const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                        // Staffing Insights
-                        if (_sectionLoadStates['staffing']!)
-                          _buildStaffingInsightsSection(),
+                      // Staffing Insights
+                      if (_sectionLoadStates['staffing']!)
+                        _buildStaffingInsightsSection(),
 
-                        const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                        // Performance Analysis
-                        if (_sectionLoadStates['performance']!)
-                          _buildPerformanceAnalysisSection(),
+                      // Performance Analysis
+                      if (_sectionLoadStates['performance']!)
+                        _buildPerformanceAnalysisSection(),
 
-                        const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                        // Team Efficiency
-                        if (_sectionLoadStates['team']!)
-                          _buildTeamEfficiencySection(),
+                      // Team Efficiency
+                      if (_sectionLoadStates['team']!)
+                        _buildTeamEfficiencySection(),
 
-                        const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                        // Expense Analysis
-                        if (_sectionLoadStates['expense']!)
-                          _buildExpenseAnalysisSection(),
+                      // Expense Analysis
+                      if (_sectionLoadStates['expense']!)
+                        _buildExpenseAnalysisSection(),
 
-                        const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                        // Subscription Insights
-                        if (_sectionLoadStates['subscription']!)
-                          _buildSubscriptionInsightsSection(),
-                      ],
-                    ),
+                      // Subscription Insights
+                      if (_sectionLoadStates['subscription']!)
+                        _buildSubscriptionInsightsSection(),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

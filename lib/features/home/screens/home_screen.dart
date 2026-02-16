@@ -19,124 +19,121 @@ class HomeScreen extends StatelessWidget {
     // Defines the overall app health
     const HealthStatus currentHealth = HealthStatus.safe;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
-      body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
-        child: SafeArea(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. Header (Minimal)
-                _buildMinimalHeader(context),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Header (Minimal)
+              _buildMinimalHeader(context),
 
-                const SizedBox(height: 32),
+              const SizedBox(height: 32),
 
-                // 2. Hero Card (Runway) - Flat Style
-                GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const RunwayEstimationScreen(),
-                      ),
-                    );
-                  },
-                  child: _buildFlatRunwayCard(currentHealth),
-                ),
+              // 2. Hero Card (Runway) - Flat Style
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RunwayEstimationScreen(),
+                    ),
+                  );
+                },
+                child: _buildFlatRunwayCard(currentHealth),
+              ),
 
-                const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-                // 3. Metrics Grid (Funds & Burn) - Flat Style
-                Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const FundsOverviewScreen(),
-                            ),
-                          );
-                        },
-                        child: _buildFlatMetricCard(
-                          label: "Total Funds",
-                          value: "\$482k",
-                          icon: Icons.account_balance_wallet_outlined,
-                        ),
+              // 3. Metrics Grid (Funds & Burn) - Flat Style
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const FundsOverviewScreen(),
+                          ),
+                        );
+                      },
+                      child: _buildFlatMetricCard(
+                        label: "Total Funds",
+                        value: "\$482k",
+                        icon: Icons.account_balance_wallet_outlined,
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const MonthlyBurnScreen(),
-                            ),
-                          );
-                        },
-                        child: _buildFlatMetricCard(
-                          label: "Monthly Burn",
-                          value: "\$42.5k",
-                          icon: Icons.local_fire_department_outlined,
-                          isBurn: true,
-                        ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const MonthlyBurnScreen(),
+                          ),
+                        );
+                      },
+                      child: _buildFlatMetricCard(
+                        label: "Monthly Burn",
+                        value: "\$42.5k",
+                        icon: Icons.local_fire_department_outlined,
+                        isBurn: true,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
+              ),
 
-                const SizedBox(height: 32),
+              const SizedBox(height: 32),
 
-                // 4. Trend Chart (Corrected to show Bars)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildSectionTitle("Burn Trend"),
-                    _buildViewAllButton(context),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                GestureDetector(
-                  // Drills down to Monthly Burn Screen for more detail
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const MonthlyBurnScreen(),
-                      ),
-                    );
-                  },
-                  child: _buildTrendChart(),
-                ),
+              // 4. Trend Chart (Corrected to show Bars)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildSectionTitle("Burn Trend"),
+                  _buildViewAllButton(context),
+                ],
+              ),
+              const SizedBox(height: 20),
+              GestureDetector(
+                // Drills down to Monthly Burn Screen for more detail
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MonthlyBurnScreen(),
+                    ),
+                  );
+                },
+                child: _buildTrendChart(),
+              ),
 
-                const SizedBox(height: 40),
+              const SizedBox(height: 40),
 
-                // 6. Breakdown (Pie Chart)
-                _buildSectionTitle("Expense Breakdown"),
-                const SizedBox(height: 20),
-                GestureDetector(
-                  // Drills down to Monthly Burn Screen for more detail
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const MonthlyBurnScreen(),
-                      ),
-                    );
-                  },
-                  child: _buildPieChartBreakdown(),
-                ),
+              // 6. Breakdown (Pie Chart)
+              _buildSectionTitle("Expense Breakdown"),
+              const SizedBox(height: 20),
+              GestureDetector(
+                // Drills down to Monthly Burn Screen for more detail
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MonthlyBurnScreen(),
+                    ),
+                  );
+                },
+                child: _buildPieChartBreakdown(),
+              ),
 
-                const SizedBox(height: 40),
-              ],
-            ),
+              const SizedBox(height: 40),
+            ],
           ),
         ),
       ),

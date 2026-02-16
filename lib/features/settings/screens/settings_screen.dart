@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -343,7 +344,7 @@ class SettingsScreen extends StatelessWidget {
       height: 56,
       child: ElevatedButton(
         onPressed: () {
-          // Logout Logic
+          FirebaseAuth.instance.signOut();
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF1F1F22),
@@ -353,7 +354,9 @@ class SettingsScreen extends StatelessWidget {
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: const Color(0xFFFF453A).withValues(alpha: 0.1)),
+            side: BorderSide(
+              color: const Color(0xFFFF453A).withValues(alpha: 0.1),
+            ),
           ),
         ),
         child: Text(

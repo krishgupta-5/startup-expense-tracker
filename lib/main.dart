@@ -1,10 +1,16 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:startup_expense_tracker/features/auth/screen/signup.dart';
+import 'package:startup_expense_tracker/features/navigation/screens/main_navigation_wrapper.dart';
+import 'package:startup_expense_tracker/firebase_options.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const FinancialDashboardApp());
 }
 
@@ -31,7 +37,18 @@ class FinancialDashboardApp extends StatelessWidget {
           useMaterial3: true,
           iconTheme: const IconThemeData(color: Colors.white),
         ),
-        home: const SignUpScreen(),
+        home: StreamBuilder(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.data != null) {
+              return const MainNavigationWrapper();
+            }
+            return const SignUpScreen();
+          },
+        ),
       ),
     );
   }

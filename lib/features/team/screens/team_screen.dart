@@ -141,66 +141,46 @@ class _TeamScreenState extends State<TeamScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
-      body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
-        child: SafeArea(
-          bottom: false,
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. Header with Search
-                _buildHeader(),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. Header with Search
+              _buildHeader(),
 
-                const SizedBox(height: 32),
+              const SizedBox(height: 32),
 
-                // 3. Section Title & Filter Component
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildSectionTitle(
-                      _isSearching ? "SEARCH RESULTS" : "YOUR TEAMS",
-                    ),
-                  ],
-                ),
+              // 3. Section Title & Filter Component
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildSectionTitle(
+                    _isSearching ? "SEARCH RESULTS" : "YOUR TEAMS",
+                  ),
+                ],
+              ),
 
-                const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-                // 4. NEW: Horizontal Filter Component (Chips)
-                if (!_isSearching) _buildFilterChips(),
+              // 4. NEW: Horizontal Filter Component (Chips)
+              if (!_isSearching) _buildFilterChips(),
 
-                if (!_isSearching) const SizedBox(height: 24),
+              if (!_isSearching) const SizedBox(height: 24),
 
-                // 5. Teams List
-                _filteredTeams.isEmpty
-                    ? _buildEmptyState()
-                    : _buildTeamsList(context),
+              // 5. Teams List
+              _filteredTeams.isEmpty
+                  ? _buildEmptyState()
+                  : _buildTeamsList(context),
 
-                const SizedBox(height: 80), // Bottom padding
-              ],
-            ),
+              const SizedBox(height: 80), // Bottom padding
+            ],
           ),
-        ),
-      ),
-      // Quick Action Button
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CreateTeamScreen()),
-          );
-        },
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        icon: const Icon(Icons.add),
-        label: Text(
-          "New Team",
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold),
         ),
       ),
     );

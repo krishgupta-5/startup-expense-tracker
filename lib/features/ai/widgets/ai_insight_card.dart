@@ -46,7 +46,7 @@ class AiInsightCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          ...items.map((item) => _buildInsightItem(item)).toList(),
+          ...items.map((item) => _buildInsightItem(item)),
         ],
       ),
     );
