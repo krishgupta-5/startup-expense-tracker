@@ -14,7 +14,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
   late TextEditingController _nameController;
   late TextEditingController _budgetController;
   late TextEditingController _descController;
-  
+
   String _selectedColor = "Blue";
   IconData _selectedIcon = Icons.code;
 
@@ -41,7 +41,10 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     super.initState();
     _nameController = TextEditingController(text: "Engineering");
     _budgetController = TextEditingController(text: "50,000");
-    _descController = TextEditingController(text: "Responsible for core platform development and infrastructure maintenance.");
+    _descController = TextEditingController(
+      text:
+          "Responsible for core platform development and infrastructure maintenance.",
+    );
   }
 
   @override
@@ -104,15 +107,15 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
-                      // ---------------------------
 
+                      // ---------------------------
                       const SizedBox(height: 40),
 
                       // --- BUDGET SETTINGS ---
                       _buildSectionLabel("FINANCIALS"),
                       const SizedBox(height: 16),
                       _buildBudgetInput(),
-                      
+
                       const SizedBox(height: 32),
 
                       // --- DESCRIPTION ---
@@ -128,27 +131,36 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
                         decoration: BoxDecoration(
                           color: const Color(0xFF141416),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.04),
+                          ),
                         ),
                         child: Column(
                           children: [
                             // Color Picker
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: _colors.map((c) => _buildColorOption(c)).toList(),
+                              children: _colors
+                                  .map((c) => _buildColorOption(c))
+                                  .toList(),
                             ),
                             const SizedBox(height: 24),
-                            Divider(color: Colors.white.withValues(alpha: 0.04), height: 1),
+                            Divider(
+                              color: Colors.white.withValues(alpha: 0.04),
+                              height: 1,
+                            ),
                             const SizedBox(height: 24),
                             // Icon Picker
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: _icons.map((i) => _buildIconOption(i)).toList(),
+                              children: _icons
+                                  .map((i) => _buildIconOption(i))
+                                  .toList(),
                             ),
                           ],
                         ),
                       ),
-                      
+
                       const SizedBox(height: 48),
 
                       // --- DANGER ZONE ---
@@ -220,7 +232,11 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
               color: const Color(0xFF30D158).withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.attach_money, color: Color(0xFF30D158), size: 20),
+            child: const Icon(
+              Icons.attach_money,
+              color: Color(0xFF30D158),
+              size: 20,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -238,13 +254,20 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
                 TextField(
                   controller: _budgetController,
                   keyboardType: TextInputType.number,
-                  style: GoogleFonts.inter(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                   decoration: InputDecoration(
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 4),
                     suffixText: "USD",
-                    suffixStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
+                    suffixStyle: GoogleFonts.inter(
+                      color: Colors.white38,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
@@ -296,7 +319,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.2),
           shape: BoxShape.circle,
-          border: isSelected 
+          border: isSelected
               ? Border.all(color: color, width: 2)
               : Border.all(color: Colors.transparent),
         ),
@@ -304,10 +327,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
           child: Container(
             width: 16,
             height: 16,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
         ),
       ),
@@ -316,7 +336,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
 
   Widget _buildIconOption(IconData icon) {
     final bool isSelected = _selectedIcon == icon;
-    
+
     return GestureDetector(
       onTap: () => setState(() => _selectedIcon = icon),
       child: Container(
@@ -325,13 +345,13 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
         decoration: BoxDecoration(
           color: isSelected ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
-          border: isSelected 
+          border: isSelected
               ? null
               : Border.all(color: Colors.white.withValues(alpha: 0.1)),
         ),
         child: Icon(
-          icon, 
-          color: isSelected ? Colors.black : Colors.white54, 
+          icon,
+          color: isSelected ? Colors.black : Colors.white54,
           size: 20,
         ),
       ),
@@ -350,7 +370,9 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
           decoration: BoxDecoration(
             color: const Color(0xFFFF453A).withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFFF453A).withValues(alpha: 0.2)),
+            border: Border.all(
+              color: const Color(0xFFFF453A).withValues(alpha: 0.2),
+            ),
           ),
           child: Row(
             children: [
@@ -360,7 +382,11 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
                   color: const Color(0xFFFF453A).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF453A), size: 20),
+                child: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Color(0xFFFF453A),
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -396,7 +422,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              )
+              ),
             ],
           ),
         ),
@@ -421,7 +447,9 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF09090B),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        ),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -441,10 +469,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
           ),
           child: Text(
             "Save Changes",
-            style: GoogleFonts.inter(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-            ),
+            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
           ),
         ),
       ),

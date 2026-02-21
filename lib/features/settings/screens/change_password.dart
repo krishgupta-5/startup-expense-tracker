@@ -47,10 +47,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       _buildLabel("CURRENT PASSWORD"),
                       const SizedBox(height: 8),
                       _buildPasswordField(
-                        controller: _oldPassController, 
+                        controller: _oldPassController,
                         hint: "Enter current password",
                         obscureText: _obscureOld,
-                        onToggle: () => setState(() => _obscureOld = !_obscureOld),
+                        onToggle: () =>
+                            setState(() => _obscureOld = !_obscureOld),
                       ),
 
                       const SizedBox(height: 32),
@@ -59,10 +60,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       _buildLabel("NEW PASSWORD"),
                       const SizedBox(height: 8),
                       _buildPasswordField(
-                        controller: _newPassController, 
+                        controller: _newPassController,
                         hint: "Enter new password",
                         obscureText: _obscureNew,
-                        onToggle: () => setState(() => _obscureNew = !_obscureNew),
+                        onToggle: () =>
+                            setState(() => _obscureNew = !_obscureNew),
                       ),
 
                       const SizedBox(height: 24),
@@ -71,10 +73,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       _buildLabel("CONFIRM NEW PASSWORD"),
                       const SizedBox(height: 8),
                       _buildPasswordField(
-                        controller: _confirmPassController, 
+                        controller: _confirmPassController,
                         hint: "Re-enter new password",
                         obscureText: _obscureConfirm,
-                        onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                        onToggle: () =>
+                            setState(() => _obscureConfirm = !_obscureConfirm),
                       ),
 
                       const SizedBox(height: 40),
@@ -114,7 +117,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
               ),
-              child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+              child: const Icon(
+                Icons.arrow_back,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
           ),
           Text(
@@ -168,7 +175,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           icon: const Icon(Icons.lock_outline, color: Colors.white38, size: 20),
           suffixIcon: IconButton(
             icon: Icon(
-              obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+              obscureText
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
               color: Colors.white38,
               size: 20,
             ),
@@ -238,7 +247,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF09090B),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        ),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -267,10 +278,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           ),
           child: Text(
             "Update Password",
-            style: GoogleFonts.inter(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-            ),
+            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
           ),
         ),
       ),

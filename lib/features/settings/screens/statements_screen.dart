@@ -114,7 +114,11 @@ class _StatementsScreenState extends State<StatementsScreen> {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
               ),
-              child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+              child: const Icon(
+                Icons.arrow_back,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
           ),
           Text(
@@ -146,7 +150,12 @@ class _StatementsScreenState extends State<StatementsScreen> {
     );
   }
 
-  Widget _buildStatementCard(String title, String period, String description, IconData icon) {
+  Widget _buildStatementCard(
+    String title,
+    String period,
+    String description,
+    IconData icon,
+  ) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -196,17 +205,18 @@ class _StatementsScreenState extends State<StatementsScreen> {
                   color: Colors.white.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.download, color: Colors.white, size: 18),
+                child: const Icon(
+                  Icons.download,
+                  color: Colors.white,
+                  size: 18,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             description,
-            style: GoogleFonts.inter(
-              color: Colors.white54,
-              fontSize: 13,
-            ),
+            style: GoogleFonts.inter(color: Colors.white54, fontSize: 13),
           ),
         ],
       ),
@@ -235,17 +245,11 @@ class _StatementsScreenState extends State<StatementsScreen> {
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(
-                child: _buildExportButton("PDF", Icons.picture_as_pdf),
-              ),
+              Expanded(child: _buildExportButton("PDF", Icons.picture_as_pdf)),
               const SizedBox(width: 12),
-              Expanded(
-                child: _buildExportButton("Excel", Icons.table_chart),
-              ),
+              Expanded(child: _buildExportButton("Excel", Icons.table_chart)),
               const SizedBox(width: 12),
-              Expanded(
-                child: _buildExportButton("CSV", Icons.list_alt),
-              ),
+              Expanded(child: _buildExportButton("CSV", Icons.list_alt)),
             ],
           ),
         ],
@@ -323,18 +327,12 @@ class _StatementsScreenState extends State<StatementsScreen> {
           Expanded(
             child: Text(
               title,
-              style: GoogleFonts.inter(
-                color: Colors.white70,
-                fontSize: 13,
-              ),
+              style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
             ),
           ),
           Text(
             time,
-            style: GoogleFonts.inter(
-              color: Colors.white24,
-              fontSize: 11,
-            ),
+            style: GoogleFonts.inter(color: Colors.white24, fontSize: 11),
           ),
         ],
       ),

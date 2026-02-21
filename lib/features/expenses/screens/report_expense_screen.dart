@@ -277,7 +277,9 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                           ? const Color(0xFF0A84FF)
                           : const Color(0xFF141416),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
                     ),
                     child: Text(
                       category,

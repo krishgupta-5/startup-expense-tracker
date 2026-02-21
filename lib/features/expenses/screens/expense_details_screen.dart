@@ -1,25 +1,98 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:uuid/uuid.dart';
 import 'edit_expense_screen.dart';
 
 class ExpenseDetailsScreen extends StatelessWidget {
-  final Map<String, dynamic> expense = const {
-    "title": "AWS Server Bill",
-    "amount": "240.00",
-    "date": "Nov 24, 2024",
-    "time": "10:42 AM",
-    "category": "Infrastructure",
-    "type": "Recurring",
-    "notes":
-        "Monthly server costs for the production environment. Includes S3 and EC2 instances.",
-    "user": "https://i.pravatar.cc/150?img=68",
-  };
+  final String expenseId;
+  final Map<String, dynamic> expenseData;
 
-  const ExpenseDetailsScreen({super.key});
+  const ExpenseDetailsScreen({
+    super.key,
+    required this.expenseId,
+    required this.expenseData,
+  });
 
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('expenses')
+          .doc(expenseId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            backgroundColor: const Color(0xFF09090B),
+            body: Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Scaffold(
+            backgroundColor: const Color(0xFF09090B),
+            body: Center(
+              child: Text(
+                'Error loading expense details',
+                style: GoogleFonts.inter(color: Colors.white),
+              ),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return Scaffold(
+            backgroundColor: const Color(0xFF09090B),
+            body: Center(
+              child: Text(
+                'Expense not found',
+                style: GoogleFonts.inter(color: Colors.white),
+              ),
+            ),
+          );
+        }
+
+        final updatedExpenseData =
+            snapshot.data!.data() as Map<String, dynamic>;
+        return _buildExpenseDetails(context, updatedExpenseData);
+      },
+    );
+  }
+
+  Widget _buildExpenseDetails(
+    BuildContext context,
+    Map<String, dynamic> expenseData,
+  ) {
+    // Safely extract data from Firebase
+    final title = expenseData['Title'] ?? 'Unnamed Expense';
+    final amount = expenseData['Amount']?.toString() ?? '0.00';
+    final rawCategory = expenseData['Category']?.toString() ?? 'General';
+    final category = rawCategory.toUpperCase();
+    final rawType = expenseData['Type']?.toString() ?? 'one_time';
+    final type = _formatType(rawType);
+    final notes = expenseData['Description'] ?? 'No notes provided.';
+
+    // Format Date and Time
+    String dateStr = 'Unknown Date';
+    String timeStr = '--:--';
+    if (expenseData['Date'] is Timestamp) {
+      final DateTime date = (expenseData['Date'] as Timestamp).toDate();
+      dateStr = "${date.day}/${date.month}/${date.year}";
+    }
+    if (expenseData['Time'] is Timestamp) {
+      final DateTime time = (expenseData['Time'] as Timestamp).toDate();
+      // Simple 24h time formatting
+      timeStr =
+          "${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}";
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF09090B), // Deep Matte Black
       body: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -44,10 +117,10 @@ class ExpenseDetailsScreen extends StatelessWidget {
                       Center(
                         child: Column(
                           children: [
-                            _buildCategoryBadge(expense['category']),
+                            _buildCategoryBadge(category),
                             const SizedBox(height: 24),
                             Text(
-                              "-\$${expense['amount']}",
+                              "₹$amount",
                               style: GoogleFonts.inter(
                                 color: Colors.white,
                                 fontSize: 48,
@@ -57,7 +130,7 @@ class ExpenseDetailsScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              expense['title'],
+                              title,
                               style: GoogleFonts.inter(
                                 color: Colors.white54,
                                 fontSize: 16,
@@ -84,13 +157,17 @@ class ExpenseDetailsScreen extends StatelessWidget {
                         ),
                         child: Column(
                           children: [
-                            _buildDetailRow("Date", expense['date']),
+                            _buildDetailRow("Date", dateStr),
                             _buildDivider(),
-                            _buildDetailRow("Time", expense['time']),
+                            _buildDetailRow("Time", timeStr),
                             _buildDivider(),
-                            _buildDetailRow("Type", expense['type']),
+                            _buildDetailRow("Type", type),
                             _buildDivider(),
-                            _buildTeamRow("Linked Member", expense['user']),
+                            // Placeholder for linked member since we haven't added users yet
+                            _buildTeamRow(
+                              "Linked Member",
+                              "https://i.pravatar.cc/150?img=68",
+                            ),
                           ],
                         ),
                       ),
@@ -101,7 +178,7 @@ class ExpenseDetailsScreen extends StatelessWidget {
                       _buildSectionTitle("NOTES"),
                       const SizedBox(height: 12),
                       Text(
-                        expense['notes'],
+                        notes,
                         style: GoogleFonts.inter(
                           color: Colors.white70,
                           fontSize: 15,
@@ -111,7 +188,7 @@ class ExpenseDetailsScreen extends StatelessWidget {
 
                       const SizedBox(height: 32),
 
-                      // Attachment
+                      // Attachment (Placeholder for now)
                       _buildSectionTitle("ATTACHMENT"),
                       const SizedBox(height: 12),
                       _buildAttachmentPreview(),
@@ -126,6 +203,77 @@ class ExpenseDetailsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // Helper method to format types like 'one_time' to 'One Time'
+  String _formatType(String raw) {
+    return raw
+        .split('_')
+        .map((word) {
+          if (word.isEmpty) return '';
+          return '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
+        })
+        .join(' ');
+  }
+
+  // Method to duplicate expense
+  Future<void> _duplicateExpense(
+    BuildContext context,
+    Map<String, dynamic> expenseData,
+  ) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("User not logged in", style: GoogleFonts.inter()),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+
+      final id = const Uuid().v4();
+
+      await FirebaseFirestore.instance.collection('expenses').doc(id).set({
+        "uid": user.uid,
+        "Amount": expenseData['Amount'] ?? 0.0,
+        "Title": "${expenseData['Title'] ?? 'Expense'} (Copy)",
+        "Description": expenseData['Description'] ?? '',
+        "Date": DateTime.now(),
+        "Category": expenseData['Category'] ?? 'general',
+        "Type": expenseData['Type'] ?? 'one_time',
+        "Time": FieldValue.serverTimestamp(),
+      });
+
+      if (context.mounted) {
+        Navigator.pop(context); // Close bottom sheet
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Expense duplicated successfully",
+              style: GoogleFonts.inter(),
+            ),
+            backgroundColor: const Color(0xFF30D158),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // Close bottom sheet
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Failed to duplicate expense",
+              style: GoogleFonts.inter(),
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   // --- WIDGET BUILDERS ---
@@ -152,7 +300,6 @@ class ExpenseDetailsScreen extends StatelessWidget {
               ),
             ),
           ),
-
           Text(
             "Details",
             style: GoogleFonts.inter(
@@ -161,7 +308,6 @@ class ExpenseDetailsScreen extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-
           // Actions Menu Button
           GestureDetector(
             onTap: () => _showOptionsBottomSheet(context),
@@ -195,10 +341,10 @@ class ExpenseDetailsScreen extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.pie_chart_outline, color: Colors.white54, size: 14),
+          const Icon(Icons.pie_chart_outline, color: Colors.white54, size: 14),
           const SizedBox(width: 6),
           Text(
-            category.toUpperCase(),
+            category,
             style: GoogleFonts.inter(
               color: Colors.white54,
               fontSize: 11,
@@ -311,7 +457,7 @@ class ExpenseDetailsScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "AWS_Invoice_Nov.pdf",
+                "No receipt attached",
                 style: GoogleFonts.inter(
                   color: Colors.white,
                   fontSize: 14,
@@ -320,13 +466,11 @@ class ExpenseDetailsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                "2.4 MB • PDF",
+                "0 KB",
                 style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
               ),
             ],
           ),
-          const Spacer(),
-          const Icon(Icons.download_rounded, color: Colors.white38, size: 20),
         ],
       ),
     );
@@ -340,7 +484,7 @@ class ExpenseDetailsScreen extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) {
+      builder: (bottomSheetContext) {
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -360,11 +504,14 @@ class ExpenseDetailsScreen extends StatelessWidget {
                   icon: Icons.edit_outlined,
                   label: "Edit Expense",
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(bottomSheetContext);
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const EditExpenseScreen(),
+                        builder: (context) => EditExpenseScreen(
+                          expenseId: expenseId,
+                          expenseData: expenseData,
+                        ),
                       ),
                     );
                   },
@@ -374,8 +521,7 @@ class ExpenseDetailsScreen extends StatelessWidget {
                   icon: Icons.copy_rounded,
                   label: "Duplicate",
                   onTap: () {
-                    Navigator.pop(context);
-                    // Duplicate Logic
+                    _duplicateExpense(context, expenseData);
                   },
                 ),
                 const SizedBox(height: 8),
@@ -384,9 +530,33 @@ class ExpenseDetailsScreen extends StatelessWidget {
                   icon: Icons.delete_outline_rounded,
                   label: "Delete Expense",
                   isDestructive: true,
-                  onTap: () {
-                    Navigator.pop(context);
-                    // Delete Logic
+                  onTap: () async {
+                    Navigator.pop(
+                      bottomSheetContext,
+                    ); // Close sheet immediately
+
+                    // --- FIREBASE DELETE LOGIC ---
+                    try {
+                      await FirebaseFirestore.instance
+                          .collection('expenses')
+                          .doc(expenseId)
+                          .delete();
+
+                      if (context.mounted) {
+                        Navigator.pop(context); // Go back to the list screen
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              "Expense deleted",
+                              style: GoogleFonts.inter(),
+                            ),
+                            backgroundColor: Colors.black,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      debugPrint("Failed to delete expense: $e");
+                    }
                   },
                 ),
               ],

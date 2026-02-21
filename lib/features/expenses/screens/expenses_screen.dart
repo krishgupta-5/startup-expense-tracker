@@ -1,7 +1,12 @@
 // Required for FontFeature
+import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+// Make sure these imports match your actual file paths
 import 'add_expense_screen.dart';
 import 'search_expense_screen.dart';
 import 'expense_details_screen.dart';
@@ -107,6 +112,8 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                 ],
               ),
               const SizedBox(height: 16),
+
+              // Firebase Transactions Stream
               _buildFlatTransactionList(),
 
               const SizedBox(height: 80), // Bottom padding for navbar
@@ -293,105 +300,181 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
+  // --- FIREBASE TOP 5 EXPENSES STREAM ---
   Widget _buildFlatTransactionList() {
-    final transactions = [
-      {"title": "AWS Server", "cat": "Infrastructure", "amt": "240.00"},
-      {"title": "Figma Pro", "cat": "Software", "amt": "45.00"},
-      {"title": "WeWork", "cat": "Office", "amt": "850.00"},
-      {"title": "Uber Business", "cat": "Transport", "amt": "24.50"},
-      {"title": "Slack", "cat": "Communication", "amt": "12.00"},
-    ];
+    final user = FirebaseAuth.instance.currentUser;
 
-    return Column(
-      children: transactions.map((tx) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 20),
-          child: GestureDetector(
+    if (user == null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Text(
+          "User not logged in.",
+          style: GoogleFonts.inter(color: Colors.white54),
+        ),
+      );
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('expenses')
+          .where('uid', isEqualTo: user.uid)
+          .orderBy('Date', descending: true)
+          .limit(5)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white38,
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          debugPrint("🚨 FIRESTORE ERROR: ${snapshot.error}");
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Text(
+              "Error loading transactions. Check console for Index Link.",
+              style: GoogleFonts.inter(color: Colors.redAccent),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+              child: Text(
+                "No recent transactions found.",
+                style: GoogleFonts.inter(color: Colors.white54),
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          children: snapshot.data!.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final expenseId = doc.id; // Get the unique document ID
+            return _buildTransactionItem(data, expenseId, context);
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildTransactionItem(
+    Map<String, dynamic> tx,
+    String expenseId,
+    BuildContext context,
+  ) {
+    final title = tx['Title'] ?? 'Unnamed Expense';
+    final amount = tx['Amount']?.toString() ?? '0.00';
+    // Format category to capitalize first letter or match your style
+    final String rawCategory = tx['Category'] ?? 'General';
+    final category = rawCategory.isNotEmpty
+        ? '${rawCategory[0].toUpperCase()}${rawCategory.substring(1)}'
+        : 'General';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ExpenseDetailsScreen(
+                expenseId: expenseId, // Pass the real ID
+                expenseData: tx, // Pass the real data map
+              ),
+            ),
+          );
+        },
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const ExpenseDetailsScreen(),
+                  builder: (context) => ExpenseDetailsScreen(
+                    expenseId: expenseId, // Pass the real ID
+                    expenseData: tx, // Pass the real data map
+                  ),
                 ),
               );
             },
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ExpenseDetailsScreen(),
-                    ),
-                  );
-                },
-                splashColor: Colors.white.withValues(alpha: 0.1),
-                highlightColor: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(12),
-                child: Row(
-                  children: [
-                    // Minimal Icon Placeholder (No container)
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF141416),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.receipt,
-                        color: Colors.white38,
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-
-                    // Info - Make entire row clickable
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            tx["title"]!,
-                            style: GoogleFonts.inter(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            tx["cat"]!,
-                            style: GoogleFonts.inter(
-                              color: Colors.white38,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Amount - Not clickable
-                    Text(
-                      "-\$${tx["amt"]}",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        fontFeatures: [
-                          const FontFeature.tabularFigures(),
-                        ], // Aligns numbers
-                      ),
-                    ),
-                  ],
+            splashColor: Colors.white.withValues(alpha: 0.1),
+            highlightColor: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(12),
+            child: Row(
+              children: [
+                // Minimal Icon Placeholder (No container)
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141416),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.receipt,
+                    color: Colors.white38,
+                    size: 18,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 16),
+
+                // Info - Make entire row clickable
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        category,
+                        style: GoogleFonts.inter(
+                          color: Colors.white38,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Amount - Not clickable
+                Text(
+                  "₹$amount",
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    fontFeatures: [
+                      const FontFeature.tabularFigures(),
+                    ], // Aligns numbers
+                  ),
+                ),
+              ],
             ),
           ),
-        );
-      }).toList(),
+        ),
+      ),
     );
   }
 }
