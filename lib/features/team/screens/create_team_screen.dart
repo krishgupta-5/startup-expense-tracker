@@ -1,6 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:uuid/uuid.dart';
 
 class CreateTeamScreen extends StatefulWidget {
   const CreateTeamScreen({super.key});
@@ -10,9 +13,18 @@ class CreateTeamScreen extends StatefulWidget {
 }
 
 class _CreateTeamScreenState extends State<CreateTeamScreen> {
-  // 1. STATE VARIABLES
+  // 1. CONTROLLERS & STATE
+  late final TextEditingController _nameController;
+  late final TextEditingController _descController;
+  late final TextEditingController _budgetController;
+
+  bool _isLoading = false;
+
   String _selectedColor = "Blue";
   IconData _selectedIcon = Icons.code;
+
+  // Manage selected team lead avatar
+  String _selectedLead = "https://i.pravatar.cc/150?img=11";
 
   // 2. DATA OPTIONS
   final List<Map<String, dynamic>> _colors = [
@@ -31,6 +43,121 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
     Icons.security,
     Icons.support_agent,
   ];
+
+  final List<String> _teamLeads = [
+    "https://i.pravatar.cc/150?img=11",
+    "https://i.pravatar.cc/150?img=33",
+    "https://i.pravatar.cc/150?img=5",
+    "https://i.pravatar.cc/150?img=9",
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+    _descController = TextEditingController();
+    _budgetController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descController.dispose();
+    _budgetController.dispose();
+    super.dispose();
+  }
+
+  // 3. FIREBASE UPLOAD LOGIC
+  Future<void> _createTeam() async {
+    if (_nameController.text.trim().isEmpty) {
+      _showErrorSnackBar("Please enter a team name.");
+      return;
+    }
+
+    if (_nameController.text.trim().length < 2) {
+      _showErrorSnackBar("Team name must be at least 2 characters long.");
+      return;
+    }
+
+    if (_nameController.text.trim().length > 30) {
+      _showErrorSnackBar("Team name must not exceed 30 characters.");
+      return;
+    }
+
+    if (_descController.text.trim().isNotEmpty &&
+        _descController.text.trim().length > 200) {
+      _showErrorSnackBar("Description must not exceed 200 characters.");
+      return;
+    }
+
+    if (_budgetController.text.trim().isNotEmpty) {
+      final double? budget = double.tryParse(_budgetController.text.trim());
+      if (budget == null || budget < 0) {
+        _showErrorSnackBar("Please enter a valid budget amount.");
+        return;
+      }
+
+      if (budget > 999999.99) {
+        _showErrorSnackBar("Budget amount is too high.");
+        return;
+      }
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final id = const Uuid().v4();
+      final double budget = _budgetController.text.trim().isEmpty
+          ? 0.0
+          : double.tryParse(_budgetController.text.trim())!;
+
+      // Storing to a new 'teams' collection
+      await FirebaseFirestore.instance.collection('teams').doc(id).set({
+        "uid": FirebaseAuth.instance.currentUser!.uid,
+        "teamName": _nameController.text.trim(),
+        "description": _descController.text.trim(),
+        "monthlyBudget": budget,
+        "color": _selectedColor,
+        // Save icon data safely so we can rebuild it later
+        "iconCodePoint": _selectedIcon.codePoint,
+        "iconFontFamily": _selectedIcon.fontFamily,
+        "teamLeadAvatar": _selectedLead,
+        "createdAt": FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Team created successfully!",
+              style: GoogleFonts.inter(),
+            ),
+            backgroundColor: const Color(0xFF30D158),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        _showErrorSnackBar(e.message ?? 'Failed to create team');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,11 +194,13 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                       ),
                       const SizedBox(height: 12),
                       TextField(
+                        controller: _nameController,
                         style: GoogleFonts.inter(
                           color: Colors.white,
                           fontSize: 32,
                           fontWeight: FontWeight.w600,
                         ),
+                        cursorColor: const Color(0xFF30D158),
                         decoration: InputDecoration(
                           hintText: "e.g. Engineering",
                           hintStyle: GoogleFonts.inter(
@@ -132,6 +261,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                       _buildTextInput(
                         "DESCRIPTION",
                         "What does this team do?",
+                        _descController,
                         maxLines: 3,
                       ),
 
@@ -140,7 +270,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                       // Budget
                       _buildTextInput(
                         "MONTHLY BUDGET",
-                        "\$ 0.00",
+                        "0.00",
+                        _budgetController,
                         maxLines: 1,
                         isNumber: true,
                       ),
@@ -203,7 +334,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
 
   Widget _buildTextInput(
     String label,
-    String placeholder, {
+    String placeholder,
+    TextEditingController controller, {
     int maxLines = 1,
     bool isNumber = false,
   }) {
@@ -220,7 +352,10 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
             border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
           ),
           child: TextField(
-            keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+            controller: controller,
+            keyboardType: isNumber
+                ? const TextInputType.numberWithOptions(decimal: true)
+                : TextInputType.text,
             style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
             maxLines: maxLines,
             minLines: maxLines > 1 ? 3 : 1,
@@ -229,6 +364,16 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
               hintStyle: GoogleFonts.inter(color: Colors.white24),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              prefixIcon: isNumber
+                  ? const Icon(
+                      Icons.currency_rupee,
+                      color: Colors.white38,
+                      size: 18,
+                    )
+                  : null,
+              prefixIconConstraints: isNumber
+                  ? const BoxConstraints(minWidth: 32, minHeight: 0)
+                  : null,
             ),
           ),
         ),
@@ -293,14 +438,15 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [
-          _buildAvatar("https://i.pravatar.cc/150?img=11", isSelected: true),
-          const SizedBox(width: 12),
-          _buildAvatar("https://i.pravatar.cc/150?img=33"),
-          const SizedBox(width: 12),
-          _buildAvatar("https://i.pravatar.cc/150?img=5"),
-          const SizedBox(width: 12),
-          _buildAvatar("https://i.pravatar.cc/150?img=9"),
-          const SizedBox(width: 12),
+          ..._teamLeads.map(
+            (url) => Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedLead = url),
+                child: _buildAvatar(url, isSelected: _selectedLead == url),
+              ),
+            ),
+          ),
           Container(
             width: 48,
             height: 48,
@@ -322,7 +468,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: isSelected
-            ? Border.all(color: Colors.white, width: 2)
+            ? Border.all(color: const Color(0xFF30D158), width: 2)
             : Border.all(color: Colors.transparent),
         image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
       ),
@@ -332,7 +478,11 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                 color: Colors.black.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check, color: Colors.white, size: 18),
+              child: const Icon(
+                Icons.check,
+                color: Color(0xFF30D158),
+                size: 18,
+              ),
             )
           : null,
     );
@@ -363,19 +513,32 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () {},
+          onPressed: _isLoading ? null : _createTeam,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white, // High Contrast White
-            foregroundColor: Colors.black, // Black Text
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            disabledBackgroundColor: Colors.white54,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
-          child: Text(
-            "Create Team",
-            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
+          child: _isLoading
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.black,
+                  ),
+                )
+              : Text(
+                  "Create Team",
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
         ),
       ),
     );

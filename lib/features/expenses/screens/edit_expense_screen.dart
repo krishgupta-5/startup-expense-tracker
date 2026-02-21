@@ -94,16 +94,43 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       _showErrorSnackBar("Please enter an amount.");
       return;
     }
+
+    final double? amount = double.tryParse(_amountController.text.trim());
+    if (amount == null || amount <= 0) {
+      _showErrorSnackBar("Please enter a valid amount greater than 0.");
+      return;
+    }
+
     if (_titleController.text.trim().isEmpty) {
       _showErrorSnackBar("Please enter a title.");
+      return;
+    }
+
+    if (_titleController.text.trim().length < 3) {
+      _showErrorSnackBar("Title must be at least 3 characters long.");
+      return;
+    }
+
+    if (_titleController.text.trim().length > 50) {
+      _showErrorSnackBar("Title must not exceed 50 characters.");
+      return;
+    }
+
+    if (_notesController.text.trim().isNotEmpty &&
+        _notesController.text.trim().length > 500) {
+      _showErrorSnackBar("Description must not exceed 500 characters.");
+      return;
+    }
+
+    if (_selectedDate.isAfter(DateTime.now())) {
+      _showErrorSnackBar("Date cannot be in the future.");
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      final double amount =
-          double.tryParse(_amountController.text.trim()) ?? 0.0;
+      final double amount = double.tryParse(_amountController.text.trim())!;
 
       await FirebaseFirestore.instance
           .collection('expenses')

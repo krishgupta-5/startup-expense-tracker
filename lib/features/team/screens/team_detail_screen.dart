@@ -1,61 +1,29 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import 'edit_team_screen.dart';
 import 'add_member_screen.dart';
+// NOTE: Make sure member_detail_screen exists or comment out the navigation to it
 import 'member_detail_screen.dart';
+import '../../../widgets/avatar_widget.dart';
 
 class TeamDetailScreen extends StatefulWidget {
-  const TeamDetailScreen({super.key});
+  final String teamId;
+  final Map<String, dynamic> initialTeamData;
+
+  const TeamDetailScreen({
+    super.key,
+    required this.teamId,
+    required this.initialTeamData,
+  });
 
   @override
   State<TeamDetailScreen> createState() => _TeamDetailScreenState();
 }
 
 class _TeamDetailScreenState extends State<TeamDetailScreen> {
-  // Mock Data
-  final String teamName = "Engineering";
-  final String monthlyCost = "\$42,500";
-  final String memberCount = "8 Members";
-
-  final List<Map<String, dynamic>> _members = [
-    {
-      "name": "James Carter",
-      "role": "Lead Engineer",
-      "salary": "\$12k/mo",
-      "status": "Active",
-      "img": "https://i.pravatar.cc/150?img=11",
-    },
-    {
-      "name": "Sarah Miller",
-      "role": "Frontend Dev",
-      "salary": "\$8.5k/mo",
-      "status": "Active",
-      "img": "https://i.pravatar.cc/150?img=5",
-    },
-    {
-      "name": "Michael Brown",
-      "role": "Backend Dev",
-      "salary": "\$9k/mo",
-      "status": "Paused",
-      "img": "https://i.pravatar.cc/150?img=3",
-    },
-    {
-      "name": "David Wilson",
-      "role": "DevOps",
-      "salary": "\$7k/mo",
-      "status": "Active",
-      "img": "https://i.pravatar.cc/150?img=15",
-    },
-    {
-      "name": "Emma Davis",
-      "role": "QA Engineer",
-      "salary": "\$6k/mo",
-      "status": "Active",
-      "img": "https://i.pravatar.cc/150?img=9",
-    },
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -64,73 +32,167 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         value: SystemUiOverlayStyle.light,
         child: SafeArea(
           bottom: false,
-          child: Column(
-            children: [
-              // 1. Header
-              _buildHeader(context),
-
-              // 2. Scrollable Content
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 24),
-
-                      // --- HERO STATS ---
-                      _buildHeroStats(),
-
-                      const SizedBox(height: 32),
-
-                      // --- MEMBERS LIST HEADER ---
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "TEAM MEMBERS",
-                            style: GoogleFonts.inter(
-                              color: Colors.white24,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.5,
-                            ),
-                          ),
-                          Text(
-                            "SORT BY COST",
-                            style: GoogleFonts.inter(
-                              color: Colors.white24,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.0,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // --- MEMBERS LIST ---
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _members.length,
-                        itemBuilder: (context, index) {
-                          return _buildMemberRow(_members[index]);
-                        },
-                      ),
-
-                      const SizedBox(height: 80),
-                    ],
+          child: StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('teams')
+                .doc(widget.teamId)
+                .snapshots(),
+            builder: (context, teamSnapshot) {
+              if (teamSnapshot.hasError) {
+                return const Center(
+                  child: Text(
+                    "Error loading team",
+                    style: TextStyle(color: Colors.white54),
                   ),
-                ),
-              ),
-            ],
+                );
+              }
+
+              // Use latest team data, fallback to initial if loading
+              final teamData =
+                  teamSnapshot.hasData && teamSnapshot.data!.data() != null
+                  ? teamSnapshot.data!.data() as Map<String, dynamic>
+                  : widget.initialTeamData;
+
+              final String teamName = teamData['teamName'] ?? "Team";
+              final double teamBudget =
+                  (teamData['monthlyBudget'] ?? 0.0) as double;
+
+              return Column(
+                children: [
+                  // 1. Header (Now uses real-time data)
+                  _buildHeader(context, teamName),
+
+                  // 2. Real-time Content (Stream for Members Data)
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('members')
+                          .where('teamId', isEqualTo: widget.teamId)
+                          .snapshots(),
+                      builder: (context, membersSnapshot) {
+                        if (membersSnapshot.connectionState ==
+                                ConnectionState.waiting &&
+                            !membersSnapshot.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white38,
+                            ),
+                          );
+                        }
+
+                        final membersDocs = membersSnapshot.data?.docs ?? [];
+
+                        // Calculate stats
+                        double totalCost = 0.0;
+                        for (var doc in membersDocs) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          totalCost += (data['monthlyCost'] ?? 0.0) as double;
+                        }
+
+                        final bool isWithinBudget = totalCost <= teamBudget;
+                        final String memberCount =
+                            "${membersDocs.length} Members";
+
+                        // Sort members by cost (Highest to lowest)
+                        final sortedMembers = membersDocs.toList();
+                        sortedMembers.sort((a, b) {
+                          final costA =
+                              ((a.data()
+                                          as Map<
+                                            String,
+                                            dynamic
+                                          >)['monthlyCost'] ??
+                                      0.0)
+                                  as double;
+                          final costB =
+                              ((b.data()
+                                          as Map<
+                                            String,
+                                            dynamic
+                                          >)['monthlyCost'] ??
+                                      0.0)
+                                  as double;
+                          return costB.compareTo(costA);
+                        });
+
+                        return SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 24),
+
+                              // --- HERO STATS ---
+                              _buildHeroStats(totalCost, isWithinBudget),
+
+                              const SizedBox(height: 32),
+
+                              // --- MEMBERS LIST HEADER ---
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    "TEAM MEMBERS ($memberCount)",
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white24,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                  Text(
+                                    "SORT BY COST",
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white24,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+
+                              // --- MEMBERS LIST ---
+                              if (sortedMembers.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 32),
+                                  child: Center(
+                                    child: Text(
+                                      "No members in this team yet.",
+                                      style: GoogleFonts.inter(
+                                        color: Colors.white38,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              else
+                                ListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: sortedMembers.length,
+                                  itemBuilder: (context, index) {
+                                    return _buildMemberRow(
+                                      sortedMembers[index],
+                                    );
+                                  },
+                                ),
+
+                              const SizedBox(height: 80),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
-
-      // ADD MEMBER BUTTON
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.push(
@@ -152,7 +214,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
   // --- WIDGET BUILDERS ---
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, String teamName) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Row(
@@ -175,29 +237,26 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             ),
           ),
 
-          Column(
-            children: [
-              Text(
-                teamName,
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                memberCount,
-                style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
-              ),
-            ],
+          Text(
+            teamName,
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
 
-          // Settings / More for Team
+          // Settings / Edit Team
           GestureDetector(
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const EditTeamScreen()),
+                MaterialPageRoute(
+                  builder: (context) => EditTeamScreen(
+                    teamId: widget.teamId,
+                    teamData: widget.initialTeamData,
+                  ),
+                ),
               );
             },
             child: Container(
@@ -219,7 +278,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
-  Widget _buildHeroStats() {
+  Widget _buildHeroStats(double totalCost, bool isWithinBudget) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -241,7 +300,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            monthlyCost,
+            "\$${totalCost.toStringAsFixed(2)}",
             style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 42,
@@ -253,13 +312,17 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: const Color(0xFF0A84FF).withValues(alpha: 0.15),
+              color: isWithinBudget
+                  ? const Color(0xFF0A84FF).withValues(alpha: 0.15)
+                  : const Color(0xFFFF453A).withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              "Within Budget",
+              isWithinBudget ? "Within Budget" : "Over Budget",
               style: GoogleFonts.inter(
-                color: const Color(0xFF0A84FF),
+                color: isWithinBudget
+                    ? const Color(0xFF0A84FF)
+                    : const Color(0xFFFF453A),
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -270,15 +333,32 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
-  Widget _buildMemberRow(Map<String, dynamic> member) {
-    bool isPaused = member['status'] == 'Paused';
+  Widget _buildMemberRow(QueryDocumentSnapshot doc) {
+    final member = doc.data() as Map<String, dynamic>;
+    final memberId = doc.id;
+
+    final String name = member['fullName'] ?? 'Unnamed Member';
+    final String role = member['jobTitle'] ?? 'No Role';
+    final double rawCost = (member['monthlyCost'] ?? 0.0) as double;
+    final String salary = "\$${rawCost.toStringAsFixed(0)}/mo";
+
+    // Default status to Active if it doesn't exist
+    final String status = member['status'] ?? 'Active';
+    final bool isPaused = status == 'Paused';
+
+    // Generate an automatic avatar from initials since we skipped image upload
+    final String avatarUrl =
+        member['avatarUrl'] ??
+        "https://ui-avatars.com/api/?name=${Uri.encodeComponent(name)}&background=random&color=fff";
 
     return GestureDetector(
-      // On Tap could go to dedicated member page later
       onTap: () {
+        // Navigate to member details
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const MemberDetailScreen()),
+          MaterialPageRoute(
+            builder: (context) => MemberDetailScreen(memberId: memberId),
+          ),
         );
       },
       child: Padding(
@@ -295,16 +375,14 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               // Avatar
               Stack(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      image: DecorationImage(
-                        image: NetworkImage(member['img']),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+                  AvatarWidget(
+                    name: name,
+                    size: 48,
+                    imageUrl:
+                        avatarUrl.isNotEmpty &&
+                            avatarUrl.contains('ui-avatars.com')
+                        ? null
+                        : avatarUrl,
                   ),
                   Positioned(
                     bottom: 0,
@@ -334,21 +412,29 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      member['name'],
+                      name,
                       style: GoogleFonts.inter(
                         color: Colors.white,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
+                        decoration: isPaused
+                            ? TextDecoration.lineThrough
+                            : null,
+                        decorationColor: Colors.white54,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      member['role'],
+                      role,
                       style: GoogleFonts.inter(
                         color: Colors.white38,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -358,9 +444,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               Row(
                 children: [
                   Text(
-                    member['salary'],
+                    salary,
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: isPaused ? Colors.white38 : Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -373,7 +459,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                       size: 20,
                     ),
                     onPressed: () =>
-                        _showMemberOptions(context, member['name']),
+                        _showMemberOptions(context, memberId, name, isPaused),
                   ),
                 ],
               ),
@@ -384,15 +470,20 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
-  // --- ACTIONS BOTTOM SHEET (SIMPLIFIED) ---
-  void _showMemberOptions(BuildContext context, String memberName) {
+  // --- ACTIONS BOTTOM SHEET (FIREBASE ENABLED) ---
+  void _showMemberOptions(
+    BuildContext context,
+    String memberId,
+    String memberName,
+    bool isCurrentlyPaused,
+  ) {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF141416),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) {
+      builder: (bottomSheetContext) {
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -419,27 +510,48 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.0,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 24),
 
-                // Only Pause and Remove options as requested
+                // Pause / Resume Logic
                 _buildActionOption(
-                  Icons.pause_circle_outline,
-                  "Pause Member",
-                  () {
-                    Navigator.pop(context);
-                    // Add Pause Logic
+                  isCurrentlyPaused
+                      ? Icons.play_circle_outline
+                      : Icons.pause_circle_outline,
+                  isCurrentlyPaused ? "Resume Member" : "Pause Member",
+                  () async {
+                    Navigator.pop(bottomSheetContext);
+                    try {
+                      await FirebaseFirestore.instance
+                          .collection('members')
+                          .doc(memberId)
+                          .update({
+                            'status': isCurrentlyPaused ? 'Active' : 'Paused',
+                          });
+                    } catch (e) {
+                      debugPrint("Error updating status: $e");
+                    }
                   },
                 ),
 
                 const SizedBox(height: 16),
 
+                // Remove Logic
                 _buildActionOption(
                   Icons.person_remove_outlined,
                   "Remove from Team",
-                  () {
-                    Navigator.pop(context);
-                    // Add Remove Logic
+                  () async {
+                    Navigator.pop(bottomSheetContext);
+                    try {
+                      await FirebaseFirestore.instance
+                          .collection('members')
+                          .doc(memberId)
+                          .delete();
+                    } catch (e) {
+                      debugPrint("Error deleting member: $e");
+                    }
                   },
                   isDestructive: true,
                 ),
