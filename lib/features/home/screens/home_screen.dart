@@ -1,5 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 // Required for FontFeature
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -9,15 +12,295 @@ import 'runway_estimation_screen.dart';
 import 'funds_overview_screen.dart';
 import 'monthly_burn_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final Function(int)? onNavigateToTab;
 
   const HomeScreen({super.key, this.onNavigateToTab});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  String? runwayValue;
+  bool isLoading = true;
+  String? errorMessage;
+  Timer? _timer;
+  String? totalFundsAvailable;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRunwayData();
+    fetchTotalFundsAvailable();
+    _startDailyDecrement();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startDailyDecrement() {
+    // Update runway every minute for demo purposes (change to 24h for production)
+    _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (runwayValue != null && errorMessage == null) {
+        _decrementRunway();
+      }
+    });
+  }
+
+  void _decrementRunway() {
+    final currentRunway = double.tryParse(runwayValue ?? "0") ?? 0;
+    if (currentRunway > 0) {
+      // Decrease by 1/30 of a month (approximately 1 day)
+      final newRunway = currentRunway - (1 / 30);
+      setState(() {
+        runwayValue = newRunway.toStringAsFixed(2);
+      });
+    }
+  }
+
+  Widget _buildRunwayDisplay(String runwayValue) {
+    final runway = double.tryParse(runwayValue) ?? 0;
+    final wholeMonths = runway.floor();
+    final remainingDays = ((runway - wholeMonths) * 30).round();
+
+    if (remainingDays == 0) {
+      return Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: "$wholeMonths",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 56,
+                fontWeight: FontWeight.w400,
+                height: 1.0,
+                letterSpacing: -2,
+              ),
+            ),
+            TextSpan(
+              text: " months",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 32,
+                fontWeight: FontWeight.w400,
+                height: 1.0,
+                letterSpacing: -1,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: "$wholeMonths",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 56,
+                fontWeight: FontWeight.w400,
+                height: 1.0,
+                letterSpacing: -2,
+              ),
+            ),
+            TextSpan(
+              text: " M ",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 32,
+                fontWeight: FontWeight.w400,
+                height: 1.0,
+                letterSpacing: -1,
+              ),
+            ),
+            TextSpan(
+              text: "$remainingDays",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 56,
+                fontWeight: FontWeight.w400,
+                height: 1.0,
+                letterSpacing: -2,
+              ),
+            ),
+            TextSpan(
+              text: " D",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 32,
+                fontWeight: FontWeight.w400,
+                height: 1.0,
+                letterSpacing: -1,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  String _getRunwaySubtitle(String runwayValue) {
+    return "";
+  }
+
+  double _calculateRunwayProgress() {
+    if (runwayValue == null || errorMessage != null) return 0.0;
+
+    final runway = double.tryParse(runwayValue!) ?? 0;
+
+    // Define runway thresholds (in months)
+    const double criticalThreshold = 3; // 3 months or less = critical
+    const double warningThreshold = 6; // 6 months or less = warning
+    const double safeThreshold = 12; // 12 months or more = safe
+
+    if (runway <= criticalThreshold) {
+      // Critical: 0-33% progress
+      return (runway / criticalThreshold) * 0.33;
+    } else if (runway <= warningThreshold) {
+      // Warning: 33-66% progress
+      return 0.33 +
+          ((runway - criticalThreshold) /
+                  (warningThreshold - criticalThreshold)) *
+              0.33;
+    } else if (runway <= safeThreshold) {
+      // Safe: 66-100% progress
+      return 0.66 +
+          ((runway - warningThreshold) / (safeThreshold - warningThreshold)) *
+              0.34;
+    } else {
+      // Very safe: cap at 100%
+      return 1.0;
+    }
+  }
+
+  HealthStatus _calculateHealthStatus() {
+    if (runwayValue == null || errorMessage != null)
+      return HealthStatus.critical;
+
+    final runway = double.tryParse(runwayValue!) ?? 0;
+
+    if (runway <= 3) {
+      return HealthStatus.critical;
+    } else if (runway <= 6) {
+      return HealthStatus.warning;
+    } else {
+      return HealthStatus.safe;
+    }
+  }
+
+  Future<void> _fetchRunwayData() async {
+    try {
+      print("DEBUG: Starting runway data fetch...");
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print("DEBUG: No authenticated user found");
+        setState(() {
+          errorMessage = "User not authenticated";
+          isLoading = false;
+        });
+        return;
+      }
+
+      print("DEBUG: User authenticated with UID: ${user.uid}");
+
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection("companies")
+          .doc(user.uid)
+          .get();
+
+      print("DEBUG: Document exists: ${docSnapshot.exists}");
+
+      if (docSnapshot.exists && docSnapshot.data() != null) {
+        final data = docSnapshot.data()!;
+        print("DEBUG: Document data: $data");
+        print("DEBUG: Available keys: ${data.keys.toList()}");
+
+        // Try different possible field names
+        final runway =
+            data["Runway"] ??
+            data["runway"] ??
+            data["RUNWAY"] ??
+            data["runway_months"];
+        print("DEBUG: Runway value: $runway");
+
+        if (runway == null) {
+          print("DEBUG: No runway field found in document");
+          setState(() {
+            errorMessage = "Runway field not found in document";
+            isLoading = false;
+          });
+        } else {
+          setState(() {
+            runwayValue = runway.toString();
+            isLoading = false;
+          });
+          print("DEBUG: Set runwayValue to: ${runwayValue}");
+        }
+      } else {
+        print("DEBUG: No document found or document is empty");
+        setState(() {
+          errorMessage = "No runway data found";
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("DEBUG: Error fetching runway data: $e");
+      setState(() {
+        errorMessage = "Failed to load runway data: $e";
+        isLoading = false;
+      });
+    }
+  }
+
+  Future<void> fetchTotalFundsAvailable() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print("DEBUG: No authenticated user found for funds fetch");
+        return;
+      }
+
+      print("DEBUG: Starting funds data fetch...");
+
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection("companies")
+          .doc(user.uid)
+          .get();
+
+      if (docSnapshot.exists && docSnapshot.data() != null) {
+        final data = docSnapshot.data()!;
+        print("DEBUG: Funds document data: $data");
+
+        // Use the correct field name "Funding" instead of "Total Funds"
+        final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
+        print("DEBUG: Funding value: $funding");
+
+        if (funding != null) {
+          setState(() {
+            // Format as currency with proper formatting
+            final fundingAmount = double.tryParse(funding.toString()) ?? 0;
+            totalFundsAvailable =
+                "₹${(fundingAmount / 100000).toStringAsFixed(1)}L";
+          });
+          print("DEBUG: Set totalFundsAvailable to: $totalFundsAvailable");
+        } else {
+          print("DEBUG: No funding field found");
+        }
+      }
+    } catch (e) {
+      print("DEBUG: Error fetching funds data: $e");
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Defines the overall app health
-    const HealthStatus currentHealth = HealthStatus.safe;
+    // Calculate health status based on runway value
+    HealthStatus currentHealth = _calculateHealthStatus();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -63,7 +346,7 @@ class HomeScreen extends StatelessWidget {
                       },
                       child: _buildFlatMetricCard(
                         label: "Total Funds",
-                        value: "\$482k",
+                        value: totalFundsAvailable ?? "",
                         icon: Icons.account_balance_wallet_outlined,
                       ),
                     ),
@@ -174,7 +457,7 @@ class HomeScreen extends StatelessWidget {
         GestureDetector(
           onTap: () {
             // Navigate to settings tab (index 4) in bottom navigation
-            onNavigateToTab?.call(4);
+            widget.onNavigateToTab?.call(4);
           },
           child: Container(
             height: 44,
@@ -232,39 +515,65 @@ class HomeScreen extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              // Tiny minimal badge
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
+              Row(
+                children: [
+                  // Refresh button for debugging
+                  GestureDetector(
+                    onTap: _fetchRunwayData,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: statusColor,
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(100),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.refresh,
+                        color: Colors.white38,
+                        size: 16,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      statusText,
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                  ),
+                  const SizedBox(width: 8),
+                  // Tiny minimal badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(100),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1),
                       ),
                     ),
-                  ],
-                ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          statusText,
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -272,21 +581,63 @@ class HomeScreen extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                "11.4",
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 56, // Big Flat Typography
-                  fontWeight: FontWeight.w400, // Thinner weight looks cleaner
-                  height: 1.0,
-                  letterSpacing: -2,
+              if (isLoading)
+                Text(
+                  "--",
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 56,
+                    fontWeight: FontWeight.w400,
+                    height: 1.0,
+                    letterSpacing: -2,
+                  ),
+                )
+              else if (errorMessage != null)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "!",
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFFFF453A),
+                        fontSize: 56,
+                        fontWeight: FontWeight.w400,
+                        height: 1.0,
+                        letterSpacing: -2,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      errorMessage!,
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFFFF453A),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildRunwayDisplay(runwayValue ?? "0"),
+                    const SizedBox(height: 4),
+                    Text(
+                      _getRunwaySubtitle(runwayValue ?? "0"),
+                      style: GoogleFonts.inter(
+                        color: Colors.white38,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
               const SizedBox(width: 12),
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
-                  "Months",
+                  _getRunwaySubtitle(runwayValue ?? "0"),
                   style: GoogleFonts.inter(
                     color: Colors.white38,
                     fontSize: 16,
@@ -301,7 +652,7 @@ class HomeScreen extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
-              value: 0.7,
+              value: _calculateRunwayProgress(),
               minHeight: 4,
               backgroundColor: Colors.white.withValues(alpha: 0.05),
               valueColor: AlwaysStoppedAnimation<Color>(statusColor),

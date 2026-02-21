@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'login.dart';
 import '../../company-setup/screen/company_setup_screen.dart';
 
@@ -16,6 +17,7 @@ class SignUpScreen extends StatefulWidget {
 class _SignUpScreenState extends State<SignUpScreen> {
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
+  bool _isLoading = false;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -88,6 +90,85 @@ class _SignUpScreenState extends State<SignUpScreen> {
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  Future<void> createUserWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Initialize Google Sign-In
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+      );
+
+      // Trigger the Google Sign-In flow
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        // User cancelled the sign-in
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      // Create a new credential
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase with the Google credential
+      final UserCredential userCredential = await FirebaseAuth.instance
+          .signInWithCredential(credential);
+
+      // Create user document in Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .set({
+            'email': userCredential.user!.email,
+            'name': userCredential.user!.displayName ?? '',
+            'phone': userCredential.user!.phoneNumber ?? '',
+            'location': '',
+            'uid': userCredential.user!.uid,
+            'createdAt': Timestamp.now(),
+            'updatedAt': Timestamp.now(),
+            'photoURL': userCredential.user!.photoURL ?? '',
+          });
+
+      // Navigate to company setup on successful registration
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
+        );
+      }
+    } catch (e) {
+      // Handle other errors
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'An error occurred during Google sign-in: ${e.toString()}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -379,34 +460,41 @@ class _SignUpScreenState extends State<SignUpScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {
-            // Perform Google Sign Up Logic
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const CompanySetupScreen(),
-              ),
-            );
-          },
+          onTap: _isLoading
+              ? null
+              : () {
+                  // Perform Google Sign Up Logic
+                  createUserWithGoogle();
+                },
           borderRadius: BorderRadius.circular(16),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Google Logo Image
-              Image.network(
-                "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png",
-                height: 24,
-                width: 24,
-                // Fallback icon in case of offline/error
-                errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.g_mobiledata,
-                  color: Colors.white,
-                  size: 28,
+              if (_isLoading)
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              else
+                // Google Logo Image
+                Image.network(
+                  "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png",
+                  height: 24,
+                  width: 24,
+                  // Fallback icon in case of offline/error
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.g_mobiledata,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
-              ),
               const SizedBox(width: 12),
               Text(
-                "Sign up with Google",
+                _isLoading ? "Signing up..." : "Sign up with Google",
                 style: GoogleFonts.inter(
                   color: Colors.white,
                   fontSize: 14,
