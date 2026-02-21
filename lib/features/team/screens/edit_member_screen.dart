@@ -41,16 +41,23 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
   @override
   void initState() {
     super.initState();
-    
+
     // Pre-fill with existing member data
-    _nameController = TextEditingController(text: widget.memberData['fullName'] ?? "");
-    _roleController = TextEditingController(text: widget.memberData['jobTitle'] ?? "");
-    _emailController = TextEditingController(text: widget.memberData['email'] ?? "");
-    
+    _nameController = TextEditingController(
+      text: widget.memberData['fullName'] ?? "",
+    );
+    _roleController = TextEditingController(
+      text: widget.memberData['jobTitle'] ?? "",
+    );
+    _emailController = TextEditingController(
+      text: widget.memberData['email'] ?? "",
+    );
+
     _status = widget.memberData['status'] ?? "Active";
     _selectedTeamId = widget.memberData['teamId'];
 
-    if (widget.memberData['joiningDate'] != null && widget.memberData['joiningDate'] is Timestamp) {
+    if (widget.memberData['joiningDate'] != null &&
+        widget.memberData['joiningDate'] is Timestamp) {
       _joiningDate = (widget.memberData['joiningDate'] as Timestamp).toDate();
     } else {
       _joiningDate = DateTime.now();
@@ -83,7 +90,7 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
       if (mounted) {
         setState(() {
           _teams = fetchedTeams;
-          
+
           // If the team this member belonged to was deleted, reset to first available
           if (_selectedTeamId != null && !_teams.containsKey(_selectedTeamId)) {
             _selectedTeamId = _teams.isNotEmpty ? _teams.keys.first : null;
@@ -104,23 +111,59 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
       return;
     }
 
+    if (_nameController.text.trim().length < 2) {
+      _showErrorSnackBar("Name must be at least 2 characters long.");
+      return;
+    }
+
+    if (_nameController.text.trim().length > 50) {
+      _showErrorSnackBar("Name must not exceed 50 characters.");
+      return;
+    }
+
+    if (_emailController.text.trim().isNotEmpty) {
+      final emailRegex = RegExp(
+        r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+      );
+      if (!emailRegex.hasMatch(_emailController.text.trim())) {
+        _showErrorSnackBar("Please enter a valid email address.");
+        return;
+      }
+    }
+
+    if (_roleController.text.trim().length > 100) {
+      _showErrorSnackBar("Job title must not exceed 100 characters.");
+      return;
+    }
+
+    if (_joiningDate.isAfter(DateTime.now())) {
+      _showErrorSnackBar("Joining date cannot be in the future.");
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      await FirebaseFirestore.instance.collection('members').doc(widget.memberId).update({
-        "fullName": _nameController.text.trim(),
-        "jobTitle": _roleController.text.trim(),
-        "email": _emailController.text.trim(),
-        "teamId": _selectedTeamId,
-        "status": _status,
-        "joiningDate": _joiningDate,
-      });
+      await FirebaseFirestore.instance
+          .collection('members')
+          .doc(widget.memberId)
+          .update({
+            "fullName": _nameController.text.trim(),
+            "jobTitle": _roleController.text.trim(),
+            "email": _emailController.text.trim(),
+            "teamId": _selectedTeamId,
+            "status": _status,
+            "joiningDate": _joiningDate,
+          });
 
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Profile updated successfully", style: GoogleFonts.inter()),
+            content: Text(
+              "Profile updated successfully",
+              style: GoogleFonts.inter(),
+            ),
             backgroundColor: const Color(0xFF30D158),
             behavior: SnackBarBehavior.floating,
           ),
@@ -148,7 +191,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
   @override
   Widget build(BuildContext context) {
     // Generate dynamic avatar
-    final String avatarUrl = widget.memberData['avatarUrl'] ?? 
+    final String avatarUrl =
+        widget.memberData['avatarUrl'] ??
         "https://ui-avatars.com/api/?name=${Uri.encodeComponent(_nameController.text)}&background=random&color=fff";
 
     return Scaffold(
@@ -169,13 +213,16 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
         ),
         centerTitle: true,
         actions: [
-          _isLoading 
+          _isLoading
               ? const Padding(
                   padding: EdgeInsets.only(right: 20.0),
                   child: SizedBox(
-                    width: 20, 
-                    height: 20, 
-                    child: CircularProgressIndicator(color: Color(0xFF0A84FF), strokeWidth: 2)
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF0A84FF),
+                      strokeWidth: 2,
+                    ),
                   ),
                 )
               : TextButton(
@@ -238,15 +285,21 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
 
             // Team Select
             _isLoadingTeams
-                ? const CircularProgressIndicator(strokeWidth: 2, color: Colors.white38)
+                ? const CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white38,
+                  )
                 : _teams.isEmpty
-                    ? Text("No teams found.", style: GoogleFonts.inter(color: Colors.redAccent))
-                    : _buildSelect(
-                        "TEAM",
-                        _selectedTeamId,
-                        _teams,
-                        (val) => setState(() => _selectedTeamId = val),
-                      ),
+                ? Text(
+                    "No teams found.",
+                    style: GoogleFonts.inter(color: Colors.redAccent),
+                  )
+                : _buildSelect(
+                    "TEAM",
+                    _selectedTeamId,
+                    _teams,
+                    (val) => setState(() => _selectedTeamId = val),
+                  ),
             const SizedBox(height: 24),
 
             // Status Select
@@ -373,7 +426,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
         ),
         controller: TextEditingController(
-          text: "${_joiningDate.day}/${_joiningDate.month}/${_joiningDate.year}",
+          text:
+              "${_joiningDate.day}/${_joiningDate.month}/${_joiningDate.year}",
         ),
         onTap: () {
           _showShadCalendar();

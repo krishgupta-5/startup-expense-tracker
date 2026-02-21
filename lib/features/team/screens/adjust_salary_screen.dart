@@ -20,7 +20,7 @@ class AdjustSalaryScreen extends StatefulWidget {
 class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
   late TextEditingController _salaryController;
   late TextEditingController _reasonController;
-  
+
   DateTime _effectiveDate = DateTime.now();
   bool _isLoading = false;
 
@@ -41,28 +41,49 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
   }
 
   Future<void> _updateSalary() async {
-    if (_salaryController.text.trim().isEmpty) return;
+    if (_salaryController.text.trim().isEmpty) {
+      _showErrorSnackBar("Please enter a salary amount.");
+      return;
+    }
+
+    final String cleanInput = _salaryController.text.trim().replaceAll(',', '');
+    final double? newSalary = double.tryParse(cleanInput);
+
+    if (newSalary == null) {
+      _showErrorSnackBar("Please enter a valid salary amount.");
+      return;
+    }
+
+    if (newSalary < 0) {
+      _showErrorSnackBar("Salary cannot be negative.");
+      return;
+    }
+
+    if (newSalary > 999999.99) {
+      _showErrorSnackBar("Salary amount is too high.");
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
-      final String cleanInput = _salaryController.text.trim().replaceAll(',', '');
-      final double newSalary = double.tryParse(cleanInput) ?? widget.currentSalary;
-
       await FirebaseFirestore.instance
           .collection('members')
           .doc(widget.memberId)
           .update({
-        'monthlyCost': newSalary,
-        'lastSalaryUpdateDate': _effectiveDate,
-        'lastSalaryUpdateReason': _reasonController.text.trim(),
-      });
+            'monthlyCost': newSalary,
+            'lastSalaryUpdateDate': _effectiveDate,
+            'lastSalaryUpdateReason': _reasonController.text.trim(),
+          });
 
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Salary updated successfully", style: GoogleFonts.inter()),
+            content: Text(
+              "Salary updated successfully",
+              style: GoogleFonts.inter(),
+            ),
             backgroundColor: const Color(0xFF30D158),
             behavior: SnackBarBehavior.floating,
           ),
@@ -72,7 +93,10 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.message ?? "Failed to update", style: GoogleFonts.inter(color: Colors.white)),
+            content: Text(
+              e.message ?? "Failed to update",
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ),
@@ -85,11 +109,21 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
     }
   }
 
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Format date for display
-    String dateStr = _effectiveDate.difference(DateTime.now()).inDays == 0 
-        ? "Immediately" 
+    String dateStr = _effectiveDate.difference(DateTime.now()).inDays == 0
+        ? "Immediately"
         : "${_effectiveDate.day}/${_effectiveDate.month}/${_effectiveDate.year}";
 
     return Scaffold(
@@ -134,7 +168,9 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
               child: IntrinsicWidth(
                 child: TextField(
                   controller: _salaryController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
                     color: Colors.white,
@@ -165,8 +201,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
             Divider(color: Colors.white.withValues(alpha: 0.04)),
             const SizedBox(height: 16),
             _buildDetailRow(
-              "Reason", 
-              _reasonController.text.isEmpty ? "None" : _reasonController.text, 
+              "Reason",
+              _reasonController.text.isEmpty ? "None" : _reasonController.text,
               Icons.edit_note,
               onTap: _showReasonEditor,
             ),
@@ -185,7 +221,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                child: _isLoading 
+                child: _isLoading
                     ? const SizedBox(
                         height: 24,
                         width: 24,
@@ -210,7 +246,12 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
     );
   }
 
-  Widget _buildDetailRow(String label, String value, IconData icon, {required VoidCallback onTap}) {
+  Widget _buildDetailRow(
+    String label,
+    String value,
+    IconData icon, {
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -309,7 +350,9 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
                       ),
                     ),
                     child: Text(
@@ -362,11 +405,16 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                 ),
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF141416),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
                   ),
                   child: TextField(
                     controller: _reasonController,
@@ -384,7 +432,9 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      setState(() {}); // Trigger rebuild to show updated reason text
+                      setState(
+                        () {},
+                      ); // Trigger rebuild to show updated reason text
                       Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(
