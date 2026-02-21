@@ -190,7 +190,10 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
           decoration: BoxDecoration(
             color: const Color(0xFF141416),
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 1),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.08),
+              width: 1,
+            ),
           ),
           child: Stack(
             alignment: Alignment.center,
@@ -496,7 +499,9 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF09090B),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        ),
       ),
       child: SizedBox(
         width: double.infinity,

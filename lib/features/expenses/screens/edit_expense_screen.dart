@@ -1,22 +1,30 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class EditExpenseScreen extends StatefulWidget {
-  // In a real app, you would pass expense object here
-  // final Expense expense;
-  const EditExpenseScreen({super.key});
+  final String expenseId;
+  final Map<String, dynamic> expenseData;
+
+  const EditExpenseScreen({
+    super.key,
+    required this.expenseId,
+    required this.expenseData,
+  });
 
   @override
   State<EditExpenseScreen> createState() => _EditExpenseScreenState();
 }
 
 class _EditExpenseScreenState extends State<EditExpenseScreen> {
-  // 1. CONTROLLERS & STATE (Pre-filled with Mock Data)
+  // 1. CONTROLLERS & STATE
   late TextEditingController _amountController;
   late TextEditingController _titleController;
   late TextEditingController _notesController;
+
+  bool _isLoading = false;
 
   // Data Lists
   final categories = {
@@ -33,19 +41,43 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     'subscription': 'Subscription',
   };
 
-  String _selectedCategory = "infrastructure";
-  String _selectedType = "recurring";
-  DateTime _selectedDate = DateTime.now();
+  late String _selectedCategory;
+  late String _selectedType;
+  late DateTime _selectedDate;
 
   @override
   void initState() {
     super.initState();
-    // Initialize with existing data
-    _amountController = TextEditingController(text: "240.00");
-    _titleController = TextEditingController(text: "AWS Server Bill");
-    _notesController = TextEditingController(
-      text: "Monthly server costs for production environment.",
+
+    // 2. PRE-FILL DATA FROM FIREBASE
+    _amountController = TextEditingController(
+      text: widget.expenseData['Amount']?.toString() ?? "",
     );
+    _titleController = TextEditingController(
+      text: widget.expenseData['Title'] ?? "",
+    );
+    _notesController = TextEditingController(
+      text: widget.expenseData['Description'] ?? "",
+    );
+
+    // Safely assign Category (fallback to marketing if not found)
+    String fetchedCategory =
+        widget.expenseData['Category']?.toString().toLowerCase() ?? 'marketing';
+    _selectedCategory = categories.containsKey(fetchedCategory)
+        ? fetchedCategory
+        : 'marketing';
+
+    // Safely assign Type (fallback to one_time if not found)
+    String fetchedType =
+        widget.expenseData['Type']?.toString().toLowerCase() ?? 'one_time';
+    _selectedType = types.containsKey(fetchedType) ? fetchedType : 'one_time';
+
+    // Parse Date
+    if (widget.expenseData['Date'] is Timestamp) {
+      _selectedDate = (widget.expenseData['Date'] as Timestamp).toDate();
+    } else {
+      _selectedDate = DateTime.now();
+    }
   }
 
   @override
@@ -54,6 +86,76 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     _titleController.dispose();
     _notesController.dispose();
     super.dispose();
+  }
+
+  // 3. FIREBASE UPDATE LOGIC
+  Future<void> _updateExpense() async {
+    if (_amountController.text.trim().isEmpty) {
+      _showErrorSnackBar("Please enter an amount.");
+      return;
+    }
+    if (_titleController.text.trim().isEmpty) {
+      _showErrorSnackBar("Please enter a title.");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final double amount =
+          double.tryParse(_amountController.text.trim()) ?? 0.0;
+
+      await FirebaseFirestore.instance
+          .collection('expenses')
+          .doc(widget.expenseId)
+          .update({
+            "Amount": amount,
+            "Title": _titleController.text.trim(),
+            "Description": _notesController.text.trim(),
+            "Date": _selectedDate,
+            "Category": _selectedCategory,
+            "Type": _selectedType,
+            "Time": FieldValue.serverTimestamp(),
+          });
+
+      if (mounted) {
+        // Show success message first
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Expense updated successfully",
+              style: GoogleFonts.inter(),
+            ),
+            backgroundColor: const Color(0xFF30D158),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+
+        // Small delay to ensure Firestore update propagates
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Pop the Edit Screen to go back to details
+        Navigator.pop(context);
+      }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        _showErrorSnackBar(e.message ?? 'Failed to update expense');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -289,6 +391,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
               'Select $label',
               style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
             ),
+            initialValue: currentValue,
             options: [
               ...items.entries.map(
                 (e) => ShadOption(value: e.key, child: Text(e.value)),
@@ -412,7 +515,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "invoice_nov.pdf",
+                  "No receipt attached",
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 14,
@@ -420,7 +523,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                   ),
                 ),
                 Text(
-                  "2.4 MB",
+                  "0 KB",
                   style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
                 ),
               ],
@@ -529,8 +632,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 const SizedBox(height: 20),
                 ShadCalendar(
                   selected: _selectedDate,
-                  fromMonth: DateTime(_selectedDate.year, 1),
-                  toMonth: DateTime(_selectedDate.year, 12),
+                  fromMonth: DateTime(_selectedDate.year - 1, 1),
+                  toMonth: DateTime(_selectedDate.year + 1, 12),
                   onChanged: (DateTime? date) {
                     if (date != null) {
                       setState(() {
@@ -575,25 +678,40 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF09090B),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        ),
       ),
       child: SizedBox(
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () {},
+          onPressed: _isLoading ? null : _updateExpense,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white, // High Contrast White
-            foregroundColor: Colors.black, // Black Text
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            disabledBackgroundColor: Colors.white54,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
-          child: Text(
-            "Update Expense",
-            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
+          child: _isLoading
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.black,
+                  ),
+                )
+              : Text(
+                  "Update Expense",
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
         ),
       ),
     );

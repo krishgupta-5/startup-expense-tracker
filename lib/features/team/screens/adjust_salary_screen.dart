@@ -9,7 +9,9 @@ class AdjustSalaryScreen extends StatefulWidget {
 }
 
 class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
-  final TextEditingController _salaryController = TextEditingController(text: "12,000");
+  final TextEditingController _salaryController = TextEditingController(
+    text: "12,000",
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -18,8 +20,17 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF09090B),
         elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
-        title: Text("Adjust Salary", style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          "Adjust Salary",
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         centerTitle: true,
       ),
       body: Padding(
@@ -29,10 +40,18 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
           children: [
             const SizedBox(height: 40),
             Center(
-              child: Text("CURRENT MONTHLY COST", style: GoogleFonts.inter(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+              child: Text(
+                "CURRENT MONTHLY COST",
+                style: GoogleFonts.inter(
+                  color: Colors.white38,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                ),
+              ),
             ),
             const SizedBox(height: 16),
-            
+
             // HERO INPUT
             Center(
               child: IntrinsicWidth(
@@ -40,26 +59,37 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                   controller: _salaryController,
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 48,
+                    fontWeight: FontWeight.w600,
+                  ),
                   decoration: InputDecoration(
                     prefixText: "\$ ",
-                    prefixStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 48),
+                    prefixStyle: GoogleFonts.inter(
+                      color: Colors.white38,
+                      fontSize: 48,
+                    ),
                     border: InputBorder.none,
                   ),
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 40),
-            
-            _buildDetailRow("Effective Date", "Immediately", Icons.calendar_today),
+
+            _buildDetailRow(
+              "Effective Date",
+              "Immediately",
+              Icons.calendar_today,
+            ),
             const SizedBox(height: 16),
             Divider(color: Colors.white.withValues(alpha: 0.04)),
             const SizedBox(height: 16),
             _buildDetailRow("Reason", "Performance Raise", Icons.edit_note),
-            
+
             const Spacer(),
-            
+
             SizedBox(
               width: double.infinity,
               height: 56,
@@ -67,9 +97,18 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                 onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
-                child: Text("Update Salary", style: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+                child: Text(
+                  "Update Salary",
+                  style: GoogleFonts.inter(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
               ),
             ),
           ],
@@ -77,7 +116,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
       ),
     );
   }
-  
+
   Widget _buildDetailRow(String label, String value, IconData icon) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -95,7 +134,13 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
               Text(label, style: GoogleFonts.inter(color: Colors.white54)),
             ],
           ),
-          Text(value, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );

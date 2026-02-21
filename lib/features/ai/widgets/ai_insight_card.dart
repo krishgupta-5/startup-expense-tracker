@@ -72,11 +72,16 @@ class AiInsightCard extends StatelessWidget {
               ),
               if (item.savings != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: item.color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(100),
-                    border: Border.all(color: item.color.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: item.color.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Text(
                     item.savings!,

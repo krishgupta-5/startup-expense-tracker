@@ -13,7 +13,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
   // 1. STATE VARIABLES
   String _selectedColor = "Blue";
   IconData _selectedIcon = Icons.code;
-  
+
   // 2. DATA OPTIONS
   final List<Map<String, dynamic>> _colors = [
     {"name": "Blue", "color": const Color(0xFF0A84FF)},
@@ -83,8 +83,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
-                      // -----------------------
 
+                      // -----------------------
                       const SizedBox(height: 40),
 
                       // --- VISUAL IDENTITY ---
@@ -95,37 +95,55 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                         decoration: BoxDecoration(
                           color: const Color(0xFF141416),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.04),
+                          ),
                         ),
                         child: Column(
                           children: [
                             // Color Picker
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: _colors.map((c) => _buildColorOption(c)).toList(),
+                              children: _colors
+                                  .map((c) => _buildColorOption(c))
+                                  .toList(),
                             ),
                             const SizedBox(height: 24),
-                            Divider(color: Colors.white.withValues(alpha: 0.04), height: 1),
+                            Divider(
+                              color: Colors.white.withValues(alpha: 0.04),
+                              height: 1,
+                            ),
                             const SizedBox(height: 24),
                             // Icon Picker
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: _icons.map((i) => _buildIconOption(i)).toList(),
+                              children: _icons
+                                  .map((i) => _buildIconOption(i))
+                                  .toList(),
                             ),
                           ],
                         ),
                       ),
-                      // -----------------------
 
+                      // -----------------------
                       const SizedBox(height: 32),
 
                       // Description
-                      _buildTextInput("DESCRIPTION", "What does this team do?", maxLines: 3),
+                      _buildTextInput(
+                        "DESCRIPTION",
+                        "What does this team do?",
+                        maxLines: 3,
+                      ),
 
                       const SizedBox(height: 32),
 
                       // Budget
-                      _buildTextInput("MONTHLY BUDGET", "\$ 0.00", maxLines: 1, isNumber: true),
+                      _buildTextInput(
+                        "MONTHLY BUDGET",
+                        "\$ 0.00",
+                        maxLines: 1,
+                        isNumber: true,
+                      ),
 
                       const SizedBox(height: 32),
 
@@ -183,7 +201,12 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
     );
   }
 
-  Widget _buildTextInput(String label, String placeholder, {int maxLines = 1, bool isNumber = false}) {
+  Widget _buildTextInput(
+    String label,
+    String placeholder, {
+    int maxLines = 1,
+    bool isNumber = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -225,7 +248,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.2),
           shape: BoxShape.circle,
-          border: isSelected 
+          border: isSelected
               ? Border.all(color: color, width: 2)
               : Border.all(color: Colors.transparent),
         ),
@@ -233,10 +256,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
           child: Container(
             width: 16,
             height: 16,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
         ),
       ),
@@ -245,7 +265,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
 
   Widget _buildIconOption(IconData icon) {
     final bool isSelected = _selectedIcon == icon;
-    
+
     return GestureDetector(
       onTap: () => setState(() => _selectedIcon = icon),
       child: Container(
@@ -254,13 +274,13 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
         decoration: BoxDecoration(
           color: isSelected ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
-          border: isSelected 
+          border: isSelected
               ? null
               : Border.all(color: Colors.white.withValues(alpha: 0.1)),
         ),
         child: Icon(
-          icon, 
-          color: isSelected ? Colors.black : Colors.white54, 
+          icon,
+          color: isSelected ? Colors.black : Colors.white54,
           size: 20,
         ),
       ),
@@ -301,12 +321,12 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
       height: 48,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: isSelected 
-            ? Border.all(color: Colors.white, width: 2) 
+        border: isSelected
+            ? Border.all(color: Colors.white, width: 2)
             : Border.all(color: Colors.transparent),
         image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
       ),
-      child: isSelected 
+      child: isSelected
           ? Container(
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.5),
@@ -335,7 +355,9 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF09090B),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        ),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -352,10 +374,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
           ),
           child: Text(
             "Create Team",
-            style: GoogleFonts.inter(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-            ),
+            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
           ),
         ),
       ),

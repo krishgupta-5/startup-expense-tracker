@@ -11,11 +11,15 @@ class DataAccessScreen extends StatefulWidget {
 
 class _DataAccessScreenState extends State<DataAccessScreen> {
   bool _allowSupportAccess = false;
-  
+
   // Mock Team Data
   final List<Map<String, String>> _teamMembers = [
     {"name": "Sahil Mishra", "role": "Owner", "email": "sahil@bullxchange.com"},
-    {"name": "Krish Gupta", "role": "Editor", "email": "krish@bullxexchange.com"},
+    {
+      "name": "Krish Gupta",
+      "role": "Editor",
+      "email": "krish@bullxexchange.com",
+    },
     {"name": "Rohan Das", "role": "Viewer", "email": "rohan@bullxexchange.com"},
   ];
 
@@ -41,7 +45,9 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF141416),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.04),
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -51,7 +57,11 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                           color: const Color(0xFF0A84FF).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.support_agent, color: Color(0xFF0A84FF), size: 20),
+                        child: const Icon(
+                          Icons.support_agent,
+                          color: Color(0xFF0A84FF),
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -60,20 +70,29 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                           children: [
                             Text(
                               "Grant Support Access",
-                              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600),
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             Text(
                               "Allow support team to view data for 2h.",
-                              style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
+                              style: GoogleFonts.inter(
+                                color: Colors.white38,
+                                fontSize: 12,
+                              ),
                             ),
                           ],
                         ),
                       ),
                       Switch(
                         value: _allowSupportAccess,
-                        onChanged: (val) => setState(() => _allowSupportAccess = val),
+                        onChanged: (val) =>
+                            setState(() => _allowSupportAccess = val),
                         activeThumbColor: const Color(0xFF0A84FF),
-                        activeTrackColor: const Color(0xFF0A84FF).withValues(alpha: 0.3),
+                        activeTrackColor: const Color(
+                          0xFF0A84FF,
+                        ).withValues(alpha: 0.3),
                         inactiveThumbColor: Colors.white54,
                         inactiveTrackColor: Colors.white10,
                       ),
@@ -89,7 +108,9 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF141416),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.04),
+                    ),
                   ),
                   child: Column(
                     children: _teamMembers.asMap().entries.map((entry) {
@@ -98,24 +119,53 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                       return Column(
                         children: [
                           ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                            title: Text(member['name'], style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600)),
-                            subtitle: Text(member['email'], style: GoogleFonts.inter(color: Colors.white38, fontSize: 12)),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 8,
+                            ),
+                            title: Text(
+                              member['name'],
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: Text(
+                              member['email'],
+                              style: GoogleFonts.inter(
+                                color: Colors.white38,
+                                fontSize: 12,
+                              ),
+                            ),
                             trailing: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: 0.05),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                ),
                               ),
                               child: Text(
                                 member['role'],
-                                style: GoogleFonts.inter(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
                           if (idx != _teamMembers.length - 1)
-                            Divider(height: 1, color: Colors.white.withValues(alpha: 0.04), indent: 20, endIndent: 20),
+                            Divider(
+                              height: 1,
+                              color: Colors.white.withValues(alpha: 0.04),
+                              indent: 20,
+                              endIndent: 20,
+                            ),
                         ],
                       );
                     }).toList(),
@@ -145,7 +195,14 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
           ),
         ),
         const SizedBox(width: 16),
-        Text(title, style: GoogleFonts.inter(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
+        Text(
+          title,
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }
@@ -153,7 +210,15 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
   Widget _buildSectionLabel(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12, left: 4),
-      child: Text(text, style: GoogleFonts.inter(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+      child: Text(
+        text,
+        style: GoogleFonts.inter(
+          color: Colors.white24,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.5,
+        ),
+      ),
     );
   }
 }

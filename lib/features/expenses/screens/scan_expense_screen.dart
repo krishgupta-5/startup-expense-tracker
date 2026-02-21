@@ -43,23 +43,21 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen> {
                         ),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: _isScanning 
-                        ? _buildScanningView()
-                        : _buildIdleView(),
+                      child: _isScanning
+                          ? _buildScanningView()
+                          : _buildIdleView(),
                     ),
 
                     const SizedBox(height: 40),
 
                     // Scan Button
-                    if (!_isScanning)
-                      _buildScanButton(),
+                    if (!_isScanning) _buildScanButton(),
                   ],
                 ),
               ),
 
               // 3. Bottom Actions
-              if (_scannedResult.isNotEmpty)
-                _buildBottomActions(),
+              if (_scannedResult.isNotEmpty) _buildBottomActions(),
             ],
           ),
         ),
@@ -105,7 +103,9 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: _flashOn ? const Color(0xFF0A84FF) : const Color(0xFF141416),
+                color: _flashOn
+                    ? const Color(0xFF0A84FF)
+                    : const Color(0xFF141416),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
               ),
@@ -167,15 +167,12 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen> {
             margin: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               border: Border(
-                top: BorderSide(
-                  color: const Color(0xFF0A84FF),
-                  width: 2,
-                ),
+                top: BorderSide(color: const Color(0xFF0A84FF), width: 2),
               ),
             ),
           ),
         ),
-        
+
         // Center crosshair
         Center(
           child: Container(
@@ -206,11 +203,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.camera_alt,
-              color: Colors.white,
-              size: 20,
-            ),
+            const Icon(Icons.camera_alt, color: Colors.white, size: 20),
             const SizedBox(width: 8),
             Text(
               "Start Scanning",
@@ -297,7 +290,9 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFF141416),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
                     ),
                     child: Center(
                       child: Text(
@@ -329,7 +324,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen> {
       if (mounted) {
         setState(() {
           _isScanning = false;
-          _scannedResult = "Receipt scanned: Starbucks Coffee - \$4.50\nDate: Nov 24, 2024\nCategory: Meals";
+          _scannedResult =
+              "Receipt scanned: Starbucks Coffee - \$4.50\nDate: Nov 24, 2024\nCategory: Meals";
         });
       }
     });

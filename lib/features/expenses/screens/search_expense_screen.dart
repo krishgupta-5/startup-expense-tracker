@@ -1,3 +1,6 @@
+import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -17,11 +20,13 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
   String _searchQuery = "";
 
   // 2. FILTER STATE
-  String _selectedYear = "2024";
+  late String _selectedYear;
   String _selectedMonthKey = "all";
   String _selectedCategoryKey = "all";
   String _sortOrder = "newest";
-  DateTime _selectedDate = DateTime.now();
+
+  // If this is set, it overrides the Month/Year filter to search for an exact day
+  DateTime? _exactDate;
 
   // 3. CONSTANTS & MAPPINGS
   final Map<String, String> _months = {
@@ -42,138 +47,92 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
 
   final Map<String, String> _categories = {
     'all': 'All',
-    'Infrastructure': 'Infrastructure',
-    'Software': 'Software',
-    'Office': 'Office',
-    'Marketing': 'Marketing',
-    'Meals': 'Meals',
-    'Transport': 'Transport',
+    'marketing': 'Marketing',
+    'infrastructure': 'Infrastructure',
+    'office': 'Office',
+    'software': 'Software',
+    'transport': 'Transport',
+    'design': 'Design',
   };
 
-  // 4. MOCK DATA
-  final List<Map<String, dynamic>> _allTransactions = [
-    {
-      "title": "AWS Server",
-      "cat": "Infrastructure",
-      "amt": "240.00",
-      "date": "Nov 24, 2024",
-    },
-    {
-      "title": "Figma Pro",
-      "cat": "Software",
-      "amt": "45.00",
-      "date": "Nov 23, 2024",
-    },
-    {
-      "title": "WeWork",
-      "cat": "Office",
-      "amt": "850.00",
-      "date": "Nov 22, 2024",
-    },
-    {
-      "title": "Uber Business",
-      "cat": "Transport",
-      "amt": "24.50",
-      "date": "Nov 21, 2024",
-    },
-    {
-      "title": "Slack",
-      "cat": "Software",
-      "amt": "12.00",
-      "date": "Oct 20, 2024",
-    },
-    {
-      "title": "Google Ads",
-      "cat": "Marketing",
-      "amt": "500.00",
-      "date": "Oct 19, 2024",
-    },
-    {
-      "title": "Client Dinner",
-      "cat": "Meals",
-      "amt": "120.00",
-      "date": "Sep 18, 2024",
-    },
-    {
-      "title": "Apple Store",
-      "cat": "Infrastructure",
-      "amt": "2200.00",
-      "date": "Nov 15, 2023",
-    },
-  ];
-
-  // 5. HELPER: Parse "Nov 24, 2024" to DateTime
-  DateTime? _parseDate(String dateStr) {
-    try {
-      final parts = dateStr.replaceAll(',', '').split(' ');
-      if (parts.length != 3) return null;
-
-      final monthStr = parts[0];
-      final day = int.parse(parts[1]);
-      final year = int.parse(parts[2]);
-
-      final monthMap = {
-        'Jan': 1,
-        'Feb': 2,
-        'Mar': 3,
-        'Apr': 4,
-        'May': 5,
-        'Jun': 6,
-        'Jul': 7,
-        'Aug': 8,
-        'Sep': 9,
-        'Oct': 10,
-        'Nov': 11,
-        'Dec': 12,
-      };
-
-      final month = monthMap[monthStr] ?? 1;
-      return DateTime(year, month, day);
-    } catch (e) {
-      return null;
-    }
+  @override
+  void initState() {
+    super.initState();
+    _selectedYear = DateTime.now().year.toString();
   }
 
-  // 6. FILTER LOGIC
-  List<Map<String, dynamic>> get _filteredTransactions {
-    // A. FILTER
-    final filtered = _allTransactions.where((tx) {
-      final txDate = _parseDate(tx["date"]);
-      if (txDate == null) return false;
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
-      // 1. Search Query
-      final matchesQuery = tx["title"].toString().toLowerCase().contains(
-        _searchQuery.toLowerCase(),
-      );
+  // 4. SMART LOCAL FILTER & SORT LOGIC
+  List<QueryDocumentSnapshot> _filterAndSortDocs(
+    List<QueryDocumentSnapshot> docs,
+  ) {
+    final filtered = docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
 
-      // 2. Category Filter (Always applies)
-      bool matchesCategory = true;
+      if (data['Date'] == null || data['Date'] is! Timestamp) return false;
+      final txDate = (data['Date'] as Timestamp).toDate();
+
+      // A. Search Query Filter
+      if (_searchQuery.isNotEmpty) {
+        final title = (data['Title'] ?? '').toString().toLowerCase();
+        if (!title.contains(_searchQuery.toLowerCase())) return false;
+      }
+
+      // B. Category Filter
       if (_selectedCategoryKey != 'all') {
-        matchesCategory = tx["cat"] == _categories[_selectedCategoryKey];
+        final txCat = (data['Category'] ?? '').toString().toLowerCase();
+        if (txCat != _selectedCategoryKey) return false;
       }
 
-      // 3. Date Logic (Month/Year only)
-      final matchesYear = txDate.year.toString() == _selectedYear;
-
-      bool matchesMonth = true;
-      if (_selectedMonthKey != 'all') {
-        final dataMonth = tx["date"].toString().split(' ')[0];
-        matchesMonth =
-            dataMonth.toLowerCase() == _selectedMonthKey.toLowerCase();
+      // C. Date Filter (Exact Day OR Month/Year)
+      if (_exactDate != null) {
+        if (txDate.year != _exactDate!.year ||
+            txDate.month != _exactDate!.month ||
+            txDate.day != _exactDate!.day) {
+          return false;
+        }
+      } else {
+        // Year Match
+        if (txDate.year.toString() != _selectedYear) return false;
+        // Month Match
+        if (_selectedMonthKey != 'all') {
+          final monthMap = {
+            'Jan': 1,
+            'Feb': 2,
+            'Mar': 3,
+            'Apr': 4,
+            'May': 5,
+            'Jun': 6,
+            'Jul': 7,
+            'Aug': 8,
+            'Sep': 9,
+            'Oct': 10,
+            'Nov': 11,
+            'Dec': 12,
+          };
+          if (txDate.month != monthMap[_selectedMonthKey]) return false;
+        }
       }
-      final matchesDateLogic = matchesYear && matchesMonth;
 
-      return matchesQuery && matchesCategory && matchesDateLogic;
+      return true;
     }).toList();
 
-    // B. SORT
+    // D. Sort Logic
     filtered.sort((a, b) {
-      final dateA = _parseDate(a["date"]) ?? DateTime.now();
-      final dateB = _parseDate(b["date"]) ?? DateTime.now();
+      final dataA = a.data() as Map<String, dynamic>;
+      final dataB = b.data() as Map<String, dynamic>;
+      final dateA = (dataA['Date'] as Timestamp).toDate();
+      final dateB = (dataB['Date'] as Timestamp).toDate();
+
       if (_sortOrder == 'newest') {
-        return dateB.compareTo(dateA);
+        return dateB.compareTo(dateA); // Descending
       } else {
-        return dateA.compareTo(dateB);
+        return dateA.compareTo(dateB); // Ascending
       }
     });
 
@@ -195,7 +154,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               const SizedBox(height: 24),
 
               // --- FILTERS ---
-
               // 1. TOP ROW: Year/Date Controls + Sort
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -208,21 +166,27 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                     ),
                     const SizedBox(width: 8),
 
-                    // Date Picker Button (ShadCN Calendar)
+                    // Date Picker Button (Highlights Green if active)
                     GestureDetector(
                       onTap: () => _showDatePicker(),
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
+                          color: _exactDate != null
+                              ? const Color(0xFF30D158).withValues(alpha: 0.15)
+                              : const Color(0xFF141416),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.1),
+                            color: _exactDate != null
+                                ? const Color(0xFF30D158)
+                                : Colors.white.withValues(alpha: 0.1),
                           ),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.calendar_month,
-                          color: Colors.white54,
+                          color: _exactDate != null
+                              ? const Color(0xFF30D158)
+                              : Colors.white54,
                           size: 20,
                         ),
                       ),
@@ -230,7 +194,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
 
                     const SizedBox(width: 8),
 
-                    // Sort Dropdown (Always visible)
+                    // Sort Dropdown
                     _buildDropdownTrigger(
                       label: _sortOrder == 'newest' ? "Newest" : "Oldest",
                       onTap: () => _showSortSelector(),
@@ -254,10 +218,17 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                     final key = _months.keys.elementAt(index);
                     final label = _months[key]!;
                     final isSelected =
-                        _selectedMonthKey.toLowerCase() == key.toLowerCase();
+                        _selectedMonthKey.toLowerCase() == key.toLowerCase() &&
+                        _exactDate == null;
 
                     return GestureDetector(
-                      onTap: () => setState(() => _selectedMonthKey = key),
+                      onTap: () {
+                        setState(() {
+                          _selectedMonthKey = key;
+                          _exactDate =
+                              null; // Clear exact date if user clicks a month
+                        });
+                      },
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -339,20 +310,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               const SizedBox(height: 24),
               const Divider(color: Color(0xFF1F1F22), height: 1),
 
-              // --- RESULTS LIST ---
-              Expanded(
-                child: _filteredTransactions.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(24),
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: _filteredTransactions.length,
-                        itemBuilder: (context, index) {
-                          final tx = _filteredTransactions[index];
-                          return _buildTransactionRow(tx);
-                        },
-                      ),
-              ),
+              // --- RESULTS LIST (FIREBASE STREAM) ---
+              Expanded(child: _buildFirebaseResults()),
             ],
           ),
         ),
@@ -361,6 +320,52 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
   }
 
   // --- WIDGET HELPERS ---
+
+  Widget _buildFirebaseResults() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return _buildEmptyState("User not logged in");
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('expenses')
+          .where('uid', isEqualTo: user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white38,
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return _buildEmptyState("Failed to load data");
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildEmptyState("No expenses found");
+        }
+
+        // Apply Local Filtering and Sorting
+        final docs = _filterAndSortDocs(snapshot.data!.docs);
+
+        if (docs.isEmpty) {
+          return _buildEmptyState("No matching expenses found");
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(24),
+          physics: const BouncingScrollPhysics(),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            return _buildTransactionRow(docs[index]);
+          },
+        );
+      },
+    );
+  }
 
   Widget _buildHeader() {
     return Container(
@@ -411,7 +416,29 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                 hintText: "Search title...",
                 hintStyle: GoogleFonts.inter(color: Colors.white24),
                 border: InputBorder.none,
-                icon: const Icon(Icons.search, color: Colors.white38, size: 20),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: Colors.white38,
+                  size: 20,
+                ),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 40,
+                  minHeight: 40,
+                ),
+                // Add a clear button when typing
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? GestureDetector(
+                        onTap: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = "");
+                        },
+                        child: const Icon(
+                          Icons.cancel,
+                          color: Colors.white38,
+                          size: 16,
+                        ),
+                      )
+                    : null,
               ),
               onChanged: (val) => setState(() => _searchQuery = val),
             ),
@@ -453,12 +480,34 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     );
   }
 
-  Widget _buildTransactionRow(Map<String, dynamic> tx) {
+  Widget _buildTransactionRow(QueryDocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final id = doc.id;
+
+    final title = data['Title'] ?? 'Unnamed Expense';
+    final amount = data['Amount']?.toString() ?? '0.00';
+
+    final rawCategory = data['Category']?.toString() ?? 'General';
+    final category = rawCategory.isNotEmpty
+        ? '${rawCategory[0].toUpperCase()}${rawCategory.substring(1)}'
+        : 'General';
+
+    String dateStr = '';
+    if (data['Date'] is Timestamp) {
+      final date = (data['Date'] as Timestamp).toDate();
+      final day = date.day.toString().padLeft(2, '0');
+      final month = date.month.toString().padLeft(2, '0');
+      dateStr = "$day/$month/${date.year}";
+    }
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const ExpenseDetailsScreen()),
+          MaterialPageRoute(
+            builder: (context) =>
+                ExpenseDetailsScreen(expenseId: id, expenseData: data),
+          ),
         );
       },
       child: Padding(
@@ -481,16 +530,18 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    tx["title"],
+                    title,
                     style: GoogleFonts.inter(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    "${tx["cat"]} • ${tx["date"]}",
+                    "$category • $dateStr",
                     style: GoogleFonts.inter(
                       color: Colors.white38,
                       fontSize: 12,
@@ -501,7 +552,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               ),
             ),
             Text(
-              "-\$${tx["amt"]}",
+              "-\$$amount",
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 15,
@@ -515,7 +566,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(String message) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -523,7 +574,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
           const Icon(Icons.filter_list_off, color: Colors.white12, size: 48),
           const SizedBox(height: 16),
           Text(
-            "No expenses found",
+            message,
             style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
           ),
         ],
@@ -562,26 +613,47 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
+
+                // ShadCN Calendar
                 ShadCalendar(
-                  selected: _selectedDate,
-                  fromMonth: DateTime(_selectedDate.year - 1),
-                  toMonth: DateTime(_selectedDate.year + 1, 12),
+                  selected: _exactDate ?? DateTime.now(),
+                  fromMonth: DateTime(int.parse(_selectedYear) - 2, 1),
+                  toMonth: DateTime(int.parse(_selectedYear) + 2, 12),
                   onChanged: (DateTime? date) {
                     if (date != null) {
                       setState(() {
-                        _selectedDate = date;
-                        // Update year and month based on selected date
+                        _exactDate = date;
                         _selectedYear = date.year.toString();
                         _selectedMonthKey = _months.keys.elementAt(
-                          date.month - 1,
-                        );
+                          date.month,
+                        ); // 1 = Jan, etc.
                       });
                       Navigator.pop(context);
                     }
                   },
                 ),
-                const SizedBox(height: 20),
+
+                // Option to Clear Date Filter
+                if (_exactDate != null) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () {
+                        setState(() => _exactDate = null);
+                        Navigator.pop(context);
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.redAccent,
+                      ),
+                      child: Text(
+                        "Clear Exact Date",
+                        style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -591,7 +663,15 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
   }
 
   void _showYearSelector() {
-    final years = ['2025', '2024', '2023', '2022'];
+    final int currentYear = DateTime.now().year;
+    final years = [
+      (currentYear + 1).toString(),
+      currentYear.toString(),
+      (currentYear - 1).toString(),
+      (currentYear - 2).toString(),
+      (currentYear - 3).toString(),
+    ];
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -628,7 +708,11 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: GestureDetector(
                       onTap: () {
-                        setState(() => _selectedYear = year);
+                        setState(() {
+                          _selectedYear = year;
+                          _exactDate =
+                              null; // Clear exact date if changing year manually
+                        });
                         Navigator.pop(context);
                       },
                       child: Container(

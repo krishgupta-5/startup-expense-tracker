@@ -1,7 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:uuid/uuid.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   const AddExpenseScreen({super.key});
@@ -11,6 +14,15 @@ class AddExpenseScreen extends StatefulWidget {
 }
 
 class _AddExpenseScreenState extends State<AddExpenseScreen> {
+  // Controllers
+  late final TextEditingController _amountController;
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _dateController;
+
+  // Loading State
+  bool _isLoading = false;
+
   // 2. DATA LISTS
   final categories = {
     'marketing': 'Marketing',
@@ -30,6 +42,85 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   String _selectedCategory = "marketing";
   String _selectedType = "one_time";
   DateTime _selectedDate = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController = TextEditingController();
+    _titleController = TextEditingController();
+    _descriptionController = TextEditingController();
+    _dateController = TextEditingController(
+      text: "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
+    );
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _dateController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _uploadExpense() async {
+    // Validation
+    if (_amountController.text.trim().isEmpty) {
+      _showErrorSnackBar("Please enter an amount.");
+      return;
+    }
+    if (_titleController.text.trim().isEmpty) {
+      _showErrorSnackBar("Please enter a title.");
+      return;
+    }
+
+    // Set Loading State
+    setState(() => _isLoading = true);
+
+    try {
+      final id = const Uuid().v4();
+
+      // Parse amount to double
+      final double amount =
+          double.tryParse(_amountController.text.trim()) ?? 0.0;
+
+      await FirebaseFirestore.instance.collection('expenses').doc(id).set({
+        "uid": FirebaseAuth.instance.currentUser!.uid,
+        "Amount": amount,
+        "Title": _titleController.text.trim(),
+        "Description": _descriptionController.text.trim(),
+        "Date": _selectedDate,
+        "Category": _selectedCategory,
+        "Type": _selectedType,
+        "Time": FieldValue.serverTimestamp(),
+      });
+
+      // Navigate back after successful save
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } on FirebaseException catch (e) {
+      // Error Handling
+      if (mounted) {
+        _showErrorSnackBar(e.message ?? 'Failed to upload expense');
+      }
+    } finally {
+      // Reset loading state
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -190,6 +281,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     return SizedBox(
       width: double.infinity,
       child: TextField(
+        controller: _amountController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         textAlign: TextAlign.center,
         style: GoogleFonts.inter(
@@ -227,6 +319,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
           ),
           child: TextField(
+            controller: _titleController,
             style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
             decoration: InputDecoration(
               hintText: placeholder,
@@ -240,7 +333,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  // --- NEW: SHADCN SELECT FIELD ---
   Widget _buildSelectField({
     required String label,
     required String currentValue,
@@ -315,10 +407,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 color: Colors.white38,
               ),
             ),
-            controller: TextEditingController(
-              text:
-                  "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
-            ),
+            controller: _dateController,
             onTap: () {
               _showShadCalendar();
             },
@@ -368,6 +457,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     if (date != null) {
                       setState(() {
                         _selectedDate = date;
+                        _dateController.text =
+                            "${date.day}/${date.month}/${date.year}";
                       });
                       Navigator.pop(context);
                     }
@@ -417,6 +508,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
           ),
           child: TextField(
+            controller: _descriptionController,
             style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
             maxLines: 4,
             minLines: 3,
@@ -530,25 +622,44 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF09090B),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        ),
       ),
       child: SizedBox(
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () {},
+          onPressed: _isLoading
+              ? null
+              : () async {
+                  await _uploadExpense();
+                },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.white,
             foregroundColor: Colors.black,
+            disabledBackgroundColor: Colors.white54,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
-          child: Text(
-            "Save Expense",
-            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
+          child: _isLoading
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.black,
+                  ),
+                )
+              : Text(
+                  "Save Expense",
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
         ),
       ),
     );
