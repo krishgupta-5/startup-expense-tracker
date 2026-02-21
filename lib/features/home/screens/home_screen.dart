@@ -196,10 +196,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _fetchRunwayData() async {
     try {
-      print("DEBUG: Starting runway data fetch...");
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        print("DEBUG: No authenticated user found");
         setState(() {
           errorMessage = "User not authenticated";
           isLoading = false;
@@ -207,27 +205,18 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
-      print("DEBUG: User authenticated with UID: ${user.uid}");
-
       final docSnapshot = await FirebaseFirestore.instance
           .collection("companies")
           .doc(user.uid)
           .get();
 
-      print("DEBUG: Document exists: ${docSnapshot.exists}");
-
       if (docSnapshot.exists && docSnapshot.data() != null) {
         final data = docSnapshot.data()!;
-        print("DEBUG: Document data: $data");
-        print("DEBUG: Available keys: ${data.keys.toList()}");
 
         // Get funding and totalExpenses to calculate runway
         final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
         final totalExpenses =
             data["totalExpenses"] ?? data["total_expenses"] ?? "0";
-
-        print("DEBUG: Funding value: $funding");
-        print("DEBUG: Total expenses value: $totalExpenses");
 
         if (funding != null) {
           final fundingAmount = double.tryParse(funding.toString()) ?? 0;
@@ -246,24 +235,19 @@ class _HomeScreenState extends State<HomeScreen> {
             runwayValue = calculatedRunway.toStringAsFixed(2);
             isLoading = false;
           });
-          print("DEBUG: Calculated runway: $calculatedRunway months");
         } else {
-          print("DEBUG: No funding field found");
           setState(() {
             errorMessage = "No funding data found";
             isLoading = false;
           });
-          print("DEBUG: Set runwayValue to: $runwayValue");
         }
       } else {
-        print("DEBUG: No document found or document is empty");
         setState(() {
           errorMessage = "No company data found";
           isLoading = false;
         });
       }
     } catch (e) {
-      print("DEBUG: Error fetching runway data: $e");
       setState(() {
         errorMessage = "Failed to load runway data: $e";
         isLoading = false;
@@ -275,11 +259,8 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        print("DEBUG: No authenticated user found for funds fetch");
         return;
       }
-
-      print("DEBUG: Starting funds data fetch...");
 
       final docSnapshot = await FirebaseFirestore.instance
           .collection("companies")
@@ -288,16 +269,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (docSnapshot.exists && docSnapshot.data() != null) {
         final data = docSnapshot.data()!;
-        print("DEBUG: Funds document data: $data");
 
         // Get funding and totalExpenses to calculate available funds
         final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
         final totalExpenses =
             data["totalExpenses"] ?? data["total_expenses"] ?? "0";
-
-        print("DEBUG: Funding value: $funding");
-        print("DEBUG: Total expenses value: $totalExpenses");
-
         if (funding != null) {
           final fundingAmount = double.tryParse(funding.toString()) ?? 0;
           final totalExpensesAmount =
@@ -309,13 +285,10 @@ class _HomeScreenState extends State<HomeScreen> {
             totalFundsAvailable =
                 "₹${(availableFunds / 100000).toStringAsFixed(1)}L";
           });
-          print("DEBUG: Set totalFundsAvailable to: $totalFundsAvailable");
-        } else {
-          print("DEBUG: No funding field found");
         }
       }
     } catch (e) {
-      print("DEBUG: Error fetching funds data: $e");
+      // Silently handle errors for funds fetching
     }
   }
 
