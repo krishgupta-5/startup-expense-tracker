@@ -1,9 +1,18 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class EditMemberScreen extends StatefulWidget {
-  const EditMemberScreen({super.key});
+  final String memberId;
+  final Map<String, dynamic> memberData;
+
+  const EditMemberScreen({
+    super.key,
+    required this.memberId,
+    required this.memberData,
+  });
 
   @override
   State<EditMemberScreen> createState() => _EditMemberScreenState();
@@ -14,33 +23,134 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
   late TextEditingController _roleController;
   late TextEditingController _emailController;
 
-  final teams = {
-    'engineering': 'Engineering',
-    'marketing': 'Marketing',
-    'design': 'Design',
-    'sales': 'Sales',
-  };
-  final statuses = {
-    'active': 'Active',
-    'paused': 'Paused',
-    'on_leave': 'On Leave',
+  bool _isLoading = false;
+  bool _isLoadingTeams = true;
+
+  Map<String, String> _teams = {};
+  String? _selectedTeamId;
+
+  final Map<String, String> _statuses = {
+    'Active': 'Active',
+    'Paused': 'Paused',
+    'On Leave': 'On Leave',
   };
 
-  String _selectedTeam = "engineering";
-  String _status = "active";
-  DateTime _joiningDate = DateTime.now();
+  late String _status;
+  late DateTime _joiningDate;
 
   @override
   void initState() {
     super.initState();
-    // Pre-fill with mock data
-    _nameController = TextEditingController(text: "James Carter");
-    _roleController = TextEditingController(text: "Lead Engineer");
-    _emailController = TextEditingController(text: "james.carter@company.com");
+    
+    // Pre-fill with existing member data
+    _nameController = TextEditingController(text: widget.memberData['fullName'] ?? "");
+    _roleController = TextEditingController(text: widget.memberData['jobTitle'] ?? "");
+    _emailController = TextEditingController(text: widget.memberData['email'] ?? "");
+    
+    _status = widget.memberData['status'] ?? "Active";
+    _selectedTeamId = widget.memberData['teamId'];
+
+    if (widget.memberData['joiningDate'] != null && widget.memberData['joiningDate'] is Timestamp) {
+      _joiningDate = (widget.memberData['joiningDate'] as Timestamp).toDate();
+    } else {
+      _joiningDate = DateTime.now();
+    }
+
+    _fetchTeams();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _roleController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchTeams() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final snapshot = await FirebaseFirestore.instance
+          .collection('teams')
+          .where('uid', isEqualTo: uid)
+          .get();
+
+      final Map<String, String> fetchedTeams = {};
+      for (var doc in snapshot.docs) {
+        fetchedTeams[doc.id] = doc.data()['teamName'] ?? 'Unnamed Team';
+      }
+
+      if (mounted) {
+        setState(() {
+          _teams = fetchedTeams;
+          
+          // If the team this member belonged to was deleted, reset to first available
+          if (_selectedTeamId != null && !_teams.containsKey(_selectedTeamId)) {
+            _selectedTeamId = _teams.isNotEmpty ? _teams.keys.first : null;
+          }
+
+          _isLoadingTeams = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching teams: $e");
+      if (mounted) setState(() => _isLoadingTeams = false);
+    }
+  }
+
+  Future<void> _updateMember() async {
+    if (_nameController.text.trim().isEmpty) {
+      _showErrorSnackBar("Name cannot be empty");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await FirebaseFirestore.instance.collection('members').doc(widget.memberId).update({
+        "fullName": _nameController.text.trim(),
+        "jobTitle": _roleController.text.trim(),
+        "email": _emailController.text.trim(),
+        "teamId": _selectedTeamId,
+        "status": _status,
+        "joiningDate": _joiningDate,
+      });
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Profile updated successfully", style: GoogleFonts.inter()),
+            backgroundColor: const Color(0xFF30D158),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        _showErrorSnackBar(e.message ?? 'Failed to update profile');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Generate dynamic avatar
+    final String avatarUrl = widget.memberData['avatarUrl'] ?? 
+        "https://ui-avatars.com/api/?name=${Uri.encodeComponent(_nameController.text)}&background=random&color=fff";
+
     return Scaffold(
       backgroundColor: const Color(0xFF09090B),
       appBar: AppBar(
@@ -59,23 +169,32 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
         ),
         centerTitle: true,
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              "SAVE",
-              style: GoogleFonts.inter(
-                color: const Color(0xFF0A84FF),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+          _isLoading 
+              ? const Padding(
+                  padding: EdgeInsets.only(right: 20.0),
+                  child: SizedBox(
+                    width: 20, 
+                    height: 20, 
+                    child: CircularProgressIndicator(color: Color(0xFF0A84FF), strokeWidth: 2)
+                  ),
+                )
+              : TextButton(
+                  onPressed: _updateMember,
+                  child: Text(
+                    "SAVE",
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFF0A84FF),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
         ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            // Avatar Edit
+            // Avatar Edit (Static for now)
             Stack(
               alignment: Alignment.center,
               children: [
@@ -84,8 +203,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
                   height: 100,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    image: const DecorationImage(
-                      image: NetworkImage("https://i.pravatar.cc/150?img=11"),
+                    image: DecorationImage(
+                      image: NetworkImage(avatarUrl),
                       fit: BoxFit.cover,
                     ),
                     border: Border.all(color: Colors.white12),
@@ -118,18 +237,23 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
             const SizedBox(height: 24),
 
             // Team Select
-            _buildSelect(
-              "TEAM",
-              _selectedTeam,
-              teams,
-              (val) => setState(() => _selectedTeam = val!),
-            ),
+            _isLoadingTeams
+                ? const CircularProgressIndicator(strokeWidth: 2, color: Colors.white38)
+                : _teams.isEmpty
+                    ? Text("No teams found.", style: GoogleFonts.inter(color: Colors.redAccent))
+                    : _buildSelect(
+                        "TEAM",
+                        _selectedTeamId,
+                        _teams,
+                        (val) => setState(() => _selectedTeamId = val),
+                      ),
             const SizedBox(height: 24),
+
             // Status Select
             _buildSelect(
               "STATUS",
               _status,
-              statuses,
+              _statuses,
               (val) => setState(() => _status = val!),
             ),
           ],
@@ -148,6 +272,7 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
             color: Colors.white38,
             fontSize: 10,
             fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
           ),
         ),
         const SizedBox(height: 8),
@@ -169,7 +294,7 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
 
   Widget _buildSelect(
     String label,
-    String value,
+    String? value,
     Map<String, String> items,
     Function(String?) onChanged,
   ) {
@@ -182,6 +307,7 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
             color: Colors.white38,
             fontSize: 10,
             fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
           ),
         ),
         const SizedBox(height: 8),
@@ -192,13 +318,14 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
               'Select $label',
               style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
             ),
+            initialValue: value,
             options: [
               ...items.entries.map(
                 (e) => ShadOption(value: e.key, child: Text(e.value)),
               ),
             ],
             selectedOptionBuilder: (context, selectedValue) => Text(
-              items[selectedValue]!,
+              items[selectedValue] ?? "Select",
               style: GoogleFonts.inter(color: Colors.white),
             ),
             onChanged: onChanged,
@@ -209,62 +336,49 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
   }
 
   Widget _buildSectionLabel(String text) {
-    return Text(
-      text,
-      style: GoogleFonts.inter(
-        color: Colors.white24,
-        fontSize: 10,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.5,
+    return Container(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        style: GoogleFonts.inter(
+          color: Colors.white38,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.5,
+        ),
       ),
     );
   }
 
   Widget _buildDateSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
+      child: TextField(
+        readOnly: true,
+        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+        decoration: InputDecoration(
+          icon: const Icon(
+            Icons.calendar_today,
+            color: Colors.white38,
+            size: 20,
           ),
-          child: TextField(
-            readOnly: true,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-            decoration: InputDecoration(
-              icon: const Icon(
-                Icons.calendar_today,
-                color: Colors.white38,
-                size: 20,
-              ),
-              hintText: "Select joining date",
-              labelText: "Joining Date",
-              labelStyle: GoogleFonts.inter(
-                color: Colors.white38,
-                fontSize: 13,
-              ),
-              hintStyle: GoogleFonts.inter(color: Colors.white12),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-              floatingLabelBehavior: FloatingLabelBehavior.auto,
-              suffixIcon: const Icon(
-                Icons.calendar_month,
-                color: Colors.white38,
-              ),
-            ),
-            controller: TextEditingController(
-              text:
-                  "${_joiningDate.day}/${_joiningDate.month}/${_joiningDate.year}",
-            ),
-            onTap: () {
-              _showShadCalendar();
-            },
-          ),
+          hintText: "Select joining date",
+          hintStyle: GoogleFonts.inter(color: Colors.white12),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
         ),
-      ],
+        controller: TextEditingController(
+          text: "${_joiningDate.day}/${_joiningDate.month}/${_joiningDate.year}",
+        ),
+        onTap: () {
+          _showShadCalendar();
+        },
+      ),
     );
   }
 
@@ -302,8 +416,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
                 const SizedBox(height: 20),
                 ShadCalendar(
                   selected: _joiningDate,
-                  fromMonth: DateTime(_joiningDate.year - 1),
-                  toMonth: DateTime(_joiningDate.year + 1, 12),
+                  fromMonth: DateTime(_joiningDate.year - 5),
+                  toMonth: DateTime(_joiningDate.year + 2, 12),
                   onChanged: (DateTime? date) {
                     if (date != null) {
                       setState(() {

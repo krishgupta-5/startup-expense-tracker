@@ -179,8 +179,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   HealthStatus _calculateHealthStatus() {
-    if (runwayValue == null || errorMessage != null)
+    if (runwayValue == null || errorMessage != null) {
       return HealthStatus.critical;
+    }
 
     final runway = double.tryParse(runwayValue!) ?? 0;
 
@@ -252,6 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
             errorMessage = "No funding data found";
             isLoading = false;
           });
+          print("DEBUG: Set runwayValue to: $runwayValue");
         }
       } else {
         print("DEBUG: No document found or document is empty");

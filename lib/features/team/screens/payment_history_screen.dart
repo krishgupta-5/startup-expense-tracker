@@ -3,25 +3,54 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class PaymentHistoryScreen extends StatelessWidget {
-  const PaymentHistoryScreen({super.key});
+  final DateTime joiningDate;
+  final double salary;
+
+  const PaymentHistoryScreen({
+    super.key,
+    required this.joiningDate,
+    required this.salary,
+  });
+
+  // Helper to format currency
+  String _formatCurrency(double amount) {
+    return "\$${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}";
+  }
+
+  // Generate dynamic payment history
+  List<Map<String, String>> _generatePaymentHistory() {
+    List<Map<String, String>> payments = [];
+    final DateTime now = DateTime.now();
+
+    // Start calculating from the 1st of the month AFTER joining
+    DateTime paymentDate = DateTime(joiningDate.year, joiningDate.month + 1, 1);
+    final String formattedSalary = _formatCurrency(salary);
+
+    final List<String> months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
+    while (paymentDate.isBefore(now) || paymentDate.isAtSameMomentAs(now)) {
+      final String formattedDate = "${months[paymentDate.month - 1]} 01, ${paymentDate.year}";
+
+      payments.add({
+        "date": formattedDate,
+        "amt": formattedSalary,
+        "status": "Completed",
+      });
+
+      // Increment by 1 month
+      paymentDate = DateTime(paymentDate.year, paymentDate.month + 1, 1);
+    }
+
+    // Reverse so the newest payments are at the top
+    return payments.reversed.toList();
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Mock Data
-    final payments = [
-      {"date": "Nov 01, 2024", "amt": "\$12,000", "status": "Completed"},
-      {"date": "Oct 01, 2024", "amt": "\$12,000", "status": "Completed"},
-      {"date": "Sep 01, 2024", "amt": "\$12,000", "status": "Completed"},
-      {"date": "Aug 01, 2024", "amt": "\$12,000", "status": "Completed"},
-      {"date": "Jul 01, 2024", "amt": "\$12,000", "status": "Completed"},
-      {"date": "Jun 01, 2024", "amt": "\$11,500", "status": "Completed"},
-      {"date": "May 01, 2024", "amt": "\$11,500", "status": "Completed"},
-      {"date": "Apr 01, 2024", "amt": "\$11,000", "status": "Completed"},
-      {"date": "Mar 01, 2024", "amt": "\$11,000", "status": "Completed"},
-      {"date": "Feb 01, 2024", "amt": "\$10,500", "status": "Completed"},
-      {"date": "Jan 01, 2024", "amt": "\$10,500", "status": "Completed"},
-      {"date": "Dec 01, 2023", "amt": "\$10,000", "status": "Completed"},
-    ];
+    final payments = _generatePaymentHistory();
 
     return Scaffold(
       backgroundColor: const Color(0xFF09090B), // Deep Matte Black
@@ -49,7 +78,23 @@ class PaymentHistoryScreen extends StatelessWidget {
                       const SizedBox(height: 32),
 
                       // --- PAYMENT LIST ---
-                      _buildPaymentList(payments),
+                      if (payments.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 40),
+                          child: Center(
+                            child: Text(
+                              "No payments processed yet.\nFirst payout will be on the 1st of next month.",
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.inter(
+                                color: Colors.white38,
+                                height: 1.5,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        _buildPaymentList(payments),
 
                       const SizedBox(height: 40),
                     ],
@@ -124,11 +169,8 @@ class PaymentHistoryScreen extends StatelessWidget {
   }
 
   Widget _buildSummaryCard(List<Map<String, String>> payments) {
-    final totalPaid = payments.fold<int>(
-      0,
-      (sum, payment) =>
-          sum + int.parse(payment['amt']!.replaceAll(RegExp(r'[^0-9]'), '')),
-    );
+    // Calculate total based on generated history
+    final double totalPaid = payments.length * salary;
 
     return Container(
       width: double.infinity,
@@ -142,7 +184,7 @@ class PaymentHistoryScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "TOTAL PAID (12 MONTHS)",
+            "TOTAL PAID (ALL TIME)",
             style: GoogleFonts.inter(
               color: Colors.white38,
               fontSize: 10,
@@ -152,7 +194,7 @@ class PaymentHistoryScreen extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            "\$${totalPaid.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}",
+            _formatCurrency(totalPaid),
             style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 32,
@@ -170,7 +212,7 @@ class PaymentHistoryScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  "All payments completed",
+                  payments.isEmpty ? "No payments yet" : "All payments completed",
                   style: GoogleFonts.inter(
                     color: const Color(0xFF30D158),
                     fontSize: 10,
@@ -259,7 +301,7 @@ class PaymentHistoryScreen extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,

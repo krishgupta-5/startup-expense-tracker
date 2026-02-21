@@ -1,8 +1,13 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+import 'package:startup_expense_tracker/features/team/screens/create_team_screen.dart';
 // NOTE: Ensure these files exist or comment them out if testing in isolation
 import 'team_detail_screen.dart';
+import '../../../widgets/avatar_widget.dart';
 
 class TeamScreen extends StatefulWidget {
   const TeamScreen({super.key});
@@ -21,95 +26,83 @@ class _TeamScreenState extends State<TeamScreen> {
   String _selectedSortOption = "Name";
   String _selectedOrder = "A-Z"; // Default order
 
-  // 3. Data Source
-  final List<Map<String, dynamic>> _allTeams = [
-    {
-      "name": "Engineering",
-      "members": "12 Members",
-      "cost": "\$62,400",
-      "icon": Icons.code,
-      "color": const Color(0xFF0A84FF),
-      "avatars": [
-        "https://i.pravatar.cc/150?img=11",
-        "https://i.pravatar.cc/150?img=3",
-        "https://i.pravatar.cc/150?img=68",
-      ],
-    },
-    {
-      "name": "Marketing",
-      "members": "5 Members",
-      "cost": "\$18,200",
-      "icon": Icons.campaign_outlined,
-      "color": const Color(0xFFFF9F0A),
-      "avatars": [
-        "https://i.pravatar.cc/150?img=9",
-        "https://i.pravatar.cc/150?img=47",
-      ],
-    },
-    {
-      "name": "Product Design",
-      "members": "4 Members",
-      "cost": "\$22,000",
-      "icon": Icons.brush_outlined,
-      "color": const Color(0xFFA259FF),
-      "avatars": ["https://i.pravatar.cc/150?img=5"],
-    },
-    {
-      "name": "Sales",
-      "members": "8 Members",
-      "cost": "\$35,500",
-      "icon": Icons.attach_money,
-      "color": const Color(0xFF30D158),
-      "avatars": [
-        "https://i.pravatar.cc/150?img=12",
-        "https://i.pravatar.cc/150?img=33",
-      ],
-    },
-  ];
+  // Reconstruct Icon from Font Family & Code Point saved in Firebase
+  IconData _getIconFromData(Map<String, dynamic> data) {
+    if (data['iconCodePoint'] != null && data['iconFontFamily'] != null) {
+      return IconData(
+        data['iconCodePoint'],
+        fontFamily: data['iconFontFamily'],
+      );
+    }
+    return Icons.group; // Fallback
+  }
 
-  // 4. Filter Logic
-  List<Map<String, dynamic>> get _filteredTeams {
-    List<Map<String, dynamic>> teams = List.from(_allTeams);
+  // Parse color string to actual Color object
+  Color _getColorFromName(String colorName) {
+    switch (colorName.toLowerCase()) {
+      case 'blue':
+        return const Color(0xFF0A84FF);
+      case 'orange':
+        return const Color(0xFFFF9F0A);
+      case 'purple':
+        return const Color(0xFFA259FF);
+      case 'green':
+        return const Color(0xFF30D158);
+      case 'red':
+        return const Color(0xFFFF453A);
+      default:
+        return const Color(0xFF0A84FF); // Fallback
+    }
+  }
 
-    // Apply search filter
+  // 3. Local Filter Logic for Firebase Docs
+  List<QueryDocumentSnapshot> _filterAndSortTeams(
+    List<QueryDocumentSnapshot> docs,
+  ) {
+    // A. Filter by Search Query
+    List<QueryDocumentSnapshot> teams = docs;
+
     if (_searchQuery.isNotEmpty) {
-      teams = teams
-          .where(
-            (team) => team['name'].toString().toLowerCase().contains(
-              _searchQuery.toLowerCase(),
-            ),
-          )
-          .toList();
+      teams = teams.where((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        final teamName = (data['teamName'] ?? '').toString().toLowerCase();
+        return teamName.contains(_searchQuery.toLowerCase());
+      }).toList();
     }
 
-    // Apply sorting
-    switch (_selectedSortOption) {
-      case "Name":
-        teams.sort(
-          (a, b) => _selectedOrder == "A-Z"
-              ? a['name'].toString().compareTo(b['name'].toString())
-              : b['name'].toString().compareTo(a['name'].toString()),
-        );
-        break;
-      case "Team Size":
-        teams.sort((a, b) {
-          int aSize = int.parse(a['members'].toString().split(' ')[0]);
-          int bSize = int.parse(b['members'].toString().split(' ')[0]);
-          return _selectedOrder == "Low-High" ? aSize - bSize : bSize - aSize;
-        });
-        break;
-      case "Monthly Amount":
-        teams.sort((a, b) {
-          int aCost = int.parse(
-            a['cost'].toString().replaceAll(RegExp(r'[^0-9]'), ''),
-          );
-          int bCost = int.parse(
-            b['cost'].toString().replaceAll(RegExp(r'[^0-9]'), ''),
-          );
-          return _selectedOrder == "Low-High" ? aCost - bCost : bCost - aCost;
-        });
-        break;
-    }
+    // B. Apply sorting
+    teams.sort((a, b) {
+      final dataA = a.data() as Map<String, dynamic>;
+      final dataB = b.data() as Map<String, dynamic>;
+
+      switch (_selectedSortOption) {
+        case "Name":
+          final nameA = (dataA['teamName'] ?? '').toString().toLowerCase();
+          final nameB = (dataB['teamName'] ?? '').toString().toLowerCase();
+          return _selectedOrder == "A-Z"
+              ? nameA.compareTo(nameB)
+              : nameB.compareTo(nameA);
+
+        case "Monthly Amount":
+          final costA = (dataA['monthlyBudget'] ?? 0.0) as double;
+          final costB = (dataB['monthlyBudget'] ?? 0.0) as double;
+          return _selectedOrder == "Low-High"
+              ? costA.compareTo(costB)
+              : costB.compareTo(costA);
+
+        case "Team Size":
+          // Placeholder logic since actual team size isn't implemented in DB yet
+          // Treating Team Lead as 1 member for now
+          int sizeA = dataA['teamLeadAvatar'] != null ? 1 : 0;
+          int sizeB = dataB['teamLeadAvatar'] != null ? 1 : 0;
+          return _selectedOrder == "Low-High"
+              ? sizeA.compareTo(sizeB)
+              : sizeB.compareTo(sizeA);
+
+        default:
+          return 0;
+      }
+    });
 
     return teams;
   }
@@ -142,42 +135,65 @@ class _TeamScreenState extends State<TeamScreen> {
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
-      child: SafeArea(
-        bottom: false,
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Scaffold(
+        backgroundColor: Colors.black, // Dark background
+        // --- NEW TEAM BUTTON ---
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const CreateTeamScreen()),
+            );
+          },
+          backgroundColor: const Color(0xFF0A84FF),
+          elevation: 4,
+          icon: const Icon(Icons.add, color: Colors.white, size: 20),
+          label: Text(
+            "New Team",
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+
+        body: SafeArea(
+          bottom: false,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Header with Search
-              _buildHeader(),
-
-              const SizedBox(height: 32),
-
-              // 3. Section Title & Filter Component
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildSectionTitle(
-                    _isSearching ? "SEARCH RESULTS" : "YOUR TEAMS",
-                  ),
-                ],
+              // 1. Header with Search (Fixed at top)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                child: _buildHeader(),
               ),
 
+              // 2. Section Title
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildSectionTitle(
+                      _isSearching ? "SEARCH RESULTS" : "YOUR TEAMS",
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 16),
 
-              // 4. NEW: Horizontal Filter Component (Chips)
-              if (!_isSearching) _buildFilterChips(),
+              // 3. Horizontal Filter Component (Chips)
+              if (!_isSearching)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: _buildFilterChips(),
+                ),
 
               if (!_isSearching) const SizedBox(height: 24),
 
-              // 5. Teams List
-              _filteredTeams.isEmpty
-                  ? _buildEmptyState()
-                  : _buildTeamsList(context),
-
-              const SizedBox(height: 80), // Bottom padding
+              // 4. Teams List (Scrollable Stream)
+              Expanded(child: _buildFirebaseTeamsStream()),
             ],
           ),
         ),
@@ -187,11 +203,62 @@ class _TeamScreenState extends State<TeamScreen> {
 
   // --- WIDGET BUILDERS ---
 
+  Widget _buildFirebaseTeamsStream() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return _buildEmptyState("Please log in.");
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('teams')
+          .where('uid', isEqualTo: user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white38,
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          debugPrint("Firebase Error: ${snapshot.error}");
+          return _buildEmptyState("Error loading teams.");
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildEmptyState("You don't have any teams yet.");
+        }
+
+        // Apply Local Filter & Sort
+        final docs = _filterAndSortTeams(snapshot.data!.docs);
+
+        if (docs.isEmpty) {
+          return _buildEmptyState("No teams match your search.");
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.fromLTRB(
+            24,
+            0,
+            24,
+            100,
+          ), // Bottom padding for FAB
+          physics: const BouncingScrollPhysics(),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            return _buildTeamCard(context, docs[index]);
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildFilterChips() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
-      // Allow scroll to clip nicely
       clipBehavior: Clip.none,
       child: Row(
         children: [
@@ -222,7 +289,6 @@ class _TeamScreenState extends State<TeamScreen> {
     required IconData icon,
     required bool isSelected,
   }) {
-    // Determine arrow direction for display
     IconData arrowIcon;
     if (label == "Name") {
       arrowIcon = _selectedOrder == "A-Z"
@@ -389,22 +455,37 @@ class _TeamScreenState extends State<TeamScreen> {
     );
   }
 
-  Widget _buildTeamsList(BuildContext context) {
-    return Column(
-      children: _filteredTeams
-          .map((team) => _buildTeamCard(context, team))
-          .toList(),
-    );
-  }
+  Widget _buildTeamCard(BuildContext context, QueryDocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
 
-  Widget _buildTeamCard(BuildContext context, Map<String, dynamic> team) {
+    final name = data['teamName'] ?? 'Unnamed Team';
+    final rawCost = data['monthlyBudget'] ?? 0.0;
+    final cost = "₹${rawCost.toStringAsFixed(2)}";
+    final color = _getColorFromName(data['color'] ?? 'blue');
+    final icon = _getIconFromData(data);
+
+    // We haven't implemented full member adding yet, so we'll use the Lead Avatar if it exists
+    final List<String> avatars = [];
+    if (data['teamLeadAvatar'] != null) {
+      avatars.add(data['teamLeadAvatar']);
+    }
+
+    // Display string for members count
+    final memberCountStr = avatars.isEmpty
+        ? "0 Members"
+        : "${avatars.length} Member(s)";
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: GestureDetector(
         onTap: () {
+          // Pass the team ID to details screen (you'll need to update TeamDetailScreen to accept this)
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const TeamDetailScreen()),
+            MaterialPageRoute(
+              builder: (context) =>
+                  TeamDetailScreen(teamId: doc.id, initialTeamData: data),
+            ),
           );
         },
         child: Container(
@@ -424,23 +505,17 @@ class _TeamScreenState extends State<TeamScreen> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: (team['color'] as Color).withValues(
-                            alpha: 0.15,
-                          ),
+                          color: color.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(
-                          team['icon'],
-                          color: team['color'],
-                          size: 20,
-                        ),
+                        child: Icon(icon, color: color, size: 20),
                       ),
                       const SizedBox(width: 16),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            team['name'],
+                            name,
                             style: GoogleFonts.inter(
                               color: Colors.white,
                               fontSize: 16,
@@ -449,7 +524,7 @@ class _TeamScreenState extends State<TeamScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            team['members'],
+                            memberCountStr,
                             style: GoogleFonts.inter(
                               color: Colors.white54,
                               fontSize: 12,
@@ -474,7 +549,7 @@ class _TeamScreenState extends State<TeamScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   // Avatar Pile
-                  _buildAvatarPile(team['avatars']),
+                  _buildAvatarPile(avatars, []),
 
                   // Monthly Cost
                   Row(
@@ -487,7 +562,7 @@ class _TeamScreenState extends State<TeamScreen> {
                         ),
                       ),
                       Text(
-                        team['cost'],
+                        cost,
                         style: GoogleFonts.inter(
                           color: Colors.white,
                           fontSize: 14,
@@ -505,36 +580,51 @@ class _TeamScreenState extends State<TeamScreen> {
     );
   }
 
-  Widget _buildAvatarPile(List<String> images) {
+  Widget _buildAvatarPile(List<String> images, List<String> names) {
+    if (images.isEmpty && names.isEmpty) {
+      return Text(
+        "No members",
+        style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
+      );
+    }
+
+    // Use names if available, otherwise generate placeholder names
+    final List<String> displayNames = names.isNotEmpty
+        ? names
+        : List.generate(images.length, (index) => "Member ${index + 1}");
+
     return SizedBox(
       height: 24,
       width: 100, // Fixed width to allow stacking
       child: Stack(
-        children: List.generate(images.length > 3 ? 3 : images.length, (index) {
-          return Positioned(
-            left: index * 18.0, // Overlap amount
-            child: Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFF141416),
-                  width: 2,
-                ), // Cutout effect
-                image: DecorationImage(
-                  image: NetworkImage(images[index]),
-                  fit: BoxFit.cover,
-                ),
+        children: List.generate(
+          (images.length > 3
+              ? 3
+              : images.length > displayNames.length
+              ? displayNames.length
+              : images.length),
+          (index) {
+            return Positioned(
+              left: index * 18.0, // Overlap amount
+              child: AvatarWidget(
+                name: displayNames[index],
+                size: 24,
+                imageUrl:
+                    images.length > index &&
+                        images[index].isNotEmpty &&
+                        !images[index].contains('ui-avatars.com')
+                    ? images[index]
+                    : null,
+                fontSize: 8.0,
               ),
-            ),
-          );
-        }),
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(String message) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.only(top: 40),
@@ -543,7 +633,7 @@ class _TeamScreenState extends State<TeamScreen> {
             const Icon(Icons.search_off, color: Colors.white12, size: 48),
             const SizedBox(height: 16),
             Text(
-              "No teams found",
+              message,
               style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
             ),
           ],
