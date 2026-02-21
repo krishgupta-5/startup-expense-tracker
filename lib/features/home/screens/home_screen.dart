@@ -220,31 +220,43 @@ class _HomeScreenState extends State<HomeScreen> {
         print("DEBUG: Document data: $data");
         print("DEBUG: Available keys: ${data.keys.toList()}");
 
-        // Try different possible field names
-        final runway =
-            data["Runway"] ??
-            data["runway"] ??
-            data["RUNWAY"] ??
-            data["runway_months"];
-        print("DEBUG: Runway value: $runway");
+        // Get funding and totalExpenses to calculate runway
+        final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
+        final totalExpenses =
+            data["totalExpenses"] ?? data["total_expenses"] ?? "0";
 
-        if (runway == null) {
-          print("DEBUG: No runway field found in document");
+        print("DEBUG: Funding value: $funding");
+        print("DEBUG: Total expenses value: $totalExpenses");
+
+        if (funding != null) {
+          final fundingAmount = double.tryParse(funding.toString()) ?? 0;
+          final totalExpensesAmount =
+              double.tryParse(totalExpenses.toString()) ?? 0;
+          final availableFunds = fundingAmount - totalExpensesAmount;
+
+          // Calculate runway as months (assuming monthly burn of totalExpenses/12 for demo)
+          // In production, this should use actual monthly burn rate
+          final monthlyBurn = totalExpensesAmount > 0
+              ? totalExpensesAmount / 12
+              : 1; // Default to 1 if no expenses
+          final calculatedRunway = availableFunds / monthlyBurn;
+
           setState(() {
-            errorMessage = "Runway field not found in document";
+            runwayValue = calculatedRunway.toStringAsFixed(2);
             isLoading = false;
           });
+          print("DEBUG: Calculated runway: $calculatedRunway months");
         } else {
+          print("DEBUG: No funding field found");
           setState(() {
-            runwayValue = runway.toString();
+            errorMessage = "No funding data found";
             isLoading = false;
           });
-          print("DEBUG: Set runwayValue to: ${runwayValue}");
         }
       } else {
         print("DEBUG: No document found or document is empty");
         setState(() {
-          errorMessage = "No runway data found";
+          errorMessage = "No company data found";
           isLoading = false;
         });
       }
@@ -276,16 +288,24 @@ class _HomeScreenState extends State<HomeScreen> {
         final data = docSnapshot.data()!;
         print("DEBUG: Funds document data: $data");
 
-        // Use the correct field name "Funding" instead of "Total Funds"
+        // Get funding and totalExpenses to calculate available funds
         final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
+        final totalExpenses =
+            data["totalExpenses"] ?? data["total_expenses"] ?? "0";
+
         print("DEBUG: Funding value: $funding");
+        print("DEBUG: Total expenses value: $totalExpenses");
 
         if (funding != null) {
+          final fundingAmount = double.tryParse(funding.toString()) ?? 0;
+          final totalExpensesAmount =
+              double.tryParse(totalExpenses.toString()) ?? 0;
+          final availableFunds = fundingAmount - totalExpensesAmount;
+
           setState(() {
-            // Format as currency with proper formatting
-            final fundingAmount = double.tryParse(funding.toString()) ?? 0;
+            // Format available funds as currency with proper formatting
             totalFundsAvailable =
-                "₹${(fundingAmount / 100000).toStringAsFixed(1)}L";
+                "₹${(availableFunds / 100000).toStringAsFixed(1)}L";
           });
           print("DEBUG: Set totalFundsAvailable to: $totalFundsAvailable");
         } else {
@@ -345,7 +365,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                       child: _buildFlatMetricCard(
-                        label: "Total Funds",
+                        label: "Available Funds",
                         value: totalFundsAvailable ?? "",
                         icon: Icons.account_balance_wallet_outlined,
                       ),

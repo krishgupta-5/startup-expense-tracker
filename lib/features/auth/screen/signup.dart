@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'login.dart';
 import '../../company-setup/screen/company_setup_screen.dart';
+import '../../navigation/screens/main_navigation_wrapper.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -21,6 +22,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+
+  // Google Sign-In variables
+  static bool _isGoogleInitialized = false;
+  static final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   void createUserWithEmailAndPassword() async {
     // Validate password length
@@ -93,76 +98,115 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
+  // Google Sign-In initialization
+  Future<void> _initGoogleSignIn() async {
+    if (!_isGoogleInitialized) {
+      // Initialization is handled automatically in newer versions
+    }
+    _isGoogleInitialized = true;
+  }
+
+  // Sign in with Google
   Future<void> createUserWithGoogle() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Initialize Google Sign-In
-      final GoogleSignIn googleSignIn = GoogleSignIn(
-        scopes: ['email', 'profile'],
-      );
+      await _initGoogleSignIn();
 
-      // Trigger the Google Sign-In flow
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
-        // User cancelled the sign-in
-        setState(() {
-          _isLoading = false;
-        });
-        return;
+        throw FirebaseAuthException(
+          code: "aborted",
+          message: "Sign in aborted",
+        );
       }
 
-      // Obtain the auth details from the request
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
+      final idToken = googleAuth.idToken;
+      final accessToken = googleAuth.accessToken;
 
-      // Create a new credential
-      final AuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
+      if (accessToken == null || idToken == null) {
+        throw FirebaseAuthException(
+          code: "error",
+          message: "Failed to get authentication tokens",
+        );
+      }
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: accessToken,
+        idToken: idToken,
       );
 
-      // Sign in to Firebase with the Google credential
       final UserCredential userCredential = await FirebaseAuth.instance
           .signInWithCredential(credential);
+      final User? user = userCredential.user;
 
-      // Create user document in Firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set({
-            'email': userCredential.user!.email,
-            'name': userCredential.user!.displayName ?? '',
-            'phone': userCredential.user!.phoneNumber ?? '',
-            'location': '',
-            'uid': userCredential.user!.uid,
+      if (user != null) {
+        final userDoc = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid);
+        final docSnapshot = await userDoc.get();
+
+        if (!docSnapshot.exists) {
+          await userDoc.set({
+            'uid': user.uid,
+            'name': user.displayName ?? '',
+            'email': user.email ?? '',
+            'photoURL': user.photoURL ?? '',
+            'provider': 'google',
             'createdAt': Timestamp.now(),
             'updatedAt': Timestamp.now(),
-            'photoURL': userCredential.user!.photoURL ?? '',
           });
+        }
 
-      // Navigate to company setup on successful registration
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
-        );
+        // Check if company setup is complete
+        final companyDoc = await FirebaseFirestore.instance
+            .collection('companies')
+            .doc(user.uid)
+            .get();
+
+        // Navigate based on whether company setup is complete
+        if (mounted) {
+          if (companyDoc.exists) {
+            // User has completed company setup, go to main app
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const MainNavigationWrapper(),
+              ),
+            );
+          } else {
+            // New user, go to company setup
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const CompanySetupScreen(),
+              ),
+            );
+          }
+        }
       }
+    } on FirebaseAuthException catch (e) {
+      // Handle Firebase authentication errors
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? 'Google sign in failed'),
+          backgroundColor: Colors.red,
+        ),
+      );
     } catch (e) {
       // Handle other errors
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'An error occurred during Google sign-in: ${e.toString()}',
-            ),
-            backgroundColor: Colors.red,
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'An error occurred during Google sign in. Please try again.',
           ),
-        );
-      }
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {

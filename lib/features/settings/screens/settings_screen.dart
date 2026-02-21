@@ -10,8 +10,30 @@ import 'change_password.dart';
 import 'data_access_screen.dart';
 import 'privacy_assurances_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  String? name;
+  String? email;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  void _loadUserData() {
+    final user = FirebaseAuth.instance.currentUser;
+    setState(() {
+      name = user?.displayName ?? 'User';
+      email = user?.email ?? 'No email';
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -207,7 +229,7 @@ class SettingsScreen extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(
-          "Krish Gupta",
+          name ?? 'User',
           style: GoogleFonts.inter(
             color: Colors.white,
             fontSize: 20,
@@ -216,7 +238,7 @@ class SettingsScreen extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          "krishgupta0072@gmail.com",
+          email ?? 'No email',
           style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
         ),
         const SizedBox(height: 16),

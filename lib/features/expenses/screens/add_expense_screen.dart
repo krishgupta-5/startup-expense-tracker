@@ -95,6 +95,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         "Time": FieldValue.serverTimestamp(),
       });
 
+      // Subtract expense amount from available funds
+      await _updateFundsAfterExpense(amount);
+
       // Navigate back after successful save
       if (mounted) {
         Navigator.pop(context);
@@ -109,6 +112,42 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _updateFundsAfterExpense(double expenseAmount) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Get current company data
+      final companyDoc = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(user.uid)
+          .get();
+
+      if (companyDoc.exists && companyDoc.data() != null) {
+        final data = companyDoc.data()!;
+        final currentTotalExpenses =
+            double.tryParse(data["totalExpenses"]?.toString() ?? "0") ?? 0.0;
+
+        // Calculate new total expenses
+        final newTotalExpenses = currentTotalExpenses + expenseAmount;
+
+        // Update the totalExpenses field instead of reducing funding
+        await FirebaseFirestore.instance
+            .collection('companies')
+            .doc(user.uid)
+            .update({"totalExpenses": newTotalExpenses.toString()});
+
+        print(
+          "DEBUG: Updated totalExpenses from $currentTotalExpenses to $newTotalExpenses",
+        );
+      }
+    } catch (e) {
+      print("DEBUG: Error updating totalExpenses: $e");
+      // Don't throw error here to avoid failing the expense creation
+      // In production, you might want to handle this more gracefully
     }
   }
 

@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 import 'edit_expense_screen.dart';
 
-class ExpenseDetailsScreen extends StatelessWidget {
+class ExpenseDetailsScreen extends StatefulWidget {
   final String expenseId;
   final Map<String, dynamic> expenseData;
 
@@ -17,11 +17,16 @@ class ExpenseDetailsScreen extends StatelessWidget {
   });
 
   @override
+  State<ExpenseDetailsScreen> createState() => _ExpenseDetailsScreenState();
+}
+
+class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('expenses')
-          .doc(expenseId)
+          .doc(widget.expenseId)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -509,8 +514,8 @@ class ExpenseDetailsScreen extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (context) => EditExpenseScreen(
-                          expenseId: expenseId,
-                          expenseData: expenseData,
+                          expenseId: widget.expenseId,
+                          expenseData: widget.expenseData,
                         ),
                       ),
                     );
@@ -521,7 +526,7 @@ class ExpenseDetailsScreen extends StatelessWidget {
                   icon: Icons.copy_rounded,
                   label: "Duplicate",
                   onTap: () {
-                    _duplicateExpense(context, expenseData);
+                    _duplicateExpense(context, widget.expenseData);
                   },
                 ),
                 const SizedBox(height: 8),
@@ -537,10 +542,16 @@ class ExpenseDetailsScreen extends StatelessWidget {
 
                     // --- FIREBASE DELETE LOGIC ---
                     try {
+                      // Get the expense amount before deleting
+                      final expenseAmount = widget.expenseData['Amount'] ?? 0.0;
+
                       await FirebaseFirestore.instance
                           .collection('expenses')
-                          .doc(expenseId)
+                          .doc(widget.expenseId)
                           .delete();
+
+                      // Update totalExpenses by subtracting the deleted expense amount
+                      await _updateTotalExpensesAfterDeletion(expenseAmount);
 
                       if (context.mounted) {
                         Navigator.pop(context); // Go back to the list screen
@@ -565,6 +576,40 @@ class ExpenseDetailsScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _updateTotalExpensesAfterDeletion(double expenseAmount) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Get current company data
+      final companyDoc = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(user.uid)
+          .get();
+
+      if (companyDoc.exists && companyDoc.data() != null) {
+        final data = companyDoc.data()!;
+        final currentTotalExpenses =
+            double.tryParse(data["totalExpenses"]?.toString() ?? "0") ?? 0.0;
+
+        // Calculate new total expenses (subtract the deleted expense)
+        final newTotalExpenses = currentTotalExpenses - expenseAmount;
+
+        // Update the totalExpenses field
+        await FirebaseFirestore.instance
+            .collection('companies')
+            .doc(user.uid)
+            .update({"totalExpenses": newTotalExpenses.toString()});
+
+        print(
+          "DEBUG: Updated totalExpenses from $currentTotalExpenses to $newTotalExpenses after deletion",
+        );
+      }
+    } catch (e) {
+      print("DEBUG: Error updating totalExpenses after deletion: $e");
+    }
   }
 
   Widget _buildActionOption({

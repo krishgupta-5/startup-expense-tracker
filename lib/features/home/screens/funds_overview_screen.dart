@@ -1,9 +1,97 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-class FundsOverviewScreen extends StatelessWidget {
+class FundsOverviewScreen extends StatefulWidget {
   const FundsOverviewScreen({super.key});
+
+  @override
+  State<FundsOverviewScreen> createState() => _FundsOverviewScreenState();
+}
+
+class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
+  String? expense;
+  String? availableFunds;
+  String? lastUpdated;
+  bool isLoading = true;
+  String? errorMessage;
+  double? fundingAmount;
+  double? available;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchFundsData();
+  }
+
+  Future<void> _fetchFundsData() async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        setState(() {
+          errorMessage = "User not authenticated";
+          isLoading = false;
+        });
+        return;
+      }
+
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection("companies")
+          .doc(user.uid)
+          .get();
+
+      if (docSnapshot.exists && docSnapshot.data() != null) {
+        final data = docSnapshot.data()!;
+        final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
+        final totalExpenses =
+            data["totalExpenses"] ?? data["total_expenses"] ?? "0";
+
+        if (funding != null) {
+          fundingAmount = double.tryParse(funding.toString()) ?? 0;
+          final totalExpensesAmount =
+              double.tryParse(totalExpenses.toString()) ?? 0;
+          available = fundingAmount! - totalExpensesAmount;
+
+          print("DEBUG: Raw funding: $funding");
+          print("DEBUG: fundingAmount: $fundingAmount");
+          print("DEBUG: totalExpenses: $totalExpenses");
+          print("DEBUG: available: $available");
+
+          setState(() {
+            availableFunds = "₹ ${(available!).toStringAsFixed(0)}";
+            expense = "₹ ${totalExpensesAmount.toStringAsFixed(0)}";
+            lastUpdated = "Today";
+            isLoading = false;
+          });
+
+          print("DEBUG: availableFunds: $availableFunds");
+          print("DEBUG: expense: $expense");
+        } else {
+          setState(() {
+            errorMessage = "No funding data found";
+            isLoading = false;
+          });
+        }
+      } else {
+        setState(() {
+          errorMessage = "No company data found";
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        errorMessage = "Failed to load funds data: $e";
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -126,44 +214,92 @@ class FundsOverviewScreen extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Text(
-                "Last updated: Today",
-                style: GoogleFonts.inter(
-                  color: Colors.white38,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
+              Row(
+                children: [
+                  Text(
+                    "Last updated: ${lastUpdated ?? '...'}",
+                    style: GoogleFonts.inter(
+                      color: Colors.white38,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: _fetchFundsData,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.refresh,
+                        color: Colors.white38,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
           const SizedBox(height: 32),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                "\$482",
+          if (isLoading)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                "Loading...",
                 style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 72,
-                  fontWeight: FontWeight.w300,
-                  height: 1.0,
-                  letterSpacing: -3,
+                  color: Colors.white38,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(width: 8),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  "thousand",
+            )
+          else if (errorMessage != null)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  "!",
                   style: GoogleFonts.inter(
-                    color: Colors.white38,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFFFF453A),
+                    fontSize: 72,
+                    fontWeight: FontWeight.w300,
+                    height: 1.0,
+                    letterSpacing: -3,
                   ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      errorMessage!,
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFFFF453A),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  expense ?? "0",
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 40,
+                    fontWeight: FontWeight.w300,
+                    height: 1.0,
+                    letterSpacing: -3,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
           const SizedBox(height: 32),
           Container(
             width: double.infinity,
@@ -186,7 +322,9 @@ class FundsOverviewScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  "\$439,500 (91% of total)",
+                  availableFunds != null
+                      ? "$availableFunds (${((fundingAmount! > 0 ? (available! / fundingAmount!) * 100 : 0)).toStringAsFixed(0)}% of total)"
+                      : "Loading...",
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 20,
@@ -223,100 +361,55 @@ class FundsOverviewScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
           ),
-          child: Column(
-            children: [
-              _buildBankAccount(
-                "Chase Business",
-                "****4582",
-                "\$382,000",
-                "Primary",
-              ),
-              const SizedBox(height: 16),
-              _buildBankAccount(
-                "Wells Fargo",
-                "****7821",
-                "\$75,000",
-                "Reserve",
-              ),
-              const SizedBox(height: 16),
-              _buildBankAccount(
-                "Stripe",
-                "****9234",
-                "\$25,000",
-                "Payment Processing",
-              ),
-            ],
-          ),
+          child: isLoading
+              ? Center(
+                  child: Text(
+                    "Loading bank accounts...",
+                    style: GoogleFonts.inter(
+                      color: Colors.white38,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )
+              : Column(
+                  children: [
+                    Text(
+                      "No bank accounts connected",
+                      style: GoogleFonts.inter(
+                        color: Colors.white38,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        // TODO: Implement bank account connection
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF30D158),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        "Connect Bank Account",
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ],
-    );
-  }
-
-  Widget _buildBankAccount(
-    String bank,
-    String account,
-    String balance,
-    String type,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFF1F1F22),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.account_balance,
-              color: Colors.white38,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  bank,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  "$account • $type",
-                  style: GoogleFonts.inter(
-                    color: Colors.white38,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            balance,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              fontFeatures: [const FontFeature.tabularFigures()],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -342,95 +435,53 @@ class FundsOverviewScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
           ),
-          child: Column(
-            children: [
-              _buildMilestone(
-                "Series A Target",
-                "\$2,000,000",
-                "Q2 2025",
-                "In Progress",
-              ),
-              const SizedBox(height: 16),
-              _buildMilestone(
-                "Break-even Revenue",
-                "\$50,000/mo",
-                "Q4 2025",
-                "On Track",
-              ),
-              const SizedBox(height: 16),
-              _buildMilestone(
-                "Team Expansion",
-                "15 employees",
-                "Q1 2025",
-                "Completed",
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMilestone(
-    String title,
-    String target,
-    String timeline,
-    String status,
-  ) {
-    Color statusColor = status == "Completed"
-        ? const Color(0xFF30D158)
-        : status == "On Track"
-        ? const Color(0xFF30D158)
-        : const Color(0xFFFF9F0A);
-
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+          child: isLoading
+              ? Center(
+                  child: Text(
+                    "Loading business goals...",
+                    style: GoogleFonts.inter(
+                      color: Colors.white38,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )
+              : Column(
+                  children: [
+                    Text(
+                      "No business goals set",
+                      style: GoogleFonts.inter(
+                        color: Colors.white38,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        // TODO: Implement business goals setup
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF30D158),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        "Set Business Goals",
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                "$target • $timeline",
-                style: GoogleFonts.inter(
-                  color: Colors.white38,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: statusColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(100),
-            border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-          ),
-          child: Text(
-            status,
-            style: GoogleFonts.inter(
-              color: statusColor,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
-            ),
-          ),
         ),
       ],
     );

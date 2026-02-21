@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:startup_expense_tracker/features/navigation/screens/main_navigation_wrapper.dart';
-import 'package:uuid/uuid.dart';
 
 class CompanySetupScreen extends StatefulWidget {
   const CompanySetupScreen({super.key});
@@ -94,8 +93,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           "number": account["number"]!.text.trim(),
         };
       }).toList();
-      final id = const Uuid().v4();
-      await FirebaseFirestore.instance.collection('companies').doc(id).set({
+      final userId = FirebaseAuth.instance.currentUser!.uid;
+      await FirebaseFirestore.instance.collection('companies').doc(userId).set({
         "uid": FirebaseAuth.instance.currentUser!.uid,
         "Owner Name": _ownerNameController.text.trim(),
         "Company Name": _companyNameController.text.trim(),
