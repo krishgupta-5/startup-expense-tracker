@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -14,11 +15,122 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   bool _obscureOld = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
+  bool _isLoading = false;
 
   // Controllers
   final TextEditingController _oldPassController = TextEditingController();
   final TextEditingController _newPassController = TextEditingController();
   final TextEditingController _confirmPassController = TextEditingController();
+
+  // Validation States
+  bool _hasMinLength = false;
+  bool _hasUppercase = false;
+  bool _hasNumberOrSymbol = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen to new password changes for dynamic validation
+    _newPassController.addListener(_validatePassword);
+  }
+
+  @override
+  void dispose() {
+    _oldPassController.dispose();
+    _newPassController.dispose();
+    _confirmPassController.dispose();
+    super.dispose();
+  }
+
+  void _validatePassword() {
+    final pass = _newPassController.text;
+    setState(() {
+      _hasMinLength = pass.length >= 8;
+      _hasUppercase = pass.contains(RegExp(r'[A-Z]'));
+      _hasNumberOrSymbol = pass.contains(RegExp(r'[0-9!@#\$&*~]'));
+    });
+  }
+
+  Future<void> _changePassword() async {
+    final oldPass = _oldPassController.text.trim();
+    final newPass = _newPassController.text.trim();
+    final confirmPass = _confirmPassController.text.trim();
+
+    // 1. Basic Validation
+    if (oldPass.isEmpty || newPass.isEmpty || confirmPass.isEmpty) {
+      _showErrorSnackBar("Please fill in all fields.");
+      return;
+    }
+    if (newPass != confirmPass) {
+      _showErrorSnackBar("New passwords do not match.");
+      return;
+    }
+    if (!_hasMinLength || !_hasUppercase || !_hasNumberOrSymbol) {
+      _showErrorSnackBar("New password does not meet all requirements.");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null || user.email == null) {
+        throw Exception("No authenticated user found.");
+      }
+
+      // 2. Re-authenticate User (Required before changing password)
+      final AuthCredential credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: oldPass,
+      );
+
+      await user.reauthenticateWithCredential(credential);
+
+      // 3. Update Password
+      await user.updatePassword(newPass);
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF30D158),
+            content: Text(
+              "Password updated successfully!",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String message = "Failed to update password.";
+      if (e.code == 'wrong-password') {
+        message = "The current password you entered is incorrect.";
+      } else if (e.code == 'weak-password') {
+        message = "The new password provided is too weak.";
+      } else {
+        message = e.message ?? message;
+      }
+      _showErrorSnackBar(message);
+    } catch (e) {
+      _showErrorSnackBar("An unexpected error occurred.");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.redAccent,
+        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -168,7 +280,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         controller: controller,
         obscureText: obscureText,
         style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-        cursorColor: Colors.white,
+        cursorColor: const Color(0xFF30D158),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: GoogleFonts.inter(color: Colors.white12),
@@ -176,8 +288,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           suffixIcon: IconButton(
             icon: Icon(
               obscureText
-                  ? Icons.visibility_outlined
-                  : Icons.visibility_off_outlined,
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
               color: Colors.white38,
               size: 20,
             ),
@@ -211,11 +323,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildRequirementRow("At least 8 characters", true),
+          _buildRequirementRow("At least 8 characters", _hasMinLength),
           const SizedBox(height: 12),
-          _buildRequirementRow("One uppercase character", false),
+          _buildRequirementRow("One uppercase character", _hasUppercase),
           const SizedBox(height: 12),
-          _buildRequirementRow("One number or symbol", false),
+          _buildRequirementRow("One number or symbol", _hasNumberOrSymbol),
         ],
       ),
     );
@@ -255,31 +367,32 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () {
-            // Update Password Logic
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                backgroundColor: const Color(0xFF141416),
-                content: Text(
-                  "Password updated successfully",
-                  style: GoogleFonts.inter(color: Colors.white),
-                ),
-              ),
-            );
-          },
+          onPressed: _isLoading ? null : _changePassword,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.white,
             foregroundColor: Colors.black,
+            disabledBackgroundColor: Colors.white54,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
-          child: Text(
-            "Update Password",
-            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
+          child: _isLoading
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.black,
+                    strokeWidth: 2,
+                  ),
+                )
+              : Text(
+                  "Update Password",
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
         ),
       ),
     );
