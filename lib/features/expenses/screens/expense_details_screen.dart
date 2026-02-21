@@ -552,7 +552,6 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
                       // Update totalExpenses by subtracting the deleted expense amount
                       await _updateTotalExpensesAfterDeletion(expenseAmount);
-
                       if (context.mounted) {
                         Navigator.pop(context); // Go back to the list screen
                         ScaffoldMessenger.of(context).showSnackBar(
