@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -5,52 +7,44 @@ import 'package:google_fonts/google_fonts.dart';
 class PaymentHistoryScreen extends StatelessWidget {
   final DateTime joiningDate;
   final double salary;
+  final String memberName; // Added to filter Firebase records
 
   const PaymentHistoryScreen({
     super.key,
     required this.joiningDate,
     required this.salary,
+    required this.memberName,
   });
 
   // Helper to format currency
   String _formatCurrency(double amount) {
-    return "\$${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}";
+    return "₹${amount.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}";
   }
 
-  // Generate dynamic payment history
-  List<Map<String, String>> _generatePaymentHistory() {
-    List<Map<String, String>> payments = [];
-    final DateTime now = DateTime.now();
-
-    // Start calculating from the 1st of the month AFTER joining
-    DateTime paymentDate = DateTime(joiningDate.year, joiningDate.month + 1, 1);
-    final String formattedSalary = _formatCurrency(salary);
-
+  // Helper to format Firestore Timestamp
+  String _formatDate(Timestamp? timestamp) {
+    if (timestamp == null) return "Unknown Date";
+    final DateTime dt = timestamp.toDate();
     final List<String> months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
-
-    while (paymentDate.isBefore(now) || paymentDate.isAtSameMomentAs(now)) {
-      final String formattedDate = "${months[paymentDate.month - 1]} 01, ${paymentDate.year}";
-
-      payments.add({
-        "date": formattedDate,
-        "amt": formattedSalary,
-        "status": "Completed",
-      });
-
-      // Increment by 1 month
-      paymentDate = DateTime(paymentDate.year, paymentDate.month + 1, 1);
-    }
-
-    // Reverse so the newest payments are at the top
-    return payments.reversed.toList();
+    return "${months[dt.month - 1]} ${dt.day.toString().padLeft(2, '0')}, ${dt.year}";
   }
 
   @override
   Widget build(BuildContext context) {
-    final payments = _generatePaymentHistory();
+    final currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
       backgroundColor: const Color(0xFF09090B), // Deep Matte Black
@@ -63,42 +57,106 @@ class PaymentHistoryScreen extends StatelessWidget {
               // 1. Header
               _buildHeader(context),
 
-              // 2. Content
+              // 2. Content with StreamBuilder
               Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 32),
+                child: StreamBuilder<QuerySnapshot>(
+                  // Query all expenses for this user to avoid requiring complex composite indexes in Firebase.
+                  // We will filter by Category and Name locally.
+                  stream: FirebaseFirestore.instance
+                      .collection('expenses')
+                      .where('uid', isEqualTo: currentUser?.uid)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: Colors.white38),
+                      );
+                    }
 
-                      // --- SUMMARY CARD ---
-                      _buildSummaryCard(payments),
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(
+                          "Error loading payment history.",
+                          style: GoogleFonts.inter(color: Colors.redAccent),
+                        ),
+                      );
+                    }
 
-                      const SizedBox(height: 32),
+                    // Extract and filter data
+                    final allDocs = snapshot.data?.docs ?? [];
+                    List<Map<String, dynamic>> memberPayments = [];
+                    double totalPaid = 0.0;
 
-                      // --- PAYMENT LIST ---
-                      if (payments.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 40),
-                          child: Center(
-                            child: Text(
-                              "No payments processed yet.\nFirst payout will be on the 1st of next month.",
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.inter(
-                                color: Colors.white38,
-                                height: 1.5,
-                                fontSize: 14,
+                    for (var doc in allDocs) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final String category =
+                          data['Category']?.toString().toLowerCase() ?? '';
+                      final String title = data['Title']?.toString() ?? '';
+
+                      // Filter: Must be a salary expense AND contain the member's name
+                      if (category == 'salary' && title.contains(memberName)) {
+                        final double amt = data['Amount'] is int
+                            ? (data['Amount'] as int).toDouble()
+                            : (data['Amount'] as double? ?? 0.0);
+
+                        totalPaid += amt;
+                        memberPayments.add({
+                          "rawDate":
+                              data['Date'] as Timestamp?, // Used for sorting
+                          "date": _formatDate(data['Date'] as Timestamp?),
+                          "amt": _formatCurrency(amt),
+                          "status": "Completed",
+                          "title": title.contains("Advance")
+                              ? "Advance Payout"
+                              : "Salary Payout",
+                        });
+                      }
+                    }
+
+                    // Sort newest first
+                    memberPayments.sort((a, b) {
+                      final Timestamp? dateA = a["rawDate"];
+                      final Timestamp? dateB = b["rawDate"];
+                      if (dateA == null || dateB == null) return 0;
+                      return dateB.compareTo(dateA);
+                    });
+
+                    return SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 32),
+
+                          // --- SUMMARY CARD ---
+                          _buildSummaryCard(memberPayments.length, totalPaid),
+
+                          const SizedBox(height: 32),
+
+                          // --- PAYMENT LIST ---
+                          if (memberPayments.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 40),
+                              child: Center(
+                                child: Text(
+                                  "No payments processed yet.\nClick 'Pay Salary' to log the first payment.",
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white38,
+                                    height: 1.5,
+                                    fontSize: 14,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                        )
-                      else
-                        _buildPaymentList(payments),
+                            )
+                          else
+                            _buildPaymentList(memberPayments),
 
-                      const SizedBox(height: 40),
-                    ],
-                  ),
+                          const SizedBox(height: 40),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -168,10 +226,7 @@ class PaymentHistoryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryCard(List<Map<String, String>> payments) {
-    // Calculate total based on generated history
-    final double totalPaid = payments.length * salary;
-
+  Widget _buildSummaryCard(int paymentCount, double totalPaid) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -212,7 +267,9 @@ class PaymentHistoryScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  payments.isEmpty ? "No payments yet" : "All payments completed",
+                  paymentCount == 0
+                      ? "No payments yet"
+                      : "$paymentCount payment(s) completed",
                   style: GoogleFonts.inter(
                     color: const Color(0xFF30D158),
                     fontSize: 10,
@@ -227,7 +284,7 @@ class PaymentHistoryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPaymentList(List<Map<String, String>> payments) {
+  Widget _buildPaymentList(List<Map<String, dynamic>> payments) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -235,6 +292,8 @@ class PaymentHistoryScreen extends StatelessWidget {
         const SizedBox(height: 16),
         Column(
           children: payments.map((payment) {
+            bool isAdvance = payment['title'] == "Advance Payout";
+
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Container(
@@ -260,9 +319,13 @@ class PaymentHistoryScreen extends StatelessWidget {
                             color: Colors.white.withValues(alpha: 0.05),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(
-                            Icons.arrow_outward,
-                            color: Colors.white54,
+                          child: Icon(
+                            isAdvance
+                                ? Icons.fast_forward
+                                : Icons.arrow_outward,
+                            color: isAdvance
+                                ? const Color(0xFF5E5CE6)
+                                : Colors.white54,
                             size: 16,
                           ),
                         ),
@@ -271,7 +334,7 @@ class PaymentHistoryScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Salary Payout",
+                              payment['title'], // Will show "Advance Payout" or "Salary Payout"
                               style: GoogleFonts.inter(
                                 color: Colors.white,
                                 fontSize: 14,
@@ -280,7 +343,7 @@ class PaymentHistoryScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              payment['date']!,
+                              payment['date'],
                               style: GoogleFonts.inter(
                                 color: Colors.white38,
                                 fontSize: 11,
@@ -294,7 +357,7 @@ class PaymentHistoryScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          payment['amt']!,
+                          payment['amt'],
                           style: GoogleFonts.inter(
                             color: Colors.white,
                             fontSize: 14,
@@ -314,7 +377,7 @@ class PaymentHistoryScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            payment['status']!,
+                            payment['status'],
                             style: GoogleFonts.inter(
                               color: const Color(0xFF30D158),
                               fontSize: 9,

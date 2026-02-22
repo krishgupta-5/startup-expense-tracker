@@ -325,7 +325,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen> {
         setState(() {
           _isScanning = false;
           _scannedResult =
-              "Receipt scanned: Starbucks Coffee - \$4.50\nDate: Nov 24, 2024\nCategory: Meals";
+              "Receipt scanned: Starbucks Coffee - ₹4.50\nDate: Nov 24, 2024\nCategory: Meals";
         });
       }
     });

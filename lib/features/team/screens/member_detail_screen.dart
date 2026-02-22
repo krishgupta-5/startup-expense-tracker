@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'edit_member_screen.dart';
 import 'adjust_salary_screen.dart';
 import 'payment_history_screen.dart';
+import 'process_payment_screen.dart'; // <-- IMPORTED NEW SCREEN
 import '../../../widgets/avatar_widget.dart';
 
 class MemberDetailScreen extends StatefulWidget {
@@ -95,7 +97,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               final String email = memberData['email'] ?? "No Email";
               final String status = memberData['status'] ?? "Active";
               final double cost = (memberData['monthlyCost'] ?? 0.0) as double;
-              final String salary = "\$${cost.toStringAsFixed(2)}";
+              final String salary = "₹${cost.toStringAsFixed(2)}";
               final String empType = _formatEmploymentType(
                 memberData['employmentType'] ?? "",
               );
@@ -128,7 +130,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                         children: [
                           const SizedBox(height: 24),
 
-                          // --- PROFILE HERO (Fetching Team Name dynamically) ---
+                          // --- PROFILE HERO ---
                           FutureBuilder<DocumentSnapshot>(
                             future: FirebaseFirestore.instance
                                 .collection('teams')
@@ -157,6 +159,16 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
                           // --- FINANCIAL HERO ---
                           _buildCostCard(salary, status),
+
+                          const SizedBox(height: 16),
+
+                          // --- PAY SALARY / ADVANCE ACTION ---
+                          _buildPaySalaryAction(
+                            cost,
+                            joinedDateObj,
+                            status,
+                            name,
+                          ),
 
                           const SizedBox(height: 32),
 
@@ -203,7 +215,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
                           const SizedBox(height: 32),
 
-                          // --- RECENT PAYOUTS (AUTOMATED) ---
+                          // --- RECENT PAYOUTS ---
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -217,6 +229,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                           PaymentHistoryScreen(
                                             joiningDate: joinedDateObj,
                                             salary: cost,
+                                            memberName: name,
                                           ),
                                     ),
                                   );
@@ -234,7 +247,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                             ],
                           ),
                           const SizedBox(height: 16),
-                          _buildPaymentHistory(salary, joinedDateObj),
+                          _buildPaymentHistory(salary, joinedDateObj, name),
 
                           const SizedBox(height: 40),
                         ],
@@ -280,7 +293,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               ),
             ),
           ),
-
           Text(
             "Member Profile",
             style: GoogleFonts.inter(
@@ -289,8 +301,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-
-          // More Actions
           GestureDetector(
             onTap: () => _showMemberActionSheet(
               context,
@@ -331,7 +341,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
     return Column(
       children: [
-        // Avatar with Ring
         Stack(
           alignment: Alignment.center,
           children: [
@@ -375,7 +384,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        // Status Pill
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
@@ -455,6 +463,119 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     );
   }
 
+  Widget _buildPaySalaryAction(
+    double cost,
+    DateTime joinedDate,
+    String status,
+    String memberName,
+  ) {
+    bool isPaused = status == "Paused";
+
+    // Hide payment option if payroll is suspended
+    if (isPaused) return const SizedBox.shrink();
+
+    DateTime now = DateTime.now();
+    DateTime today = DateTime(now.year, now.month, now.day);
+    int joinDay = joinedDate.day;
+
+    DateTime nextDueDate = DateTime(now.year, now.month, joinDay);
+
+    // If we are more than 10 days past this month's due date,
+    // assume the current cycle is paid and look forward to next month's due date.
+    if (today.difference(nextDueDate).inDays > 10) {
+      nextDueDate = DateTime(now.year, now.month + 1, joinDay);
+    }
+
+    // Ensure the due date is at least 1 full month after their join date
+    DateTime firstDue = DateTime(
+      joinedDate.year,
+      joinedDate.month + 1,
+      joinDay,
+    );
+    if (nextDueDate.isBefore(firstDue)) {
+      nextDueDate = firstDue;
+    }
+
+    // If today is strictly before the due date, it's an advance.
+    bool isAdvance = today.isBefore(nextDueDate);
+
+    final List<String> months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    String formattedDueDate =
+        "${months[nextDueDate.month - 1]} ${nextDueDate.day}, ${nextDueDate.year}";
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.info_outline, color: Colors.white38, size: 14),
+            const SizedBox(width: 6),
+            Text(
+              "Next Due: $formattedDueDate",
+              style: GoogleFonts.inter(
+                color: Colors.white54,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton(
+            // --- UPDATED TO NAVIGATE TO PROCESS PAYMENT SCREEN ---
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ProcessPaymentScreen(
+                    memberId: widget.memberId,
+                    memberName: memberName,
+                    defaultAmount: cost,
+                    isAdvance: isAdvance,
+                  ),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isAdvance
+                  ? const Color(0xFF5E5CE6)
+                  : const Color(0xFF0A84FF),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 0,
+            ),
+            child: Text(
+              isAdvance ? "ADVANCE PAY" : "PAY SALARY",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildDetailRow(String label, String value, IconData icon) {
     return Row(
       children: [
@@ -497,133 +618,216 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     );
   }
 
-  // --- AUTOMATED PAYMENT GENERATOR ---
-  Widget _buildPaymentHistory(String currentSalary, DateTime joinedDate) {
-    List<Map<String, String>> payments = [];
-    final DateTime now = DateTime.now();
+  Widget _buildPaymentHistory(
+    String currentSalary,
+    DateTime joinedDate,
+    String memberName,
+  ) {
+    final currentUser = FirebaseAuth.instance.currentUser;
 
-    // Start calculating from the 1st of the month AFTER joining
-    DateTime paymentDate = DateTime(joinedDate.year, joinedDate.month + 1, 1);
-
-    // Keep adding payments for every 1st of the month until today
-    while (paymentDate.isBefore(now) || paymentDate.isAtSameMomentAs(now)) {
-      final List<String> months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ];
-      final String formattedDate =
-          "${months[paymentDate.month - 1]} 01, ${paymentDate.year}";
-
-      payments.add({"date": formattedDate, "amt": currentSalary});
-
-      // Increment by 1 month
-      paymentDate = DateTime(paymentDate.year, paymentDate.month + 1, 1);
-    }
-
-    // Reverse the list so the newest payments are at the top
-    payments = payments.reversed.toList();
-
-    // If they haven't reached their first payout date yet
-    if (payments.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141416),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-        ),
-        child: Center(
-          child: Text(
-            "No payouts processed yet.\nFirst payout will be on the 1st of next month.",
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              color: Colors.white38,
-              height: 1.5,
-              fontSize: 13,
-            ),
-          ),
-        ),
-      );
-    }
-
-    // Limit to displaying the last 3 on this preview screen
-    final previewPayments = payments.take(3).toList();
-
-    return Column(
-      children: previewPayments.map((p) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('expenses')
+          .where('uid', isEqualTo: currentUser?.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: const Color(0xFF141416),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_outward,
-                        color: Colors.white54,
-                        size: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      "Salary Payout",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      p['amt']!,
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      p['date']!,
-                      style: GoogleFonts.inter(
-                        color: Colors.white38,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+            child: const Center(
+              child: CircularProgressIndicator(color: Colors.white38),
             ),
-          ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141416),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            ),
+            child: Center(
+              child: Text(
+                "Error loading payment history.",
+                style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 13),
+              ),
+            ),
+          );
+        }
+
+        // Extract and filter data for this member
+        final allDocs = snapshot.data?.docs ?? [];
+        List<Map<String, dynamic>> memberPayments = [];
+
+        for (var doc in allDocs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final String category =
+              data['Category']?.toString().toLowerCase() ?? '';
+          final String title = data['Title']?.toString() ?? '';
+
+          // Filter: Must be a salary expense AND contain the member's name
+          if (category == 'salary' && title.contains(memberName)) {
+            final double amt = data['Amount'] is int
+                ? (data['Amount'] as int).toDouble()
+                : (data['Amount'] as double? ?? 0.0);
+
+            memberPayments.add({
+              "rawDate": data['Date'] as Timestamp?,
+              "date": _formatDate(data['Date'] as Timestamp?),
+              "amt": "₹${amt.toStringAsFixed(2)}",
+              "title": title.contains("Advance")
+                  ? "Advance Payout"
+                  : "Salary Payout",
+            });
+          }
+        }
+
+        // Sort newest first and take only top 3
+        memberPayments.sort((a, b) {
+          final Timestamp? dateA = a["rawDate"];
+          final Timestamp? dateB = b["rawDate"];
+          if (dateA == null || dateB == null) return 0;
+          return dateB.compareTo(dateA);
+        });
+
+        final previewPayments = memberPayments.take(3).toList();
+
+        if (previewPayments.isEmpty) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141416),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            ),
+            child: Center(
+              child: Text(
+                "No payouts processed yet.\nClick 'Pay Salary' to log the first payment.",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  color: Colors.white38,
+                  height: 1.5,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          children: previewPayments.map((p) {
+            bool isAdvance = p['title'] == "Advance Payout";
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141416),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.04),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            isAdvance
+                                ? Icons.fast_forward
+                                : Icons.arrow_outward,
+                            color: isAdvance
+                                ? const Color(0xFF5E5CE6)
+                                : Colors.white54,
+                            size: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p['title']!,
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              p['date']!,
+                              style: GoogleFonts.inter(
+                                color: Colors.white38,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          p['amt']!,
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF30D158,
+                            ).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            "Completed",
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF30D158),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
         );
-      }).toList(),
+      },
     );
   }
 
@@ -642,7 +846,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     );
   }
 
-  // --- ACTIONS BOTTOM SHEET ---
   void _showMemberActionSheet(
     BuildContext context,
     String memberName,
@@ -688,7 +891,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // 1. EDIT PROFILE -> Navigates to Edit Screen
                 _buildActionOption(Icons.edit_outlined, "Edit Profile", () {
                   Navigator.pop(bottomSheetContext);
                   Navigator.push(
@@ -703,7 +905,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 }),
                 const SizedBox(height: 16),
 
-                // 2. ADJUST SALARY -> Navigates to Salary Screen
                 _buildActionOption(Icons.attach_money, "Adjust Salary", () {
                   Navigator.pop(bottomSheetContext);
                   Navigator.push(
@@ -718,7 +919,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 }),
                 const SizedBox(height: 16),
 
-                // 3. PAUSE / RESUME MEMBER (Firebase Integrated)
                 _buildActionOption(
                   isPaused
                       ? Icons.play_circle_outline
@@ -755,7 +955,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 const Divider(color: Colors.white10),
                 const SizedBox(height: 16),
 
-                // 4. REMOVE MEMBER -> Shows Dialog
                 _buildActionOption(
                   Icons.person_remove_outlined,
                   "Remove Member",
@@ -783,7 +982,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        color: Colors.transparent, // Ensure hit test works on full width
+        color: Colors.transparent,
         child: Row(
           children: [
             Icon(
@@ -806,7 +1005,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     );
   }
 
-  // --- DELETE CONFIRMATION DIALOG (Firebase Integrated) ---
   void _showDeleteConfirmation(BuildContext context, String memberName) {
     showDialog(
       context: context,
@@ -831,16 +1029,15 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(dialogContext); // Close Dialog
+              Navigator.pop(dialogContext);
               try {
-                // Delete from Firebase
                 await FirebaseFirestore.instance
                     .collection('members')
                     .doc(widget.memberId)
                     .delete();
 
                 if (context.mounted) {
-                  Navigator.pop(context); // Go back to Team List
+                  Navigator.pop(context);
                 }
               } catch (e) {
                 debugPrint("Failed to delete member: $e");

@@ -27,6 +27,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadUserData();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload user data when returning from other screens
+    _loadUserData();
+  }
+
   void _loadUserData() {
     final user = FirebaseAuth.instance.currentUser;
     setState(() {
@@ -68,7 +75,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       MaterialPageRoute(
                         builder: (context) => const CompanyDetailsScreen(),
                       ),
-                    );
+                    ).then((_) {
+                      // Refresh user data when returning from company details
+                      _loadUserData();
+                    });
                   },
                 ),
                 _buildDivider(),
@@ -82,7 +92,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       MaterialPageRoute(
                         builder: (context) => const StatementsScreen(),
                       ),
-                    );
+                    ).then((_) {
+                      // Refresh user data when returning from statements
+                      _loadUserData();
+                    });
                   },
                 ),
               ]),
@@ -101,7 +114,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       MaterialPageRoute(
                         builder: (context) => const ChangePasswordScreen(),
                       ),
-                    );
+                    ).then((_) {
+                      // Refresh user data when returning from password change
+                      _loadUserData();
+                    });
                   },
                 ),
                 _buildDivider(),
@@ -115,7 +131,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       MaterialPageRoute(
                         builder: (context) => const DataAccessScreen(),
                       ),
-                    );
+                    ).then((_) {
+                      // Refresh user data when returning from data access
+                      _loadUserData();
+                    });
                   },
                 ),
                 _buildDivider(),
@@ -129,7 +148,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       MaterialPageRoute(
                         builder: (context) => const PrivacyAssurancesScreen(),
                       ),
-                    );
+                    ).then((_) {
+                      // Refresh user data when returning from privacy assurances
+                      _loadUserData();
+                    });
                   },
                 ),
               ]),
@@ -148,7 +170,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       MaterialPageRoute(
                         builder: (context) => const RateUsScreen(),
                       ),
-                    );
+                    ).then((_) {
+                      // Refresh user data when returning from rate us
+                      _loadUserData();
+                    });
                   },
                 ),
               ]),
@@ -249,7 +274,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               MaterialPageRoute(
                 builder: (context) => const EditProfileScreen(),
               ),
-            );
+            ).then((_) {
+              // Refresh user data when returning from edit profile
+              _loadUserData();
+            });
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

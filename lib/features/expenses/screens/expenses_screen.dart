@@ -20,6 +20,84 @@ class ExpensesScreen extends StatefulWidget {
 }
 
 class _ExpensesScreenState extends State<ExpensesScreen> {
+  // State variables for metrics
+  double _totalFunding = 0.0;
+  double _totalExpenses = 0.0;
+  double _avgDaily = 0.0;
+  int _daysFromStart = 1;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMetricsData();
+  }
+
+  Future<void> _loadMetricsData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // Load company funding data
+      final companyDoc = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(user.uid)
+          .get();
+
+      if (companyDoc.exists) {
+        final companyData = companyDoc.data() as Map<String, dynamic>;
+        final fundingStr = companyData['Funding']?.toString() ?? '0';
+        _totalFunding =
+            double.tryParse(fundingStr.replaceAll(RegExp(r'[^\d.]'), '')) ??
+            0.0;
+      }
+
+      // Load all expenses to calculate totals
+      final expensesSnapshot = await FirebaseFirestore.instance
+          .collection('expenses')
+          .where('uid', isEqualTo: user.uid)
+          .get();
+
+      double totalSpent = 0.0;
+      DateTime? earliestDate;
+
+      for (var doc in expensesSnapshot.docs) {
+        final data = doc.data();
+        final amountStr = data['Amount']?.toString() ?? '0';
+        final amount =
+            double.tryParse(amountStr.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+        totalSpent += amount;
+
+        // Track earliest date for days calculation
+        if (data['Date'] != null) {
+          final date = data['Date'].toDate();
+          if (earliestDate == null || date.isBefore(earliestDate)) {
+            earliestDate = date;
+          }
+        }
+      }
+
+      _totalExpenses = totalSpent;
+
+      // Calculate days from start date
+      if (earliestDate != null) {
+        _daysFromStart = DateTime.now().difference(earliestDate).inDays;
+        if (_daysFromStart < 1) _daysFromStart = 1; // Avoid division by zero
+      }
+
+      // Calculate average daily spending
+      _avgDaily = _totalExpenses / _daysFromStart;
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      debugPrint('Error loading metrics: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -40,23 +118,40 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
               // 2. Metrics (Flat Cards)
               SizedBox(
                 height: 130,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  clipBehavior: Clip.none,
-                  children: [
-                    _buildFlatMetric(
-                      "Budget Left",
-                      "\$12,400",
-                      "72%",
-                      const Color(0xFF30D158),
-                    ),
-                    const SizedBox(width: 16),
-                    _buildFlatMetric("Spent", "\$4,850", "+12%", Colors.white),
-                    const SizedBox(width: 16),
-                    _buildFlatMetric("Avg. Daily", "\$182", "-5%", Colors.grey),
-                  ],
-                ),
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white38,
+                        ),
+                      )
+                    : ListView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        clipBehavior: Clip.none,
+                        children: [
+                          _buildFlatMetric(
+                            "Budget Left",
+                            "₹${(_totalFunding - _totalExpenses).toStringAsFixed(0)}",
+                            "${_totalFunding > 0 ? ((_totalFunding - _totalExpenses) / _totalFunding * 100).toStringAsFixed(0) : '0'}%",
+                            const Color(0xFF30D158),
+                          ),
+                          const SizedBox(width: 16),
+                          _buildFlatMetric(
+                            "Spent",
+                            "₹${_totalExpenses.toStringAsFixed(0)}",
+                            "+${(_totalExpenses > 0 ? '0' : '0')}%",
+                            Colors.white,
+                          ),
+                          const SizedBox(width: 16),
+                          _buildFlatMetric(
+                            "Avg. Daily",
+                            "₹${_avgDaily.toStringAsFixed(0)}",
+                            "-${(_avgDaily > 0 ? '0' : '0')}%",
+                            Colors.grey,
+                          ),
+                        ],
+                      ),
               ),
 
               const SizedBox(height: 40),

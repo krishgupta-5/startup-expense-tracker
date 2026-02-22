@@ -22,6 +22,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   // Loading State
   bool _isLoading = false;
+  bool _isLoadingBanks = true;
 
   // 2. DATA LISTS
   final categories = {
@@ -39,8 +40,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     'subscription': 'Subscription',
   };
 
+  Map<String, String> _bankAccounts = {};
+
   String _selectedCategory = "marketing";
   String _selectedType = "one_time";
+  String? _selectedBankAccount;
   DateTime _selectedDate = DateTime.now();
 
   @override
@@ -52,6 +56,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     _dateController = TextEditingController(
       text: "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
     );
+    _fetchBankAccounts();
   }
 
   @override
@@ -61,6 +66,44 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     _descriptionController.dispose();
     _dateController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchBankAccounts() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final doc = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(user.uid)
+          .get();
+
+      if (doc.exists && doc.data()!.containsKey('Bank Accounts')) {
+        final accounts = doc.data()!['Bank Accounts'] as List<dynamic>;
+        
+        Map<String, String> loadedBanks = {};
+        for (var acc in accounts) {
+          final String name = acc['name'] ?? 'Unknown Bank';
+          final String number = acc['number'] ?? '';
+          
+          // Format option key and value
+          final String key = "$name-$number";
+          final String displayLabel = "$name (****${number.length > 4 ? number.substring(number.length - 4) : number})";
+          loadedBanks[key] = displayLabel;
+        }
+
+        setState(() {
+          _bankAccounts = loadedBanks;
+          if (_bankAccounts.isNotEmpty) {
+            _selectedBankAccount = _bankAccounts.keys.first;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("Failed to load bank accounts: $e");
+    } finally {
+      if (mounted) setState(() => _isLoadingBanks = false);
+    }
   }
 
   Future<void> _uploadExpense() async {
@@ -102,6 +145,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       return;
     }
 
+    if (_selectedBankAccount == null) {
+      _showErrorSnackBar("Please select a bank account.");
+      return;
+    }
+
     // Set Loading State
     setState(() => _isLoading = true);
 
@@ -116,6 +164,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         "Date": _selectedDate,
         "Category": _selectedCategory,
         "Type": _selectedType,
+        "BankAccount": _selectedBankAccount, // <-- Added to record
         "Time": FieldValue.serverTimestamp(),
       });
 
@@ -163,15 +212,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             .collection('companies')
             .doc(user.uid)
             .update({"totalExpenses": newTotalExpenses.toString()});
-
-        print(
-          "DEBUG: Updated totalExpenses from $currentTotalExpenses to $newTotalExpenses",
-        );
       }
     } catch (e) {
       print("DEBUG: Error updating totalExpenses: $e");
-      // Don't throw error here to avoid failing the expense creation
-      // In production, you might want to handle this more gracefully
     }
   }
 
@@ -266,8 +309,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         ],
                       ),
 
-                      // -------------------------------
                       const SizedBox(height: 24),
+                      
+                      // --- BANK ACCOUNT SELECTOR ---
+                      if (!_isLoadingBanks && _bankAccounts.isNotEmpty) ...[
+                        _buildSelectField(
+                          label: "Bank Account",
+                          currentValue: _selectedBankAccount ?? "",
+                          items: _bankAccounts,
+                          icon: Icons.account_balance,
+                          onChanged: (val) {
+                            setState(() => _selectedBankAccount = val!);
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                      ],
 
                       // Date
                       _buildDateSelector(),
@@ -415,13 +471,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               'Select $label',
               style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
             ),
+            initialValue: currentValue.isNotEmpty ? currentValue : null,
             options: [
               ...items.entries.map(
                 (e) => ShadOption(value: e.key, child: Text(e.value)),
               ),
             ],
             selectedOptionBuilder: (context, value) => Text(
-              items[value]!,
+              items[value] ?? "Select",
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 14,
@@ -693,11 +750,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: _isLoading
-              ? null
-              : () async {
-                  await _uploadExpense();
-                },
+          onPressed: _isLoading ? null : _uploadExpense,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.white,
             foregroundColor: Colors.black,

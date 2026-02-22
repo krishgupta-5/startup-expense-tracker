@@ -551,7 +551,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               ),
             ),
             Text(
-              "-\$$amount",
+              "-₹$amount",
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 15,

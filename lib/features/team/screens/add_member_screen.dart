@@ -163,6 +163,8 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
         // "avatarUrl": "" // TODO: Implement avatar upload later
       });
 
+      debugPrint("Member added successfully with teamId: $_selectedTeamId");
+
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(

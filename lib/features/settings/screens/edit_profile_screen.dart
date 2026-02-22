@@ -59,6 +59,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> updateUserProfile() async {
     try {
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF141416),
+          content: Text(
+            "Updating profile...",
+            style: GoogleFonts.inter(color: Colors.white),
+          ),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+
+      // Update Firebase Auth profile
+      await FirebaseAuth.instance.currentUser?.updateDisplayName(
+        _nameController.text,
+      );
+
       // Update user profile in users collection
       await FirebaseFirestore.instance.collection("users").doc(uid).set({
         "name": _nameController.text,
@@ -71,8 +88,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       // Sync name to companies collection
       await _syncNameToCompanies();
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF30D158),
+            content: Text(
+              "Profile updated successfully!",
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+          ),
+        );
+      }
     } catch (e) {
-      print(e.toString());
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFFFF453A),
+            content: Text(
+              "Error updating profile: ${e.toString()}",
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+          ),
+        );
+      }
+      print("Error updating profile: $e");
     }
   }
 
@@ -299,9 +341,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () {
-            updateUserProfile();
-            Navigator.pop(context);
+          onPressed: () async {
+            await updateUserProfile();
+            // Wait a moment for user to see the success message
+            await Future.delayed(const Duration(milliseconds: 1500));
+            if (mounted) {
+              Navigator.pop(context);
+            }
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.white,

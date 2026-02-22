@@ -300,7 +300,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            "\$${totalCost.toStringAsFixed(2)}",
+            "₹${totalCost.toStringAsFixed(2)}",
             style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 42,
@@ -340,7 +340,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     final String name = member['fullName'] ?? 'Unnamed Member';
     final String role = member['jobTitle'] ?? 'No Role';
     final double rawCost = (member['monthlyCost'] ?? 0.0) as double;
-    final String salary = "\$${rawCost.toStringAsFixed(0)}/mo";
+    final String salary = "₹${rawCost.toStringAsFixed(0)}/mo";
 
     // Default status to Active if it doesn't exist
     final String status = member['status'] ?? 'Active';
