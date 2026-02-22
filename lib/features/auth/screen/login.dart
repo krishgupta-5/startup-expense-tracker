@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:startup_expense_tracker/features/auth/screen/signup.dart';
 import 'package:startup_expense_tracker/features/auth/screen/forget_password.dart';
 import 'package:startup_expense_tracker/features/navigation/screens/main_navigation_wrapper.dart';
@@ -21,134 +20,33 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  // Google Sign-In variables
-  static bool _isGoogleInitialized = false;
-  static final GoogleSignIn _googleSignIn = GoogleSignIn();
-
   Future<void> loginUserWithEmailAndPassword() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      // Navigate to main navigation on successful login
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const MainNavigationWrapper(),
-          ),
-        );
-      }
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MainNavigationWrapper()),
+      );
     } on FirebaseAuthException catch (e) {
-      // Handle Firebase authentication errors
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.message ?? 'Authentication failed'),
+          content: Text(e.message ?? 'Login failed'),
           backgroundColor: Colors.red,
         ),
       );
     } catch (e) {
-      // Handle other errors
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('An error occurred. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  // Google Sign-In initialization
-  Future<void> _initGoogleSignIn() async {
-    if (!_isGoogleInitialized) {
-      // Initialization is handled automatically in newer versions
-    }
-    _isGoogleInitialized = true;
-  }
-
-  // Sign in with Google
-  Future<void> signInWithGoogle() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      await _initGoogleSignIn();
-
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        throw FirebaseAuthException(
-          code: "aborted",
-          message: "Sign in aborted",
-        );
-      }
-
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-      final accessToken = googleAuth.accessToken;
-
-      if (accessToken == null || idToken == null) {
-        throw FirebaseAuthException(
-          code: "error",
-          message: "Failed to get authentication tokens",
-        );
-      }
-
-      final credential = GoogleAuthProvider.credential(
-        accessToken: accessToken,
-        idToken: idToken,
-      );
-
-      final UserCredential userCredential = await FirebaseAuth.instance
-          .signInWithCredential(credential);
-      final User? user = userCredential.user;
-
-      if (user != null) {
-        final userDoc = FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid);
-        final docSnapshot = await userDoc.get();
-
-        if (!docSnapshot.exists) {
-          await userDoc.set({
-            'uid': user.uid,
-            'name': user.displayName ?? '',
-            'email': user.email ?? '',
-            'photoURL': user.photoURL ?? '',
-            'provider': 'google',
-            'createdAt': Timestamp.now(),
-            'updatedAt': Timestamp.now(),
-          });
-        }
-      }
-
-      // Navigate to main navigation on successful login
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const MainNavigationWrapper(),
-          ),
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      // Handle Firebase authentication errors
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message ?? 'Google sign in failed'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } catch (e) {
-      // Handle other errors
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'An error occurred during Google sign in. Please try again.',
-          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -234,8 +132,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 32),
 
-                // 6. Google Sign In (Single Button with Color Logo)
-                _buildGoogleButton(),
+                // 6. Google Sign In (Single Button with Color Logo) - Temporarily Disabled
+                _buildDisabledGoogleButton(),
 
                 const Spacer(),
 
@@ -358,9 +256,11 @@ class _LoginScreenState extends State<LoginScreen> {
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: () {
-          loginUserWithEmailAndPassword();
-        },
+        onPressed: _isLoading
+            ? null
+            : () {
+                loginUserWithEmailAndPassword();
+              },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
@@ -397,62 +297,29 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // --- NEW: Single Google Button with Colored Logo ---
-  Widget _buildGoogleButton() {
+  Widget _buildDisabledGoogleButton() {
     return Container(
       width: double.infinity,
       height: 56,
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: Colors.grey.shade800,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _isLoading
-              ? null
-              : () {
-                  // Perform Google Login Logic
-                  signInWithGoogle();
-                },
-          borderRadius: BorderRadius.circular(16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (_isLoading)
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                )
-              else
-                // Google Color Logo
-                Image.network(
-                  "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png",
-                  height: 24,
-                  width: 24,
-                  errorBuilder: (context, error, stackTrace) => const Icon(
-                    Icons.g_mobiledata,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                ),
-              const SizedBox(width: 12),
-              Text(
-                _isLoading ? "Signing in..." : "Sign in with Google",
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.g_mobiledata, color: Colors.grey, size: 28),
+          SizedBox(width: 12),
+          Text(
+            "Google Sign-In (Temporarily Disabled)",
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

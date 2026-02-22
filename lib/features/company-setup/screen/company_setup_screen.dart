@@ -17,6 +17,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
   final int _totalPages = 6;
+  bool _isFinishing = false;
 
   // Validation State for Categories
   bool _showCategoryError = false;
@@ -68,6 +69,23 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
 
   // --- METHODS ---
 
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _ownerNameController.dispose();
+    _companyNameController.dispose();
+    _addressController.dispose();
+    _workDescController.dispose();
+    _fundingController.dispose();
+    _runwayController.dispose();
+    _deptController.dispose();
+    for (var acc in _bankAccounts) {
+      acc["name"]?.dispose();
+      acc["number"]?.dispose();
+    }
+    super.dispose();
+  }
+
   void _addBankAccount() {
     setState(() {
       _bankAccounts.add({
@@ -94,6 +112,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         };
       }).toList();
       final userId = FirebaseAuth.instance.currentUser!.uid;
+
+      // Upload company data to companies collection
       await FirebaseFirestore.instance.collection('companies').doc(userId).set({
         "uid": FirebaseAuth.instance.currentUser!.uid,
         "Owner Name": _ownerNameController.text.trim(),
@@ -107,7 +127,19 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         "Categories": _selectedCategories.toList(),
         "Departments": _departments,
       });
-      print("Company uploaded successfully!");
+
+      // Set companySetup flag in users collection
+      await FirebaseFirestore.instance.collection('users').doc(userId).set({
+        "companySetup": true,
+        "email": FirebaseAuth.instance.currentUser!.email,
+        "createdAt": FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      print(
+        "Company setup completed successfully - AuthWrapper will handle navigation",
+      );
+      // Force navigation by triggering a state change that AuthWrapper will detect
+      print("Company setup completed successfully");
     } catch (e) {
       print(e);
     }
@@ -618,35 +650,43 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: () {
-            // Validation for Categories
-            if (_currentPage == 4 && _selectedCategories.isEmpty) {
-              setState(() {
-                _showCategoryError = true;
-              });
-              return; // Stop navigation
-            }
+          onPressed: _isFinishing
+              ? null
+              : () async {
+                  // Validation for Categories
+                  if (_currentPage == 4 && _selectedCategories.isEmpty) {
+                    setState(() {
+                      _showCategoryError = true;
+                    });
+                    return; // Stop navigation
+                  }
 
-            // Validation passed or not required
-            setState(() => _showCategoryError = false);
+                  // Validation passed or not required
+                  setState(() => _showCategoryError = false);
 
-            if (_currentPage < _totalPages - 1) {
-              _pageController.nextPage(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-            } else {
-              // Finish Logic - Upload data and navigate to Homepage with bottom navigation
-              uploadCompanyData().then((_) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => MainNavigationWrapper(),
-                  ),
-                );
-              });
-            }
-          },
+                  if (_currentPage < _totalPages - 1) {
+                    _pageController.nextPage(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  } else {
+                    // Prevent double taps
+                    setState(() => _isFinishing = true);
+
+                    // Finish Logic - Upload data and let AuthWrapper handle navigation
+                    await uploadCompanyData();
+
+                    if (!mounted) return;
+
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MainNavigationWrapper(),
+                      ),
+                      (route) => false,
+                    );
+                  }
+                },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(

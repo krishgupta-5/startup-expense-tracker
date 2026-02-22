@@ -27,6 +27,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String? errorMessage;
   Timer? _timer;
   String? totalFundsAvailable;
+  String? monthlyBurn;
+  List<Map<String, dynamic>> expenseBreakdown = [];
 
   @override
   void initState() {
@@ -213,31 +215,26 @@ class _HomeScreenState extends State<HomeScreen> {
       if (docSnapshot.exists && docSnapshot.data() != null) {
         final data = docSnapshot.data()!;
 
-        // Get funding and totalExpenses to calculate runway
-        final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
-        final totalExpenses =
-            data["totalExpenses"] ?? data["total_expenses"] ?? "0";
+        // Debug: Print all available fields
+        print("Available fields in Firebase: ${data.keys.toList()}");
 
-        if (funding != null) {
-          final fundingAmount = double.tryParse(funding.toString()) ?? 0;
-          final totalExpensesAmount =
-              double.tryParse(totalExpenses.toString()) ?? 0;
-          final availableFunds = fundingAmount - totalExpensesAmount;
+        // Get runway directly from Firebase (stored as "Runway" in company setup)
+        final runwayFromFirebase = data["Runway"]?.toString() ?? "0";
 
-          // Calculate runway as months (assuming monthly burn of totalExpenses/12 for demo)
-          // In production, this should use actual monthly burn rate
-          final monthlyBurn = totalExpensesAmount > 0
-              ? totalExpensesAmount / 12
-              : 1; // Default to 1 if no expenses
-          final calculatedRunway = availableFunds / monthlyBurn;
+        // Debug: Print runway value
+        print("Runway value found: $runwayFromFirebase");
+
+        if (runwayFromFirebase.toString() != "0") {
+          final runwayAmount =
+              double.tryParse(runwayFromFirebase.toString()) ?? 0;
 
           setState(() {
-            runwayValue = calculatedRunway.toStringAsFixed(2);
+            this.runwayValue = runwayAmount.toStringAsFixed(2);
             isLoading = false;
           });
         } else {
           setState(() {
-            errorMessage = "No funding data found";
+            errorMessage = "No runway data found";
             isLoading = false;
           });
         }
@@ -282,8 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
           setState(() {
             // Format available funds as currency with proper formatting
-            totalFundsAvailable =
-                "₹${(availableFunds / 100000).toStringAsFixed(1)}L";
+            totalFundsAvailable = "₹${availableFunds.toStringAsFixed(0)}";
           });
         }
       }
@@ -613,20 +609,26 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 )
               else
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildRunwayDisplay(runwayValue ?? "0"),
-                    const SizedBox(height: 4),
-                    Text(
-                      _getRunwaySubtitle(runwayValue ?? "0"),
-                      style: GoogleFonts.inter(
-                        color: Colors.white38,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: _buildRunwayDisplay(runwayValue ?? "0"),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        _getRunwaySubtitle(runwayValue ?? "0"),
+                        style: GoogleFonts.inter(
+                          color: Colors.white38,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               const SizedBox(width: 12),
               Padding(

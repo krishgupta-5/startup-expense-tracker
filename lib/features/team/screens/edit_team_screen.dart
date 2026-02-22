@@ -67,10 +67,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     // Safely reconstruct the IconData
     if (widget.teamData['iconCodePoint'] != null &&
         widget.teamData['iconFontFamily'] != null) {
-      _selectedIcon = IconData(
-        widget.teamData['iconCodePoint'],
-        fontFamily: widget.teamData['iconFontFamily'],
-      );
+      _selectedIcon = _getIconFromData(widget.teamData);
     } else {
       _selectedIcon = Icons.code; // Fallback
     }
@@ -672,5 +669,37 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
         ),
       ),
     );
+  }
+
+  // Helper method to get IconData from stored data
+  IconData _getIconFromData(Map<String, dynamic> data) {
+    if (data['iconCodePoint'] != null && data['iconFontFamily'] != null) {
+      // Use a switch statement with common icon code points to ensure tree shaking
+      switch (data['iconCodePoint']) {
+        case 0xe3af:
+          return Icons.work;
+        case 0xe0af:
+          return Icons.business;
+        case 0xe7fd:
+          return Icons.group;
+        case 0xe226:
+          return Icons.code;
+        case 0xe86c:
+          return Icons.design_services;
+        case 0xe85d:
+          return Icons.computer;
+        case 0xe53b:
+          return Icons.build;
+        case 0xe251:
+          return Icons.lightbulb;
+        case 0xe7f1:
+          return Icons.trending_up;
+        case 0xe8b6:
+          return Icons.people;
+        default:
+          return Icons.code;
+      }
+    }
+    return Icons.code; // Fallback
   }
 }

@@ -3,10 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+import 'package:startup_expense_tracker/features/company-setup/screen/company_setup_screen.dart';
 import 'login.dart';
-import '../../company-setup/screen/company_setup_screen.dart';
-import '../../navigation/screens/main_navigation_wrapper.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -23,23 +21,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  // Google Sign-In variables
-  static bool _isGoogleInitialized = false;
-  static final GoogleSignIn _googleSignIn = GoogleSignIn();
-
-  void createUserWithEmailAndPassword() async {
-    // Validate password length
-    if (_passwordController.text.trim().length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password must be at least 6 characters long'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // Validate password match
+  Future<void> createUserWithEmailAndPassword() async {
     if (_passwordController.text.trim() !=
         _confirmPasswordController.text.trim()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -51,6 +33,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
+    if (_passwordController.text.trim().length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password must be at least 6 characters'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
       final userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
@@ -58,152 +54,36 @@ class _SignUpScreenState extends State<SignUpScreen> {
             password: _passwordController.text.trim(),
           );
 
-      // Create user document in Firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set({
-            'email': _emailController.text.trim(),
-            'name': '',
-            'phone': '',
-            'location': '',
-            'uid': userCredential.user!.uid,
-            'createdAt': Timestamp.now(),
-            'updatedAt': Timestamp.now(),
-          });
-
-      // Navigate to company setup on successful registration
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
-        );
+      final User? user = userCredential.user;
+      if (user != null) {
+        // Create Firestore user document
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'uid': user.uid,
+          'email': user.email ?? '',
+          'provider': 'email',
+          'createdAt': Timestamp.now(),
+          'updatedAt': Timestamp.now(),
+        });
       }
+
+      if (!mounted) return;
+
+      // Navigate to company setup for new users
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const CompanySetupScreen()),
+      );
     } on FirebaseAuthException catch (e) {
-      // Handle Firebase authentication errors
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.message ?? 'Authentication failed'),
+          content: Text(e.message ?? 'Sign up failed'),
           backgroundColor: Colors.red,
         ),
       );
     } catch (e) {
-      // Handle other errors
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('An error occurred. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  // Google Sign-In initialization
-  Future<void> _initGoogleSignIn() async {
-    if (!_isGoogleInitialized) {
-      // Initialization is handled automatically in newer versions
-    }
-    _isGoogleInitialized = true;
-  }
-
-  // Sign in with Google
-  Future<void> createUserWithGoogle() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      await _initGoogleSignIn();
-
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        throw FirebaseAuthException(
-          code: "aborted",
-          message: "Sign in aborted",
-        );
-      }
-
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final idToken = googleAuth.idToken;
-      final accessToken = googleAuth.accessToken;
-
-      if (accessToken == null || idToken == null) {
-        throw FirebaseAuthException(
-          code: "error",
-          message: "Failed to get authentication tokens",
-        );
-      }
-
-      final credential = GoogleAuthProvider.credential(
-        accessToken: accessToken,
-        idToken: idToken,
-      );
-
-      final UserCredential userCredential = await FirebaseAuth.instance
-          .signInWithCredential(credential);
-      final User? user = userCredential.user;
-
-      if (user != null) {
-        final userDoc = FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid);
-        final docSnapshot = await userDoc.get();
-
-        if (!docSnapshot.exists) {
-          await userDoc.set({
-            'uid': user.uid,
-            'name': user.displayName ?? '',
-            'email': user.email ?? '',
-            'photoURL': user.photoURL ?? '',
-            'provider': 'google',
-            'createdAt': Timestamp.now(),
-            'updatedAt': Timestamp.now(),
-          });
-        }
-
-        // Check if company setup is complete
-        final companyDoc = await FirebaseFirestore.instance
-            .collection('companies')
-            .doc(user.uid)
-            .get();
-
-        // Navigate based on whether company setup is complete
-        if (mounted) {
-          if (companyDoc.exists) {
-            // User has completed company setup, go to main app
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const MainNavigationWrapper(),
-              ),
-            );
-          } else {
-            // New user, go to company setup
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const CompanySetupScreen(),
-              ),
-            );
-          }
-        }
-      }
-    } on FirebaseAuthException catch (e) {
-      // Handle Firebase authentication errors
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message ?? 'Google sign in failed'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } catch (e) {
-      // Handle other errors
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'An error occurred during Google sign in. Please try again.',
-          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -214,6 +94,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
         });
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -274,8 +162,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                   const SizedBox(height: 16),
 
-                  // 6. Google Sign Up (Single Button)
-                  _buildGoogleButton(),
+                  // 6. Google Sign Up (Single Button) - Temporarily Disabled
+                  _buildDisabledGoogleButton(),
 
                   const SizedBox(height: 16),
 
@@ -451,10 +339,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: () {
-          // Perform Sign Up Logic
-          createUserWithEmailAndPassword();
-        },
+        onPressed: _isLoading
+            ? null
+            : () {
+                createUserWithEmailAndPassword();
+              },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
@@ -463,10 +352,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
         ),
-        child: Text(
-          "Sign Up",
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
+        child: _isLoading
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                ),
+              )
+            : Text(
+                "Sign Up",
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
       ),
     );
   }
@@ -491,63 +392,29 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  // --- CHANGED: Google Button with Logo ---
-  Widget _buildGoogleButton() {
+  Widget _buildDisabledGoogleButton() {
     return Container(
       width: double.infinity,
       height: 56,
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: Colors.grey.shade800,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _isLoading
-              ? null
-              : () {
-                  // Perform Google Sign Up Logic
-                  createUserWithGoogle();
-                },
-          borderRadius: BorderRadius.circular(16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (_isLoading)
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                )
-              else
-                // Google Logo Image
-                Image.network(
-                  "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/768px-Google_%22G%22_logo.svg.png",
-                  height: 24,
-                  width: 24,
-                  // Fallback icon in case of offline/error
-                  errorBuilder: (context, error, stackTrace) => const Icon(
-                    Icons.g_mobiledata,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                ),
-              const SizedBox(width: 12),
-              Text(
-                _isLoading ? "Signing up..." : "Sign up with Google",
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.g_mobiledata, color: Colors.grey, size: 28),
+          SizedBox(width: 12),
+          Text(
+            "Google Sign-In (Temporarily Disabled)",
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

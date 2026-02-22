@@ -3,9 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import 'package:startup_expense_tracker/features/team/screens/create_team_screen.dart';
-// NOTE: Ensure these files exist or comment them out if testing in isolation
 import 'team_detail_screen.dart';
 import '../../../widgets/avatar_widget.dart';
 
@@ -29,10 +27,31 @@ class _TeamScreenState extends State<TeamScreen> {
   // Reconstruct Icon from Font Family & Code Point saved in Firebase
   IconData _getIconFromData(Map<String, dynamic> data) {
     if (data['iconCodePoint'] != null && data['iconFontFamily'] != null) {
-      return IconData(
-        data['iconCodePoint'],
-        fontFamily: data['iconFontFamily'],
-      );
+      // Use a switch statement with common icon code points to ensure tree shaking
+      switch (data['iconCodePoint']) {
+        case 0xe3af:
+          return Icons.work;
+        case 0xe0af:
+          return Icons.business;
+        case 0xe7fd:
+          return Icons.group;
+        case 0xe226:
+          return Icons.code;
+        case 0xe86c:
+          return Icons.design_services;
+        case 0xe85d:
+          return Icons.computer;
+        case 0xe53b:
+          return Icons.build;
+        case 0xe251:
+          return Icons.lightbulb;
+        case 0xe7f1:
+          return Icons.trending_up;
+        case 0xe8b6:
+          return Icons.people;
+        default:
+          return Icons.group;
+      }
     }
     return Icons.group; // Fallback
   }
