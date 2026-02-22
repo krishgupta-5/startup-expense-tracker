@@ -28,8 +28,9 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchRunwayData();
-    _fetchAllExpenses();
+    _fetchAllExpenses().then((_) {
+      _fetchRunwayData();
+    });
   }
 
   Future<void> _fetchRunwayData() async {
@@ -65,13 +66,27 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
               double.tryParse(totalExpenses.toString()) ?? 0;
           final availableBalance = fundingAmount - totalExpensesAmount;
 
-          // Calculate monthly burn (total expenses per month)
-          final monthlyBurnAmount = totalExpensesAmount > 0
-              ? totalExpensesAmount
-              : 42500; // Default fallback
+          // Calculate current month burn (only expenses from current month)
+          final currentMonthBurnAmount = _calculateCurrentMonthBurn();
 
-          // Calculate net burn (monthly burn minus any revenue)
-          final netBurnAmount = monthlyBurnAmount; // Simplified for now
+          // If no current month burn data, use average of all expenses
+          double actualMonthlyBurn = currentMonthBurnAmount;
+          if (actualMonthlyBurn == 0 && allExpenses.isNotEmpty) {
+            // Calculate average monthly burn from all expenses
+            actualMonthlyBurn = _calculateAverageMonthlyBurn();
+          }
+
+          // If still no burn data, don't show projections
+          if (actualMonthlyBurn == 0) {
+            setState(() {
+              errorMessage = "No expense data available for projections";
+              isLoading = false;
+            });
+            return;
+          }
+
+          // Calculate net burn (current month burn minus any revenue)
+          final netBurnAmount = actualMonthlyBurn; // Simplified for now
 
           // Calculate zero cash date
           final calculatedZeroCashDate = _calculateZeroCashDate(runwayAmount);
@@ -79,17 +94,17 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
           // Generate monthly projections
           final projections = _generateMonthlyProjections(
             availableBalance,
-            monthlyBurnAmount.toDouble(),
+            actualMonthlyBurn,
           );
 
           setState(() {
             runwayMonths = runwayAmount;
             currentBalance =
-                "₹${availableBalance.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
+                "\₹${availableBalance.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
             monthlyBurn =
-                "₹${monthlyBurnAmount.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
+                "\₹${actualMonthlyBurn.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
             netBurn =
-                "₹${netBurnAmount.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
+                "\₹${netBurnAmount.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
             zeroCashDate = calculatedZeroCashDate;
             monthlyProjections = projections;
             isLoading = false;
@@ -144,6 +159,77 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     }
   }
 
+  double _calculateCurrentMonthBurn() {
+    if (allExpenses.isEmpty) {
+      return 0; // Return 0 if no expenses instead of dummy value
+    }
+
+    final now = DateTime.now();
+    final currentMonth = now.month;
+    final currentYear = now.year;
+
+    double currentMonthTotal = 0;
+
+    for (var expense in allExpenses) {
+      final expenseDate = expense['date'] as Timestamp?;
+      if (expenseDate != null) {
+        final expenseDateTime = expenseDate.toDate();
+        if (expenseDateTime.month == currentMonth &&
+            expenseDateTime.year == currentYear) {
+          // Add both one-time and recurring expenses for current month
+          if (expense['type'] == 'recurring') {
+            // For recurring expenses, add the monthly amount
+            currentMonthTotal += expense['amount'] as double;
+          } else {
+            // For one-time expenses, add the full amount
+            currentMonthTotal += expense['amount'] as double;
+          }
+        }
+      }
+    }
+
+    return currentMonthTotal; // Return actual calculated value (0 if no current month expenses)
+  }
+
+  double _calculateAverageMonthlyBurn() {
+    if (allExpenses.isEmpty) return 0;
+
+    // Group expenses by month to calculate average monthly burn
+    Map<String, double> monthlyTotals = {};
+
+    for (var expense in allExpenses) {
+      final expenseDate = expense['date'] as Timestamp?;
+      if (expenseDate != null) {
+        final expenseDateTime = expenseDate.toDate();
+        final monthKey =
+            "${expenseDateTime.year}-${expenseDateTime.month.toString().padLeft(2, '0')}";
+
+        if (!monthlyTotals.containsKey(monthKey)) {
+          monthlyTotals[monthKey] = 0;
+        }
+
+        // Add both one-time and recurring expenses
+        if (expense['type'] == 'recurring') {
+          monthlyTotals[monthKey] =
+              monthlyTotals[monthKey]! + (expense['amount'] as double);
+        } else {
+          monthlyTotals[monthKey] =
+              monthlyTotals[monthKey]! + (expense['amount'] as double);
+        }
+      }
+    }
+
+    if (monthlyTotals.isEmpty) return 0;
+
+    // Calculate average of all months
+    double total = 0;
+    for (double monthlyTotal in monthlyTotals.values) {
+      total += monthlyTotal;
+    }
+
+    return total / monthlyTotals.length;
+  }
+
   String _calculateZeroCashDate(double runwayMonths) {
     final now = DateTime.now();
     final zeroCashDateTime = now.add(
@@ -177,6 +263,8 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
 
     for (int i = 1; i <= 6; i++) {
       final futureDate = DateTime(now.year, now.month + i, 15);
+
+      // Monthly Projection Formula: Fund Left ÷ Current Monthly Expense
       final projectedBalance = currentBalance - (monthlyBurn * i);
       final remainingRunway = projectedBalance > 0
           ? projectedBalance / monthlyBurn
@@ -200,12 +288,117 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
       projections.add({
         'month': "${months[futureDate.month - 1]} ${futureDate.year}",
         'balance':
-            "₹${projectedBalance.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}",
+            "\₹${projectedBalance.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}",
         'monthsLeft': remainingRunway.toStringAsFixed(1),
       });
     }
 
     return projections;
+  }
+
+  void _showProjectionCalculationDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF141416),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          title: Text(
+            "Monthly Projection Calculation",
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Formula:",
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.1),
+                  ),
+                ),
+                child: Text(
+                  "Fund Left ÷ Current Monthly Expense",
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF30D158),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "How it works:",
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "• Fund Left: Current available balance after expenses\n• Current Monthly Expense: Total burn for this month\n• Result: Number of months until funds run out",
+                style: GoogleFonts.inter(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "Example:",
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "If you have ₹500,000 left and burn ₹50,000 per month:\n₹500,000 ÷ ₹50,000 = 10 months runway",
+                style: GoogleFonts.inter(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                "Got it",
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF30D158),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   String _getHealthStatus() {
@@ -372,7 +565,14 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(
-                    onTap: _fetchRunwayData,
+                    onTap: () {
+                      setState(() {
+                        isLoading = true;
+                      });
+                      _fetchAllExpenses().then((_) {
+                        _fetchRunwayData();
+                      });
+                    },
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       child: Icon(
@@ -538,7 +738,7 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
           children: [
             Expanded(
               child: _buildMetricCard(
-                "Net Burn",
+                "Total Burn",
                 netBurn ?? "Loading...",
                 Icons.remove_circle_outline,
                 const Color(0xFFFF453A),
@@ -595,14 +795,38 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Monthly Projection",
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.5,
-          ),
+        Row(
+          children: [
+            Text(
+              "Monthly Projection",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => _showProjectionCalculationDialog(),
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Icon(
+                  Icons.info_outline,
+                  color: Colors.white60,
+                  size: 14,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 20),
         Container(
@@ -791,6 +1015,23 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
       return risks;
     }
 
+    // Calculate actual remaining runway based on current balance and monthly burn
+    double actualRemainingRunway = 0;
+    if (currentBalance != null && monthlyBurn != null) {
+      // Extract numeric values from formatted strings
+      final balanceStr = currentBalance!
+          .replaceAll('₹', '')
+          .replaceAll(',', '');
+      final burnStr = monthlyBurn!.replaceAll('₹', '').replaceAll(',', '');
+
+      final balanceAmount = double.tryParse(balanceStr) ?? 0;
+      final burnAmount = double.tryParse(burnStr) ?? 0;
+
+      if (burnAmount > 0) {
+        actualRemainingRunway = balanceAmount / burnAmount;
+      }
+    }
+
     // Calculate total expenses by category
     final Map<String, double> categoryTotals = {};
     for (var expense in allExpenses) {
@@ -821,17 +1062,21 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
       });
     }
 
-    // Check runway status
-    if (runwayMonths != null && runwayMonths! < 6) {
+    // Check runway status based on ACTUAL remaining runway
+    if (actualRemainingRunway < 6) {
       risks.add({
         'title': 'Limited Runway',
         'description': 'Current runway is less than 6 months',
         'color': const Color(0xFFFF453A),
       });
-    }
-
-    // Add positive factors
-    if (runwayMonths != null && runwayMonths! > 12) {
+    } else if (actualRemainingRunway >= 6 && actualRemainingRunway <= 12) {
+      risks.add({
+        'title': 'Moderate Runway',
+        'description': 'Current runway is between 6-12 months',
+        'color': const Color(0xFFFF9F0A),
+      });
+    } else if (actualRemainingRunway > 12) {
+      // Add positive factors
       risks.add({
         'title': 'Healthy Runway',
         'description': 'Current runway extends beyond 12 months',

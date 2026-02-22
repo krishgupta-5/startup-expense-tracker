@@ -11,6 +11,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'runway_estimation_screen.dart';
 import 'funds_overview_screen.dart';
 import 'monthly_burn_screen.dart';
+import '../../../services/financial_data_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(int)? onNavigateToTab;
@@ -29,12 +30,19 @@ class _HomeScreenState extends State<HomeScreen> {
   String? totalFundsAvailable;
   String? monthlyBurn;
   List<Map<String, dynamic>> expenseBreakdown = [];
+  List<Map<String, dynamic>> allExpenses = [];
+
+  // Real data for pie chart
+  Map<String, dynamic>? _financialData;
+  bool _isPieChartLoading = true;
 
   @override
   void initState() {
     super.initState();
     _fetchRunwayData();
     fetchTotalFundsAvailable();
+    fetchMonthlyBurn();
+    _loadFinancialDataForPieChart();
     _startDailyDecrement();
   }
 
@@ -288,6 +296,130 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> fetchMonthlyBurn() async {
+    try {
+      await _fetchAllExpenses();
+      final currentMonthBurnAmount = _calculateCurrentMonthBurn();
+
+      setState(() {
+        monthlyBurn = "₹${currentMonthBurnAmount.toStringAsFixed(0)}";
+      });
+    } catch (e) {
+      // Set default value on error
+      setState(() {
+        monthlyBurn = "₹42500";
+      });
+    }
+  }
+
+  Future<void> _fetchAllExpenses() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final expensesSnapshot = await FirebaseFirestore.instance
+          .collection('expenses')
+          .where('uid', isEqualTo: user.uid)
+          .orderBy('Date', descending: true)
+          .get();
+
+      setState(() {
+        allExpenses = expensesSnapshot.docs.map((doc) {
+          final data = doc.data();
+          return {
+            'id': doc.id,
+            'title': data['Title'] ?? 'Unnamed Expense',
+            'amount': (data['Amount'] as num).toDouble(),
+            'category': data['Category'] ?? 'General',
+            'date': data['Date'],
+            'description': data['Description'] ?? '',
+            'type': data['Type'] ?? 'one_time',
+          };
+        }).toList();
+      });
+    } catch (e) {
+      print("Error fetching expenses: $e");
+    }
+  }
+
+  double _calculateCurrentMonthBurn() {
+    if (allExpenses.isEmpty) {
+      return 42500; // Default fallback if no expenses
+    }
+
+    final now = DateTime.now();
+    final currentMonth = now.month;
+    final currentYear = now.year;
+
+    double currentMonthTotal = 0;
+
+    for (var expense in allExpenses) {
+      final expenseDate = expense['date'] as Timestamp?;
+      if (expenseDate != null) {
+        final expenseDateTime = expenseDate.toDate();
+        if (expenseDateTime.month == currentMonth &&
+            expenseDateTime.year == currentYear) {
+          // Add both one-time and recurring expenses for current month
+          if (expense['type'] == 'recurring') {
+            // For recurring expenses, add the monthly amount
+            currentMonthTotal += expense['amount'] as double;
+          } else {
+            // For one-time expenses, add the full amount
+            currentMonthTotal += expense['amount'] as double;
+          }
+        }
+      }
+    }
+
+    return currentMonthTotal > 0
+        ? currentMonthTotal
+        : 42500; // Return fallback if no current month expenses
+  }
+
+  Future<void> _loadFinancialDataForPieChart() async {
+    setState(() {
+      _isPieChartLoading = true;
+    });
+
+    try {
+      final financialData = await FinancialDataService.getMonthlyBurnData();
+      setState(() {
+        _financialData = financialData;
+        _isPieChartLoading = false;
+      });
+    } catch (e) {
+      print("Error loading financial data for pie chart: $e");
+      setState(() {
+        _isPieChartLoading = false;
+      });
+    }
+  }
+
+  Color _getCategoryColor(String category) {
+    switch (category.toLowerCase()) {
+      case 'salaries':
+      case 'salary':
+        return const Color(0xFF30D158);
+      case 'servers':
+      case 'infrastructure':
+      case 'servers & infrastructure':
+        return const Color(0xFF3A4B8A);
+      case 'marketing':
+        return const Color(0xFFFF9F0A);
+      case 'office':
+      case 'operations':
+      case 'office & operations':
+        return const Color(0xFF00BFA5);
+      default:
+        return const Color(0xFF8E8E93);
+    }
+  }
+
+  String _capitalizeFirstLetter(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1).toLowerCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     // Calculate health status based on runway value
@@ -355,7 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                       child: _buildFlatMetricCard(
                         label: "Monthly Burn",
-                        value: "\$42.5k",
+                        value: monthlyBurn ?? "Loading...",
                         icon: Icons.local_fire_department_outlined,
                         isBurn: true,
                       ),
@@ -766,32 +898,72 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPieChartBreakdown() {
-    final expenseData = [
-      {
-        'category': 'Salaries',
-        'amount': 27625,
-        'percentage': 65,
-        'color': const Color(0xFF30D158),
-      },
-      {
-        'category': 'Servers',
-        'amount': 8500,
-        'percentage': 20,
+    // Show loading state while data is being fetched
+    if (_isPieChartLoading) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white38,
+          ),
+        ),
+      );
+    }
+
+    // Get real category breakdown data
+    final categoryBreakdown =
+        _financialData?['categoryBreakdown'] as Map<String, double>? ?? {};
+    final totalExpenses = _financialData?['totalExpenses'] as double? ?? 0;
+
+    // Default categories with colors if no data
+    final defaultCategories = {
+      'Salaries': {'amount': 27625.0, 'color': const Color(0xFF30D158)},
+      'Servers & Infrastructure': {
+        'amount': 8500.0,
         'color': const Color(0xFF3A4B8A),
       },
-      {
-        'category': 'Marketing',
-        'amount': 4250,
-        'percentage': 10,
-        'color': const Color(0xFFFF9F0A),
-      },
-      {
-        'category': 'Office',
-        'amount': 2125,
-        'percentage': 5,
+      'Marketing': {'amount': 4250.0, 'color': const Color(0xFFFF9F0A)},
+      'Office & Operations': {
+        'amount': 2125.0,
         'color': const Color(0xFF00BFA5),
       },
-    ];
+    };
+
+    final categories = categoryBreakdown.isEmpty
+        ? defaultCategories
+        : categoryBreakdown.map(
+            (key, value) => MapEntry(key, {
+              'amount': value,
+              'color': _getCategoryColor(key),
+            }),
+          );
+
+    // Convert to list format for pie chart
+    final expenseData = categories.entries.map((entry) {
+      final amount = entry.value['amount'] as double;
+      final percentage = totalExpenses > 0
+          ? (amount / totalExpenses * 100).round()
+          : 0;
+
+      return {
+        'category': _capitalizeFirstLetter(entry.key),
+        'amount': amount,
+        'percentage': percentage,
+        'color': entry.value['color'] as Color,
+      };
+    }).toList();
+
+    // Sort by percentage (highest first)
+    expenseData.sort(
+      (a, b) => (b['percentage'] as int).compareTo(a['percentage'] as int),
+    );
 
     return Container(
       width: double.infinity,
@@ -804,11 +976,11 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Pie Chart
               Expanded(
-                flex: 1,
+                flex: 5,
                 child: SizedBox(
                   height: 140, // Constrained height
                   child: PieChart(
@@ -829,15 +1001,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 24),
+              const SizedBox(width: 32),
               // Legend
               Expanded(
-                flex: 1,
+                flex: 6,
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: expenseData.map((data) {
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.only(bottom: 16),
                       child: Row(
                         children: [
                           Container(
@@ -848,7 +1021,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               shape: BoxShape.circle,
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -864,6 +1037,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                           ),
+                          const SizedBox(width: 8),
                           Text(
                             '${data['percentage']}%',
                             style: GoogleFonts.inter(
@@ -904,7 +1078,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 Text(
-                  '\$42,500',
+                  '₹${totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}',
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 14,

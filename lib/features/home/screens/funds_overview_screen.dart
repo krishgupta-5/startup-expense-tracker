@@ -25,20 +25,17 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   List<Map<String, dynamic>> allExpenses = [];
   List<Map<String, dynamic>> bankAccounts = [];
 
-  // Cash flow data
-  List<Map<String, dynamic>> cashFlowBreakdown = [
-    {'category': 'Inflow', 'amount': 320000, 'percentage': 65},
-    {'category': 'Salaries', 'amount': -176000, 'percentage': 35},
-    {'category': 'Marketing', 'amount': -48000, 'percentage': 10},
-    {'category': 'Operations', 'amount': -64000, 'percentage': 13},
-    {'category': 'Infrastructure', 'amount': -32000, 'percentage': 7},
-  ];
+  // Cash flow data - will be calculated from actual expenses
+  List<Map<String, dynamic>> cashFlowBreakdown = [];
 
   @override
   void initState() {
     super.initState();
     _fetchFundsData();
-    _fetchAllExpenses().then((_) => _fetchBankAccounts());
+    _fetchAllExpenses().then((_) {
+      _fetchBankAccounts();
+      _calculateCashFlowBreakdown();
+    });
     _fetchFundingHistory();
   }
 
@@ -125,6 +122,30 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         ];
       });
     }
+  }
+
+  void _calculateCashFlowBreakdown() {
+    // Group expenses by category and sum amounts
+    final Map<String, double> categoryTotals = {};
+
+    for (var expense in allExpenses) {
+      final category = expense['category'] as String? ?? 'Other';
+      final amount = (expense['amount'] as num).toDouble();
+      categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
+    }
+
+    // Convert to list format for cash flow breakdown
+    setState(() {
+      cashFlowBreakdown = categoryTotals.entries.map((entry) {
+        return {
+          'category': entry.key,
+          'amount': -entry.value
+              .abs()
+              .toInt(), // Convert to negative for expenses
+          'percentage': 0, // Will be calculated if needed
+        };
+      }).toList();
+    });
   }
 
   Future<void> _fetchAllExpenses() async {
@@ -493,7 +514,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                   "!",
                   style: GoogleFonts.inter(
                     color: const Color(0xFFFF453A),
-                    fontSize: 72,
+                    fontSize: 48,
                     fontWeight: FontWeight.w300,
                     height: 1.0,
                     letterSpacing: -3,
@@ -559,7 +580,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                       : "Loading...",
                   style: GoogleFonts.inter(
                     color: Colors.white,
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -804,8 +825,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                   ),
                   Text(
                     netFlow >= 0
-                        ? "+₹${(netFlow / 100000).toStringAsFixed(1)}L"
-                        : "-₹${((-netFlow) / 100000).toStringAsFixed(1)}L",
+                        ? "+₹${netFlow.toStringAsFixed(0)}"
+                        : "-₹${(-netFlow).toStringAsFixed(0)}",
                     style: GoogleFonts.inter(
                       color: netFlow >= 0
                           ? const Color(0xFF30D158)
@@ -827,8 +848,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     final amount = item['amount'] as int;
     final isPositive = amount >= 0;
     final formattedAmount = isPositive
-        ? "+₹${(amount / 100000).toStringAsFixed(1)}L"
-        : "-₹${((-amount) / 100000).toStringAsFixed(1)}L";
+        ? "+₹${amount.toStringAsFixed(0)}"
+        : "-₹${(-amount).toStringAsFixed(0)}";
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
