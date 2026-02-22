@@ -12,7 +12,6 @@ class EditProfileScreen extends StatefulWidget {
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
-  // Controllers pre-filled with User Context
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
@@ -44,7 +43,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (snapshot.exists) {
         final data = snapshot.data()!;
-
         setState(() {
           _nameController.text = data['name'] ?? '';
           _emailController.text = email;
@@ -59,7 +57,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> updateUserProfile() async {
     try {
-      // Show loading indicator
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: const Color(0xFF141416),
@@ -67,42 +64,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             "Updating profile...",
             style: GoogleFonts.inter(color: Colors.white),
           ),
-          duration: const Duration(seconds: 1),
+          duration: const Duration(milliseconds: 500),
         ),
       );
 
       // Update Firebase Auth profile
       await FirebaseAuth.instance.currentUser?.updateDisplayName(
-        _nameController.text,
+        _nameController.text.trim(),
       );
 
       // Update user profile in users collection
       await FirebaseFirestore.instance.collection("users").doc(uid).set({
-        "name": _nameController.text,
-        "email": _emailController.text,
-        "phone": _phoneController.text,
-        "location": _locationController.text,
+        "name": _nameController.text.trim(),
+        "email": _emailController.text.trim(),
+        "phone": _phoneController.text.trim(),
+        "location": _locationController.text.trim(),
         "uid": uid,
         "updatedAt": Timestamp.now(),
       }, SetOptions(merge: true));
 
       // Sync name to companies collection
       await _syncNameToCompanies();
-
-      // Show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: const Color(0xFF30D158),
-            content: Text(
-              "Profile updated successfully!",
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
-          ),
-        );
-      }
     } catch (e) {
-      // Show error message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -114,7 +97,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
         );
       }
-      print("Error updating profile: $e");
     }
   }
 
@@ -131,7 +113,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             .collection("companies")
             .doc(companySnapshot.docs.first.id)
             .set({
-              "Owner Name": _nameController.text,
+              "Owner Name": _nameController.text.trim(),
               "updatedAt": Timestamp.now(),
             }, SetOptions(merge: true));
       }
@@ -143,17 +125,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: const Color(0xFF09090B),
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: SafeArea(
           child: Column(
             children: [
-              // 1. Header
               _buildHeader(context),
-
-              // 2. Scrollable Form
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
@@ -161,13 +140,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 32),
-
-                      // Avatar Editor
                       _buildAvatarEdit(),
-
                       const SizedBox(height: 40),
-
-                      // Form Fields
                       _buildInputGroup(
                         "FULL NAME",
                         _nameController,
@@ -191,14 +165,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         _locationController,
                         Icons.location_on_outlined,
                       ),
-
-                      const SizedBox(height: 100), // Spacing for bottom button
+                      const SizedBox(height: 100),
                     ],
                   ),
                 ),
               ),
-
-              // 3. Save Button
               _buildSaveButton(),
             ],
           ),
@@ -239,7 +210,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          // Placeholder to balance the row
           const SizedBox(width: 44),
         ],
       ),
@@ -259,9 +229,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               width: 1,
             ),
             image: const DecorationImage(
-              image: NetworkImage(
-                "https://i.pravatar.cc/150?img=12",
-              ), // Placeholder
+              image: NetworkImage("https://i.pravatar.cc/150?img=12"),
               fit: BoxFit.cover,
             ),
           ),
@@ -343,8 +311,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: ElevatedButton(
           onPressed: () async {
             await updateUserProfile();
-            // Wait a moment for user to see the success message
-            await Future.delayed(const Duration(milliseconds: 1500));
             if (mounted) {
               Navigator.pop(context);
             }

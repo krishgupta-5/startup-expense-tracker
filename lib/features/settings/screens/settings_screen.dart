@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,37 +11,8 @@ import 'change_password.dart';
 import 'data_access_screen.dart';
 import 'privacy_assurances_screen.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
-
-  @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends State<SettingsScreen> {
-  String? name;
-  String? email;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUserData();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Reload user data when returning from other screens
-    _loadUserData();
-  }
-
-  void _loadUserData() {
-    final user = FirebaseAuth.instance.currentUser;
-    setState(() {
-      name = user?.displayName ?? 'User';
-      email = user?.email ?? 'No email';
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 32),
 
-              // 2. Profile Section
+              // 2. Profile Section (Now fully reactive!)
               _buildProfileSection(context),
 
               const SizedBox(height: 40),
@@ -75,10 +47,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       MaterialPageRoute(
                         builder: (context) => const CompanyDetailsScreen(),
                       ),
-                    ).then((_) {
-                      // Refresh user data when returning from company details
-                      _loadUserData();
-                    });
+                    );
                   },
                 ),
                 _buildDivider(),
@@ -92,10 +61,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       MaterialPageRoute(
                         builder: (context) => const StatementsScreen(),
                       ),
-                    ).then((_) {
-                      // Refresh user data when returning from statements
-                      _loadUserData();
-                    });
+                    );
                   },
                 ),
               ]),
@@ -114,10 +80,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       MaterialPageRoute(
                         builder: (context) => const ChangePasswordScreen(),
                       ),
-                    ).then((_) {
-                      // Refresh user data when returning from password change
-                      _loadUserData();
-                    });
+                    );
                   },
                 ),
                 _buildDivider(),
@@ -131,10 +94,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       MaterialPageRoute(
                         builder: (context) => const DataAccessScreen(),
                       ),
-                    ).then((_) {
-                      // Refresh user data when returning from data access
-                      _loadUserData();
-                    });
+                    );
                   },
                 ),
                 _buildDivider(),
@@ -148,10 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       MaterialPageRoute(
                         builder: (context) => const PrivacyAssurancesScreen(),
                       ),
-                    ).then((_) {
-                      // Refresh user data when returning from privacy assurances
-                      _loadUserData();
-                    });
+                    );
                   },
                 ),
               ]),
@@ -170,10 +127,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       MaterialPageRoute(
                         builder: (context) => const RateUsScreen(),
                       ),
-                    ).then((_) {
-                      // Refresh user data when returning from rate us
-                      _loadUserData();
-                    });
+                    );
                   },
                 ),
               ]),
@@ -218,85 +172,119 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildProfileSection(BuildContext context) {
-    return Column(
-      children: [
-        Stack(
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return const SizedBox();
+    }
+
+    // StreamBuilder listens directly to the Firestore document for instant updates
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        String name = user.displayName ?? 'User';
+        String email = user.email ?? 'No email';
+
+        // Override with Firestore data if available
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final data = snapshot.data!.data() as Map<String, dynamic>;
+          name = data['name'] ?? name;
+          email = data['email'] ?? email;
+        }
+
+        return Column(
           children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  width: 1,
+            Stack(
+              children: [
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      width: 1,
+                    ),
+                    image: const DecorationImage(
+                      image: NetworkImage("https://i.pravatar.cc/150?img=12"),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
-                image: const DecorationImage(
-                  image: NetworkImage("https://i.pravatar.cc/150?img=12"),
-                  fit: BoxFit.cover,
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFF09090B),
+                        width: 3,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.edit,
+                      size: 14,
+                      color: Colors.black,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-            Positioned(
-              bottom: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFF09090B), width: 3),
-                ),
-                child: const Icon(Icons.edit, size: 14, color: Colors.black),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Text(
-          name ?? 'User',
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          email ?? 'No email',
-          style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
-        ),
-        const SizedBox(height: 16),
-        GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const EditProfileScreen(),
-              ),
-            ).then((_) {
-              // Refresh user data when returning from edit profile
-              _loadUserData();
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            child: Text(
-              "Edit Profile",
+            const SizedBox(height: 16),
+            Text(
+              name,
               style: GoogleFonts.inter(
                 color: Colors.white,
-                fontSize: 12,
+                fontSize: 20,
                 fontWeight: FontWeight.w600,
               ),
             ),
-          ),
-        ),
-      ],
+            const SizedBox(height: 4),
+            Text(
+              email,
+              style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const EditProfileScreen(),
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.1),
+                  ),
+                ),
+                child: Text(
+                  "Edit Profile",
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -384,7 +372,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       height: 1,
       thickness: 1,
       color: Colors.white.withValues(alpha: 0.04),
-      indent: 58, // Align with text
+      indent: 58,
     );
   }
 
@@ -398,9 +386,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF1F1F22),
-          foregroundColor: const Color(
-            0xFFFF453A,
-          ), // Red color for destructive action
+          foregroundColor: const Color(0xFFFF453A),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),

@@ -13,7 +13,6 @@ class CompanyDetailsScreen extends StatefulWidget {
 }
 
 class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
-  // 1. Controllers (Pre-filled with Mock Data)
   final TextEditingController _companyNameController = TextEditingController();
   final TextEditingController _ownerNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -37,7 +36,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
 
   String _selectedType = "sole_proprietorship";
 
-  // 2. Dynamic Data: Bank Accounts
   final List<Map<String, TextEditingController>> _bankAccounts = [];
 
   void _addBankAccount([String name = "", String number = ""]) {
@@ -65,7 +63,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
     _fundingController.dispose();
     _runwayController.dispose();
 
-    // Dispose bank account controllers
     for (var account in _bankAccounts) {
       account["name"]?.dispose();
       account["number"]?.dispose();
@@ -76,14 +73,14 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   Future<void> loadCompanyData() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        return;
-      }
+      if (user == null) return;
+
       final snapshot = await FirebaseFirestore.instance
           .collection("companies")
           .where("uid", isEqualTo: user.uid)
           .limit(1)
           .get();
+
       if (snapshot.docs.isNotEmpty) {
         final data = snapshot.docs.first.data();
         setState(() {
@@ -96,7 +93,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
           _runwayController.text = data["Runway"] ?? "";
           _selectedType = data["Company Type"] ?? "sole_proprietorship";
 
-          // Load bank accounts
           final bankAccountsData =
               data["Bank Accounts"] as List<dynamic>? ?? [];
           _bankAccounts.clear();
@@ -114,11 +110,12 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
+
       await FirebaseFirestore.instance
           .collection("companies")
           .doc(user.uid)
           .set({
-            "uid": FirebaseAuth.instance.currentUser!.uid,
+            "uid": user.uid,
             "Company Name": _companyNameController.text.trim(),
             "Owner Name": _ownerNameController.text.trim(),
             "Email": _emailController.text.trim(),
@@ -135,7 +132,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
             }).toList(),
           }, SetOptions(merge: true));
 
-      // Sync owner name to users collection
       await _syncOwnerNameToUsers();
     } catch (e) {
       print(e.toString());
@@ -146,6 +142,9 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
+
+      // Make sure the Auth Display Name stays perfectly in sync
+      await user.updateDisplayName(_ownerNameController.text.trim());
 
       await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
         "name": _ownerNameController.text.trim(),
@@ -159,17 +158,14 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: const Color(0xFF09090B),
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: SafeArea(
           child: Column(
             children: [
-              // 1. Header
               _buildHeader(context),
-
-              // 2. Scrollable Form
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
@@ -178,18 +174,13 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 32),
-
-                      // --- SECTION 1: IDENTITY ---
                       _buildSectionLabel("IDENTITY"),
                       _buildInputGroup("COMPANY NAME", _companyNameController),
                       const SizedBox(height: 24),
                       _buildInputGroup("OWNER NAME", _ownerNameController),
                       const SizedBox(height: 24),
                       _buildInputGroup("OFFICIAL EMAIL", _emailController),
-
                       const SizedBox(height: 40),
-
-                      // --- SECTION 2: LEGAL & LOCATION ---
                       _buildSectionLabel("LEGAL & LOCATION"),
                       _buildDropdownGroup(
                         "COMPANY TYPE",
@@ -207,10 +198,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                         _addressController,
                         maxLines: 2,
                       ),
-
                       const SizedBox(height: 40),
-
-                      // --- SECTION 3: FINANCIALS ---
                       _buildSectionLabel("FINANCIAL OVERVIEW"),
                       Row(
                         children: [
@@ -231,19 +219,13 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 40),
-
-                      // --- SECTION 4: BANKING (Dynamic) ---
                       _buildBankSection(),
-
-                      const SizedBox(height: 100), // Bottom padding
+                      const SizedBox(height: 100),
                     ],
                   ),
                 ),
               ),
-
-              // 3. Save Button
               _buildSaveButton(),
             ],
           ),
@@ -284,7 +266,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          // Spacer for balance
           const SizedBox(width: 44),
         ],
       ),
@@ -368,6 +349,10 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         ConstrainedBox(
           constraints: const BoxConstraints(minWidth: double.infinity),
           child: ShadSelect<String>(
+            // Add this Key to force rebuild when Firestore data loads
+            key: ValueKey(_selectedType),
+            // Add this to set the default option!
+            initialValue: _selectedType,
             placeholder: Text(
               'Select $label',
               style: GoogleFonts.inter(color: Colors.white24, fontSize: 15),
@@ -385,7 +370,11 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            onChanged: (val) => setState(() => _selectedType = val!),
+            onChanged: (val) {
+              if (val != null) {
+                setState(() => _selectedType = val);
+              }
+            },
           ),
         ),
       ],
@@ -414,7 +403,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
           ],
         ),
         const SizedBox(height: 8),
-
         if (_bankAccounts.isEmpty)
           Center(
             child: Padding(
@@ -425,7 +413,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
               ),
             ),
           ),
-
         ...List.generate(_bankAccounts.length, (index) {
           return Padding(
             padding: const EdgeInsets.only(bottom: 16),
@@ -524,11 +511,11 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         child: ElevatedButton(
           onPressed: () async {
             await updateCompanyData();
-            Navigator.pop(context);
+            if (mounted) Navigator.pop(context);
           },
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white, // High Contrast White
-            foregroundColor: Colors.black, // Black Text
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
