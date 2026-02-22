@@ -145,29 +145,35 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                         as Map<String, dynamic>)['teamName'] ??
                                     "Unknown Team";
                               }
-                              return _buildProfileHero(
-                                name,
-                                role,
-                                teamName,
-                                avatarUrl,
-                                status,
+
+                              return Column(
+                                children: [
+                                  _buildProfileHero(
+                                    name,
+                                    role,
+                                    teamName,
+                                    avatarUrl,
+                                    status,
+                                  ),
+
+                                  const SizedBox(height: 32),
+
+                                  // --- FINANCIAL HERO ---
+                                  _buildCostCard(salary, status),
+
+                                  const SizedBox(height: 16),
+
+                                  // --- PAY SALARY / ADVANCE ACTION ---
+                                  _buildPaySalaryAction(
+                                    cost,
+                                    joinedDateObj,
+                                    status,
+                                    name,
+                                    teamName,
+                                  ),
+                                ],
                               );
                             },
-                          ),
-
-                          const SizedBox(height: 32),
-
-                          // --- FINANCIAL HERO ---
-                          _buildCostCard(salary, status),
-
-                          const SizedBox(height: 16),
-
-                          // --- PAY SALARY / ADVANCE ACTION ---
-                          _buildPaySalaryAction(
-                            cost,
-                            joinedDateObj,
-                            status,
-                            name,
                           ),
 
                           const SizedBox(height: 32),
@@ -468,6 +474,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     DateTime joinedDate,
     String status,
     String memberName,
+    String teamName,
   ) {
     bool isPaused = status == "Paused";
 
@@ -546,6 +553,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   builder: (context) => ProcessPaymentScreen(
                     memberId: widget.memberId,
                     memberName: memberName,
+                    teamName: teamName,
                     defaultAmount: cost,
                     isAdvance: isAdvance,
                   ),

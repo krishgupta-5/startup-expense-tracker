@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 class ProcessPaymentScreen extends StatefulWidget {
   final String memberId;
   final String memberName;
+  final String teamName;
   final double defaultAmount;
   final bool isAdvance;
 
@@ -16,6 +17,7 @@ class ProcessPaymentScreen extends StatefulWidget {
     super.key,
     required this.memberId,
     required this.memberName,
+    required this.teamName,
     required this.defaultAmount,
     required this.isAdvance,
   });
@@ -30,7 +32,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
 
   bool _isLoading = false;
   bool _isLoadingBanks = true;
-  
+
   Map<String, String> _bankAccounts = {};
   String? _selectedBankAccount;
 
@@ -38,7 +40,8 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
   void initState() {
     super.initState();
     _amountController = TextEditingController(
-        text: widget.defaultAmount.toStringAsFixed(2));
+      text: widget.defaultAmount.toStringAsFixed(2),
+    );
     _reasonController = TextEditingController();
     _fetchBankAccounts();
   }
@@ -62,14 +65,15 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
 
       if (doc.exists && doc.data()!.containsKey('Bank Accounts')) {
         final accounts = doc.data()!['Bank Accounts'] as List<dynamic>;
-        
+
         Map<String, String> loadedBanks = {};
         for (var acc in accounts) {
           final String name = acc['name'] ?? 'Unknown Bank';
           final String number = acc['number'] ?? '';
-          
+
           final String key = "$name-$number";
-          final String displayLabel = "$name (****${number.length > 4 ? number.substring(number.length - 4) : number})";
+          final String displayLabel =
+              "$name (****${number.length > 4 ? number.substring(number.length - 4) : number})";
           loadedBanks[key] = displayLabel;
         }
 
@@ -89,12 +93,12 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
 
   Future<void> _processPayment() async {
     final double? amount = double.tryParse(_amountController.text.trim());
-    
+
     if (amount == null || amount <= 0) {
       _showErrorSnackBar("Please enter a valid amount.");
       return;
     }
-    
+
     if (widget.isAdvance && _reasonController.text.trim().isEmpty) {
       _showErrorSnackBar("Please provide a reason for the advance.");
       return;
@@ -115,6 +119,8 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
       final String expenseTitle = widget.isAdvance
           ? "Advance Salary - ${widget.memberName}"
           : "Salary - ${widget.memberName}";
+
+      // Removed Team name from description
       final String expenseDesc = widget.isAdvance
           ? "Advance reason: ${_reasonController.text.trim()}"
           : "Regular monthly salary payout for ${widget.memberName}";
@@ -125,6 +131,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
         "Amount": amount,
         "Title": expenseTitle,
         "Description": expenseDesc,
+        "TeamName": widget.teamName, // <-- ADDED AS A NEW SEPARATE FIELD HERE
         "Date": DateTime.now(),
         "Category": "salary",
         "Type": "recurring",
@@ -155,8 +162,13 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
           SnackBar(
             backgroundColor: const Color(0xFF30D158),
             content: Text(
-              widget.isAdvance ? "Advance recorded!" : "Salary payment recorded!",
-              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600),
+              widget.isAdvance
+                  ? "Advance recorded!"
+                  : "Salary payment recorded!",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         );
@@ -200,7 +212,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 32),
-                      
+
                       // Hero Amount
                       Center(
                         child: Column(
@@ -219,14 +231,21 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
                           ],
                         ),
                       ),
-                      
+
                       const SizedBox(height: 40),
 
                       // Bank Selector
                       if (_isLoadingBanks)
-                         const Center(child: CircularProgressIndicator(color: Colors.white38))
+                        const Center(
+                          child: CircularProgressIndicator(
+                            color: Colors.white38,
+                          ),
+                        )
                       else if (_bankAccounts.isEmpty)
-                         Text("No bank accounts found. Please add a bank account in your company profile first.", style: GoogleFonts.inter(color: Colors.redAccent))
+                        Text(
+                          "No bank accounts found. Please add a bank account in your company profile first.",
+                          style: GoogleFonts.inter(color: Colors.redAccent),
+                        )
                       else
                         _buildSelectField(
                           label: "Pay From Bank Account",
@@ -294,8 +313,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
       width: double.infinity,
       child: TextField(
         controller: _amountController,
-        // Make non-editable if it's a regular salary
-        readOnly: !widget.isAdvance, 
+        readOnly: !widget.isAdvance,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         textAlign: TextAlign.center,
         style: GoogleFonts.inter(
@@ -415,9 +433,15 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
         child: ElevatedButton(
           onPressed: _isLoading ? null : _processPayment,
           style: ElevatedButton.styleFrom(
-            backgroundColor: widget.isAdvance ? const Color(0xFF5E5CE6) : const Color(0xFF0A84FF),
+            backgroundColor: widget.isAdvance
+                ? const Color(0xFF5E5CE6)
+                : const Color(0xFF0A84FF),
             foregroundColor: Colors.white,
-            disabledBackgroundColor: (widget.isAdvance ? const Color(0xFF5E5CE6) : const Color(0xFF0A84FF)).withValues(alpha: 0.5),
+            disabledBackgroundColor:
+                (widget.isAdvance
+                        ? const Color(0xFF5E5CE6)
+                        : const Color(0xFF0A84FF))
+                    .withValues(alpha: 0.5),
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -427,7 +451,10 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
               ? const SizedBox(
                   height: 24,
                   width: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : Text(
                   widget.isAdvance ? "PROCESS ADVANCE" : "CONFIRM & PAY SALARY",
