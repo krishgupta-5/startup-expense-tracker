@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/features/company-setup/screen/company_setup_screen.dart';
+import 'package:startup_expense_tracker/features/auth/services/google_sign_in_service.dart';
 import 'login.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -162,8 +163,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                   const SizedBox(height: 16),
 
-                  // 6. Google Sign Up (Single Button) - Temporarily Disabled
-                  _buildDisabledGoogleButton(),
+                  // 6. Google Sign Up (Single Button)
+                  _buildGoogleSignInButton(),
 
                   const SizedBox(height: 16),
 
@@ -392,29 +393,50 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildDisabledGoogleButton() {
-    return Container(
-      width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade800,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.g_mobiledata, color: Colors.grey, size: 28),
-          SizedBox(width: 12),
-          Text(
-            "Google Sign-In (Temporarily Disabled)",
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+  Widget _buildGoogleSignInButton() {
+    return GestureDetector(
+      onTap: () async {
+        setState(() {
+          _isLoading = true;
+        });
+
+        final UserCredential? userCredential =
+            await GoogleSignInService.signInWithGoogle();
+
+        setState(() {
+          _isLoading = false;
+        });
+
+        if (userCredential != null) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
+          );
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        height: 56,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset('assets/images/google_logo.png', height: 24, width: 24),
+            const SizedBox(width: 12),
+            const Text(
+              "Google Sign-In",
+              style: TextStyle(
+                color: Colors.black87,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

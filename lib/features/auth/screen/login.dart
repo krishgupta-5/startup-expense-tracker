@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/features/auth/screen/signup.dart';
 import 'package:startup_expense_tracker/features/auth/screen/forget_password.dart';
 import 'package:startup_expense_tracker/features/navigation/screens/main_navigation_wrapper.dart';
+import 'package:startup_expense_tracker/features/auth/services/google_sign_in_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -132,8 +132,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 32),
 
-                // 6. Google Sign In (Single Button with Color Logo) - Temporarily Disabled
-                _buildDisabledGoogleButton(),
+                // 6. Google Sign In (Single Button with Color Logo)
+                _buildGoogleSignInButton(),
 
                 const Spacer(),
 
@@ -297,29 +297,52 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildDisabledGoogleButton() {
-    return Container(
-      width: double.infinity,
-      height: 56,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade800,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.g_mobiledata, color: Colors.grey, size: 28),
-          SizedBox(width: 12),
-          Text(
-            "Google Sign-In (Temporarily Disabled)",
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+  Widget _buildGoogleSignInButton() {
+    return GestureDetector(
+      onTap: () async {
+        setState(() {
+          _isLoading = true;
+        });
+
+        final UserCredential? userCredential =
+            await GoogleSignInService.signInWithGoogle();
+
+        setState(() {
+          _isLoading = false;
+        });
+
+        if (userCredential != null) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MainNavigationWrapper(),
             ),
-          ),
-        ],
+          );
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        height: 56,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset('assets/images/google_logo.png', height: 24, width: 24),
+            const SizedBox(width: 12),
+            const Text(
+              "Google Sign-In",
+              style: TextStyle(
+                color: Colors.black87,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
