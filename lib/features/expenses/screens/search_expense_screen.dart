@@ -52,6 +52,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     'software': 'Software',
     'transport': 'Transport',
     'design': 'Design',
+    'others': 'Others',
   };
 
   @override

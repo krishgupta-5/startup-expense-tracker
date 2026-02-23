@@ -34,6 +34,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     'software': 'Software',
     'transport': 'Transport',
     'design': 'Design',
+    'others': 'Others',
   };
   final types = {
     'one_time': 'One-time',

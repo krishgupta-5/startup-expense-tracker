@@ -19,13 +19,19 @@ class ExpensesScreen extends StatefulWidget {
   State<ExpensesScreen> createState() => _ExpensesScreenState();
 }
 
-class _ExpensesScreenState extends State<ExpensesScreen> {
+// 1. ADD AutomaticKeepAliveClientMixin
+class _ExpensesScreenState extends State<ExpensesScreen>
+    with AutomaticKeepAliveClientMixin {
   // State variables for metrics
   double _totalFunding = 0.0;
   double _totalExpenses = 0.0;
   double _avgDaily = 0.0;
   int _daysFromStart = 1;
   bool _isLoading = true;
+
+  // 2. OVERRIDE wantKeepAlive to return true
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -37,7 +43,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        setState(() => _isLoading = false);
+        if (mounted) setState(() => _isLoading = false);
         return;
       }
 
@@ -91,15 +97,18 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       // Calculate average daily spending
       _avgDaily = _totalExpenses / _daysFromStart;
 
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
       debugPrint('Error loading metrics: $e');
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // 3. CALL super.build(context)
+    super.build(context);
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: SafeArea(
@@ -140,14 +149,14 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           _buildFlatMetric(
                             "Spent",
                             "₹${_totalExpenses.toStringAsFixed(0)}",
-                            "+${(_totalExpenses > 0 ? '0' : '0')}%",
+                            "+${(_totalExpenses > 0 ? '0' : '0')}%", // Placeholder logic
                             Colors.white,
                           ),
                           const SizedBox(width: 16),
                           _buildFlatMetric(
                             "Avg. Daily",
                             "₹${_avgDaily.toStringAsFixed(0)}",
-                            "-${(_avgDaily > 0 ? '0' : '0')}%",
+                            "-${(_avgDaily > 0 ? '0' : '0')}%", // Placeholder logic
                             Colors.grey,
                           ),
                         ],
@@ -225,7 +234,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "November",
+          "November", // You might want to make this dynamic later!
           style: GoogleFonts.inter(
             color: Colors.white38,
             fontSize: 14,
@@ -321,10 +330,11 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       children: [
         GestureDetector(
           onTap: () {
+            // 4. Update data silently when returning from Add
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const AddExpenseScreen()),
-            );
+            ).then((_) => _loadMetricsData());
           },
           child: _buildFlatActionButton("Add", Icons.add_rounded),
         ),
@@ -341,12 +351,13 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         ),
         GestureDetector(
           onTap: () {
+            // Update data silently when returning from Scan too
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => const ScanExpenseScreen(),
               ),
-            );
+            ).then((_) => _loadMetricsData());
           },
           child: _buildFlatActionButton("Scan", Icons.qr_code_rounded),
         ),
@@ -479,93 +490,76 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       padding: const EdgeInsets.only(bottom: 20),
       child: GestureDetector(
         onTap: () {
+          // Listen for returns here as well if you can edit/delete expenses
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => ExpenseDetailsScreen(
-                expenseId: expenseId, // Pass the real ID
-                expenseData: tx, // Pass the real data map
-              ),
+              builder: (context) =>
+                  ExpenseDetailsScreen(expenseId: expenseId, expenseData: tx),
             ),
-          );
+          ).then((_) => _loadMetricsData());
         },
         child: Material(
           color: Colors.transparent,
-          child: InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ExpenseDetailsScreen(
-                    expenseId: expenseId, // Pass the real ID
-                    expenseData: tx, // Pass the real data map
-                  ),
+          child: Row(
+            children: [
+              // Minimal Icon Placeholder (No container)
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141416),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-              );
-            },
-            splashColor: Colors.white.withValues(alpha: 0.1),
-            highlightColor: Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(12),
-            child: Row(
-              children: [
-                // Minimal Icon Placeholder (No container)
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF141416),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.receipt,
-                    color: Colors.white38,
-                    size: 18,
-                  ),
+                child: const Icon(
+                  Icons.receipt,
+                  color: Colors.white38,
+                  size: 18,
                 ),
-                const SizedBox(width: 16),
+              ),
+              const SizedBox(width: 16),
 
-                // Info - Make entire row clickable
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+              // Info - Make entire row clickable
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        category,
-                        style: GoogleFonts.inter(
-                          color: Colors.white38,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      category,
+                      style: GoogleFonts.inter(
+                        color: Colors.white38,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+              ),
 
-                // Amount - Not clickable
-                Text(
-                  "₹$amount",
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    fontFeatures: [
-                      const FontFeature.tabularFigures(),
-                    ], // Aligns numbers
-                  ),
+              // Amount - Not clickable
+              Text(
+                "₹$amount",
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  fontFeatures: [
+                    const FontFeature.tabularFigures(),
+                  ], // Aligns numbers
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

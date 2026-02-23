@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'transaction_details_screen.dart'; // Make sure to import the new screen
+
 class PaymentHistoryScreen extends StatelessWidget {
   final DateTime joiningDate;
   final double salary;
-  final String memberName; // Added to filter Firebase records
+  final String memberName; 
 
   const PaymentHistoryScreen({
     super.key,
@@ -26,18 +28,8 @@ class PaymentHistoryScreen extends StatelessWidget {
     if (timestamp == null) return "Unknown Date";
     final DateTime dt = timestamp.toDate();
     final List<String> months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
     return "${months[dt.month - 1]} ${dt.day.toString().padLeft(2, '0')}, ${dt.year}";
   }
@@ -60,8 +52,6 @@ class PaymentHistoryScreen extends StatelessWidget {
               // 2. Content with StreamBuilder
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
-                  // Query all expenses for this user to avoid requiring complex composite indexes in Firebase.
-                  // We will filter by Category and Name locally.
                   stream: FirebaseFirestore.instance
                       .collection('expenses')
                       .where('uid', isEqualTo: currentUser?.uid)
@@ -101,8 +91,9 @@ class PaymentHistoryScreen extends StatelessWidget {
 
                         totalPaid += amt;
                         memberPayments.add({
-                          "rawDate":
-                              data['Date'] as Timestamp?, // Used for sorting
+                          "id": doc.id, // Store doc ID for the details page
+                          "rawData": data, // Store raw map for the details page
+                          "rawDate": data['Date'] as Timestamp?, 
                           "date": _formatDate(data['Date'] as Timestamp?),
                           "amt": _formatCurrency(amt),
                           "status": "Completed",
@@ -150,7 +141,7 @@ class PaymentHistoryScreen extends StatelessWidget {
                               ),
                             )
                           else
-                            _buildPaymentList(memberPayments),
+                            _buildPaymentList(memberPayments, context), // Passed context here
 
                           const SizedBox(height: 40),
                         ],
@@ -284,7 +275,7 @@ class PaymentHistoryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPaymentList(List<Map<String, dynamic>> payments) {
+  Widget _buildPaymentList(List<Map<String, dynamic>> payments, BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -296,98 +287,113 @@ class PaymentHistoryScreen extends StatelessWidget {
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF141416),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.04),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            isAdvance
-                                ? Icons.fast_forward
-                                : Icons.arrow_outward,
-                            color: isAdvance
-                                ? const Color(0xFF5E5CE6)
-                                : Colors.white54,
-                            size: 16,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              payment['title'], // Will show "Advance Payout" or "Salary Payout"
-                              style: GoogleFonts.inter(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              payment['date'],
-                              style: GoogleFonts.inter(
-                                color: Colors.white38,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+              child: GestureDetector(
+                onTap: () {
+                  // Navigate to the details screen
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TransactionDetailsScreen(
+                        transactionId: payment['id'],
+                        transactionData: payment['rawData'],
+                        formattedDate: payment['date'],
+                        formattedAmount: payment['amt'],
+                        displayTitle: payment['title'],
+                      ),
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          payment['amt'],
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141416),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.04),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              isAdvance
+                                  ? Icons.fast_forward
+                                  : Icons.arrow_outward,
+                              color: isAdvance
+                                  ? const Color(0xFF5E5CE6)
+                                  : Colors.white54,
+                              size: 16,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                payment['title'],
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                payment['date'],
+                                style: GoogleFonts.inter(
+                                  color: Colors.white38,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
                           ),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF30D158,
-                            ).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            payment['status'],
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            payment['amt'],
                             style: GoogleFonts.inter(
-                              color: const Color(0xFF30D158),
-                              fontSize: 9,
+                              color: Colors.white,
+                              fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF30D158).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              payment['status'],
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF30D158),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );

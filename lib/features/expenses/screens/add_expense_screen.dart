@@ -32,6 +32,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     'software': 'Software',
     'transport': 'Transport',
     'design': 'Design',
+    'others': 'Others',
   };
 
   final types = {
@@ -80,15 +81,16 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
       if (doc.exists && doc.data()!.containsKey('Bank Accounts')) {
         final accounts = doc.data()!['Bank Accounts'] as List<dynamic>;
-        
+
         Map<String, String> loadedBanks = {};
         for (var acc in accounts) {
           final String name = acc['name'] ?? 'Unknown Bank';
           final String number = acc['number'] ?? '';
-          
+
           // Format option key and value
           final String key = "$name-$number";
-          final String displayLabel = "$name (****${number.length > 4 ? number.substring(number.length - 4) : number})";
+          final String displayLabel =
+              "$name (****${number.length > 4 ? number.substring(number.length - 4) : number})";
           loadedBanks[key] = displayLabel;
         }
 
@@ -310,7 +312,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       ),
 
                       const SizedBox(height: 24),
-                      
+
                       // --- BANK ACCOUNT SELECTOR ---
                       if (!_isLoadingBanks && _bankAccounts.isNotEmpty) ...[
                         _buildSelectField(

@@ -8,7 +8,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'edit_member_screen.dart';
 import 'adjust_salary_screen.dart';
 import 'payment_history_screen.dart';
-import 'process_payment_screen.dart'; // <-- IMPORTED NEW SCREEN
+import 'process_payment_screen.dart';
+import 'transaction_details_screen.dart'; // <-- IMPORTED NEW SCREEN
 import '../../../widgets/avatar_widget.dart';
 
 class MemberDetailScreen extends StatefulWidget {
@@ -545,7 +546,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           width: double.infinity,
           height: 56,
           child: ElevatedButton(
-            // --- UPDATED TO NAVIGATE TO PROCESS PAYMENT SCREEN ---
             onPressed: () {
               Navigator.push(
                 context,
@@ -688,7 +688,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 ? (data['Amount'] as int).toDouble()
                 : (data['Amount'] as double? ?? 0.0);
 
+            // Capture raw data and ID for the details screen
             memberPayments.add({
+              "id": doc.id,
+              "rawData": data,
               "rawDate": data['Date'] as Timestamp?,
               "date": _formatDate(data['Date'] as Timestamp?),
               "amt": "₹${amt.toStringAsFixed(2)}",
@@ -738,98 +741,115 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF141416),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.04),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            isAdvance
-                                ? Icons.fast_forward
-                                : Icons.arrow_outward,
-                            color: isAdvance
-                                ? const Color(0xFF5E5CE6)
-                                : Colors.white54,
-                            size: 16,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              p['title']!,
-                              style: GoogleFonts.inter(
-                                color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              p['date']!,
-                              style: GoogleFonts.inter(
-                                color: Colors.white38,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+              // --- ADDED GESTURE DETECTOR HERE ---
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TransactionDetailsScreen(
+                        transactionId: p['id'],
+                        transactionData: p['rawData'],
+                        formattedDate: p['date'],
+                        formattedAmount: p['amt'],
+                        displayTitle: p['title'],
+                      ),
                     ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          p['amt']!,
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141416),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.04),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              isAdvance
+                                  ? Icons.fast_forward
+                                  : Icons.arrow_outward,
+                              color: isAdvance
+                                  ? const Color(0xFF5E5CE6)
+                                  : Colors.white54,
+                              size: 16,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                p['title']!,
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                p['date']!,
+                                style: GoogleFonts.inter(
+                                  color: Colors.white38,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
                           ),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF30D158,
-                            ).withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            "Completed",
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            p['amt']!,
                             style: GoogleFonts.inter(
-                              color: const Color(0xFF30D158),
-                              fontSize: 9,
+                              color: Colors.white,
+                              fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF30D158,
+                              ).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              "Completed",
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFF30D158),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );

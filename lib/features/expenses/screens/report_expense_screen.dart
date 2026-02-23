@@ -16,10 +16,26 @@ class ReportExpenseScreen extends StatefulWidget {
 class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
   // 1. DEFAULT TO WEEKLY (LAST 7 DAYS)
   String _selectedPeriod = "weekly";
-  String _selectedCategory = "all";
 
   DateTime? _customStartDate;
   DateTime? _customEndDate;
+
+  // Add scroll controller to preserve scroll position for the main page
+  final ScrollController _scrollController = ScrollController();
+
+  // NEW: Add a dedicated scroll controller for the category horizontal slider
+  final ScrollController _categoryScrollController = ScrollController();
+
+  // Use ValueNotifier to avoid full rebuild when category changes
+  final ValueNotifier<String> _categoryNotifier = ValueNotifier<String>("all");
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _categoryScrollController.dispose(); // NEW: Dispose the category controller
+    _categoryNotifier.dispose();
+    super.dispose();
+  }
 
   String _formatCurrency(double amount) {
     return "₹${amount.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}";
@@ -233,9 +249,6 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                     int daysInPeriod = endDate.difference(startDate).inDays;
                     if (daysInPeriod <= 0) daysInPeriod = 1;
 
-                    double totalExpenses = 0.0;
-                    Map<String, double> categoryBreakdown = {};
-
                     bool isDailyChart = daysInPeriod <= 31;
                     Map<String, double> chartData = {};
                     List<String> chartLabels = [];
@@ -276,78 +289,95 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                       }
                     }
 
-                    final docs = snapshot.data?.docs ?? [];
-                    for (var doc in docs) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      final Timestamp? ts = data['Date'] as Timestamp?;
-                      final DateTime docDate = ts?.toDate() ?? now;
-                      final String category =
-                          (data['Category']?.toString() ?? 'other')
-                              .toLowerCase();
-                      final double amount = data['Amount'] is int
-                          ? (data['Amount'] as int).toDouble()
-                          : (data['Amount'] as double? ?? 0.0);
+                    return ValueListenableBuilder<String>(
+                      valueListenable: _categoryNotifier,
+                      builder: (context, selectedCategory, child) {
+                        // Update the filtering logic to use selectedCategory
+                        double totalExpenses = 0.0;
+                        Map<String, double> categoryBreakdown = {};
+                        Map<String, double> tempChartData = Map.from(
+                          chartData,
+                        ); // Work with a fresh copy to prevent accumulating data incorrectly across rebuilds
 
-                      if (docDate.isBefore(startDate) ||
-                          docDate.isAfter(endDate))
-                        continue;
-                      if (_selectedCategory != "all" &&
-                          category != _selectedCategory)
-                        continue;
+                        // Recalculate filtered data
+                        final docs = snapshot.data?.docs ?? [];
+                        for (var doc in docs) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final Timestamp? ts = data['Date'] as Timestamp?;
+                          final DateTime docDate = ts?.toDate() ?? now;
+                          final String category =
+                              (data['Category']?.toString() ?? 'other')
+                                  .toLowerCase();
+                          final double amount = data['Amount'] is int
+                              ? (data['Amount'] as int).toDouble()
+                              : (data['Amount'] as double? ?? 0.0);
 
-                      totalExpenses += amount;
-                      categoryBreakdown[category] =
-                          (categoryBreakdown[category] ?? 0.0) + amount;
+                          if (docDate.isBefore(startDate) ||
+                              docDate.isAfter(endDate)) {
+                            continue;
+                          }
+                          if (selectedCategory != "all" &&
+                              category != selectedCategory) {
+                            continue;
+                          }
 
-                      if (isDailyChart) {
-                        String key =
-                            "${docDate.year}-${docDate.month.toString().padLeft(2, '0')}-${docDate.day.toString().padLeft(2, '0')}";
-                        if (chartData.containsKey(key)) {
-                          chartData[key] = chartData[key]! + amount;
+                          totalExpenses += amount;
+                          categoryBreakdown[category] =
+                              (categoryBreakdown[category] ?? 0.0) + amount;
+
+                          if (isDailyChart) {
+                            String key =
+                                "${docDate.year}-${docDate.month.toString().padLeft(2, '0')}-${docDate.day.toString().padLeft(2, '0')}";
+                            if (tempChartData.containsKey(key)) {
+                              tempChartData[key] = tempChartData[key]! + amount;
+                            }
+                          } else {
+                            String key =
+                                "${docDate.year}-${docDate.month.toString().padLeft(2, '0')}";
+                            if (tempChartData.containsKey(key)) {
+                              tempChartData[key] = tempChartData[key]! + amount;
+                            }
+                          }
                         }
-                      } else {
-                        String key =
-                            "${docDate.year}-${docDate.month.toString().padLeft(2, '0')}";
-                        if (chartData.containsKey(key)) {
-                          chartData[key] = chartData[key]! + amount;
-                        }
-                      }
-                    }
 
-                    double averageDaily =
-                        totalExpenses / (daysInPeriod == 0 ? 1 : daysInPeriod);
+                        double averageDaily =
+                            totalExpenses /
+                            (daysInPeriod == 0 ? 1 : daysInPeriod);
 
-                    return SingleChildScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 32),
-                          _buildPeriodSelector(),
-                          const SizedBox(height: 24),
-                          _buildDateRangePicker(),
-                          const SizedBox(height: 24),
-                          _buildCategoryFilter(),
-                          const SizedBox(height: 32),
-                          _buildSummaryCards(totalExpenses, averageDaily),
-                          const SizedBox(height: 32),
+                        return SingleChildScrollView(
+                          controller: _scrollController,
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 32),
+                              _buildPeriodSelector(),
+                              const SizedBox(height: 24),
+                              _buildDateRangePicker(),
+                              const SizedBox(height: 24),
+                              _buildCategoryFilter(),
+                              const SizedBox(height: 32),
+                              _buildSummaryCards(totalExpenses, averageDaily),
+                              const SizedBox(height: 32),
 
-                          // Custom Chart (Never Scrolls horizontally now)
-                          _buildChartSection(
-                            chartData.values.toList(),
-                            chartLabels,
-                            isDailyChart,
+                              // Custom Chart (Never Scrolls horizontally now)
+                              _buildChartSection(
+                                tempChartData.values.toList(),
+                                chartLabels,
+                                isDailyChart,
+                              ),
+
+                              const SizedBox(height: 32),
+                              _buildDetailedBreakdown(
+                                categoryBreakdown,
+                                totalExpenses,
+                              ),
+                              const SizedBox(height: 40),
+                            ],
                           ),
-
-                          const SizedBox(height: 32),
-                          _buildDetailedBreakdown(
-                            categoryBreakdown,
-                            totalExpenses,
-                          ),
-                          const SizedBox(height: 40),
-                        ],
-                      ),
+                        );
+                      },
                     );
                   },
                 ),
@@ -572,61 +602,70 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
       "Marketing",
       "Meals",
       "Transport",
+      "Others",
     ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Category Filter",
-          style: GoogleFonts.inter(
-            color: Colors.white70,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 12),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: categories.map((category) {
-              bool isSelected = _selectedCategory == category.toLowerCase();
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () => setState(
-                    () => _selectedCategory = category.toLowerCase(),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? const Color(0xFF0A84FF)
-                          : const Color(0xFF141416),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.08),
+    return ValueListenableBuilder<String>(
+      valueListenable: _categoryNotifier,
+      builder: (context, selectedCategory, child) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Category Filter",
+              style: GoogleFonts.inter(
+                color: Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              controller:
+                  _categoryScrollController, // NEW: Applied the controller here
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: categories.map((category) {
+                  bool isSelected = selectedCategory == category.toLowerCase();
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () {
+                        // Update ValueNotifier instead of setState
+                        _categoryNotifier.value = category.toLowerCase();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF0A84FF)
+                              : const Color(0xFF141416),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.08),
+                          ),
+                        ),
+                        child: Text(
+                          category,
+                          style: GoogleFonts.inter(
+                            color: isSelected ? Colors.white : Colors.white70,
+                            fontSize: 12,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
+                          ),
+                        ),
                       ),
                     ),
-                    child: Text(
-                      category,
-                      style: GoogleFonts.inter(
-                        color: isSelected ? Colors.white : Colors.white70,
-                        fontSize: 12,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -761,8 +800,9 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: List.generate(data.length, (index) {
               double heightPercentage = data[index] / maxVal;
-              if (data[index] == 0)
+              if (data[index] == 0) {
                 heightPercentage = 0.02; // Tiny nub so empty days show up
+              }
 
               // Splits label into "Day" and "Month" so it wraps nicely
               List<String> labelParts = labels[index].split(' ');
@@ -783,7 +823,6 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                         ),
                       ),
                     ),
-
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 500),
                     curve: Curves.easeOut,
