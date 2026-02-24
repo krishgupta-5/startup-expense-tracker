@@ -230,7 +230,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                "\$42.5",
+                "₹42.5",
                 style: GoogleFonts.inter(
                   color: Colors.white,
                   fontSize: 56,
@@ -275,7 +275,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  "\$34,000/month",
+                  "₹34,000/month",
                   style: GoogleFonts.inter(
                     color: const Color(0xFFFF453A),
                     fontSize: 20,
@@ -385,28 +385,28 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
             children: [
               _buildCategoryRow(
                 "Salaries",
-                "\$27,625",
+                "₹27,625",
                 65,
                 const Color(0xFF30D158),
               ),
               const SizedBox(height: 24),
               _buildCategoryRow(
                 "Servers & Infrastructure",
-                "\$8,500",
+                "₹8,500",
                 20,
                 const Color(0xFF3A4B8A),
               ),
               const SizedBox(height: 24),
               _buildCategoryRow(
                 "Marketing",
-                "\$4,250",
+                "₹4,250",
                 10,
                 const Color(0xFFFF9F0A),
               ),
               const SizedBox(height: 24),
               _buildCategoryRow(
                 "Office & Operations",
-                "\$2,125",
+                "₹2,125",
                 5,
                 const Color(0xFF00BFA5),
               ),
@@ -421,10 +421,10 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
   Widget _buildTeamCostSection() {
     // Data from Code B
     final teams = [
-      {"name": "Engineering", "cost": "\$62,000", "pct": 0.65},
-      {"name": "Sales", "cost": "\$35,000", "pct": 0.40},
-      {"name": "Product", "cost": "\$22,000", "pct": 0.25},
-      {"name": "Marketing", "cost": "\$18,000", "pct": 0.20},
+      {"name": "Engineering", "cost": "₹62,000", "pct": 0.65},
+      {"name": "Sales", "cost": "₹35,000", "pct": 0.40},
+      {"name": "Product", "cost": "₹22,000", "pct": 0.25},
+      {"name": "Marketing", "cost": "₹18,000", "pct": 0.20},
     ];
 
     return Column(
@@ -597,17 +597,13 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
           ),
           child: Column(
             children: [
-              _buildVendorRow("AWS", "Cloud Services", "\$3,800/month"),
+              _buildVendorRow("AWS", "Cloud Services", "₹3,800/month"),
               const SizedBox(height: 16),
-              _buildVendorRow(
-                "Google Workspace",
-                "Productivity",
-                "\$450/month",
-              ),
+              _buildVendorRow("Google Workspace", "Productivity", "₹450/month"),
               const SizedBox(height: 16),
-              _buildVendorRow("Slack", "Communication", "\$350/month"),
+              _buildVendorRow("Slack", "Communication", "₹350/month"),
               const SizedBox(height: 16),
-              _buildVendorRow("HubSpot", "Marketing", "\$1,200/month"),
+              _buildVendorRow("HubSpot", "Marketing", "₹1,200/month"),
             ],
           ),
         ),
@@ -711,30 +707,30 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
               ),
               _buildComparisonRow(
                 "Salaries",
-                "\$28,000",
-                "\$27,625",
-                "\$375 under",
+                "₹28,000",
+                "₹27,625",
+                "₹375 under",
                 false,
               ),
               _buildComparisonRow(
                 "Infrastructure",
-                "\$8,000",
-                "\$8,500",
-                "\$500 over",
+                "₹8,000",
+                "₹8,500",
+                "₹500 over",
                 false,
               ),
               _buildComparisonRow(
                 "Marketing",
-                "\$5,000",
-                "\$4,250",
-                "\$750 under",
+                "₹5,000",
+                "₹4,250",
+                "₹750 under",
                 false,
               ),
               _buildComparisonRow(
                 "Operations",
-                "\$2,000",
-                "\$2,125",
-                "\$125 over",
+                "₹2,000",
+                "₹2,125",
+                "₹125 over",
                 false,
               ),
               const SizedBox(height: 16),
@@ -752,7 +748,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                     ),
                   ),
                   Text(
-                    "\$43,000",
+                    "₹43,000",
                     style: GoogleFonts.inter(
                       color: Colors.white38,
                       fontSize: 14,
@@ -775,7 +771,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                     ),
                   ),
                   Text(
-                    "\$42,500",
+                    "₹42,500",
                     style: GoogleFonts.inter(
                       color: Colors.white,
                       fontSize: 14,
@@ -798,7 +794,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                     ),
                   ),
                   Text(
-                    "\$500 under budget",
+                    "₹500 under budget",
                     style: GoogleFonts.inter(
                       color: const Color(0xFF30D158),
                       fontSize: 14,

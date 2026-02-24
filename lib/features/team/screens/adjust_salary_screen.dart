@@ -178,7 +178,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                   decoration: InputDecoration(
-                    prefixText: "\$ ",
+                    prefixText: "₹ ",
                     prefixStyle: GoogleFonts.inter(
                       color: Colors.white38,
                       fontSize: 48,

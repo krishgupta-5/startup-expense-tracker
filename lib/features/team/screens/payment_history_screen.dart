@@ -9,7 +9,7 @@ import 'transaction_details_screen.dart'; // Make sure to import the new screen
 class PaymentHistoryScreen extends StatelessWidget {
   final DateTime joiningDate;
   final double salary;
-  final String memberName; 
+  final String memberName;
 
   const PaymentHistoryScreen({
     super.key,
@@ -28,8 +28,18 @@ class PaymentHistoryScreen extends StatelessWidget {
     if (timestamp == null) return "Unknown Date";
     final DateTime dt = timestamp.toDate();
     final List<String> months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return "${months[dt.month - 1]} ${dt.day.toString().padLeft(2, '0')}, ${dt.year}";
   }
@@ -93,7 +103,7 @@ class PaymentHistoryScreen extends StatelessWidget {
                         memberPayments.add({
                           "id": doc.id, // Store doc ID for the details page
                           "rawData": data, // Store raw map for the details page
-                          "rawDate": data['Date'] as Timestamp?, 
+                          "rawDate": data['Date'] as Timestamp?,
                           "date": _formatDate(data['Date'] as Timestamp?),
                           "amt": _formatCurrency(amt),
                           "status": "Completed",
@@ -141,7 +151,10 @@ class PaymentHistoryScreen extends StatelessWidget {
                               ),
                             )
                           else
-                            _buildPaymentList(memberPayments, context), // Passed context here
+                            _buildPaymentList(
+                              memberPayments,
+                              context,
+                            ), // Passed context here
 
                           const SizedBox(height: 40),
                         ],
@@ -275,7 +288,10 @@ class PaymentHistoryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPaymentList(List<Map<String, dynamic>> payments, BuildContext context) {
+  Widget _buildPaymentList(
+    List<Map<String, dynamic>> payments,
+    BuildContext context,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -378,7 +394,9 @@ class PaymentHistoryScreen extends StatelessWidget {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF30D158).withValues(alpha: 0.1),
+                              color: const Color(
+                                0xFF30D158,
+                              ).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(

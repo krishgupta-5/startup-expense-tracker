@@ -9,7 +9,7 @@ import 'edit_member_screen.dart';
 import 'adjust_salary_screen.dart';
 import 'payment_history_screen.dart';
 import 'process_payment_screen.dart';
-import 'transaction_details_screen.dart'; // <-- IMPORTED NEW SCREEN
+import 'transaction_details_screen.dart';
 import '../../../widgets/avatar_widget.dart';
 
 class MemberDetailScreen extends StatefulWidget {
@@ -436,7 +436,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            isPaused ? "\$0.00" : salary,
+            isPaused ? "₹0.00" : salary,
             style: GoogleFonts.inter(
               color: isPaused ? Colors.white38 : Colors.white,
               fontSize: 40,
@@ -482,105 +482,144 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     // Hide payment option if payroll is suspended
     if (isPaused) return const SizedBox.shrink();
 
-    DateTime now = DateTime.now();
-    DateTime today = DateTime(now.year, now.month, now.day);
-    int joinDay = joinedDate.day;
+    final currentUser = FirebaseAuth.instance.currentUser;
 
-    DateTime nextDueDate = DateTime(now.year, now.month, joinDay);
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('expenses')
+          .where('uid', isEqualTo: currentUser?.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        // Show a small loader while checking payment status
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Center(
+            child: CircularProgressIndicator(color: Colors.white38),
+          );
+        }
 
-    // If we are more than 10 days past this month's due date,
-    // assume the current cycle is paid and look forward to next month's due date.
-    if (today.difference(nextDueDate).inDays > 10) {
-      nextDueDate = DateTime(now.year, now.month + 1, joinDay);
-    }
+        // 1. Count Total Salary Payments Made for this member
+        int totalPaymentsMade = 0;
+        if (snapshot.hasData) {
+          for (var doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final category = data['Category']?.toString().toLowerCase() ?? '';
+            final title = data['Title']?.toString() ?? '';
 
-    // Ensure the due date is at least 1 full month after their join date
-    DateTime firstDue = DateTime(
-      joinedDate.year,
-      joinedDate.month + 1,
-      joinDay,
-    );
-    if (nextDueDate.isBefore(firstDue)) {
-      nextDueDate = firstDue;
-    }
+            // Count every salary payment linked to this member
+            if (category == 'salary' && title.contains(memberName)) {
+              totalPaymentsMade++;
+            }
+          }
+        }
 
-    // If today is strictly before the due date, it's an advance.
-    bool isAdvance = today.isBefore(nextDueDate);
+        // Helper function to safely add months to a date (handles edge cases like Jan 31 -> Feb 28)
+        DateTime addMonths(DateTime date, int months) {
+          int newYear = date.year + (date.month + months - 1) ~/ 12;
+          int newMonth = (date.month + months - 1) % 12 + 1;
+          int newDay = date.day;
 
-    final List<String> months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    String formattedDueDate =
-        "${months[nextDueDate.month - 1]} ${nextDueDate.day}, ${nextDueDate.year}";
+          int maxDaysInNewMonth = DateTime(newYear, newMonth + 1, 0).day;
+          if (newDay > maxDaysInNewMonth) {
+            newDay = maxDaysInNewMonth;
+          }
+          return DateTime(newYear, newMonth, newDay);
+        }
 
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        // 2. Calculate Next Due Date mathematically
+        // Every payment pushes the due date 1 month forward. First salary is due 1 month after joining.
+        DateTime nextDueDate = addMonths(joinedDate, totalPaymentsMade + 1);
+
+        DateTime now = DateTime.now();
+        DateTime today = DateTime(now.year, now.month, now.day);
+
+        // 3. Determine if it's an Advance
+        // If today is strictly before the next calculated due date, paying now is an advance.
+        bool isAdvance = today.isBefore(nextDueDate);
+
+        // 4. Formatting for UI
+        final List<String> monthsStr = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
+        ];
+        String formattedDueDate =
+            "${monthsStr[nextDueDate.month - 1]} ${nextDueDate.day}, ${nextDueDate.year}";
+
+        return Column(
           children: [
-            const Icon(Icons.info_outline, color: Colors.white38, size: 14),
-            const SizedBox(width: 6),
-            Text(
-              "Next Due: $formattedDueDate",
-              style: GoogleFonts.inter(
-                color: Colors.white54,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isAdvance ? Icons.info_outline : Icons.warning_amber_rounded,
+                  color: isAdvance ? Colors.white38 : const Color(0xFFFF9F0A),
+                  size: 14,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  isAdvance
+                      ? "Next Due: $formattedDueDate"
+                      : "Due: $formattedDueDate",
+                  style: GoogleFonts.inter(
+                    color: isAdvance ? Colors.white54 : const Color(0xFFFF9F0A),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProcessPaymentScreen(
+                        memberId: widget.memberId,
+                        memberName: memberName,
+                        teamName: teamName,
+                        defaultAmount: cost,
+                        isAdvance: isAdvance,
+                      ),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isAdvance
+                      ? const Color(0xFF5E5CE6) // Purple for Advance
+                      : const Color(0xFF0A84FF), // Blue for Pay Salary
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text(
+                  isAdvance ? "ADVANCE PAY" : "PAY SALARY",
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.0,
+                  ),
+                ),
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ProcessPaymentScreen(
-                    memberId: widget.memberId,
-                    memberName: memberName,
-                    teamName: teamName,
-                    defaultAmount: cost,
-                    isAdvance: isAdvance,
-                  ),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isAdvance
-                  ? const Color(0xFF5E5CE6)
-                  : const Color(0xFF0A84FF),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 0,
-            ),
-            child: Text(
-              isAdvance ? "ADVANCE PAY" : "PAY SALARY",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.0,
-              ),
-            ),
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -741,7 +780,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              // --- ADDED GESTURE DETECTOR HERE ---
               child: GestureDetector(
                 onTap: () {
                   Navigator.push(
@@ -933,7 +971,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 }),
                 const SizedBox(height: 16),
 
-                _buildActionOption(Icons.attach_money, "Adjust Salary", () {
+                _buildActionOption(Icons.currency_rupee, "Adjust Salary", () {
                   Navigator.pop(bottomSheetContext);
                   Navigator.push(
                     context,

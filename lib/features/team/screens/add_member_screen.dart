@@ -468,10 +468,13 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
               color: const Color(0xFF30D158).withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(
-              Icons.attach_money,
-              color: Color(0xFF30D158),
-              size: 20,
+            child: Text(
+              "₹",
+              style: GoogleFonts.inter(
+                color: Color(0xFF30D158),
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(width: 16),
