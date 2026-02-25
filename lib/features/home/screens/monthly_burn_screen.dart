@@ -284,7 +284,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                "\₹${grossBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
+                "₹${grossBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
                 style: GoogleFonts.inter(
                   color: Colors.white,
                   fontSize: 32,
@@ -329,7 +329,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  "\₹${netBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
+                  "₹${netBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
                   style: GoogleFonts.inter(
                     color: const Color(0xFFFF453A),
                     fontSize: 20,
@@ -640,7 +640,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                 padding: const EdgeInsets.only(bottom: 24),
                 child: _buildCategoryRow(
                   _capitalizeFirstLetter(entry.key),
-                  "\₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
+                  "₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
                   percentage,
                   color,
                 ),
@@ -932,17 +932,17 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [
-                    _buildVendorRow("AWS", "Cloud Services", "\₹3,800/month"),
+                    _buildVendorRow("AWS", "Cloud Services", "₹3,800/month"),
                     const SizedBox(height: 16),
                     _buildVendorRow(
                       "Google Workspace",
                       "Productivity",
-                      "\₹450/month",
+                      "₹450/month",
                     ),
                     const SizedBox(height: 16),
-                    _buildVendorRow("Slack", "Communication", "\₹350/month"),
+                    _buildVendorRow("Slack", "Communication", "₹350/month"),
                     const SizedBox(height: 16),
-                    _buildVendorRow("HubSpot", "Marketing", "\₹1,200/month"),
+                    _buildVendorRow("HubSpot", "Marketing", "₹1,200/month"),
                   ],
                 ),
               ),
@@ -1076,7 +1076,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
   String _formatCurrency(double amount) {
     // Convert to integer to remove decimal places, then format with commas
     final intAmount = amount.round();
-    return '\₹${intAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}';
+    return '₹${intAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}';
   }
 
   // --- Forecast Comparison (Real Data) ---
@@ -1211,7 +1211,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                       false,
                     ),
                   )
-                  .toList(),
+                  ,
               const SizedBox(height: 16),
               Container(height: 1, color: Colors.white.withValues(alpha: 0.1)),
               const SizedBox(height: 16),

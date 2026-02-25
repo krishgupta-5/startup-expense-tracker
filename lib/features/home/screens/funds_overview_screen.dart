@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'AddBankAccountScreen.dart';
+import '../../expenses/screens/expense_details_screen.dart';
 
 class FundsOverviewScreen extends StatefulWidget {
   const FundsOverviewScreen({super.key});
@@ -137,8 +139,12 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     // Convert to list format for cash flow breakdown
     setState(() {
       cashFlowBreakdown = categoryTotals.entries.map((entry) {
+        String category = entry.key;
+        if (category.isNotEmpty) {
+          category = category[0].toUpperCase() + category.substring(1);
+        }
         return {
-          'category': entry.key,
+          'category': category,
           'amount': -entry.value
               .abs()
               .toInt(), // Convert to negative for expenses
@@ -173,8 +179,16 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                 : 'Unknown Date',
             'description': data['Description'] ?? '',
             'type': data['Type'] ?? 'one_time',
+            // Check for BankAccount exactly as saved in AddExpenseScreen, with fallbacks
+            'bankAccount':
+                data['BankAccount'] ??
+                data['Bank Account'] ??
+                data['bankAccount'] ??
+                'N/A',
           };
         }).toList();
+
+        print("DEBUG: Fetched ${allExpenses.length} expenses");
       });
     } catch (e) {
       print("Error fetching expenses: $e");
@@ -196,13 +210,28 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         final data = docSnapshot.data()!;
         final bankAccountsData = data["Bank Accounts"] as List<dynamic>? ?? [];
 
-        // Calculate spending for each bank account
+        // Calculate spending for each bank account based on actual expenses
         final Map<String, double> bankSpending = {};
+
+        // Initialize all bank accounts with 0 spending using the exact Name-Number format key
+        for (var account in bankAccountsData) {
+          final bankName = account["name"] ?? 'Unknown Bank';
+          final accountNumber = account["number"] ?? '';
+          final accountKey = "$bankName-$accountNumber";
+          bankSpending[accountKey] = 0.0;
+        }
+
+        // Calculate actual spending for each bank account from expenses
         for (var expense in allExpenses) {
-          // Assuming expenses might have a bank account field, otherwise distribute equally
-          final bankName = expense['bankAccount'] as String? ?? 'Default';
           final amount = (expense['amount'] as num).toDouble();
-          bankSpending[bankName] = (bankSpending[bankName] ?? 0) + amount;
+          final expenseBankAccount = expense['bankAccount'] as String?;
+
+          // Only add expense to the specific bank account if it exactly matches the key format
+          if (expenseBankAccount != null &&
+              bankSpending.containsKey(expenseBankAccount)) {
+            bankSpending[expenseBankAccount] =
+                bankSpending[expenseBankAccount]! + amount;
+          }
         }
 
         setState(() {
@@ -210,21 +239,11 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             final account = entry.value;
             final bankName = account["name"] ?? 'Unknown Bank';
             final accountNumber = account["number"] ?? '';
+            // Reconstruct the key to get the right calculated spending
+            final accountKey = "$bankName-$accountNumber";
 
-            // Calculate spending for this specific bank account
-            double totalSpent = 0;
-            if (bankSpending.containsKey(bankName)) {
-              totalSpent = bankSpending[bankName]!;
-            } else {
-              // If no specific bank account data, distribute expenses equally among accounts
-              if (allExpenses.isNotEmpty && bankAccountsData.isNotEmpty) {
-                final totalExpenses = allExpenses.fold<double>(
-                  0,
-                  (sum, expense) => sum + (expense['amount'] as num).toDouble(),
-                );
-                totalSpent = totalExpenses / bankAccountsData.length;
-              }
-            }
+            // Use the pre-calculated spending for this bank account
+            final totalSpent = bankSpending[accountKey] ?? 0.0;
 
             return {
               'name': bankName,
@@ -302,20 +321,12 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               double.tryParse(totalExpenses.toString()) ?? 0;
           available = fundingAmount! - totalExpensesAmount;
 
-          print("DEBUG: Raw funding: $funding");
-          print("DEBUG: fundingAmount: $fundingAmount");
-          print("DEBUG: totalExpenses: $totalExpenses");
-          print("DEBUG: available: $available");
-
           setState(() {
             availableFunds = "₹ ${(available!).toStringAsFixed(0)}";
             expense = "₹ ${totalExpensesAmount.toStringAsFixed(0)}";
             lastUpdated = "Today";
             isLoading = false;
           });
-
-          print("DEBUG: availableFunds: $availableFunds");
-          print("DEBUG: expense: $expense");
         } else {
           setState(() {
             errorMessage = "No funding data found";
@@ -482,7 +493,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                     onTap: _fetchFundsData,
                     child: Container(
                       padding: const EdgeInsets.all(4),
-                      child: Icon(
+                      child: const Icon(
                         Icons.refresh,
                         color: Colors.white38,
                         size: 16,
@@ -593,16 +604,19 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   }
 
   Widget _buildFundingHistorySection() {
-    // Convert expenses to transaction format
+    // Convert expenses to transaction format and limit to top 5
     final List<Map<String, dynamic>> expenseTransactions = allExpenses
+        .take(5)
         .map(
           (expense) => {
+            'id': expense['id'], // Include the expense ID for navigation
             'round': expense['title'],
             'amount': -(expense['amount'] as int), // Expenses are negative
             'date': expense['date'],
             'status': 'completed',
             'type': 'expense',
             'category': expense['category'],
+            'description': expense['description'],
           },
         )
         .toList();
@@ -645,17 +659,22 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                     final transaction = entry.value;
                     final isLast = index == expenseTransactions.length - 1;
 
-                    return Column(
-                      children: [
-                        _buildTransactionItem(transaction),
-                        if (!isLast) const SizedBox(height: 20),
-                        if (!isLast)
-                          Divider(
-                            color: Colors.white.withValues(alpha: 0.06),
-                            height: 1,
-                          ),
-                        if (!isLast) const SizedBox(height: 20),
-                      ],
+                    return GestureDetector(
+                      onTap: () {
+                        _navigateToExpenseDetails(transaction);
+                      },
+                      child: Column(
+                        children: [
+                          _buildTransactionItem(transaction),
+                          if (!isLast) const SizedBox(height: 20),
+                          if (!isLast)
+                            Divider(
+                              color: Colors.white.withValues(alpha: 0.06),
+                              height: 1,
+                            ),
+                          if (!isLast) const SizedBox(height: 20),
+                        ],
+                      ),
                     );
                   }).toList(),
                 ),
@@ -891,6 +910,20 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     );
   }
 
+  void _navigateToExpenseDetails(Map<String, dynamic> transaction) {
+    if (transaction['id'] != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ExpenseDetailsScreen(
+            expenseId: transaction['id'],
+            expenseData: transaction,
+          ),
+        ),
+      );
+    }
+  }
+
   Widget _buildBankAccountsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -926,8 +959,16 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () {
-                        // TODO: Navigate to company setup to add bank accounts
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AddBankAccountScreen(),
+                          ),
+                        );
+                        if (result == true) {
+                          _fetchBankAccounts();
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF30D158),
@@ -969,13 +1010,22 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                           if (!isLast) const SizedBox(height: 16),
                         ],
                       );
-                    }).toList(),
+                    }),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () {
-                          // TODO: Navigate to company setup to add more bank accounts
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const AddBankAccountScreen(),
+                            ),
+                          );
+                          if (result == true) {
+                            _fetchBankAccounts();
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white.withValues(alpha: 0.05),
@@ -1071,7 +1121,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             ),
             const SizedBox(height: 2),
             Text(
-              "spent",
+              "total spent",
               style: GoogleFonts.inter(
                 color: Colors.white38,
                 fontSize: 10,

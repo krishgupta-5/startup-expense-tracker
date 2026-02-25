@@ -100,11 +100,11 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
           setState(() {
             runwayMonths = runwayAmount;
             currentBalance =
-                "\₹${availableBalance.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
+                "₹${availableBalance.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
             monthlyBurn =
-                "\₹${actualMonthlyBurn.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
+                "₹${actualMonthlyBurn.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
             netBurn =
-                "\₹${netBurnAmount.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
+                "₹${netBurnAmount.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
             zeroCashDate = calculatedZeroCashDate;
             monthlyProjections = projections;
             isLoading = false;
@@ -288,8 +288,10 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
       projections.add({
         'month': "${months[futureDate.month - 1]} ${futureDate.year}",
         'balance':
-            "\₹${projectedBalance.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}",
-        'monthsLeft': remainingRunway.toStringAsFixed(1),
+            "₹${projectedBalance.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}",
+        'monthsLeft': remainingRunway > 0
+            ? remainingRunway.toStringAsFixed(1)
+            : "0.0",
       });
     }
 
@@ -879,7 +881,7 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                             _buildDivider(),
                         ],
                       );
-                    }).toList(),
+                    }),
                   ],
                 ),
         ),

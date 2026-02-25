@@ -237,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
               double.tryParse(runwayFromFirebase.toString()) ?? 0;
 
           setState(() {
-            this.runwayValue = runwayAmount.toStringAsFixed(2);
+            runwayValue = runwayAmount.toStringAsFixed(2);
             isLoading = false;
           });
         } else {
