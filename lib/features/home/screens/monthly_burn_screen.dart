@@ -1199,19 +1199,17 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
           child: Column(
             children: [
               _buildComparisonRow("Team", "Budget", "Actual", "Variance", true),
-              ...comparisonData
-                  .map(
-                    (data) => _buildComparisonRow(
-                      data['team'] as String,
-                      _formatCurrency(data['budget'] as double),
-                      _formatCurrency(data['actual'] as double),
-                      data['isOver'] as bool
-                          ? "${_formatCurrency((data['variance'] as double).abs())} over"
-                          : "${_formatCurrency((data['variance'] as double).abs())} under",
-                      false,
-                    ),
-                  )
-                  ,
+              ...comparisonData.map(
+                (data) => _buildComparisonRow(
+                  data['team'] as String,
+                  _formatCurrency(data['budget'] as double),
+                  _formatCurrency(data['actual'] as double),
+                  data['isOver'] as bool
+                      ? "${_formatCurrency((data['variance'] as double).abs())} over"
+                      : "${_formatCurrency((data['variance'] as double).abs())} under",
+                  false,
+                ),
+              ),
               const SizedBox(height: 16),
               Container(height: 1, color: Colors.white.withValues(alpha: 0.1)),
               const SizedBox(height: 16),
