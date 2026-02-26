@@ -12,20 +12,10 @@ class GoogleSignInService {
       await _googleSignIn.initialize();
 
       // Trigger the Google Sign-In flow
-<<<<<<< HEAD
       final GoogleSignInAccount googleUser = await _googleSignIn.authenticate();
-=======
-      final GoogleSignInAccount googleUser = await _googleSignIn
-          .authenticate();
->>>>>>> 5b2cd39 (Refactor home screens and financial services)
 
       // Obtain the auth details from the request
-<<<<<<< HEAD
       final GoogleSignInAuthentication googleAuth = googleUser.authentication;
-=======
-      final GoogleSignInAuthentication googleAuth =
-          googleUser.authentication;
->>>>>>> 5b2cd39 (Refactor home screens and financial services)
 
       // Create a new credential
       final OAuthCredential credential = GoogleAuthProvider.credential(
