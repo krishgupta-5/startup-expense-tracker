@@ -45,6 +45,8 @@ dependencies:
   provider: ^6.1.2
   cloud_firestore: ^6.1.2
   uuid: ^4.5.2
+  pdf: ^3.11.0
+  printing: ^5.11.1
 
 dev_dependencies:
   flutter_test:

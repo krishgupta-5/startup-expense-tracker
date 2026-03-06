@@ -54,12 +54,12 @@ class SettingsScreen extends StatelessWidget {
                 _buildTile(
                   icon: Icons.description_outlined,
                   title: "Statements",
-                  subtitle: "Financial reports and exports",
+                  subtitle: "Expense reports and exports",
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const StatementsScreen(),
+                        builder: (context) => const ExpensesExportScreen(),
                       ),
                     );
                   },

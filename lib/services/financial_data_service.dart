@@ -5,36 +5,83 @@ class FinancialDataService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // Simple in-memory cache
+  static final Map<String, dynamic> _cache = {};
+  static final Map<String, DateTime> _cacheTimestamps = {};
+  static const Duration _cacheExpiry = Duration(minutes: 5);
+
+  // Cache helper methods
+  static bool _isCacheValid(String key) {
+    final timestamp = _cacheTimestamps[key];
+    return timestamp != null &&
+        DateTime.now().difference(timestamp) < _cacheExpiry;
+  }
+
+  static T? _getCachedData<T>(String key) {
+    if (_isCacheValid(key)) {
+      return _cache[key] as T?;
+    }
+    _cache.remove(key);
+    _cacheTimestamps.remove(key);
+    return null;
+  }
+
+  static void _setCachedData(String key, dynamic data) {
+    _cache[key] = data;
+    _cacheTimestamps[key] = DateTime.now();
+  }
+
+  static void _clearCache() {
+    _cache.clear();
+    _cacheTimestamps.clear();
+  }
+
   static Future<Map<String, dynamic>> getMonthlyBurnData() async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
+
+    final cacheKey = 'monthly_burn_${user.uid}';
+    final cachedData = _getCachedData<Map<String, dynamic>>(cacheKey);
+    if (cachedData != null) {
+      return cachedData;
+    }
 
     final now = DateTime.now();
     final startOfMonth = DateTime(now.year, now.month, 1);
     final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
 
     try {
-      // Get expenses for current month (temporarily without date filter while index builds)
-      final expensesSnapshot = await _firestore
-          .collection('expenses')
-          .where('uid', isEqualTo: user.uid)
-          .get();
+      // Run all queries in parallel for better performance
+      final futures = await Future.wait([
+        // Get expenses for current month
+        _firestore
+            .collection('expenses')
+            .where('uid', isEqualTo: user.uid)
+            .get(),
+        // Get budget data
+        _getBudgetData(user.uid),
+        // Get revenue data
+        _getMonthlyRevenue(user.uid, startOfMonth, endOfMonth),
+        // Get trend data
+        _getSixMonthTrend(user.uid),
+      ]);
 
-      // Get team/salary data for current month
-      final teamSnapshot = await _firestore
-          .collection('team_members')
-          .where('uid', isEqualTo: user.uid)
-          .get();
+      final expensesSnapshot = futures[0] as QuerySnapshot;
+      final budgetComparison = futures[1] as Map<String, dynamic>;
+      final revenue = futures[2] as double;
+      final trendData = futures[3] as List<Map<String, dynamic>>;
 
-      // Calculate totals
+      // Process data efficiently
       double totalExpenses = 0;
       double salariesTotal = 0;
       Map<String, double> categoryTotals = {};
       Map<String, double> vendorTotals = {};
 
-      // Process expenses with date filtering while index builds
+      // Process expenses with date filtering
       for (var doc in expensesSnapshot.docs) {
-        final data = doc.data();
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data == null) continue;
+
         final amount = double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
         final category = data['Category']?.toString() ?? 'Other';
         final vendor = data['Vendor']?.toString() ?? 'Unknown';
@@ -52,35 +99,16 @@ class FinancialDataService {
         }
       }
 
-      // Process salaries
-      for (var doc in teamSnapshot.docs) {
-        final data = doc.data();
-        final salary = double.tryParse(data['salary']?.toString() ?? '0') ?? 0;
-        salariesTotal += salary;
-      }
-
-      // Get budget data for comparison
-      final budgetComparison = await _getBudgetData(user.uid);
-
-      // Use 'Salaries' from budgetComparison for salariesTotal (team budget)
+      // Use salaries from budget data (more efficient than processing team members)
       salariesTotal =
           double.tryParse(budgetComparison['Salaries']?.toString() ?? '0') ??
           0.0;
 
       // Calculate monthly burn metrics
       final grossBurn = totalExpenses + salariesTotal;
-      final revenue = await _getMonthlyRevenue(
-        user.uid,
-        startOfMonth,
-        endOfMonth,
-      );
       final netBurn = grossBurn - revenue;
 
-      // Get historical data for trends (last 6 months)
-      final trendData = await _getSixMonthTrend(user.uid);
-
-      // Calculate monthly burn metrics
-      return {
+      final result = {
         'grossBurn': grossBurn,
         'netBurn': netBurn,
         'revenue': revenue,
@@ -93,6 +121,10 @@ class FinancialDataService {
         'month': now.month,
         'year': now.year,
       };
+
+      // Cache the result
+      _setCachedData(cacheKey, result);
+      return result;
     } catch (e) {
       throw Exception('Failed to fetch financial data: $e');
     }
@@ -246,6 +278,12 @@ class FinancialDataService {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
 
+    final cacheKey = 'team_cost_${user.uid}';
+    final cachedData = _getCachedData<Map<String, dynamic>>(cacheKey);
+    if (cachedData != null) {
+      return cachedData;
+    }
+
     try {
       // Get all teams for the user
       final teamsSnapshot = await _firestore
@@ -253,19 +291,21 @@ class FinancialDataService {
           .where('uid', isEqualTo: user.uid)
           .get();
 
-      Map<String, double> departmentCosts = {};
-      double totalCost = 0;
+      if (teamsSnapshot.docs.isEmpty) {
+        final emptyResult = {'teamCosts': [], 'totalCost': 0};
+        _setCachedData(cacheKey, emptyResult);
+        return emptyResult;
+      }
 
-      // For each team, get its members and calculate costs
-      for (var teamDoc in teamsSnapshot.docs) {
-        final teamData = teamDoc.data();
-        final teamName = teamData['teamName']?.toString() ?? 'Unknown Team';
-
-        // Get members for this team
+      // Get all members in parallel for better performance
+      final memberFutures = teamsSnapshot.docs.map((teamDoc) async {
         final membersSnapshot = await _firestore
             .collection('members')
             .where('teamId', isEqualTo: teamDoc.id)
             .get();
+
+        final teamData = teamDoc.data();
+        final teamName = teamData['teamName']?.toString() ?? 'Unknown Team';
 
         double teamCost = 0;
         for (var memberDoc in membersSnapshot.docs) {
@@ -275,19 +315,22 @@ class FinancialDataService {
               0;
           final status = memberData['status']?.toString() ?? 'Active';
 
-          // Only include active members in cost calculation
           if (status == 'Active') {
             teamCost += cost;
           }
         }
 
-        departmentCosts[teamName] = teamCost;
-        totalCost += teamCost;
-      }
+        return {'name': teamName, 'cost': teamCost};
+      }).toList();
 
-      // If no teams found, return empty data
-      if (departmentCosts.isEmpty) {
-        return {'teamCosts': [], 'totalCost': 0};
+      final teamResults = await Future.wait(memberFutures);
+
+      Map<String, double> departmentCosts = {};
+      double totalCost = 0;
+
+      for (var result in teamResults) {
+        departmentCosts[result['name'] as String] = result['cost'] as double;
+        totalCost += result['cost'] as double;
       }
 
       // Convert to list format for display
@@ -306,7 +349,9 @@ class FinancialDataService {
         (a, b) => (b['pct'] as double).compareTo(a['pct'] as double),
       );
 
-      return {'teamCosts': teamCostList, 'totalCost': totalCost};
+      final result = {'teamCosts': teamCostList, 'totalCost': totalCost};
+      _setCachedData(cacheKey, result);
+      return result;
     } catch (e) {
       throw Exception('Failed to fetch team cost data: $e');
     }
@@ -316,13 +361,21 @@ class FinancialDataService {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
 
+    final cacheKey = 'raw_teams_${user.uid}';
+    final cachedData = _getCachedData<List<Map<String, dynamic>>>(cacheKey);
+    if (cachedData != null) {
+      return cachedData;
+    }
+
     try {
       final teamsSnapshot = await _firestore
           .collection('teams')
           .where('uid', isEqualTo: user.uid)
           .get();
 
-      return teamsSnapshot.docs.map((doc) => doc.data()).toList();
+      final result = teamsSnapshot.docs.map((doc) => doc.data()).toList();
+      _setCachedData(cacheKey, result);
+      return result;
     } catch (e) {
       throw Exception('Failed to fetch teams data: $e');
     }
@@ -332,26 +385,36 @@ class FinancialDataService {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
 
+    final cacheKey = 'team_spending_${user.uid}';
+    final cachedData = _getCachedData<Map<String, double>>(cacheKey);
+    if (cachedData != null) {
+      return cachedData;
+    }
+
     try {
       final now = DateTime.now();
       final startOfMonth = DateTime(now.year, now.month, 1);
       final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
 
-      // Get all expenses for current month
-      final expensesSnapshot = await _firestore
-          .collection('expenses')
-          .where('uid', isEqualTo: user.uid)
-          .get();
+      // Run queries in parallel
+      final futures = await Future.wait([
+        // Get all expenses for current month
+        _firestore
+            .collection('expenses')
+            .where('uid', isEqualTo: user.uid)
+            .get(),
+        // Get all teams to map team names
+        _firestore.collection('teams').where('uid', isEqualTo: user.uid).get(),
+      ]);
 
-      // Get all teams to map team names
-      final teamsSnapshot = await _firestore
-          .collection('teams')
-          .where('uid', isEqualTo: user.uid)
-          .get();
+      final expensesSnapshot = futures[0] as QuerySnapshot;
+      final teamsSnapshot = futures[1] as QuerySnapshot;
 
       Map<String, String> teamIdToName = {};
       for (var teamDoc in teamsSnapshot.docs) {
-        final teamData = teamDoc.data();
+        final teamData = teamDoc.data() as Map<String, dynamic>?;
+        if (teamData == null) continue;
+
         final teamName = teamData['teamName']?.toString() ?? 'Unknown';
         teamIdToName[teamDoc.id] = teamName;
       }
@@ -360,11 +423,12 @@ class FinancialDataService {
 
       // Process expenses and categorize by team
       for (var doc in expensesSnapshot.docs) {
-        final data = doc.data();
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data == null) continue;
+
         final amount = double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
         final category = data['Category']?.toString() ?? 'Other';
-        final teamName = data['TeamName']
-            ?.toString(); // Check if TeamName field exists
+        final teamName = data['TeamName']?.toString();
         final expenseDate = (data['Date'] as Timestamp?)?.toDate();
 
         // Filter by date in code
@@ -376,10 +440,8 @@ class FinancialDataService {
           // Use TeamName field if it exists, otherwise map by category
           String assignedTeam;
           if (teamName != null && teamName.isNotEmpty) {
-            // Use the TeamName field directly
             assignedTeam = teamName;
           } else {
-            // Fallback to category-based mapping
             assignedTeam = _mapCategoryToTeam(category, teamIdToName);
           }
 
@@ -388,6 +450,7 @@ class FinancialDataService {
         }
       }
 
+      _setCachedData(cacheKey, teamSpending);
       return teamSpending;
     } catch (e) {
       throw Exception('Failed to fetch team spending: $e');

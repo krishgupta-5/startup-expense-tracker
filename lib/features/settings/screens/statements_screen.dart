@@ -1,97 +1,314 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
-class StatementsScreen extends StatefulWidget {
-  const StatementsScreen({super.key});
+class ExpensesExportScreen extends StatefulWidget {
+  const ExpensesExportScreen({super.key});
 
   @override
-  State<StatementsScreen> createState() => _StatementsScreenState();
+  State<ExpensesExportScreen> createState() => _ExpensesExportScreenState();
 }
 
-class _StatementsScreenState extends State<StatementsScreen> {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
-      body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
-        child: SafeArea(
-          child: Column(
-            children: [
-              // 1. Header
-              _buildHeader(context),
+class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
+  bool _isDownloading = false;
 
-              // 2. Content
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 32),
+  // Helper to get month name
+  String _getMonthName(int month) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return months[month - 1];
+  }
 
-                      // Title
-                      Text(
-                        "Financial Statements",
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
+  // --- REPORT GENERATION LOGIC ---
+  Future<void> _downloadReport(String reportType) async {
+    setState(() => _isDownloading = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception("User not logged in");
+
+      final now = DateTime.now();
+      DateTime startDate;
+      DateTime endDate;
+      String reportTitle = "";
+
+      // 1. Calculate Date Ranges Based on Report Type
+      if (reportType == "Monthly") {
+        startDate = DateTime(now.year, now.month, 1);
+        endDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        reportTitle =
+            "Monthly Expenses - ${_getMonthName(now.month)} ${now.year}";
+      } else if (reportType == "Quarterly") {
+        final currentQuarter = ((now.month - 1) ~/ 3) + 1;
+        final startMonth = (currentQuarter - 1) * 3 + 1;
+        startDate = DateTime(now.year, startMonth, 1);
+        endDate = DateTime(now.year, startMonth + 3, 0, 23, 59, 59);
+        reportTitle = "Quarterly Expenses - Q$currentQuarter ${now.year}";
+      } else {
+        // Annual (Assuming Financial Year April - March)
+        final isNewFY = now.month >= 4;
+        final startYear = isNewFY ? now.year : now.year - 1;
+        startDate = DateTime(startYear, 4, 1);
+        endDate = DateTime(startYear + 1, 3, 31, 23, 59, 59);
+        reportTitle =
+            "Annual Expenses - FY $startYear-${(startYear + 1).toString().substring(2)}";
+      }
+
+      // 2. Fetch Data from Firestore
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('expenses')
+          .where('uid', isEqualTo: user.uid)
+          .where('Date', isGreaterThanOrEqualTo: startDate)
+          .where('Date', isLessThanOrEqualTo: endDate)
+          .orderBy('Date', descending: true)
+          .get();
+
+      final expenses = querySnapshot.docs;
+
+      if (expenses.isEmpty) {
+        _showMessage("No expenses found for this period.");
+        setState(() => _isDownloading = false);
+        return;
+      }
+
+      // 3. Generate PDF
+      final pdf = pw.Document();
+      double totalAmount = 0;
+
+      // Map Firestore data to PDF table rows
+      final List<List<String>> tableData = expenses
+          .map((doc) {
+            final data = doc.data();
+            final amount = double.tryParse(data['Amount'].toString()) ?? 0.0;
+            totalAmount += amount;
+
+            final date = (data['Date'] as Timestamp).toDate();
+            final dateStr = "${date.day}/${date.month}/${date.year}";
+
+            return [
+              dateStr,
+              data['Title']?.toString() ?? 'Unknown',
+              data['Category']?.toString().toUpperCase() ?? 'N/A',
+              data['BankAccount']?.toString().split('-').first ??
+                  'N/A', // Just the bank name
+              "\$${amount.toStringAsFixed(2)}",
+            ];
+          })
+          .cast<List<String>>()
+          .toList();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          build: (pw.Context context) {
+            return [
+              // PDF Header
+              pw.Header(
+                level: 0,
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      "EXPENSE REPORT",
+                      style: pw.TextStyle(
+                        fontSize: 24,
+                        fontWeight: pw.FontWeight.bold,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "Download and manage your financial reports",
-                        style: GoogleFonts.inter(
-                          color: Colors.white38,
-                          fontSize: 14,
-                        ),
+                    ),
+                    pw.Text(
+                      reportTitle,
+                      style: const pw.TextStyle(
+                        fontSize: 14,
+                        color: PdfColors.grey700,
                       ),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 20),
 
-                      const SizedBox(height: 40),
-
-                      // Statement Types
-                      _buildSectionLabel("AVAILABLE REPORTS"),
-                      _buildStatementCard(
-                        "Monthly Statement",
-                        "October 2024",
-                        "Download detailed financial report for October 2024",
-                        Icons.description,
-                      ),
-                      const SizedBox(height: 16),
-                      _buildStatementCard(
-                        "Quarterly Report",
-                        "Q3 2024",
-                        "Comprehensive quarterly financial analysis",
-                        Icons.analytics,
-                      ),
-                      const SizedBox(height: 16),
-                      _buildStatementCard(
-                        "Annual Summary",
-                        "FY 2023-24",
-                        "Complete annual financial overview",
-                        Icons.summarize,
-                      ),
-
-                      const SizedBox(height: 40),
-
-                      // Export Options
-                      _buildSectionLabel("EXPORT OPTIONS"),
-                      _buildExportOptions(),
-
-                      const SizedBox(height: 40),
-
-                      // Recent Activity
-                      _buildSectionLabel("RECENT ACTIVITY"),
-                      _buildRecentActivity(),
-
-                      const SizedBox(height: 100),
-                    ],
+              // PDF Table
+              pw.TableHelper.fromTextArray(
+                headers: ['Date', 'Title', 'Category', 'Account', 'Amount'],
+                data: tableData,
+                border: null,
+                headerStyle: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.white,
+                ),
+                headerDecoration: const pw.BoxDecoration(
+                  color: PdfColors.blueGrey800,
+                ),
+                cellHeight: 30,
+                cellAlignments: {
+                  0: pw.Alignment.centerLeft,
+                  1: pw.Alignment.centerLeft,
+                  2: pw.Alignment.centerLeft,
+                  3: pw.Alignment.centerLeft,
+                  4: pw.Alignment.centerRight,
+                },
+                rowDecoration: const pw.BoxDecoration(
+                  border: pw.Border(
+                    bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
                   ),
                 ),
               ),
+              pw.SizedBox(height: 20),
+
+              // PDF Total
+              pw.Container(
+                alignment: pw.Alignment.centerRight,
+                child: pw.Text(
+                  "Total: \$${totalAmount.toStringAsFixed(2)}",
+                  style: pw.TextStyle(
+                    fontSize: 18,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+            ];
+          },
+        ),
+      );
+
+      // 4. Print / Share / Download the PDF
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+        name: '${reportTitle.replaceAll(' ', '_')}.pdf',
+      );
+    } catch (e) {
+      _showMessage("Error generating report: $e");
+    } finally {
+      setState(() => _isDownloading = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
+        backgroundColor: const Color(0xFF141416),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final DateTime now = DateTime.now();
+
+    final String currentMonthYear = "${_getMonthName(now.month)} ${now.year}";
+    final int currentQuarter = ((now.month - 1) ~/ 3) + 1;
+    final String currentQuarterStr = "Q$currentQuarter ${now.year}";
+    final bool isNewFY = now.month >= 4;
+    final int startYear = isNewFY ? now.year : now.year - 1;
+    final String currentFY =
+        "FY $startYear-${(startYear + 1).toString().substring(2)}";
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF09090B),
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Column(
+                children: [
+                  _buildHeader(context),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 32),
+                          Text(
+                            "Expense Details",
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Download and manage your expense reports",
+                            style: GoogleFonts.inter(
+                              color: Colors.white38,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 40),
+
+                          _buildSectionLabel("AVAILABLE EXPENSE REPORTS"),
+
+                          // Monthly Button
+                          _buildStatementCard(
+                            title: "Monthly Expenses",
+                            period: currentMonthYear,
+                            description:
+                                "Download detailed expense breakdown for $currentMonthYear",
+                            icon: Icons.receipt_long,
+                            onTap: () => _downloadReport("Monthly"),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Quarterly Button
+                          _buildStatementCard(
+                            title: "Quarterly Expenses",
+                            period: currentQuarterStr,
+                            description:
+                                "Comprehensive quarterly spending analysis",
+                            icon: Icons.pie_chart_outline,
+                            onTap: () => _downloadReport("Quarterly"),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Annual Button
+                          _buildStatementCard(
+                            title: "Annual Expense Summary",
+                            period: currentFY,
+                            description:
+                                "Complete annual overview of all expenses",
+                            icon: Icons.summarize,
+                            onTap: () => _downloadReport("Annual"),
+                          ),
+
+                          const SizedBox(height: 100),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // Loading Overlay
+              if (_isDownloading)
+                Container(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                ),
             ],
           ),
         ),
@@ -103,7 +320,6 @@ class _StatementsScreenState extends State<StatementsScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           GestureDetector(
             onTap: () => Navigator.pop(context),
@@ -121,15 +337,17 @@ class _StatementsScreenState extends State<StatementsScreen> {
               ),
             ),
           ),
+          const Expanded(child: SizedBox()),
           Text(
-            "Statements",
+            "Downloads",
             style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(width: 44),
+          const Expanded(child: SizedBox()),
+          const SizedBox(width: 44), // Balance the back button
         ],
       ),
     );
@@ -150,191 +368,79 @@ class _StatementsScreenState extends State<StatementsScreen> {
     );
   }
 
-  Widget _buildStatementCard(
-    String title,
-    String period,
-    String description,
-    IconData icon,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+  Widget _buildStatementCard({
+    required String title,
+    required String period,
+    required String description,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 20),
                 ),
-                child: Icon(icon, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    Text(
-                      period,
-                      style: GoogleFonts.inter(
-                        color: Colors.white38,
-                        fontSize: 12,
+                      Text(
+                        period,
+                        style: GoogleFonts.inter(
+                          color: Colors.white38,
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.download,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.download,
-                  color: Colors.white,
-                  size: 18,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            description,
-            style: GoogleFonts.inter(color: Colors.white54, fontSize: 13),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExportOptions() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Export Format",
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: _buildExportButton("PDF", Icons.picture_as_pdf)),
-              const SizedBox(width: 12),
-              Expanded(child: _buildExportButton("Excel", Icons.table_chart)),
-              const SizedBox(width: 12),
-              Expanded(child: _buildExportButton("CSV", Icons.list_alt)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExportButton(String format, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: Colors.white, size: 20),
-          const SizedBox(height: 4),
-          Text(
-            format,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
+            const SizedBox(height: 12),
+            Text(
+              description,
+              style: GoogleFonts.inter(color: Colors.white54, fontSize: 13),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecentActivity() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Recent Downloads",
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 16),
-          _buildActivityItem("Monthly Statement - Sep 2024", "2 hours ago"),
-          _buildActivityItem("Quarterly Report - Q2 2024", "Yesterday"),
-          _buildActivityItem("Annual Summary - FY 2022-23", "3 days ago"),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActivityItem(String title, String time) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              title,
-              style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
-            ),
-          ),
-          Text(
-            time,
-            style: GoogleFonts.inter(color: Colors.white24, fontSize: 11),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

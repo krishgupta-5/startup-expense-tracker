@@ -36,6 +36,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _financialData;
   bool _isPieChartLoading = true;
 
+  // Loading states for metric cards
+  bool _isMonthlyBurnLoading = true;
+  bool _isFundsLoading = true;
+
   @override
   void initState() {
     super.initState();
@@ -208,10 +212,12 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        setState(() {
-          errorMessage = "User not authenticated";
-          isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            errorMessage = "User not authenticated";
+            isLoading = false;
+          });
+        }
         return;
       }
 
@@ -236,34 +242,49 @@ class _HomeScreenState extends State<HomeScreen> {
           final runwayAmount =
               double.tryParse(runwayFromFirebase.toString()) ?? 0;
 
-          setState(() {
-            runwayValue = runwayAmount.toStringAsFixed(2);
-            isLoading = false;
-          });
+          if (mounted) {
+            setState(() {
+              runwayValue = runwayAmount.toStringAsFixed(2);
+              isLoading = false;
+            });
+          }
         } else {
+          if (mounted) {
+            setState(() {
+              errorMessage = "No runway data found";
+              isLoading = false;
+            });
+          }
+        }
+      } else {
+        if (mounted) {
           setState(() {
-            errorMessage = "No runway data found";
+            errorMessage = "No company data found";
             isLoading = false;
           });
         }
-      } else {
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
-          errorMessage = "No company data found";
+          errorMessage = "Failed to load runway data: $e";
           isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        errorMessage = "Failed to load runway data: $e";
-        isLoading = false;
-      });
     }
   }
 
   Future<void> fetchTotalFundsAvailable() async {
+    setState(() {
+      _isFundsLoading = true;
+    });
+
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
+        setState(() {
+          _isFundsLoading = false;
+        });
         return;
       }
 
@@ -288,26 +309,44 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             // Format available funds as currency with proper formatting
             totalFundsAvailable = "₹${availableFunds.toStringAsFixed(0)}";
+            _isFundsLoading = false;
+          });
+        } else {
+          setState(() {
+            _isFundsLoading = false;
           });
         }
+      } else {
+        setState(() {
+          _isFundsLoading = false;
+        });
       }
     } catch (e) {
       // Silently handle errors for funds fetching
+      setState(() {
+        _isFundsLoading = false;
+      });
     }
   }
 
   Future<void> fetchMonthlyBurn() async {
+    setState(() {
+      _isMonthlyBurnLoading = true;
+    });
+
     try {
       await _fetchAllExpenses();
       final currentMonthBurnAmount = _calculateCurrentMonthBurn();
 
       setState(() {
         monthlyBurn = "₹${currentMonthBurnAmount.toStringAsFixed(0)}";
+        _isMonthlyBurnLoading = false;
       });
     } catch (e) {
       // Set default value on error
       setState(() {
         monthlyBurn = "₹42500";
+        _isMonthlyBurnLoading = false;
       });
     }
   }
@@ -383,15 +422,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final financialData = await FinancialDataService.getMonthlyBurnData();
-      setState(() {
-        _financialData = financialData;
-        _isPieChartLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _financialData = financialData;
+          _isPieChartLoading = false;
+        });
+      }
     } catch (e) {
       print("Error loading financial data for pie chart: $e");
-      setState(() {
-        _isPieChartLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isPieChartLoading = false;
+        });
+      }
     }
   }
 
@@ -469,8 +512,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                       child: _buildFlatMetricCard(
                         label: "Available Funds",
-                        value: totalFundsAvailable ?? "",
+                        value: totalFundsAvailable,
                         icon: Icons.account_balance_wallet_outlined,
+                        isLoading: _isFundsLoading,
                       ),
                     ),
                   ),
@@ -487,9 +531,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                       child: _buildFlatMetricCard(
                         label: "Monthly Burn",
-                        value: monthlyBurn ?? "Loading...",
+                        value: monthlyBurn,
                         icon: Icons.local_fire_department_outlined,
                         isBurn: true,
+                        isLoading: _isMonthlyBurnLoading,
                       ),
                     ),
                   ),
@@ -794,9 +839,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildFlatMetricCard({
     required String label,
-    required String value,
+    String? value,
     required IconData icon,
     bool isBurn = false,
+    bool isLoading = false,
   }) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -810,15 +856,33 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Icon(icon, color: Colors.white38, size: 20),
           const SizedBox(height: 24),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.5,
+          if (isLoading)
+            AnimatedOpacity(
+              opacity: 0.3,
+              duration: const Duration(milliseconds: 600),
+              child: Container(
+                width: 80,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            )
+          else
+            AnimatedOpacity(
+              opacity: value != null ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 600),
+              child: Text(
+                value ?? "",
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.5,
+                ),
+              ),
             ),
-          ),
           const SizedBox(height: 4),
           Text(
             label,

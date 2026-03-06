@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class ReportExpenseScreen extends StatefulWidget {
   const ReportExpenseScreen({super.key});
@@ -14,25 +17,21 @@ class ReportExpenseScreen extends StatefulWidget {
 }
 
 class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
-  // 1. DEFAULT TO WEEKLY (LAST 7 DAYS)
   String _selectedPeriod = "weekly";
 
   DateTime? _customStartDate;
   DateTime? _customEndDate;
 
-  // Add scroll controller to preserve scroll position for the main page
+  bool _isDownloading = false;
+
   final ScrollController _scrollController = ScrollController();
-
-  // NEW: Add a dedicated scroll controller for the category horizontal slider
   final ScrollController _categoryScrollController = ScrollController();
-
-  // Use ValueNotifier to avoid full rebuild when category changes
   final ValueNotifier<String> _categoryNotifier = ValueNotifier<String>("all");
 
   @override
   void dispose() {
     _scrollController.dispose();
-    _categoryScrollController.dispose(); // NEW: Dispose the category controller
+    _categoryScrollController.dispose();
     _categoryNotifier.dispose();
     super.dispose();
   }
@@ -176,6 +175,376 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
     );
   }
 
+  // --- UPDATED DYNAMIC PDF EXPORT LOGIC ---
+  Future<void> _exportReport() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showMessage("Error: User not logged in.");
+      return;
+    }
+
+    setState(() => _isDownloading = true);
+
+    try {
+      DateTime now = DateTime.now();
+      DateTime startDate;
+      DateTime endDate = now;
+
+      // 1. Calculate matching date range
+      if (_selectedPeriod == "weekly") {
+        startDate = now.subtract(const Duration(days: 6));
+      } else if (_selectedPeriod == "monthly") {
+        startDate = now.subtract(const Duration(days: 29));
+      } else if (_selectedPeriod == "quarterly") {
+        startDate = now.subtract(const Duration(days: 89));
+      } else if (_selectedPeriod == "yearly") {
+        startDate = now.subtract(const Duration(days: 364));
+      } else if (_selectedPeriod == "custom" &&
+          _customStartDate != null &&
+          _customEndDate != null) {
+        startDate = _customStartDate!;
+        endDate = _customEndDate!;
+      } else {
+        startDate = now.subtract(const Duration(days: 6));
+      }
+
+      // Normalize to full days
+      startDate = DateTime(startDate.year, startDate.month, startDate.day);
+      endDate = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+
+      int daysInPeriod = endDate.difference(startDate).inDays;
+      if (daysInPeriod <= 0) daysInPeriod = 1;
+
+      final selectedCategory = _categoryNotifier.value;
+
+      // 2. Fetch from Firestore
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('expenses')
+          .where('uid', isEqualTo: user.uid)
+          .where('Date', isGreaterThanOrEqualTo: startDate)
+          .where('Date', isLessThanOrEqualTo: endDate)
+          .orderBy('Date', descending: true)
+          .get();
+
+      // 3. Aggregate Data for the PDF
+      List<Map<String, dynamic>> filteredData = [];
+      double totalAmount = 0;
+      Map<String, double> categoryBreakdown = {};
+
+      bool isDailyChart = daysInPeriod <= 31;
+      Map<String, double> trendData = {};
+
+      // Initialize trend data timeline
+      if (isDailyChart) {
+        for (int i = 0; i <= daysInPeriod; i++) {
+          DateTime d = startDate.add(Duration(days: i));
+          trendData[_formatShortDate(d)] = 0.0;
+        }
+      } else {
+        DateTime tempDate = DateTime(startDate.year, startDate.month, 1);
+        while (tempDate.isBefore(endDate) ||
+            tempDate.isAtSameMomentAs(
+              DateTime(endDate.year, endDate.month, 1),
+            )) {
+          trendData[_formatMonthYear(tempDate)] = 0.0;
+          tempDate = DateTime(tempDate.year, tempDate.month + 1, 1);
+        }
+      }
+
+      // Filter and Sort Firestore Data
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data();
+        final category = (data['Category']?.toString() ?? 'other')
+            .toLowerCase();
+
+        if (selectedCategory != "all" && category != selectedCategory) {
+          continue;
+        }
+
+        final amount = data['Amount'] is int
+            ? (data['Amount'] as int).toDouble()
+            : (data['Amount'] as double? ?? 0.0);
+
+        DateTime docDate = (data['Date'] as Timestamp).toDate();
+
+        // Add to Totals
+        totalAmount += amount;
+        categoryBreakdown[category] =
+            (categoryBreakdown[category] ?? 0.0) + amount;
+
+        // Add to Trend
+        String trendKey = isDailyChart
+            ? _formatShortDate(docDate)
+            : _formatMonthYear(docDate);
+        if (trendData.containsKey(trendKey)) {
+          trendData[trendKey] = trendData[trendKey]! + amount;
+        }
+
+        // Add to List
+        filteredData.add({
+          'Date': docDate,
+          'Title': data['Title'] ?? 'Unknown',
+          'Category': category,
+          'Amount': amount,
+        });
+      }
+
+      if (filteredData.isEmpty) {
+        _showMessage(
+          "No expenses found for this specific period and category.",
+        );
+        setState(() => _isDownloading = false);
+        return;
+      }
+
+      double averageDaily = totalAmount / daysInPeriod;
+
+      // 4. Build PDF Layout
+      final pdf = pw.Document();
+      final String subtitle =
+          "Period: ${_formatDate(startDate)} to ${_formatDate(endDate)} | Filter: ${selectedCategory.toUpperCase()}";
+
+      // Prepare Category Table Data
+      var sortedCategories = categoryBreakdown.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      final List<List<String>> categoryTableData = sortedCategories.map((e) {
+        double pct = totalAmount > 0 ? e.value / totalAmount : 0;
+        String displayCat = e.key.isEmpty ? "OTHER" : e.key.toUpperCase();
+        return [
+          displayCat,
+          "INR ${e.value.toStringAsFixed(2)}",
+          "${(pct * 100).toStringAsFixed(1)}%",
+        ];
+      }).toList();
+
+      // Prepare Trend Table Data (Filter out 0 values to keep it clean)
+      final List<List<String>> trendTableData = trendData.entries
+          .where((e) => e.value > 0)
+          .map((e) => [e.key, "INR ${e.value.toStringAsFixed(2)}"])
+          .toList();
+
+      // Prepare Transactions Table Data
+      final List<List<String>> transactionsTableData = filteredData.map((data) {
+        return [
+          _formatDate(data['Date']),
+          data['Title'].toString(),
+          data['Category'].toString().toUpperCase(),
+          "INR ${(data['Amount'] as double).toStringAsFixed(2)}",
+        ];
+      }).toList();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          build: (pw.Context context) {
+            return [
+              // HEADER
+              pw.Header(
+                level: 0,
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      "EXPENSE REPORT",
+                      style: pw.TextStyle(
+                        fontSize: 24,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      subtitle,
+                      style: const pw.TextStyle(
+                        fontSize: 12,
+                        color: PdfColors.grey700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 20),
+
+              // SUMMARY SECTION
+              pw.Container(
+                padding: const pw.EdgeInsets.all(16),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.grey100,
+                  borderRadius: const pw.BorderRadius.all(
+                    pw.Radius.circular(8),
+                  ),
+                  border: pw.Border.all(color: PdfColors.grey300),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        pw.Text(
+                          "TOTAL EXPENSES",
+                          style: const pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColors.grey700,
+                          ),
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          "INR ${totalAmount.toStringAsFixed(2)}",
+                          style: pw.TextStyle(
+                            fontSize: 18,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.red800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    pw.Container(
+                      width: 1,
+                      height: 30,
+                      color: PdfColors.grey400,
+                    ),
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        pw.Text(
+                          "AVERAGE DAILY",
+                          style: const pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColors.grey700,
+                          ),
+                        ),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          "INR ${averageDaily.toStringAsFixed(2)}",
+                          style: pw.TextStyle(
+                            fontSize: 18,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.green800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 30),
+
+              // CATEGORY BREAKDOWN SECTION
+              pw.Text(
+                "CATEGORY BREAKDOWN",
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.blueGrey800,
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              pw.TableHelper.fromTextArray(
+                headers: ['Category', 'Amount', 'Percentage'],
+                data: categoryTableData,
+                headerStyle: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.white,
+                ),
+                headerDecoration: const pw.BoxDecoration(
+                  color: PdfColors.blueGrey600,
+                ),
+                cellHeight: 25,
+                cellAlignments: {
+                  0: pw.Alignment.centerLeft,
+                  1: pw.Alignment.centerRight,
+                  2: pw.Alignment.centerRight,
+                },
+              ),
+              pw.SizedBox(height: 30),
+
+              // TREND SECTION
+              if (trendTableData.isNotEmpty) ...[
+                pw.Text(
+                  "SPENDING TREND",
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.blueGrey800,
+                  ),
+                ),
+                pw.SizedBox(height: 10),
+                pw.TableHelper.fromTextArray(
+                  headers: ['Period', 'Total Spent'],
+                  data: trendTableData,
+                  headerStyle: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.white,
+                  ),
+                  headerDecoration: const pw.BoxDecoration(
+                    color: PdfColors.blueGrey600,
+                  ),
+                  cellHeight: 25,
+                  cellAlignments: {
+                    0: pw.Alignment.centerLeft,
+                    1: pw.Alignment.centerRight,
+                  },
+                ),
+                pw.SizedBox(height: 30),
+              ],
+
+              // DETAILED TRANSACTIONS SECTION
+              pw.Text(
+                "DETAILED TRANSACTIONS",
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.blueGrey800,
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              pw.TableHelper.fromTextArray(
+                headers: ['Date', 'Title', 'Category', 'Amount'],
+                data: transactionsTableData,
+                headerStyle: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.white,
+                ),
+                headerDecoration: const pw.BoxDecoration(
+                  color: PdfColors.blueGrey800,
+                ),
+                cellHeight: 30,
+                cellAlignments: {
+                  0: pw.Alignment.centerLeft,
+                  1: pw.Alignment.centerLeft,
+                  2: pw.Alignment.centerLeft,
+                  3: pw.Alignment.centerRight,
+                },
+              ),
+            ];
+          },
+        ),
+      );
+
+      // 5. Present the PDF
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+        name:
+            'Report_${_selectedPeriod}_${_formatDate(now).replaceAll('/', '-')}.pdf',
+      );
+    } catch (e) {
+      _showMessage("Error generating report: $e");
+    } finally {
+      setState(() => _isDownloading = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
+        backgroundColor: const Color(0xFF141416),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -186,202 +555,222 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
         value: SystemUiOverlayStyle.light,
         child: SafeArea(
           bottom: false,
-          child: Column(
+          child: Stack(
             children: [
-              _buildHeader(context),
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('expenses')
-                      .where('uid', isEqualTo: currentUser?.uid)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: Colors.white38),
-                      );
-                    }
+              Column(
+                children: [
+                  _buildHeader(context),
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('expenses')
+                          .where('uid', isEqualTo: currentUser?.uid)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white38,
+                            ),
+                          );
+                        }
 
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Text(
-                          "Failed to load reports.",
-                          style: GoogleFonts.inter(color: Colors.redAccent),
-                        ),
-                      );
-                    }
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(
+                              "Failed to load reports.",
+                              style: GoogleFonts.inter(color: Colors.redAccent),
+                            ),
+                          );
+                        }
 
-                    DateTime now = DateTime.now();
-                    DateTime startDate;
-                    DateTime endDate = now;
+                        DateTime now = DateTime.now();
+                        DateTime startDate;
+                        DateTime endDate = now;
 
-                    if (_selectedPeriod == "weekly") {
-                      startDate = now.subtract(const Duration(days: 6));
-                    } else if (_selectedPeriod == "monthly") {
-                      startDate = now.subtract(const Duration(days: 29));
-                    } else if (_selectedPeriod == "quarterly") {
-                      startDate = now.subtract(const Duration(days: 89));
-                    } else if (_selectedPeriod == "yearly") {
-                      startDate = now.subtract(const Duration(days: 364));
-                    } else if (_selectedPeriod == "custom" &&
-                        _customStartDate != null &&
-                        _customEndDate != null) {
-                      startDate = _customStartDate!;
-                      endDate = _customEndDate!;
-                    } else {
-                      startDate = now.subtract(const Duration(days: 6));
-                    }
+                        if (_selectedPeriod == "weekly") {
+                          startDate = now.subtract(const Duration(days: 6));
+                        } else if (_selectedPeriod == "monthly") {
+                          startDate = now.subtract(const Duration(days: 29));
+                        } else if (_selectedPeriod == "quarterly") {
+                          startDate = now.subtract(const Duration(days: 89));
+                        } else if (_selectedPeriod == "yearly") {
+                          startDate = now.subtract(const Duration(days: 364));
+                        } else if (_selectedPeriod == "custom" &&
+                            _customStartDate != null &&
+                            _customEndDate != null) {
+                          startDate = _customStartDate!;
+                          endDate = _customEndDate!;
+                        } else {
+                          startDate = now.subtract(const Duration(days: 6));
+                        }
 
-                    startDate = DateTime(
-                      startDate.year,
-                      startDate.month,
-                      startDate.day,
-                    );
-                    endDate = DateTime(
-                      endDate.year,
-                      endDate.month,
-                      endDate.day,
-                      23,
-                      59,
-                      59,
-                    );
-
-                    int daysInPeriod = endDate.difference(startDate).inDays;
-                    if (daysInPeriod <= 0) daysInPeriod = 1;
-
-                    bool isDailyChart = daysInPeriod <= 31;
-                    Map<String, double> chartData = {};
-                    List<String> chartLabels = [];
-
-                    // --- FORCE ONLY LAST 7 DAYS IN DAILY CHART ---
-                    if (isDailyChart) {
-                      int displayDays = min(daysInPeriod, 6); // 0 to 6 = 7 days
-                      DateTime chartStartDate = endDate.subtract(
-                        Duration(days: displayDays),
-                      );
-
-                      for (int i = 0; i <= displayDays; i++) {
-                        DateTime d = chartStartDate.add(Duration(days: i));
-                        String key =
-                            "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
-                        chartData[key] = 0.0;
-                        chartLabels.add(_formatShortDate(d));
-                      }
-                    } else {
-                      DateTime tempDate = DateTime(
-                        startDate.year,
-                        startDate.month,
-                        1,
-                      );
-                      while (tempDate.isBefore(endDate) ||
-                          tempDate.isAtSameMomentAs(
-                            DateTime(endDate.year, endDate.month, 1),
-                          )) {
-                        String key =
-                            "${tempDate.year}-${tempDate.month.toString().padLeft(2, '0')}";
-                        chartData[key] = 0.0;
-                        chartLabels.add(_formatMonthYear(tempDate));
-                        tempDate = DateTime(
-                          tempDate.year,
-                          tempDate.month + 1,
-                          1,
+                        startDate = DateTime(
+                          startDate.year,
+                          startDate.month,
+                          startDate.day,
                         );
-                      }
-                    }
+                        endDate = DateTime(
+                          endDate.year,
+                          endDate.month,
+                          endDate.day,
+                          23,
+                          59,
+                          59,
+                        );
 
-                    return ValueListenableBuilder<String>(
-                      valueListenable: _categoryNotifier,
-                      builder: (context, selectedCategory, child) {
-                        // Update the filtering logic to use selectedCategory
-                        double totalExpenses = 0.0;
-                        Map<String, double> categoryBreakdown = {};
-                        Map<String, double> tempChartData = Map.from(
-                          chartData,
-                        ); // Work with a fresh copy to prevent accumulating data incorrectly across rebuilds
+                        int daysInPeriod = endDate.difference(startDate).inDays;
+                        if (daysInPeriod <= 0) daysInPeriod = 1;
 
-                        // Recalculate filtered data
-                        final docs = snapshot.data?.docs ?? [];
-                        for (var doc in docs) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final Timestamp? ts = data['Date'] as Timestamp?;
-                          final DateTime docDate = ts?.toDate() ?? now;
-                          final String category =
-                              (data['Category']?.toString() ?? 'other')
-                                  .toLowerCase();
-                          final double amount = data['Amount'] is int
-                              ? (data['Amount'] as int).toDouble()
-                              : (data['Amount'] as double? ?? 0.0);
+                        bool isDailyChart = daysInPeriod <= 31;
+                        Map<String, double> chartData = {};
+                        List<String> chartLabels = [];
 
-                          if (docDate.isBefore(startDate) ||
-                              docDate.isAfter(endDate)) {
-                            continue;
-                          }
-                          if (selectedCategory != "all" &&
-                              category != selectedCategory) {
-                            continue;
-                          }
+                        // --- FORCE ONLY LAST 7 DAYS IN DAILY CHART ---
+                        if (isDailyChart) {
+                          int displayDays = min(
+                            daysInPeriod,
+                            6,
+                          ); // 0 to 6 = 7 days
+                          DateTime chartStartDate = endDate.subtract(
+                            Duration(days: displayDays),
+                          );
 
-                          totalExpenses += amount;
-                          categoryBreakdown[category] =
-                              (categoryBreakdown[category] ?? 0.0) + amount;
-
-                          if (isDailyChart) {
+                          for (int i = 0; i <= displayDays; i++) {
+                            DateTime d = chartStartDate.add(Duration(days: i));
                             String key =
-                                "${docDate.year}-${docDate.month.toString().padLeft(2, '0')}-${docDate.day.toString().padLeft(2, '0')}";
-                            if (tempChartData.containsKey(key)) {
-                              tempChartData[key] = tempChartData[key]! + amount;
-                            }
-                          } else {
+                                "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
+                            chartData[key] = 0.0;
+                            chartLabels.add(_formatShortDate(d));
+                          }
+                        } else {
+                          DateTime tempDate = DateTime(
+                            startDate.year,
+                            startDate.month,
+                            1,
+                          );
+                          while (tempDate.isBefore(endDate) ||
+                              tempDate.isAtSameMomentAs(
+                                DateTime(endDate.year, endDate.month, 1),
+                              )) {
                             String key =
-                                "${docDate.year}-${docDate.month.toString().padLeft(2, '0')}";
-                            if (tempChartData.containsKey(key)) {
-                              tempChartData[key] = tempChartData[key]! + amount;
-                            }
+                                "${tempDate.year}-${tempDate.month.toString().padLeft(2, '0')}";
+                            chartData[key] = 0.0;
+                            chartLabels.add(_formatMonthYear(tempDate));
+                            tempDate = DateTime(
+                              tempDate.year,
+                              tempDate.month + 1,
+                              1,
+                            );
                           }
                         }
 
-                        double averageDaily =
-                            totalExpenses /
-                            (daysInPeriod == 0 ? 1 : daysInPeriod);
+                        return ValueListenableBuilder<String>(
+                          valueListenable: _categoryNotifier,
+                          builder: (context, selectedCategory, child) {
+                            double totalExpenses = 0.0;
+                            Map<String, double> categoryBreakdown = {};
+                            Map<String, double> tempChartData = Map.from(
+                              chartData,
+                            );
 
-                        return SingleChildScrollView(
-                          controller: _scrollController,
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 32),
-                              _buildPeriodSelector(),
-                              const SizedBox(height: 24),
-                              _buildDateRangePicker(),
-                              const SizedBox(height: 24),
-                              _buildCategoryFilter(),
-                              const SizedBox(height: 32),
-                              _buildSummaryCards(totalExpenses, averageDaily),
-                              const SizedBox(height: 32),
+                            final docs = snapshot.data?.docs ?? [];
+                            for (var doc in docs) {
+                              final data = doc.data() as Map<String, dynamic>;
+                              final Timestamp? ts = data['Date'] as Timestamp?;
+                              final DateTime docDate = ts?.toDate() ?? now;
+                              final String category =
+                                  (data['Category']?.toString() ?? 'other')
+                                      .toLowerCase();
+                              final double amount = data['Amount'] is int
+                                  ? (data['Amount'] as int).toDouble()
+                                  : (data['Amount'] as double? ?? 0.0);
 
-                              // Custom Chart (Never Scrolls horizontally now)
-                              _buildChartSection(
-                                tempChartData.values.toList(),
-                                chartLabels,
-                                isDailyChart,
+                              if (docDate.isBefore(startDate) ||
+                                  docDate.isAfter(endDate)) {
+                                continue;
+                              }
+                              if (selectedCategory != "all" &&
+                                  category != selectedCategory) {
+                                continue;
+                              }
+
+                              totalExpenses += amount;
+                              categoryBreakdown[category] =
+                                  (categoryBreakdown[category] ?? 0.0) + amount;
+
+                              if (isDailyChart) {
+                                String key =
+                                    "${docDate.year}-${docDate.month.toString().padLeft(2, '0')}-${docDate.day.toString().padLeft(2, '0')}";
+                                if (tempChartData.containsKey(key)) {
+                                  tempChartData[key] =
+                                      tempChartData[key]! + amount;
+                                }
+                              } else {
+                                String key =
+                                    "${docDate.year}-${docDate.month.toString().padLeft(2, '0')}";
+                                if (tempChartData.containsKey(key)) {
+                                  tempChartData[key] =
+                                      tempChartData[key]! + amount;
+                                }
+                              }
+                            }
+
+                            double averageDaily =
+                                totalExpenses /
+                                (daysInPeriod == 0 ? 1 : daysInPeriod);
+
+                            return SingleChildScrollView(
+                              controller: _scrollController,
+                              physics: const BouncingScrollPhysics(),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
                               ),
-
-                              const SizedBox(height: 32),
-                              _buildDetailedBreakdown(
-                                categoryBreakdown,
-                                totalExpenses,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const SizedBox(height: 32),
+                                  _buildPeriodSelector(),
+                                  const SizedBox(height: 24),
+                                  _buildDateRangePicker(),
+                                  const SizedBox(height: 24),
+                                  _buildCategoryFilter(),
+                                  const SizedBox(height: 32),
+                                  _buildSummaryCards(
+                                    totalExpenses,
+                                    averageDaily,
+                                  ),
+                                  const SizedBox(height: 32),
+                                  _buildChartSection(
+                                    tempChartData.values.toList(),
+                                    chartLabels,
+                                    isDailyChart,
+                                  ),
+                                  const SizedBox(height: 32),
+                                  _buildDetailedBreakdown(
+                                    categoryBreakdown,
+                                    totalExpenses,
+                                  ),
+                                  const SizedBox(height: 40),
+                                ],
                               ),
-                              const SizedBox(height: 40),
-                            ],
-                          ),
+                            );
+                          },
                         );
                       },
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                ],
               ),
+              // Loader Overlay
+              if (_isDownloading)
+                Container(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+                ),
             ],
           ),
         ),
@@ -620,8 +1009,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             ),
             const SizedBox(height: 12),
             SingleChildScrollView(
-              controller:
-                  _categoryScrollController, // NEW: Applied the controller here
+              controller: _categoryScrollController,
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: categories.map((category) {
@@ -630,7 +1018,6 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                     padding: const EdgeInsets.only(right: 8),
                     child: GestureDetector(
                       onTap: () {
-                        // Update ValueNotifier instead of setState
                         _categoryNotifier.value = category.toLowerCase();
                       },
                       child: Container(
@@ -757,7 +1144,6 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
     );
   }
 
-  // --- REBUILT CHART SO IT NEVER SCROLLS HORIZONTALLY ---
   Widget _buildChartSection(
     List<double> data,
     List<String> labels,
@@ -794,17 +1180,15 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
           ),
-          // Uses Row instead of ListView so it evenly spaces the bars
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: List.generate(data.length, (index) {
               double heightPercentage = data[index] / maxVal;
               if (data[index] == 0) {
-                heightPercentage = 0.02; // Tiny nub so empty days show up
+                heightPercentage = 0.02;
               }
 
-              // Splits label into "Day" and "Month" so it wraps nicely
               List<String> labelParts = labels[index].split(' ');
 
               return Column(
@@ -826,7 +1210,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 500),
                     curve: Curves.easeOut,
-                    width: 20, // Clean fixed width
+                    width: 20,
                     height: 120 * heightPercentage,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -841,8 +1225,6 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-
-                  // Label formatting logic to prevent squishing
                   Text(
                     labelParts[0],
                     style: GoogleFonts.inter(
@@ -972,17 +1354,5 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
 
   Widget _buildDivider() {
     return Divider(color: Colors.white.withValues(alpha: 0.04), height: 1);
-  }
-
-  void _exportReport() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF141416),
-        content: Text(
-          "Export feature coming soon",
-          style: GoogleFonts.inter(color: Colors.white),
-        ),
-      ),
-    );
   }
 }
