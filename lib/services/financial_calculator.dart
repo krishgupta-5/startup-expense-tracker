@@ -4,6 +4,7 @@
 /// never be duplicated in UI components. All financial calculations
 /// must go through this class to ensure consistency and audit safety.
 library;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FinancialCalculator {

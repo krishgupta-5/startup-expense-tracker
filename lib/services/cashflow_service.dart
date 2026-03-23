@@ -14,22 +14,29 @@ class CashflowService {
   ///
   /// [period] - 'current_month', 'last_month', 'last_quarter', 'last_6_months', 'last_year'
   /// Returns categorized cash flow data with inflows, outflows, and net flow
-  static Future<Map<String, dynamic>> getCashFlowForPeriod(String period) async {
+  static Future<Map<String, dynamic>> getCashFlowForPeriod(
+    String period,
+  ) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
 
     try {
       final dateRange = _getDateRange(period);
-      final expenses = await _getExpensesForDateRange(user.uid, dateRange['start']!, dateRange['end']!);
-      
+      final expenses = await _getExpensesForDateRange(
+        user.uid,
+        dateRange['start']!,
+        dateRange['end']!,
+      );
+
       // Process expenses by category
       final Map<String, double> categoryTotals = {};
       double totalExpenses = 0;
 
       for (var expense in expenses) {
-        final amount = double.tryParse(expense['Amount']?.toString() ?? '0') ?? 0;
+        final amount =
+            double.tryParse(expense['Amount']?.toString() ?? '0') ?? 0;
         final category = expense['Category']?.toString() ?? 'Other';
-        
+
         categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
         totalExpenses += amount;
       }
@@ -43,12 +50,16 @@ class CashflowService {
         return {
           'category': category,
           'amount': -entry.value.abs(), // Convert to negative for expenses
-          'percentage': totalExpenses > 0 ? (entry.value / totalExpenses) * 100 : 0,
+          'percentage': totalExpenses > 0
+              ? (entry.value / totalExpenses) * 100
+              : 0,
         };
       }).toList();
 
       // Sort by amount (highest first)
-      cashFlowBreakdown.sort((a, b) => (b['amount'] as double).compareTo(a['amount'] as double));
+      cashFlowBreakdown.sort(
+        (a, b) => (b['amount'] as double).compareTo(a['amount'] as double),
+      );
 
       return {
         'period': period,
@@ -56,7 +67,9 @@ class CashflowService {
         'totalExpenses': totalExpenses,
         'categoryBreakdown': cashFlowBreakdown,
         'transactionCount': expenses.length,
-        'averageTransaction': expenses.isNotEmpty ? totalExpenses / expenses.length : 0,
+        'averageTransaction': expenses.isNotEmpty
+            ? totalExpenses / expenses.length
+            : 0,
       };
     } catch (e) {
       throw Exception('Failed to get cash flow for period: $e');
@@ -67,7 +80,9 @@ class CashflowService {
   ///
   /// [periods] - List of periods to include in trend analysis
   /// Returns comparative cash flow data across periods
-  static Future<List<Map<String, dynamic>>> getCashFlowTrend(List<String> periods) async {
+  static Future<List<Map<String, dynamic>>> getCashFlowTrend(
+    List<String> periods,
+  ) async {
     final List<Map<String, dynamic>> trendData = [];
 
     for (String period in periods) {
@@ -93,7 +108,9 @@ class CashflowService {
   ///
   /// [months] - Number of months to include (default: 6)
   /// Returns monthly cash flow data with trend analysis
-  static Future<List<Map<String, dynamic>>> getMonthlyCashFlowTrend({int months = 6}) async {
+  static Future<List<Map<String, dynamic>>> getMonthlyCashFlowTrend({
+    int months = 6,
+  }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
 
@@ -106,15 +123,20 @@ class CashflowService {
       final endOfMonth = DateTime(now.year, now.month - i + 1, 0, 23, 59, 59);
 
       try {
-        final expenses = await _getExpensesForDateRange(user.uid, month, endOfMonth);
-        
+        final expenses = await _getExpensesForDateRange(
+          user.uid,
+          month,
+          endOfMonth,
+        );
+
         double totalExpenses = 0;
         final Map<String, double> categoryTotals = {};
 
         for (var expense in expenses) {
-          final amount = double.tryParse(expense['Amount']?.toString() ?? '0') ?? 0;
+          final amount =
+              double.tryParse(expense['Amount']?.toString() ?? '0') ?? 0;
           final category = expense['Category']?.toString() ?? 'Other';
-          
+
           categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
           totalExpenses += amount;
         }
@@ -147,26 +169,34 @@ class CashflowService {
   ///
   /// [period] - Period type for comparison ('month', 'quarter', 'year')
   /// Returns comparative analysis with variance calculations
-  static Future<Map<String, dynamic>> getCashFlowComparison(String period) async {
+  static Future<Map<String, dynamic>> getCashFlowComparison(
+    String period,
+  ) async {
     try {
       final currentPeriod = 'current_$period';
       final previousPeriod = 'previous_$period';
-      
+
       final currentData = await getCashFlowForPeriod(currentPeriod);
       final previousData = await getCashFlowForPeriod(previousPeriod);
 
       final currentTotal = currentData['totalExpenses'] as double;
       final previousTotal = previousData['totalExpenses'] as double;
-      
+
       final variance = currentTotal - previousTotal;
-      final variancePercentage = previousTotal > 0 ? (variance / previousTotal) * 100 : 0;
+      final variancePercentage = previousTotal > 0
+          ? (variance / previousTotal) * 100
+          : 0;
 
       return {
         'currentPeriod': currentData,
         'previousPeriod': previousData,
         'variance': variance,
         'variancePercentage': variancePercentage,
-        'trend': variance > 0 ? 'increasing' : variance < 0 ? 'decreasing' : 'stable',
+        'trend': variance > 0
+            ? 'increasing'
+            : variance < 0
+            ? 'decreasing'
+            : 'stable',
       };
     } catch (e) {
       throw Exception('Failed to get cash flow comparison: $e');
@@ -178,18 +208,31 @@ class CashflowService {
   /// [period] - Period to analyze
   /// [limit] - Maximum number of categories to return (default: 10)
   /// Returns top categories by spending amount
-  static Future<List<Map<String, dynamic>>> getTopCategories(String period, {int limit = 10}) async {
+  static Future<List<Map<String, dynamic>>> getTopCategories(
+    String period, {
+    int limit = 10,
+  }) async {
     try {
       final periodData = await getCashFlowForPeriod(period);
-      final breakdown = periodData['categoryBreakdown'] as List<Map<String, dynamic>>;
-      
+      final breakdown =
+          periodData['categoryBreakdown'] as List<Map<String, dynamic>>;
+
       // Sort by amount (highest first) and limit
-      breakdown.sort((a, b) => (b['amount'] as double).compareTo(a['amount'] as double));
-      
-      return breakdown.take(limit).map((category) => {
-        ...category,
-        'formattedAmount': CurrencyFormatter.formatRupees(-(category['amount'] as double)),
-      }).toList();
+      breakdown.sort(
+        (a, b) => (b['amount'] as double).compareTo(a['amount'] as double),
+      );
+
+      return breakdown
+          .take(limit)
+          .map(
+            (category) => {
+              ...category,
+              'formattedAmount': CurrencyFormatter.formatRupees(
+                -(category['amount'] as double),
+              ),
+            },
+          )
+          .toList();
     } catch (e) {
       throw Exception('Failed to get top categories: $e');
     }
@@ -214,7 +257,7 @@ class CashflowService {
   /// Get date range for a given period
   static Map<String, DateTime> _getDateRange(String period) {
     final now = DateTime.now();
-    
+
     switch (period) {
       case 'current_month':
         return {
@@ -234,8 +277,19 @@ class CashflowService {
         return {'start': quarterStart, 'end': quarterEnd};
       case 'previous_quarter':
         final prevQuarter = ((now.month - 1) ~/ 3);
-        final prevQuarterStart = DateTime(now.year, (prevQuarter - 1) * 3 + 1, 1);
-        final prevQuarterEnd = DateTime(now.year, prevQuarter * 3, 0, 23, 59, 59);
+        final prevQuarterStart = DateTime(
+          now.year,
+          (prevQuarter - 1) * 3 + 1,
+          1,
+        );
+        final prevQuarterEnd = DateTime(
+          now.year,
+          prevQuarter * 3,
+          0,
+          23,
+          59,
+          59,
+        );
         return {'start': prevQuarterStart, 'end': prevQuarterEnd};
       case 'last_6_months':
         return {
@@ -255,8 +309,18 @@ class CashflowService {
   /// Get month abbreviation
   static String _getMonthAbbreviation(int month) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return months[month - 1];
   }

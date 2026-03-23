@@ -19,10 +19,10 @@ class CurrencyFormatter {
   }) {
     // Round to avoid floating point precision issues
     final roundedValue = double.parse(value.toStringAsFixed(decimalPlaces));
-    
+
     // Convert to string and add commas for thousands
     String formatted = roundedValue.toStringAsFixed(decimalPlaces);
-    
+
     // Add comma separators for thousands (Indian format: 1,00,000)
     if (decimalPlaces == 0) {
       formatted = formatted.replaceAllMapped(
@@ -38,12 +38,12 @@ class CurrencyFormatter {
       );
       formatted = '$integerPart.${parts[1]}';
     }
-    
+
     // Add rupee symbol if requested
     if (includeSymbol) {
       return '₹$formatted';
     }
-    
+
     return formatted;
   }
 
@@ -64,14 +64,17 @@ class CurrencyFormatter {
 
   /// Format currency for charts and graphs (abbreviated format)
   static String formatAbbreviated(double value) {
-    if (value >= 10000000) { // 1 crore
+    if (value >= 10000000) {
+      // 1 crore
       return '₹${(value / 10000000).toStringAsFixed(1)}C';
-    } else if (value >= 100000) { // 1 lakh
+    } else if (value >= 100000) {
+      // 1 lakh
       return '₹${(value / 100000).toStringAsFixed(1)}L';
-    } else if (value >= 1000) { // 1K
+    } else if (value >= 1000) {
+      // 1K
       return '₹${(value / 1000).toStringAsFixed(1)}K';
     }
-    
+
     return formatRupees(value);
   }
 
@@ -83,7 +86,7 @@ class CurrencyFormatter {
     try {
       // Remove rupee symbol and commas
       String clean = formattedString.replaceAll('₹', '').replaceAll(',', '');
-      
+
       // Handle abbreviated formats
       if (clean.endsWith('C')) {
         clean = clean.replaceAll('C', '');
@@ -95,7 +98,7 @@ class CurrencyFormatter {
         clean = clean.replaceAll('K', '');
         return double.parse(clean) * 1000;
       }
-      
+
       return double.parse(clean);
     } catch (e) {
       return null;

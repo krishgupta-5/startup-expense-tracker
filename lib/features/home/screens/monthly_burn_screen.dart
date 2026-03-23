@@ -64,7 +64,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
     });
 
     try {
-      // Load data progressively for better UX
+      // Load all data simultaneously for faster loading
       final futures = await Future.wait([
         FinancialDataService.getMonthlyBurnData(),
         FinancialDataService.getTeamCostDistribution(),
@@ -74,23 +74,15 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
 
       setState(() {
         _financialData = futures[0] as Map<String, dynamic>;
+        _teamCostData = futures[1] as Map<String, dynamic>;
+        _rawTeamsData = futures[2] as List<Map<String, dynamic>>;
+        _actualSpendingPerTeam = futures[3] as Map<String, double>;
+
+        // Set all loading states to true at once
         _mainCardLoaded = true;
         _trendLoaded = true;
         _categoriesLoaded = true;
-      });
-
-      // Load team data with a small delay for progressive effect
-      await Future.delayed(const Duration(milliseconds: 100));
-      setState(() {
-        _teamCostData = futures[1] as Map<String, dynamic>;
         _teamsLoaded = true;
-      });
-
-      // Load forecast data last
-      await Future.delayed(const Duration(milliseconds: 100));
-      setState(() {
-        _rawTeamsData = futures[2] as List<Map<String, dynamic>>;
-        _actualSpendingPerTeam = futures[3] as Map<String, double>;
         _forecastLoaded = true;
         _isLoading = false;
         _isRefreshing = false;
@@ -110,8 +102,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
     // Cancel existing timer
     _debounceTimer?.cancel();
 
-    // Set new timer for debouncing
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+    // Reduce debounce time for better responsiveness
+    _debounceTimer = Timer(const Duration(milliseconds: 150), () {
       setState(() => _selectedRange = newRange);
       _loadFinancialData();
     });
@@ -152,38 +144,38 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                 _buildRangeSelector(),
                 const SizedBox(height: 32),
 
-                // Content container without blue overlay during tab switching
+                // Content container - show shimmer immediately when loading
                 Column(
                   children: [
-                    // Progressive loading for main card
+                    // Show main card or shimmer
                     _mainCardLoaded
                         ? _buildMainBurnCard()
                         : _buildSkeletonCard(),
                     const SizedBox(height: 32),
 
-                    // Progressive loading for trend section
+                    // Show trend section or shimmer
                     _trendLoaded
                         ? _buildBurnTrendSection()
                         : _buildSkeletonSection("Burn Trend"),
                     const SizedBox(height: 32),
 
-                    // Progressive loading for categories
+                    // Show categories or shimmer
                     _categoriesLoaded
                         ? _buildExpenseCategoriesSection()
                         : _buildSkeletonSection("Expense Categories"),
                     const SizedBox(height: 32),
 
-                    // Progressive loading for teams
+                    // Show teams or shimmer
                     _teamsLoaded
                         ? _buildTeamCostSection()
                         : _buildSkeletonSection("Team Cost Distribution"),
                     const SizedBox(height: 32),
 
-                    // Vendor section (always shown, no loading needed)
+                    // Vendor section (always shown)
                     _buildVendorBreakdownSection(),
                     const SizedBox(height: 32),
 
-                    // Progressive loading for forecast
+                    // Show forecast or shimmer
                     _forecastLoaded
                         ? _buildForecastComparisonSection()
                         : _buildSkeletonSection("Budget vs Actual"),
@@ -407,7 +399,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Net Burn (after revenue)",
+                      "Net Burn",
                       style: GoogleFonts.inter(
                         color: Colors.white38,
                         fontSize: 12,
@@ -598,100 +590,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
 
   // --- Skeleton Loading Components ---
   Widget _buildSkeletonCard() {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141416),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                _buildShimmerEffect(80, 24),
-                const Spacer(),
-                _buildShimmerEffect(80, 24),
-              ],
-            ),
-            const SizedBox(height: 40),
-            _buildShimmerEffect(200, 40),
-            const SizedBox(height: 32),
-            Container(
-              width: double.infinity,
-              height: 80,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildShimmerEffect(double width, double height) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 800),
-      curve: Curves.easeInOut,
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [
-            Colors.white.withValues(alpha: 0.05),
-            Colors.white.withValues(alpha: 0.1),
-            Colors.white.withValues(alpha: 0.05),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(8),
-      ),
-    );
-  }
-
-  Widget _buildSkeletonSection(String title) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeInOut,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildShimmerEffect(150, 24),
-          const SizedBox(height: 20),
-          Container(
-            width: double.infinity,
-            height: 160,
-            decoration: BoxDecoration(
-              color: const Color(0xFF141416),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-            ),
-            child: Center(
-              child: AnimatedOpacity(
-                opacity: 0.3,
-                duration: const Duration(milliseconds: 600),
-                curve: Curves.easeInOut,
-                child: const CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white24,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLoadingCard() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(32),
@@ -700,10 +598,218 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
-      child: const Center(
-        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white38),
+      child: TweenAnimationBuilder(
+        duration: const Duration(milliseconds: 1500),
+        tween: Tween<double>(begin: -1.0, end: 2.0),
+        builder: (context, double value, child) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  // Badge shimmer
+                  Container(
+                    width: 80,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      gradient: LinearGradient(
+                        begin: Alignment(value - 1, 0),
+                        end: Alignment(value, 0),
+                        colors: [
+                          Colors.white.withValues(alpha: 0.05),
+                          Colors.white.withValues(alpha: 0.08),
+                          Colors.white.withValues(alpha: 0.12),
+                          Colors.white.withValues(alpha: 0.08),
+                          Colors.white.withValues(alpha: 0.05),
+                        ],
+                        stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  // Second badge shimmer
+                  Container(
+                    width: 80,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      gradient: LinearGradient(
+                        begin: Alignment(value - 1, 0),
+                        end: Alignment(value, 0),
+                        colors: [
+                          Colors.white.withValues(alpha: 0.05),
+                          Colors.white.withValues(alpha: 0.08),
+                          Colors.white.withValues(alpha: 0.12),
+                          Colors.white.withValues(alpha: 0.08),
+                          Colors.white.withValues(alpha: 0.05),
+                        ],
+                        stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 40),
+              // Main amount shimmer
+              Container(
+                width: 200,
+                height: 40,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  gradient: LinearGradient(
+                    begin: Alignment(value - 1, 0),
+                    end: Alignment(value, 0),
+                    colors: [
+                      Colors.white.withValues(alpha: 0.05),
+                      Colors.white.withValues(alpha: 0.08),
+                      Colors.white.withValues(alpha: 0.12),
+                      Colors.white.withValues(alpha: 0.08),
+                      Colors.white.withValues(alpha: 0.05),
+                    ],
+                    stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+              // Net burn card shimmer
+              Container(
+                width: double.infinity,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.03),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.06),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 120,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(4),
+                          gradient: LinearGradient(
+                            begin: Alignment(value - 1, 0),
+                            end: Alignment(value, 0),
+                            colors: [
+                              Colors.white.withValues(alpha: 0.05),
+                              Colors.white.withValues(alpha: 0.08),
+                              Colors.white.withValues(alpha: 0.12),
+                              Colors.white.withValues(alpha: 0.08),
+                              Colors.white.withValues(alpha: 0.05),
+                            ],
+                            stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        width: 100,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(4),
+                          gradient: LinearGradient(
+                            begin: Alignment(value - 1, 0),
+                            end: Alignment(value, 0),
+                            colors: [
+                              Colors.white.withValues(alpha: 0.05),
+                              Colors.white.withValues(alpha: 0.08),
+                              Colors.white.withValues(alpha: 0.12),
+                              Colors.white.withValues(alpha: 0.08),
+                              Colors.white.withValues(alpha: 0.05),
+                            ],
+                            stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
+  }
+
+  Widget _buildShimmerEffect(double width, double height) {
+    return TweenAnimationBuilder(
+      duration: const Duration(milliseconds: 1500),
+      tween: Tween<double>(begin: -1.0, end: 2.0),
+      builder: (context, double value, child) {
+        return Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            gradient: LinearGradient(
+              begin: Alignment(value - 1, 0),
+              end: Alignment(value, 0),
+              colors: [
+                Colors.white.withValues(alpha: 0.05),
+                Colors.white.withValues(alpha: 0.08),
+                Colors.white.withValues(alpha: 0.12),
+                Colors.white.withValues(alpha: 0.08),
+                Colors.white.withValues(alpha: 0.05),
+              ],
+              stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSkeletonSection(String title) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Title Shimmer
+        _buildShimmerEffect(150, 24),
+        const SizedBox(height: 20),
+
+        // Content Container Shimmer
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildShimmerEffect(double.infinity, 16),
+              const SizedBox(height: 16),
+              _buildShimmerEffect(double.infinity, 16),
+              const SizedBox(height: 16),
+              _buildShimmerEffect(
+                200,
+                16,
+              ), // Slightly shorter for visual variety
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- Replaced Loading Spinner with Shimmer ---
+  Widget _buildLoadingCard() {
+    return _buildSkeletonCard();
+  }
+
+  // --- Replaced Loading Spinner with Shimmer ---
+  Widget _buildLoadingSection(String title) {
+    return _buildSkeletonSection(title);
   }
 
   Widget _buildErrorCard() {
@@ -760,39 +866,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
     );
   }
 
-  Widget _buildLoadingSection(String title) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 20),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-          ),
-          child: const Center(
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Colors.white38,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildErrorSection(String title) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -825,6 +898,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
       ],
     );
   }
+
+  // --- Simplified Skeleton Section (Fixes the 2px Overflow) ---
 
   // --- Sections below remain unchanged structurally, but inherit the smooth loading state ---
 
