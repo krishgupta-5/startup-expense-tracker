@@ -21,94 +21,104 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. Header with Back Button
-                const SizedBox(height: 24),
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF141416),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.04),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight:
+                    MediaQuery.of(context).size.height -
+                    MediaQuery.of(context).viewInsets.bottom -
+                    MediaQuery.of(context).padding.top,
+              ),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 1. Header with Back Button
+                    const SizedBox(height: 24),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141416),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.04),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
 
-                const SizedBox(height: 40),
+                    const SizedBox(height: 40),
 
-                // 2. Hero Icon & Title
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF141416),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.04),
+                    // 2. Hero Icon & Title
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141416),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.04),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.lock_reset,
+                          color: Colors.white,
+                          size: 48,
+                        ),
                       ),
                     ),
-                    child: const Icon(
-                      Icons.lock_reset,
-                      color: Colors.white,
-                      size: 48,
+                    const SizedBox(height: 32),
+
+                    Text(
+                      "Reset Password",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -1,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 12),
+                    Text(
+                      "Enter the email associated with your account and we'll send you a link to reset your password.",
+                      style: GoogleFonts.inter(
+                        color: Colors.white38,
+                        fontSize: 14,
+                        height: 1.5,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+
+                    const SizedBox(height: 40),
+
+                    // 3. Email Input
+                    _buildLabel("EMAIL ADDRESS"),
+                    const SizedBox(height: 8),
+                    _buildInputField(
+                      controller: _emailController,
+                      hint: "name@company.com",
+                      icon: Icons.email_outlined,
+                    ),
+
+                    const SizedBox(height: 40),
+
+                    // 4. Send Button
+                    _buildSendButton(),
+
+                    const SizedBox(height: 40),
+
+                    const SizedBox(height: 24),
+                  ],
                 ),
-                const SizedBox(height: 32),
-
-                Text(
-                  "Reset Password",
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -1,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  "Enter the email associated with your account and we'll send you a link to reset your password.",
-                  style: GoogleFonts.inter(
-                    color: Colors.white38,
-                    fontSize: 14,
-                    height: 1.5,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-
-                const SizedBox(height: 40),
-
-                // 3. Email Input
-                _buildLabel("EMAIL ADDRESS"),
-                const SizedBox(height: 8),
-                _buildInputField(
-                  controller: _emailController,
-                  hint: "name@company.com",
-                  icon: Icons.email_outlined,
-                ),
-
-                const SizedBox(height: 40),
-
-                // 4. Send Button
-                _buildSendButton(),
-
-                const SizedBox(height: 40),
-
-                const SizedBox(height: 24),
-              ],
+              ),
             ),
           ),
         ),

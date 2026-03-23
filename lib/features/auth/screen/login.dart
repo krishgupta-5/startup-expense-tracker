@@ -67,80 +67,91 @@ class _LoginScreenState extends State<LoginScreen> {
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. Spacer
-                const SizedBox(height: 60),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight:
+                    MediaQuery.of(context).size.height -
+                    MediaQuery.of(context).viewInsets.bottom -
+                    MediaQuery.of(context).padding.top,
+              ),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 1. Spacer
+                    const SizedBox(height: 60),
 
-                // 2. Header (Clean - No Logo)
-                _buildHeader(),
+                    // 2. Header (Clean - No Logo)
+                    _buildHeader(),
 
-                const SizedBox(height: 48),
+                    const SizedBox(height: 48),
 
-                // 3. Login Form
-                _buildLabel("EMAIL ADDRESS"),
-                const SizedBox(height: 8),
-                _buildInputField(
-                  controller: _emailController,
-                  hint: "name@company.com",
-                  icon: Icons.email_outlined,
-                ),
+                    // 3. Login Form
+                    _buildLabel("EMAIL ADDRESS"),
+                    const SizedBox(height: 8),
+                    _buildInputField(
+                      controller: _emailController,
+                      hint: "name@company.com",
+                      icon: Icons.email_outlined,
+                    ),
 
-                const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-                _buildLabel("PASSWORD"),
-                const SizedBox(height: 8),
-                _buildPasswordField(),
+                    _buildLabel("PASSWORD"),
+                    const SizedBox(height: 8),
+                    _buildPasswordField(),
 
-                const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                // Forgot Password Link
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ForgotPasswordScreen(),
+                    // Forgot Password Link
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const ForgotPasswordScreen(),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          "Forgot Password?",
+                          style: GoogleFonts.inter(
+                            color: Colors.white54,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      );
-                    },
-                    child: Text(
-                      "Forgot Password?",
-                      style: GoogleFonts.inter(
-                        color: Colors.white54,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                  ),
+
+                    const SizedBox(height: 40),
+
+                    // 4. Login Button
+                    _buildLoginButton(),
+
+                    const SizedBox(height: 40),
+
+                    // 5. Divider
+                    _buildDivider(),
+
+                    const SizedBox(height: 32),
+
+                    // 6. Google Sign In (Single Button with Color Logo)
+                    _buildGoogleSignInButton(),
+
+                    const SizedBox(height: 40),
+
+                    // 7. Sign Up Footer
+                    _buildFooter(context),
+                    const SizedBox(height: 24),
+                  ],
                 ),
-
-                const SizedBox(height: 40),
-
-                // 4. Login Button
-                _buildLoginButton(),
-
-                const SizedBox(height: 40),
-
-                // 5. Divider
-                _buildDivider(),
-
-                const SizedBox(height: 32),
-
-                // 6. Google Sign In (Single Button with Color Logo)
-                _buildGoogleSignInButton(),
-
-                const Spacer(),
-
-                // 7. Sign Up Footer
-                _buildFooter(context),
-                const SizedBox(height: 24),
-              ],
+              ),
             ),
           ),
         ),
