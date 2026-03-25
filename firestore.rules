@@ -1,16 +1,67 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write access to authenticated users
-    match /{document=**} {
+    // Rate limiting collection - public for writing attempts
+    match /rate_limits/{email} {
       allow read, write: if request.auth != null;
     }
     
-    // Specific rules for companies collection
-    match /companies/{companyId} {
+    // Account security collection - restricted access
+    match /account_security/{email} {
       allow read, write: if request.auth != null;
-      // Optional: Only allow users to write their own company data
-      // allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // Auth logs collection - for audit trail
+    match /auth_logs/{logId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Users collection - email verification required
+    match /users/{userId} {
+      allow read, write: if request.auth != null 
+        && request.auth.uid == userId
+        && (request.auth.token.email_verified == true || 
+            request.auth.token.firebase.sign_in_provider == 'google.com');
+    }
+    
+    // Companies collection - email verification required
+    match /companies/{companyId} {
+      allow read: if request.auth != null 
+        && (request.auth.token.email_verified == true || 
+            request.auth.token.firebase.sign_in_provider == 'google.com');
+      allow write: if request.auth != null 
+        && (request.auth.token.email_verified == true || 
+            request.auth.token.firebase.sign_in_provider == 'google.com')
+        && request.auth.uid == resource.data.userId;
+    }
+    
+    // Expenses collection - email verification required
+    match /expenses/{expenseId} {
+      allow read, write: if request.auth != null 
+        && (request.auth.token.email_verified == true || 
+            request.auth.token.firebase.sign_in_provider == 'google.com')
+        && request.auth.uid == resource.data.userId;
+    }
+    
+    // Funding collection - email verification required
+    match /funding/{fundingId} {
+      allow read, write: if request.auth != null 
+        && (request.auth.token.email_verified == true || 
+            request.auth.token.firebase.sign_in_provider == 'google.com')
+        && request.auth.uid == resource.data.userId;
+    }
+    
+    // Team collection - email verification required
+    match /team/{teamId} {
+      allow read, write: if request.auth != null 
+        && (request.auth.token.email_verified == true || 
+            request.auth.token.firebase.sign_in_provider == 'google.com')
+        && request.auth.uid == resource.data.userId;
+    }
+    
+    // Default deny for any other collections
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
