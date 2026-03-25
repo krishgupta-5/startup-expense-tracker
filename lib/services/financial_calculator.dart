@@ -218,4 +218,17 @@ class FinancialCalculator {
     }
     return burn;
   }
+
+  /// Calculate percentage of amount relative to total
+  ///
+  /// [amount] - The amount to calculate percentage for
+  /// [total] - The total amount to calculate percentage against
+  /// Returns percentage as integer (0-100), rounded to nearest whole number
+  static int calculatePercentage({
+    required double amount,
+    required double total,
+  }) {
+    if (total <= 0) return 0;
+    return ((amount / total) * 100).round();
+  }
 }

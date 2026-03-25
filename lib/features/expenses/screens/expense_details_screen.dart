@@ -24,6 +24,16 @@ class ExpenseDetailsScreen extends StatefulWidget {
 }
 
 class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
+  double safeParse(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      return double.tryParse(value.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+    }
+    return 0.0;
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
@@ -80,7 +90,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   ) {
     // Safely extract data from Firebase
     final title = expenseData['Title'] ?? 'Unnamed Expense';
-    final amount = expenseData['Amount']?.toString() ?? '0.00';
+    final amount = safeParse(expenseData['Amount']);
     final rawCategory = expenseData['Category']?.toString() ?? 'General';
     final category = rawCategory.toUpperCase();
     final rawType = expenseData['Type']?.toString() ?? 'one_time';
@@ -128,7 +138,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                             _buildCategoryBadge(category),
                             const SizedBox(height: 24),
                             Text(
-                              "₹$amount",
+                              "₹${amount.toStringAsFixed(2)}",
                               style: GoogleFonts.inter(
                                 color: Colors.white,
                                 fontSize: 48,

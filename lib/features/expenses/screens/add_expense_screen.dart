@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../widgets/telegram_image_picker.dart';
+import '../../../utils/data_helpers.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   // ✅ Accept prefill data from scan screen
@@ -237,14 +238,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
       if (companyDoc.exists && companyDoc.data() != null) {
         final data = companyDoc.data()!;
-        final currentTotalExpenses =
-            double.tryParse(data["totalExpenses"]?.toString() ?? "0") ?? 0.0;
+        final currentTotalExpenses = DataHelpers.safeParseDouble(
+          data["totalExpenses"],
+        );
         final newTotalExpenses = currentTotalExpenses + expenseAmount;
 
         await FirebaseFirestore.instance
             .collection('companies')
             .doc(user.uid)
-            .update({"totalExpenses": newTotalExpenses.toString()});
+            .update({"totalExpenses": newTotalExpenses});
       }
     } catch (e) {
       debugPrint("Error updating totalExpenses: $e");
