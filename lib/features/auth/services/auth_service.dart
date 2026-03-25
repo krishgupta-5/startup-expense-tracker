@@ -34,7 +34,7 @@ class AuthService {
       return false;
     } catch (e) {
       developer.log('Rate limit check error: $e');
-      return false; // Fail open on errors
+      return true; // Fail closed for security
     }
   }
 
@@ -60,14 +60,14 @@ class AuthService {
             // Reset counter after 5 minutes
             transaction.set(rateLimitRef, {
               'attempts': success ? 0 : 1,
-              'lastAttempt': Timestamp.now(),
+              'lastAttempt': FieldValue.serverTimestamp(),
               'email': email.toLowerCase(),
             });
           } else {
             // Increment counter
             transaction.set(rateLimitRef, {
               'attempts': success ? 0 : attempts + 1,
-              'lastAttempt': Timestamp.now(),
+              'lastAttempt': FieldValue.serverTimestamp(),
               'email': email.toLowerCase(),
             });
           }
@@ -75,7 +75,7 @@ class AuthService {
           // First attempt
           transaction.set(rateLimitRef, {
             'attempts': success ? 0 : 1,
-            'lastAttempt': Timestamp.now(),
+            'lastAttempt': FieldValue.serverTimestamp(),
             'email': email.toLowerCase(),
           });
         }
@@ -110,7 +110,10 @@ class AuthService {
         await _firestore
             .collection('account_security')
             .doc(email.toLowerCase())
-            .update({'isLocked': false});
+            .update({
+              'isLocked': false,
+              'unlockedAt': FieldValue.serverTimestamp(),
+            });
         return false;
       }
 
@@ -133,7 +136,7 @@ class AuthService {
           .set({
             'isLocked': true,
             'lockUntil': Timestamp.fromDate(DateTime.now().add(duration)),
-            'lockedAt': Timestamp.now(),
+            'lockedAt': FieldValue.serverTimestamp(),
             'reason': 'multiple_failed_attempts',
             'email': email.toLowerCase(),
           }, SetOptions(merge: true));
@@ -153,7 +156,7 @@ class AuthService {
         'type': 'password_reset',
         'status': status, // 'requested', 'success', 'failed'
         'email': email.toLowerCase(),
-        'timestamp': Timestamp.now(),
+        'timestamp': FieldValue.serverTimestamp(),
         'userAgent': 'web', // Could be enhanced with actual user agent
         'error': error,
       });
@@ -162,10 +165,9 @@ class AuthService {
     }
   }
 
-  // Get normalized verification status
+  // Get normalized verification status - now always returns true
   static bool isEmailVerified(User user) {
-    return user.emailVerified ||
-        user.providerData.any((info) => info.providerId == 'google.com');
+    return true; // Email verification removed - always return true
   }
 
   // Force token refresh

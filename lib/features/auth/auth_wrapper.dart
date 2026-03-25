@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../auth/screen/login.dart';
-import '../auth/screen/verify_email_screen.dart';
 import '../auth/services/auth_service.dart';
 import '../company-setup/screen/company_setup_screen.dart';
 import '../navigation/screens/main_navigation_wrapper.dart';
@@ -32,7 +31,7 @@ class AuthWrapper extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance
-          .idTokenChanges(), // Better than authStateChanges for token refresh
+          .idTokenChanges(), // Better for detecting email verification changes
       builder: (context, snapshot) {
         // Show loading spinner while checking auth state
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -80,77 +79,92 @@ class AuthWrapper extends StatelessWidget {
           return const LoginScreen();
         }
 
-        // Session security check with normalized verification
-        final user = snapshot.data!;
-        if (!AuthService.isEmailVerified(user)) {
-          return const VerifyEmailScreen();
-        }
-
         // User is logged in, check if they have completed company setup
-        return StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .snapshots(),
-          builder: (context, userSnapshot) {
-            if (userSnapshot.connectionState == ConnectionState.waiting) {
+        return FutureBuilder<bool>(
+          future: AuthService.isSessionValid(),
+          builder: (context, sessionSnapshot) {
+            if (sessionSnapshot.connectionState == ConnectionState.waiting) {
               return _buildLoadingScreen();
             }
 
-            // Handle Firestore errors
-            if (userSnapshot.hasError) {
-              return Scaffold(
-                backgroundColor: const Color(0xFF09090B),
-                body: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: Colors.red,
-                        size: 48,
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        "Connection Error",
-                        style: TextStyle(color: Colors.white, fontSize: 18),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        "Please check your internet connection",
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: () {
-                          // Trigger rebuild by calling setState in parent
-                          (context as Element).markNeedsBuild();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black,
-                        ),
-                        child: const Text("Retry"),
-                      ),
-                    ],
-                  ),
-                ),
-              );
+            if (sessionSnapshot.data != true) {
+              return const LoginScreen();
             }
 
-            // If user document doesn't exist or company not set up, go to company setup
-            if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
-              return const CompanySetupScreen();
-            }
+            return StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(snapshot.data!.uid)
+                  .snapshots(),
+              builder: (context, userSnapshot) {
+                if (userSnapshot.connectionState == ConnectionState.waiting) {
+                  return _buildLoadingScreen();
+                }
 
-            final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+                // Handle Firestore errors
+                if (userSnapshot.hasError) {
+                  return Scaffold(
+                    backgroundColor: const Color(0xFF09090B),
+                    body: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 48,
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            "Connection Error",
+                            style: TextStyle(color: Colors.white, fontSize: 18),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            "Please check your internet connection",
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const AuthWrapper(),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.black,
+                            ),
+                            child: const Text("Retry"),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
 
-            if (userData == null || userData['companySetup'] != true) {
-              return const CompanySetupScreen();
-            }
+                // If user document doesn't exist or company not set up, go to company setup
+                if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+                  return const CompanySetupScreen();
+                }
 
-            // User has completed setup, go to main navigation
-            return const MainNavigationWrapper();
+                final userData =
+                    userSnapshot.data!.data() as Map<String, dynamic>?;
+
+                if (userData == null || userData['companySetup'] != true) {
+                  return const CompanySetupScreen();
+                }
+
+                // User has completed setup, go to main navigation
+                return const MainNavigationWrapper();
+              },
+            );
           },
         );
       },

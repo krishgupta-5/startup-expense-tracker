@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/features/auth/services/google_sign_in_service.dart';
 import 'package:startup_expense_tracker/shared/utils/error_handler.dart';
 import 'login.dart';
+import 'package:startup_expense_tracker/features/company-setup/screen/company_setup_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -69,17 +70,33 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       final User? user = userCredential.user;
       if (user != null) {
-        // Send email verification
-        await user.sendEmailVerification();
-
         // Create Firestore user document
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'uid': user.uid,
           'email': user.email ?? '',
           'provider': 'email',
-          'createdAt': Timestamp.now(),
-          'updatedAt': Timestamp.now(),
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
         });
+
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF30D158),
+              content: Text(
+                'Account created successfully!',
+                style: GoogleFonts.inter(color: Colors.white),
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+
+          // Navigate to company setup screen directly
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
+          );
+        }
       }
 
       // Do nothing, AuthWrapper will handle navigation

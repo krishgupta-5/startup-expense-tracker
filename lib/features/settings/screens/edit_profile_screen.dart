@@ -81,7 +81,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         "phone": _phoneController.text.trim(),
         "location": _locationController.text.trim(),
         "uid": uid,
-        "updatedAt": Timestamp.now(),
+        "updatedAt": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
       // Sync name to companies collection
@@ -115,7 +115,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             .doc(companySnapshot.docs.first.id)
             .set({
               "Owner Name": _nameController.text.trim(),
-              "updatedAt": Timestamp.now(),
+              "updatedAt": FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
       }
     } catch (e) {

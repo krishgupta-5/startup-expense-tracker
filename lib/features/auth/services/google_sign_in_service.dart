@@ -27,6 +27,7 @@ class GoogleSignInService {
       // Create a new credential
       final OAuthCredential credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
+        // accessToken: googleAuth.accessToken, // TODO: Check if available in current version
       );
 
       // Sign in to Firebase with the Google credential
