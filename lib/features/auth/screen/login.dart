@@ -76,6 +76,9 @@ class _LoginScreenState extends State<LoginScreen> {
       // Record failed login
       await AuthService.recordLoginAttempt(email, false);
 
+      // Increment login attempt counter
+      _loginAttempts++;
+
       // Lock account after multiple failures
       if (e.code == 'too-many-requests' || _loginAttempts >= 4) {
         await AuthService.lockAccountTemporarily(
@@ -92,6 +95,9 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       // Record failed login
       await AuthService.recordLoginAttempt(email, false);
+
+      // Increment login attempt counter
+      _loginAttempts++;
 
       ErrorHandler.handleError(
         context: context,

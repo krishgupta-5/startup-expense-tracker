@@ -149,7 +149,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
 
       await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
         "name": _ownerNameController.text.trim(),
-        "updatedAt": Timestamp.now(),
+        "updatedAt": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
       log('Owner name sync error: $e');

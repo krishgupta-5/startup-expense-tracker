@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
@@ -12,6 +13,33 @@ class VerifyEmailScreen extends StatefulWidget {
 
 class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   bool _isResending = false;
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Start periodic refresh to check verification status
+    _startPeriodicRefresh();
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startPeriodicRefresh() {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      if (mounted) {
+        try {
+          await FirebaseAuth.instance.currentUser?.reload();
+          setState(() {});
+        } catch (e) {
+          // Ignore errors during periodic refresh
+        }
+      }
+    });
+  }
 
   Future<void> _resendVerificationEmail() async {
     setState(() {
@@ -133,7 +161,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                             width: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.black,
+                              ),
                             ),
                           )
                         : Text(
@@ -143,6 +173,170 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // I've Verified Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      setState(() {
+                        _isResending = true; // Use loading state
+                      });
+
+                      try {
+                        // Force reload multiple times to ensure we get latest status
+                        await FirebaseAuth.instance.currentUser?.reload();
+                        await Future.delayed(
+                          const Duration(milliseconds: 500),
+                        ); // Small delay
+                        await FirebaseAuth.instance.currentUser?.reload();
+
+                        // Check if email is now verified
+                        final user = FirebaseAuth.instance.currentUser;
+                        if (user != null && user.emailVerified) {
+                          // Email is verified, AuthWrapper will handle navigation
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: const Color(0xFF30D158),
+                                content: Text(
+                                  'Email verified! Redirecting...',
+                                  style: GoogleFonts.inter(color: Colors.white),
+                                ),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        } else {
+                          // Email not verified yet
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: const Color(0xFFFF3B30),
+                                content: Text(
+                                  'Email not verified yet. Please check your inbox (including spam folder) and try again.',
+                                  style: GoogleFonts.inter(color: Colors.white),
+                                ),
+                                duration: const Duration(seconds: 4),
+                              ),
+                            );
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              backgroundColor: const Color(0xFFFF3B30),
+                              content: Text(
+                                'Error checking verification status. Please try again.',
+                                style: GoogleFonts.inter(color: Colors.white),
+                              ),
+                            ),
+                          );
+                        }
+                      } finally {
+                        if (mounted) {
+                          setState(() {
+                            _isResending = false;
+                          });
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF30D158),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      "I've Verified",
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Force Refresh Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      setState(() {
+                        _isResending = true;
+                      });
+
+                      try {
+                        // Force sign out and sign back in to trigger token refresh
+                        final user = FirebaseAuth.instance.currentUser;
+                        final email = user?.email;
+
+                        if (email != null) {
+                          await FirebaseAuth.instance.signOut();
+
+                          // Small delay then sign back in
+                          await Future.delayed(
+                            const Duration(milliseconds: 500),
+                          );
+
+                          // This will trigger AuthWrapper to show login screen
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                backgroundColor: const Color(0xFF30D158),
+                                content: Text(
+                                  'Please sign in again to refresh your verification status.',
+                                  style: GoogleFonts.inter(color: Colors.white),
+                                ),
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              backgroundColor: const Color(0xFFFF3B30),
+                              content: Text(
+                                'Error refreshing session. Please try again.',
+                                style: GoogleFonts.inter(color: Colors.white),
+                              ),
+                            ),
+                          );
+                        }
+                      } finally {
+                        if (mounted) {
+                          setState(() {
+                            _isResending = false;
+                          });
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF007AFF),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: Text(
+                      "Force Refresh",
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
