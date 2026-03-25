@@ -20,14 +20,16 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   final int _totalPages = 6;
   bool _isFinishing = false;
 
-  // Validation State for Categories
-  bool _showCategoryError = false;
+  // --- VALIDATION STATE ---
+  final Set<String> _errors = {};
 
   // --- CONTROLLERS & STATE ---
 
   // Step 1: Identity
   final _ownerNameController = TextEditingController();
   final _companyNameController = TextEditingController();
+  final _mobileController = TextEditingController();
+  final _countryController = TextEditingController();
 
   // Step 2: Legal & Loc
   final _addressController = TextEditingController();
@@ -75,6 +77,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     _pageController.dispose();
     _ownerNameController.dispose();
     _companyNameController.dispose();
+    _mobileController.dispose();
+    _countryController.dispose();
     _addressController.dispose();
     _workDescController.dispose();
     _fundingController.dispose();
@@ -100,8 +104,82 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     if (_bankAccounts.length > 1) {
       setState(() {
         _bankAccounts.removeAt(index);
+        // Clear potential errors for removed fields
+        _errors.remove('bank_name_$index');
+        _errors.remove('bank_num_$index');
       });
     }
+  }
+
+  // Helper to remove error when user types
+  void _clearError(String key) {
+    if (_errors.contains(key)) {
+      setState(() => _errors.remove(key));
+    }
+  }
+
+  // --- VALIDATION LOGIC ---
+  bool _validateCurrentStep() {
+    setState(() {
+      _errors.clear();
+    });
+
+    bool isValid = true;
+
+    switch (_currentPage) {
+      case 0: // Identity
+        if (_ownerNameController.text.trim().isEmpty) _errors.add('owner');
+        if (_mobileController.text.trim().isEmpty) _errors.add('mobile');
+        if (_countryController.text.trim().isEmpty) _errors.add('country');
+        if (_companyNameController.text.trim().isEmpty) _errors.add('company');
+        isValid = _errors.isEmpty;
+        break;
+
+      case 1: // Structure
+        if (_selectedCompanyType == null) _errors.add('type');
+        if (_workDescController.text.trim().isEmpty) _errors.add('work');
+        if (_addressController.text.trim().isEmpty) _errors.add('address');
+        isValid = _errors.isEmpty;
+        break;
+
+      case 2: // Financials
+        if (_fundingController.text.trim().isEmpty) _errors.add('funding');
+        if (_runwayController.text.trim().isEmpty) _errors.add('runway');
+        isValid = _errors.isEmpty;
+        break;
+
+      case 3: // Bank
+        for (var i = 0; i < _bankAccounts.length; i++) {
+          if (_bankAccounts[i]["name"]!.text.trim().isEmpty)
+            _errors.add('bank_name_$i');
+          if (_bankAccounts[i]["number"]!.text.trim().isEmpty)
+            _errors.add('bank_num_$i');
+        }
+        isValid = _errors.isEmpty;
+        break;
+
+      case 4: // Categories
+        if (_selectedCategories.isEmpty) {
+          _errors.add('categories');
+          isValid = false;
+        }
+        break;
+
+      case 5: // Team
+        if (_departments.isEmpty) {
+          _errors.add('departments');
+          isValid = false;
+        }
+        break;
+    }
+
+    if (!isValid) {
+      // Trigger a rebuild to activate the ShakeWidgets
+      setState(() {});
+      HapticFeedback.heavyImpact(); // Add physical feedback for errors
+    }
+
+    return isValid;
   }
 
   Future<void> uploadCompanyData() async {
@@ -118,6 +196,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       await FirebaseFirestore.instance.collection('companies').doc(userId).set({
         "uid": FirebaseAuth.instance.currentUser!.uid,
         "Owner Name": _ownerNameController.text.trim(),
+        "Mobile Number": _mobileController.text.trim(),
+        "Country Location": _countryController.text.trim(),
         "Company Name": _companyNameController.text.trim(),
         "Company Type": _selectedCompanyType,
         "Company Work": _workDescController.text.trim(),
@@ -136,10 +216,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         "createdAt": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      log(
-        "Company setup completed successfully - AuthWrapper will handle navigation",
-      );
-      // Force navigation by triggering a state change that AuthWrapper will detect
       log("Company setup completed successfully");
     } catch (e) {
       log('Company setup error: $e');
@@ -149,42 +225,40 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: const Color(0xFF09090B),
       resizeToAvoidBottomInset: true,
-      body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
-        child: SafeArea(
-          child: Column(
-            children: [
-              // 1. Header (Progress + Back)
-              _buildHeader(),
-
-              // 2. Swipeable Content
-              Expanded(
-                child: PageView(
-                  controller: _pageController,
-                  physics: const BouncingScrollPhysics(),
-                  onPageChanged: (page) {
-                    setState(() {
-                      _currentPage = page;
-                      // Reset error when user swipes away
-                      if (page != 4) _showCategoryError = false;
-                    });
-                  },
-                  children: [
-                    _buildStep1Identity(),
-                    _buildStep2Legal(),
-                    _buildStep3Financials(),
-                    _buildStep4Bank(),
-                    _buildStep5Categories(),
-                    _buildStep6Team(),
-                  ],
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle.light,
+          child: SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(),
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    physics: const BouncingScrollPhysics(),
+                    onPageChanged: (page) {
+                      FocusScope.of(context).unfocus();
+                      setState(() {
+                        _currentPage = page;
+                        _errors.clear(); // Clear errors on page swipe
+                      });
+                    },
+                    children: [
+                      _buildStep1Identity(),
+                      _buildStep2Legal(),
+                      _buildStep3Financials(),
+                      _buildStep4Bank(),
+                      _buildStep5Categories(),
+                      _buildStep6Team(),
+                    ],
+                  ),
                 ),
-              ),
-
-              // 3. Navigation Footer
-              _buildFooter(),
-            ],
+                _buildFooter(),
+              ],
+            ),
           ),
         ),
       ),
@@ -199,10 +273,37 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       subtitle: "Let's start with the basics.",
       children: [
         _buildLabel("OWNER NAME"),
-        _buildInputField(_ownerNameController, "Your Full Name"),
+        _buildInputField(
+          _ownerNameController,
+          "Your Full Name",
+          "owner",
+          icon: Icons.person_outline,
+        ),
+        const SizedBox(height: 32),
+        _buildLabel("MOBILE NUMBER"),
+        _buildInputField(
+          _mobileController,
+          "+1 234 567 8900",
+          "mobile",
+          isNumber: true,
+          icon: Icons.phone_outlined,
+        ),
+        const SizedBox(height: 32),
+        _buildLabel("COUNTRY LOCATION"),
+        _buildInputField(
+          _countryController,
+          "United States",
+          "country",
+          icon: Icons.public,
+        ),
         const SizedBox(height: 32),
         _buildLabel("COMPANY NAME"),
-        _buildInputField(_companyNameController, "Startup Name"),
+        _buildInputField(
+          _companyNameController,
+          "Startup Name",
+          "company",
+          icon: Icons.business,
+        ),
       ],
     );
   }
@@ -213,35 +314,72 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       subtitle: "Legal details and location.",
       children: [
         _buildLabel("COMPANY TYPE"),
-        ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: double.infinity),
-          child: ShadSelect<String>(
-            placeholder: Text(
-              'Select company type',
-              style: GoogleFonts.inter(color: Colors.white24, fontSize: 16),
-            ),
-            options: [
-              ...companyTypes.entries.map(
-                (e) => ShadOption(value: e.key, child: Text(e.value)),
+        ShakeWidget(
+          shake: _errors.contains('type'),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: double.infinity),
+            child: ShadSelect<String>(
+              placeholder: Text(
+                'Select company type',
+                style: GoogleFonts.inter(
+                  color: _errors.contains('type')
+                      ? const Color(0xFFFF453A).withValues(alpha: 0.6)
+                      : Colors.white60,
+                  fontSize: 15,
+                ),
               ),
-            ],
-            selectedOptionBuilder: (context, value) => Text(
-              companyTypes[value]!,
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+              decoration: ShadDecoration(
+                color: const Color(0xFF141416),
+                border: ShadBorder.all(
+                  color: _errors.contains('type')
+                      ? const Color(0xFFFF453A)
+                      : Colors.white.withValues(alpha: 0.1),
+                  width: 1,
+                ),
+              ),
+              options: [
+                ...companyTypes.entries.map(
+                  (e) => ShadOption(
+                    value: e.key,
+                    child: Text(
+                      e.value,
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              selectedOptionBuilder: (context, value) => Text(
+                companyTypes[value]!,
+                style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _selectedCompanyType = value;
+                  _clearError('type');
+                });
+              },
             ),
-            onChanged: (value) {
-              setState(() {
-                _selectedCompanyType = value;
-              });
-            },
           ),
         ),
         const SizedBox(height: 32),
         _buildLabel("WHAT IS THE WORK?"),
-        _buildTextArea(_workDescController, "e.g. SaaS Platform..."),
+        _buildTextArea(
+          _workDescController,
+          "e.g. SaaS Platform...",
+          "work",
+          icon: Icons.description_outlined,
+        ),
         const SizedBox(height: 32),
         _buildLabel("REGISTERED ADDRESS"),
-        _buildTextArea(_addressController, "Full Address..."),
+        _buildTextArea(
+          _addressController,
+          "Full Address...",
+          "address",
+          icon: Icons.location_on_outlined,
+        ),
       ],
     );
   }
@@ -251,47 +389,68 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       title: "Runway",
       subtitle: "Current financial health.",
       children: [
-        Center(
-          child: Column(
-            children: [
-              Text(
-                "TOTAL FUNDS LEFT",
-                style: GoogleFonts.inter(
-                  color: Colors.white24,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 16),
-              IntrinsicWidth(
-                child: TextField(
-                  controller: _fundingController,
-                  keyboardType: TextInputType.number,
-                  textAlign: TextAlign.center,
+        ShakeWidget(
+          shake: _errors.contains('funding'),
+          child: Center(
+            child: Column(
+              children: [
+                Text(
+                  "TOTAL FUNDS LEFT",
                   style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 48,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  decoration: InputDecoration(
-                    prefixText: "₹ ",
-                    prefixStyle: GoogleFonts.inter(
-                      color: Colors.white38,
-                      fontSize: 48,
-                    ),
-                    hintText: "0",
-                    hintStyle: GoogleFonts.inter(color: Colors.white12),
-                    border: InputBorder.none,
+                    color: _errors.contains('funding')
+                        ? const Color(0xFFFF453A)
+                        : Colors.white70,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                IntrinsicWidth(
+                  child: TextField(
+                    controller: _fundingController,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    onChanged: (_) => _clearError('funding'),
+                    style: GoogleFonts.inter(
+                      color: _errors.contains('funding')
+                          ? const Color(0xFFFF453A)
+                          : Colors.white,
+                      fontSize: 48,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: InputDecoration(
+                      prefixText: "₹ ",
+                      prefixStyle: GoogleFonts.inter(
+                        color: _errors.contains('funding')
+                            ? const Color(0xFFFF453A)
+                            : Colors.white70,
+                        fontSize: 48,
+                      ),
+                      hintText: "0",
+                      hintStyle: GoogleFonts.inter(
+                        color: _errors.contains('funding')
+                            ? const Color(0xFFFF453A).withValues(alpha: 0.4)
+                            : Colors.white60,
+                        fontSize: 48,
+                      ),
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 60),
         _buildLabel("TARGET RUNWAY (MONTHS)"),
-        _buildInputField(_runwayController, "e.g. 18", isNumber: true),
+        _buildInputField(
+          _runwayController,
+          "e.g. 18",
+          "runway",
+          isNumber: true,
+          icon: Icons.timeline,
+        ),
       ],
     );
   }
@@ -313,7 +472,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     Text(
                       "ACCOUNT 0${index + 1}",
                       style: GoogleFonts.inter(
-                        color: Colors.white24,
+                        color: Colors.white70,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.5,
@@ -337,12 +496,16 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 _buildInputField(
                   _bankAccounts[index]["name"]!,
                   "Bank Name (e.g. HDFC)",
+                  "bank_name_$index",
+                  icon: Icons.account_balance_outlined,
                 ),
                 const SizedBox(height: 12),
                 _buildInputField(
                   _bankAccounts[index]["number"]!,
                   "Account Number",
+                  "bank_num_$index",
                   isNumber: true,
+                  icon: Icons.numbers,
                 ),
               ],
             ),
@@ -379,6 +542,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   }
 
   Widget _buildStep5Categories() {
+    final hasError = _errors.contains('categories');
+
     return _buildPageContainer(
       title: "Categories",
       subtitle: "What do you spend money on?",
@@ -387,15 +552,13 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         child: AnimatedDefaultTextStyle(
           duration: const Duration(milliseconds: 200),
           style: GoogleFonts.inter(
-            color: _showCategoryError
-                ? const Color(0xFFFF453A)
-                : Colors.white38, // Text turns RED on error
+            color: hasError ? const Color(0xFFFF453A) : Colors.white70,
             fontSize: 12,
             fontWeight: FontWeight.w500,
           ),
           child: Row(
             children: [
-              if (_showCategoryError) ...[
+              if (hasError) ...[
                 const Icon(
                   Icons.error_outline,
                   color: Color(0xFFFF453A),
@@ -404,7 +567,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 const SizedBox(width: 6),
               ],
               Text(
-                _showCategoryError
+                hasError
                     ? "Please select at least one category"
                     : "Select all that apply",
               ),
@@ -413,56 +576,64 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         ),
       ),
       children: [
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: _allCategories.map((cat) {
-            final isSelected = _selectedCategories.contains(cat);
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  isSelected
-                      ? _selectedCategories.remove(cat)
-                      : _selectedCategories.add(cat);
-                  // Hide error as soon as user selects something
-                  if (_selectedCategories.isNotEmpty) {
-                    _showCategoryError = false;
-                  }
-                });
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? Colors.white : const Color(0xFF141416),
-                  borderRadius: BorderRadius.circular(24),
-                  // BORDER LOGIC SIMPLIFIED: No red border on error, just standard selection
-                  border: Border.all(
-                    color: isSelected
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.1),
+        ShakeWidget(
+          shake: hasError,
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: _allCategories.map((cat) {
+              final isSelected = _selectedCategories.contains(cat);
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    isSelected
+                        ? _selectedCategories.remove(cat)
+                        : _selectedCategories.add(cat);
+                    if (_selectedCategories.isNotEmpty)
+                      _clearError('categories');
+                  });
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.white : const Color(0xFF141416),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: isSelected
+                          ? Colors.white
+                          : (hasError
+                                ? const Color(0xFFFF453A)
+                                : Colors.white.withValues(alpha: 0.1)),
+                    ),
+                  ),
+                  child: Text(
+                    cat,
+                    style: GoogleFonts.inter(
+                      color: isSelected
+                          ? Colors.black
+                          : (hasError
+                                ? const Color(0xFFFF453A)
+                                : Colors.white70),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
-                child: Text(
-                  cat,
-                  style: GoogleFonts.inter(
-                    color: isSelected ? Colors.black : Colors.white70,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
+              );
+            }).toList(),
+          ),
         ),
       ],
     );
   }
 
   Widget _buildStep6Team() {
+    final hasError = _errors.contains('departments');
+
     return _buildPageContainer(
       title: "Departments",
       subtitle: "Who spends the money?",
@@ -475,7 +646,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               decoration: BoxDecoration(
                 color: const Color(0xFF141416),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -488,7 +659,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     onTap: () => setState(() => _departments.remove(dept)),
                     child: const Icon(
                       Icons.close,
-                      color: Colors.white38,
+                      color: Colors.white60,
                       size: 18,
                     ),
                   ),
@@ -498,35 +669,44 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildInputField(_deptController, "Add Dept (e.g. Sales)"),
-            ),
-            const SizedBox(width: 12),
-            GestureDetector(
-              onTap: () {
-                if (_deptController.text.isNotEmpty) {
-                  setState(() {
-                    _departments.add(_deptController.text);
-                    _deptController.clear();
-                  });
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(
-                  Icons.arrow_upward,
-                  color: Colors.black,
-                  size: 20,
+        ShakeWidget(
+          shake: hasError,
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildInputField(
+                  _deptController,
+                  "Add Dept (e.g. Sales)",
+                  "departments",
+                  icon: Icons.domain_add,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: () {
+                  if (_deptController.text.isNotEmpty) {
+                    setState(() {
+                      _departments.add(_deptController.text);
+                      _deptController.clear();
+                      _clearError('departments');
+                    });
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: hasError ? const Color(0xFFFF453A) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(
+                    Icons.arrow_upward,
+                    color: hasError ? Colors.white : Colors.black,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -539,7 +719,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Column(
         children: [
-          // Segmented Progress Bar
           Row(
             children: List.generate(_totalPages, (index) {
               return Expanded(
@@ -558,9 +737,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             }),
           ),
           const SizedBox(height: 24),
-          // Clean Navigation Row
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.start,
             children: [
               if (_currentPage > 0)
                 GestureDetector(
@@ -568,28 +746,24 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeInOut,
                   ),
-                  child: const Icon(
-                    Icons.arrow_back,
-                    color: Colors.white,
-                    size: 24,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF141416),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 )
               else
-                const SizedBox(width: 24),
-
-              if (_currentPage == 5)
-                GestureDetector(
-                  onTap: () {
-                    // Skip Logic
-                  },
-                  child: Text(
-                    "Skip",
-                    style: GoogleFonts.inter(
-                      color: Colors.white54,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
+                const SizedBox(height: 38),
             ],
           ),
         ],
@@ -622,10 +796,13 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             const SizedBox(height: 8),
             Text(
               subtitle,
-              style: GoogleFonts.inter(color: Colors.white54, fontSize: 16),
+              style: GoogleFonts.inter(
+                color: Colors.white70,
+                fontSize: 16,
+              ), // MATCHES LABELS
             ),
             const SizedBox(height: 24),
-            ?extraHeader,
+            if (extraHeader != null) extraHeader,
             ...children,
             const SizedBox(height: 100),
           ],
@@ -654,16 +831,11 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           onPressed: _isFinishing
               ? null
               : () async {
-                  // Validation for Categories
-                  if (_currentPage == 4 && _selectedCategories.isEmpty) {
-                    setState(() {
-                      _showCategoryError = true;
-                    });
-                    return; // Stop navigation
-                  }
+                  FocusScope.of(context).unfocus();
 
-                  // Validation passed or not required
-                  setState(() => _showCategoryError = false);
+                  if (!_validateCurrentStep()) {
+                    return; // Stop if validation fails (Shake animation handles feedback)
+                  }
 
                   if (_currentPage < _totalPages - 1) {
                     _pageController.nextPage(
@@ -671,14 +843,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                       curve: Curves.easeInOut,
                     );
                   } else {
-                    // Prevent double taps
                     setState(() => _isFinishing = true);
-
-                    // Finish Logic - Upload data and let AuthWrapper handle navigation
                     await uploadCompanyData();
-
                     if (!mounted) return;
-
                     Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(
@@ -690,19 +857,31 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 },
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.white,
+            disabledBackgroundColor: Colors.white70,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
             elevation: 0,
           ),
-          child: Text(
-            _currentPage == _totalPages - 1 ? "Finish Setup" : "Next Step",
-            style: GoogleFonts.inter(
-              color: Colors.black,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
+          child: _isFinishing
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                  ),
+                )
+              : Text(
+                  _currentPage == _totalPages - 1
+                      ? "Finish Setup"
+                      : "Next Step",
+                  style: GoogleFonts.inter(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
         ),
       ),
     );
@@ -714,7 +893,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       child: Text(
         text,
         style: GoogleFonts.inter(
-          color: Colors.white38,
+          color: Colors.white70, // MATCHES LOGIN LABELS
           fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
@@ -723,53 +902,173 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     );
   }
 
+  // --- UPDATED TO MATCH LOGIN UI WITH ICONS AND PADDING ---
   Widget _buildInputField(
     TextEditingController controller,
-    String hint, {
+    String hint,
+    String errorKey, {
     bool isNumber = false,
+    IconData? icon, // Optional Icon Parameter added
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-      ),
-      child: TextField(
-        controller: controller,
-        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-        cursorColor: Colors.white,
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: GoogleFonts.inter(color: Colors.white24),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+    final hasError = _errors.contains(errorKey);
+
+    return ShakeWidget(
+      shake: hasError,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: hasError
+                ? const Color(0xFFFF453A)
+                : Colors.white.withValues(alpha: 0.1), // MATCHES LOGIN BORDER
+          ),
+        ),
+        child: TextField(
+          controller: controller,
+          keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+          onChanged: (_) => _clearError(errorKey),
+          style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+          cursorColor: Colors.white,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: GoogleFonts.inter(
+              color: hasError
+                  ? const Color(0xFFFF453A).withValues(alpha: 0.6)
+                  : Colors.white60,
+              fontSize: 15,
+            ),
+            // Replicates the sleek icon from your Login page
+            icon: icon != null
+                ? Icon(
+                    icon,
+                    color: hasError ? const Color(0xFFFF453A) : Colors.white60,
+                    size: 20,
+                  )
+                : null,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 16,
+            ), // MATCHES LOGIN PADDING
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildTextArea(TextEditingController controller, String hint) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-      ),
-      child: TextField(
-        controller: controller,
-        maxLines: 3,
-        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-        cursorColor: Colors.white,
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: GoogleFonts.inter(color: Colors.white24),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+  // --- UPDATED TO MATCH LOGIN UI WITH ICONS AND PADDING ---
+  Widget _buildTextArea(
+    TextEditingController controller,
+    String hint,
+    String errorKey, {
+    IconData? icon,
+  }) {
+    final hasError = _errors.contains(errorKey);
+
+    return ShakeWidget(
+      shake: hasError,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: hasError
+                ? const Color(0xFFFF453A)
+                : Colors.white.withValues(alpha: 0.1), // MATCHES LOGIN BORDER
+          ),
+        ),
+        child: TextField(
+          controller: controller,
+          maxLines: 3,
+          onChanged: (_) => _clearError(errorKey),
+          style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+          cursorColor: Colors.white,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: GoogleFonts.inter(
+              color: hasError
+                  ? const Color(0xFFFF453A).withValues(alpha: 0.6)
+                  : Colors.white60,
+              fontSize: 15,
+            ),
+            // Replicates the sleek icon from your Login page
+            icon: icon != null
+                ? Icon(
+                    icon,
+                    color: hasError ? const Color(0xFFFF453A) : Colors.white60,
+                    size: 20,
+                  )
+                : null,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 16,
+            ), // MATCHES LOGIN PADDING
+          ),
         ),
       ),
+    );
+  }
+}
+
+// --- SHAKE ANIMATION WIDGET ---
+class ShakeWidget extends StatefulWidget {
+  final Widget child;
+  final bool shake;
+
+  const ShakeWidget({super.key, required this.child, required this.shake});
+
+  @override
+  State<ShakeWidget> createState() => _ShakeWidgetState();
+}
+
+class _ShakeWidgetState extends State<ShakeWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _animation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 8.0), weight: 1),
+      TweenSequenceItem(tween: Tween(begin: 8.0, end: -8.0), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -8.0, end: 8.0), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: 8.0, end: -4.0), weight: 2),
+      TweenSequenceItem(tween: Tween(begin: -4.0, end: 0.0), weight: 1),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void didUpdateWidget(ShakeWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.shake && !oldWidget.shake) {
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(_animation.value, 0),
+          child: child,
+        );
+      },
+      child: widget.child,
     );
   }
 }
