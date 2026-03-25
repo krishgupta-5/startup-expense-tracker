@@ -23,52 +23,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  Future<void> _signInWithGoogle() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final UserCredential? userCredential =
-          await GoogleSignInService.signInWithGoogle();
-
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-
-        if (userCredential != null) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
-          );
-        } else {
-          ErrorHandler.handleAuthError(
-            context: context,
-            error: FirebaseAuthException(
-              code: 'invalid-credential',
-              message: 'Google sign-in was cancelled or failed.',
-            ),
-            onRetry: _signInWithGoogle,
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-
-        ErrorHandler.handleError(
-          context: context,
-          error: e,
-          customMessage: 'Failed to sign in with Google. Please try again.',
-          onRetry: _signInWithGoogle,
-        );
-      }
-    }
-  }
-
   Future<void> createUserWithEmailAndPassword() async {
     if (_passwordController.text.trim() !=
         _confirmPasswordController.text.trim()) {
@@ -469,7 +423,57 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   Widget _buildGoogleSignInButton() {
     return GestureDetector(
-      onTap: _signInWithGoogle,
+      onTap: () async {
+        setState(() {
+          _isLoading = true;
+        });
+
+        try {
+          final UserCredential? userCredential =
+              await GoogleSignInService.signInWithGoogle();
+
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+
+            if (userCredential != null) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CompanySetupScreen(),
+                ),
+              );
+            } else {
+              ErrorHandler.handleAuthError(
+                context: context,
+                error: FirebaseAuthException(
+                  code: 'invalid-credential',
+                  message: 'Google sign-in was cancelled or failed.',
+                ),
+                onRetry: () async {
+                  // Retry logic can be implemented here if needed
+                },
+              );
+            }
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+
+            ErrorHandler.handleError(
+              context: context,
+              error: e,
+              customMessage: 'Failed to sign in with Google. Please try again.',
+              onRetry: () async {
+                // Retry logic can be implemented here if needed
+              },
+            );
+          }
+        }
+      },
       child: Container(
         width: double.infinity,
         height: 56,

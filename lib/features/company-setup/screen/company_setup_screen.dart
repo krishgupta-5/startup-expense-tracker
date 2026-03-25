@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:startup_expense_tracker/features/navigation/screens/main_navigation_wrapper.dart';
+import 'dart:developer';
 
 class CompanySetupScreen extends StatefulWidget {
   const CompanySetupScreen({super.key});
@@ -135,13 +136,13 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         "createdAt": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      print(
+      log(
         "Company setup completed successfully - AuthWrapper will handle navigation",
       );
       // Force navigation by triggering a state change that AuthWrapper will detect
-      print("Company setup completed successfully");
+      log("Company setup completed successfully");
     } catch (e) {
-      print(e);
+      log('Company setup error: $e');
     }
   }
 

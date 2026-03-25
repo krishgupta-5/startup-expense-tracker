@@ -213,7 +213,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   itemCount: _months.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 8),
                   itemBuilder: (context, index) {
                     final key = _months.keys.elementAt(index);
                     final label = _months[key]!;
@@ -269,7 +270,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   itemCount: _categories.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 8),
                   itemBuilder: (context, index) {
                     final key = _categories.keys.elementAt(index);
                     final label = _categories[key]!;

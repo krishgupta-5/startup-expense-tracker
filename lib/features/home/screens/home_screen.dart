@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 // Required for FontFeature
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:developer';
 
 import 'runway_estimation_screen.dart';
 import 'funds_overview_screen.dart';
@@ -328,7 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      // Error fetching expenses: $e
+      log("Error fetching expenses: $e");
     }
   }
 
@@ -365,7 +366,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      // Error loading financial data: $e
+      log("Error loading financial data: $e");
       if (mounted) {
         setState(() {
           _isPieChartLoading = false;

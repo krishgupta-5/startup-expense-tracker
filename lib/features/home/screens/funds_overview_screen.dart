@@ -3,7 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'AddBankAccountScreen.dart';
+import 'dart:developer';
+import 'add_bank_account_screen.dart';
 import '../../expenses/screens/expense_details_screen.dart';
 
 class FundsOverviewScreen extends StatefulWidget {
@@ -81,7 +82,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         });
       }
     } catch (e) {
-      print("Error fetching funding history: $e");
+      log("Error fetching funding history: $e");
     }
   }
 
@@ -142,7 +143,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         }).toList();
       });
     } catch (e) {
-      print("Error fetching expenses: $e");
+      log("Error fetching expenses: $e");
     }
   }
 
@@ -193,7 +194,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         });
       }
     } catch (e) {
-      print("Error fetching bank accounts: $e");
+      log("Error fetching bank accounts: $e");
       setState(() => bankAccounts = []);
     }
   }
@@ -823,7 +824,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   Widget _buildCashFlowSection() {
     final totalOutflow = cashFlowBreakdown
         .where((item) => item['amount'] < 0)
-        .fold<int>(0, (sum, item) => sum + (item['amount'] as int));
+        .fold<int>(0, (total, item) => total + (item['amount'] as int));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

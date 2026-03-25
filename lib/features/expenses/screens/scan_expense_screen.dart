@@ -401,7 +401,7 @@ Rules:
 
   Map<String, String> _extractFieldsWithRegex(String text) {
     String field(String key) {
-      final match = RegExp('"$key"s*:s*"([^"]*)"').firstMatch(text);
+      final match = RegExp('"$key"\\s*:\\s*"([^"]*)"').firstMatch(text);
       return match?.group(1)?.trim() ?? '';
     }
 
@@ -431,8 +431,12 @@ Rules:
     if (data['merchant']?.isNotEmpty == true) {
       lines.add('🏪  ${data['merchant']}');
     }
-    if (data['amount']?.isNotEmpty == true) lines.add('💰  ₹${data['amount']}');
-    if (data['date']?.isNotEmpty == true) lines.add('📅  ${data['date']}');
+    if (data['amount']?.isNotEmpty == true) {
+      lines.add('  ₹${data['amount']}');
+    }
+    if (data['date']?.isNotEmpty == true) {
+      lines.add('📅  ${data['date']}');
+    }
     if (data['category']?.isNotEmpty == true) {
       lines.add('🏷️  ${_capitalize(data['category']!)}');
     }

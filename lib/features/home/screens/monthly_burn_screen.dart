@@ -30,7 +30,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
   List<Map<String, dynamic>>? _rawTeamsData;
   Map<String, double>? _actualSpendingPerTeam;
 
-  bool _isRefreshing = true;
+  bool _isRefreshing = false;
   String? _error;
 
   // Progressive loading states
@@ -57,7 +57,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
 
   Future<void> _loadFinancialData() async {
     setState(() {
-      _isRefreshing = true;
+      if (_financialData == null) {
+        _isRefreshing = true;
+      } else {
+        _isRefreshing = true;
+      }
       _error = null;
       // Reset progressive loading states
       _mainCardLoaded = false;

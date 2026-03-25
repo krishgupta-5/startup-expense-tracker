@@ -31,7 +31,6 @@ class FinancialDataService {
     _cacheTimestamps[key] = DateTime.now();
   }
 
-
   static Future<Map<String, dynamic>> getMonthlyBurnData() async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
