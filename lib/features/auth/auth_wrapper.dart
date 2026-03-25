@@ -2,24 +2,74 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../auth/screen/login.dart';
+import '../auth/screen/verify_email_screen.dart';
+import '../auth/services/auth_service.dart';
 import '../company-setup/screen/company_setup_screen.dart';
 import '../navigation/screens/main_navigation_wrapper.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
+  Widget _buildLoadingScreen() {
+    return const Scaffold(
+      backgroundColor: Color(0xFF09090B),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+            SizedBox(height: 16),
+            Text('Loading...', style: TextStyle(color: Colors.white70)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+      stream: FirebaseAuth.instance
+          .idTokenChanges(), // Better than authStateChanges for token refresh
       builder: (context, snapshot) {
         // Show loading spinner while checking auth state
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: Color(0xFF09090B),
+          return _buildLoadingScreen();
+        }
+
+        // Handle token refresh errors
+        if (snapshot.hasError) {
+          return Scaffold(
+            backgroundColor: const Color(0xFF09090B),
             body: Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Session expired",
+                    style: TextStyle(color: Colors.white, fontSize: 18),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    "Please sign in again",
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () async {
+                      await AuthService.refreshAuthToken();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                    ),
+                    child: const Text("Refresh Session"),
+                  ),
+                ],
               ),
             ),
           );
@@ -30,31 +80,72 @@ class AuthWrapper extends StatelessWidget {
           return const LoginScreen();
         }
 
+        // Session security check with normalized verification
+        final user = snapshot.data!;
+        if (!AuthService.isEmailVerified(user)) {
+          return const VerifyEmailScreen();
+        }
+
         // User is logged in, check if they have completed company setup
-        return FutureBuilder<DocumentSnapshot>(
-          future: FirebaseFirestore.instance
+        return StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
               .collection('users')
-              .doc(snapshot.data!.uid)
-              .get(),
+              .doc(user.uid)
+              .snapshots(),
           builder: (context, userSnapshot) {
             if (userSnapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                backgroundColor: Color(0xFF09090B),
+              return _buildLoadingScreen();
+            }
+
+            // Handle Firestore errors
+            if (userSnapshot.hasError) {
+              return Scaffold(
+                backgroundColor: const Color(0xFF09090B),
                 body: Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.red,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        "Connection Error",
+                        style: TextStyle(color: Colors.white, fontSize: 18),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        "Please check your internet connection",
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: () {
+                          // Trigger rebuild by calling setState in parent
+                          (context as Element).markNeedsBuild();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
+                        ),
+                        child: const Text("Retry"),
+                      ),
+                    ],
                   ),
                 ),
               );
             }
 
             // If user document doesn't exist or company not set up, go to company setup
+            if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+              return const CompanySetupScreen();
+            }
+
             final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
-            if (!userSnapshot.hasData ||
-                !userSnapshot.data!.exists ||
-                userData == null ||
-                !userData.containsKey('companySetup') ||
-                userData['companySetup'] != true) {
+
+            if (userData == null || userData['companySetup'] != true) {
               return const CompanySetupScreen();
             }
 

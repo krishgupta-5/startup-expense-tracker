@@ -13,7 +13,13 @@ class GoogleSignInService {
       await _googleSignIn.initialize();
 
       // Trigger the Google Sign-In flow
-      final GoogleSignInAccount googleUser = await _googleSignIn.authenticate();
+      final GoogleSignInAccount? googleUser = await _googleSignIn
+          .authenticate();
+
+      // Handle user cancellation
+      if (googleUser == null) {
+        return null;
+      }
 
       // Obtain the auth details from the request
       final GoogleSignInAuthentication googleAuth = googleUser.authentication;
@@ -43,14 +49,20 @@ class GoogleSignInService {
         .collection('users')
         .doc(user.uid);
 
+    // Set user data without overwriting createdAt
     await userRef.set({
       'uid': user.uid,
       'email': user.email ?? '',
       'displayName': user.displayName ?? '',
       'photoURL': user.photoURL ?? '',
       'provider': 'google',
-      'createdAt': FieldValue.serverTimestamp(),
+      'companySetup': false,
       'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    // Only set createdAt if it doesn't exist
+    await userRef.set({
+      'createdAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
