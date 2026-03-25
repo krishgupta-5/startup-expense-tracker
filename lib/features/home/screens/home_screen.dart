@@ -2,16 +2,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:async';
 // Required for FontFeature
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 
-// --- Screen Imports (Restored) ---
 import 'runway_estimation_screen.dart';
 import 'funds_overview_screen.dart';
 import 'monthly_burn_screen.dart';
 import '../../../services/financial_data_service.dart';
+import '../../../services/financial_calculator.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(int)? onNavigateToTab;
@@ -26,19 +25,20 @@ class _HomeScreenState extends State<HomeScreen> {
   String? runwayValue;
   bool isLoading = true;
   String? errorMessage;
-  Timer? _timer;
+  // FIX 1: Removed _timer — the fake per-minute decrement was misleading users.
   String? totalFundsAvailable;
   String? monthlyBurn;
-  List<Map<String, dynamic>> expenseBreakdown = [];
   List<Map<String, dynamic>> allExpenses = [];
 
-  // Real data for pie chart
   Map<String, dynamic>? _financialData;
   bool _isPieChartLoading = true;
 
-  // Loading states for metric cards
   bool _isMonthlyBurnLoading = true;
   bool _isFundsLoading = true;
+
+  // FIX 2: Real trend data from FinancialDataService instead of hardcoded bars.
+  List<Map<String, dynamic>> _trendData = [];
+  bool _isTrendLoading = true;
 
   @override
   void initState() {
@@ -47,33 +47,12 @@ class _HomeScreenState extends State<HomeScreen> {
     fetchTotalFundsAvailable();
     fetchMonthlyBurn();
     _loadFinancialDataForPieChart();
-    _startDailyDecrement();
+    // FIX 1: _startDailyDecrement() removed entirely.
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
     super.dispose();
-  }
-
-  void _startDailyDecrement() {
-    // Update runway every minute for demo purposes (change to 24h for production)
-    _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
-      if (runwayValue != null && errorMessage == null) {
-        _decrementRunway();
-      }
-    });
-  }
-
-  void _decrementRunway() {
-    final currentRunway = double.tryParse(runwayValue ?? "0") ?? 0;
-    if (currentRunway > 0) {
-      // Decrease by 1/30 of a month (approximately 1 day)
-      final newRunway = currentRunway - (1 / 30);
-      setState(() {
-        runwayValue = newRunway.toStringAsFixed(2);
-      });
-    }
   }
 
   Widget _buildRunwayDisplay(String runwayValue) {
@@ -164,30 +143,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   double _calculateRunwayProgress() {
     if (runwayValue == null || errorMessage != null) return 0.0;
-
     final runway = double.tryParse(runwayValue!) ?? 0;
-
-    // Define runway thresholds (in months)
-    const double criticalThreshold = 3; // 3 months or less = critical
-    const double warningThreshold = 6; // 6 months or less = warning
-    const double safeThreshold = 12; // 12 months or more = safe
+    const double criticalThreshold = 3;
+    const double warningThreshold = 6;
+    const double safeThreshold = 12;
 
     if (runway <= criticalThreshold) {
-      // Critical: 0-33% progress
       return (runway / criticalThreshold) * 0.33;
     } else if (runway <= warningThreshold) {
-      // Warning: 33-66% progress
       return 0.33 +
           ((runway - criticalThreshold) /
                   (warningThreshold - criticalThreshold)) *
               0.33;
     } else if (runway <= safeThreshold) {
-      // Safe: 66-100% progress
       return 0.66 +
           ((runway - warningThreshold) / (safeThreshold - warningThreshold)) *
               0.34;
     } else {
-      // Very safe: cap at 100%
       return 1.0;
     }
   }
@@ -196,16 +168,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (runwayValue == null || errorMessage != null) {
       return HealthStatus.critical;
     }
-
     final runway = double.tryParse(runwayValue!) ?? 0;
-
-    if (runway <= 3) {
-      return HealthStatus.critical;
-    } else if (runway <= 6) {
-      return HealthStatus.warning;
-    } else {
-      return HealthStatus.safe;
-    }
+    if (runway <= 3) return HealthStatus.critical;
+    if (runway <= 6) return HealthStatus.warning;
+    return HealthStatus.safe;
   }
 
   Future<void> _fetchRunwayData() async {
@@ -228,20 +194,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (docSnapshot.exists && docSnapshot.data() != null) {
         final data = docSnapshot.data()!;
-
-        // Debug: Print all available fields
-        print("Available fields in Firebase: ${data.keys.toList()}");
-
-        // Get runway directly from Firebase (stored as "Runway" in company setup)
         final runwayFromFirebase = data["Runway"]?.toString() ?? "0";
 
-        // Debug: Print runway value
-        print("Runway value found: $runwayFromFirebase");
-
-        if (runwayFromFirebase.toString() != "0") {
+        if (runwayFromFirebase != "0") {
           final runwayAmount =
               double.tryParse(runwayFromFirebase.toString()) ?? 0;
-
           if (mounted) {
             setState(() {
               runwayValue = runwayAmount.toStringAsFixed(2);
@@ -275,16 +232,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> fetchTotalFundsAvailable() async {
-    setState(() {
-      _isFundsLoading = true;
-    });
-
+    if (!mounted) return;
+    setState(() => _isFundsLoading = true);
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        setState(() {
-          _isFundsLoading = false;
-        });
+        if (mounted) setState(() => _isFundsLoading = false);
         return;
       }
 
@@ -295,8 +248,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (docSnapshot.exists && docSnapshot.data() != null) {
         final data = docSnapshot.data()!;
-
-        // Get funding and totalExpenses to calculate available funds
         final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
         final totalExpenses =
             data["totalExpenses"] ?? data["total_expenses"] ?? "0";
@@ -305,49 +256,47 @@ class _HomeScreenState extends State<HomeScreen> {
           final totalExpensesAmount =
               double.tryParse(totalExpenses.toString()) ?? 0;
           final availableFunds = fundingAmount - totalExpensesAmount;
-
-          setState(() {
-            // Format available funds as currency with proper formatting
-            totalFundsAvailable = "₹${availableFunds.toStringAsFixed(0)}";
-            _isFundsLoading = false;
-          });
+          if (mounted) {
+            setState(() {
+              totalFundsAvailable = "₹${availableFunds.toStringAsFixed(0)}";
+              _isFundsLoading = false;
+            });
+          }
         } else {
-          setState(() {
-            _isFundsLoading = false;
-          });
+          if (mounted) setState(() => _isFundsLoading = false);
         }
       } else {
-        setState(() {
-          _isFundsLoading = false;
-        });
+        if (mounted) setState(() => _isFundsLoading = false);
       }
     } catch (e) {
-      // Silently handle errors for funds fetching
-      setState(() {
-        _isFundsLoading = false;
-      });
+      if (mounted) setState(() => _isFundsLoading = false);
     }
   }
 
   Future<void> fetchMonthlyBurn() async {
-    setState(() {
-      _isMonthlyBurnLoading = true;
-    });
-
+    if (!mounted) return;
+    setState(() => _isMonthlyBurnLoading = true);
     try {
       await _fetchAllExpenses();
       final currentMonthBurnAmount = _calculateCurrentMonthBurn();
 
-      setState(() {
-        monthlyBurn = "₹${currentMonthBurnAmount.toStringAsFixed(0)}";
-        _isMonthlyBurnLoading = false;
-      });
+      // FIX 3: Only show real data. Show null (empty) if no expenses exist.
+      if (mounted) {
+        setState(() {
+          monthlyBurn = currentMonthBurnAmount > 0
+              ? "₹${currentMonthBurnAmount.toStringAsFixed(0)}"
+              : null;
+          _isMonthlyBurnLoading = false;
+        });
+      }
     } catch (e) {
-      // Set default value on error
-      setState(() {
-        monthlyBurn = "₹42500";
-        _isMonthlyBurnLoading = false;
-      });
+      // FIX 3: Don't show a fake fallback on error. Show nothing instead.
+      if (mounted) {
+        setState(() {
+          monthlyBurn = null;
+          _isMonthlyBurnLoading = false;
+        });
+      }
     }
   }
 
@@ -362,77 +311,65 @@ class _HomeScreenState extends State<HomeScreen> {
           .orderBy('Date', descending: true)
           .get();
 
-      setState(() {
-        allExpenses = expensesSnapshot.docs.map((doc) {
-          final data = doc.data();
-          return {
-            'id': doc.id,
-            'title': data['Title'] ?? 'Unnamed Expense',
-            'amount': (data['Amount'] as num).toDouble(),
-            'category': data['Category'] ?? 'General',
-            'date': data['Date'],
-            'description': data['Description'] ?? '',
-            'type': data['Type'] ?? 'one_time',
-          };
-        }).toList();
-      });
+      if (mounted) {
+        setState(() {
+          allExpenses = expensesSnapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              'id': doc.id,
+              'title': data['Title'] ?? 'Unnamed Expense',
+              'amount': (data['Amount'] as num).toDouble(),
+              'category': data['Category'] ?? 'General',
+              'date': data['Date'],
+              'description': data['Description'] ?? '',
+              'type': data['Type'] ?? 'one_time',
+            };
+          }).toList();
+        });
+      }
     } catch (e) {
       print("Error fetching expenses: $e");
     }
   }
 
   double _calculateCurrentMonthBurn() {
-    if (allExpenses.isEmpty) {
-      return 42500; // Default fallback if no expenses
-    }
-
+    if (allExpenses.isEmpty) return 0; // FIX 3: Return 0, not 42500.
     final now = DateTime.now();
-    final currentMonth = now.month;
-    final currentYear = now.year;
-
     double currentMonthTotal = 0;
-
     for (var expense in allExpenses) {
       final expenseDate = expense['date'] as Timestamp?;
       if (expenseDate != null) {
-        final expenseDateTime = expenseDate.toDate();
-        if (expenseDateTime.month == currentMonth &&
-            expenseDateTime.year == currentYear) {
-          // Add both one-time and recurring expenses for current month
-          if (expense['type'] == 'recurring') {
-            // For recurring expenses, add the monthly amount
-            currentMonthTotal += expense['amount'] as double;
-          } else {
-            // For one-time expenses, add the full amount
-            currentMonthTotal += expense['amount'] as double;
-          }
+        final dt = expenseDate.toDate();
+        if (dt.month == now.month && dt.year == now.year) {
+          currentMonthTotal += expense['amount'] as double;
         }
       }
     }
-
-    return currentMonthTotal > 0
-        ? currentMonthTotal
-        : 42500; // Return fallback if no current month expenses
+    return currentMonthTotal;
   }
 
   Future<void> _loadFinancialDataForPieChart() async {
-    setState(() {
-      _isPieChartLoading = true;
-    });
-
+    if (!mounted) return;
+    setState(() => _isPieChartLoading = true);
     try {
+      // FIX 2: Load trend data alongside pie chart data.
       final financialData = await FinancialDataService.getMonthlyBurnData();
       if (mounted) {
         setState(() {
           _financialData = financialData;
+          // Extract real trend data for the burn trend chart.
+          final rawTrend = financialData['trendData'] as List? ?? [];
+          _trendData = List<Map<String, dynamic>>.from(rawTrend);
           _isPieChartLoading = false;
+          _isTrendLoading = false;
         });
       }
     } catch (e) {
-      print("Error loading financial data for pie chart: $e");
+      print("Error loading financial data: $e");
       if (mounted) {
         setState(() {
           _isPieChartLoading = false;
+          _isTrendLoading = false;
         });
       }
     }
@@ -460,12 +397,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _capitalizeFirstLetter(String text) {
     if (text.isEmpty) return text;
-    return text[0].toUpperCase() + text.substring(1).toLowerCase();
+    return text[0].toUpperCase() + text.substring(1);
   }
 
   @override
   Widget build(BuildContext context) {
-    // Calculate health status based on runway value
     HealthStatus currentHealth = _calculateHealthStatus();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -477,39 +413,28 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Header (Minimal)
               _buildMinimalHeader(context),
-
               const SizedBox(height: 32),
-
-              // 2. Hero Card (Runway) - Flat Style
               GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const RunwayEstimationScreen(),
-                    ),
-                  );
-                },
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const RunwayEstimationScreen(),
+                  ),
+                ),
                 child: _buildFlatRunwayCard(currentHealth),
               ),
-
               const SizedBox(height: 16),
-
-              // 3. Metrics Grid (Funds & Burn) - Flat Style
               Row(
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const FundsOverviewScreen(),
-                          ),
-                        );
-                      },
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const FundsOverviewScreen(),
+                        ),
+                      ),
                       child: _buildFlatMetricCard(
                         label: "Available Funds",
                         value: totalFundsAvailable,
@@ -521,29 +446,25 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const MonthlyBurnScreen(),
-                          ),
-                        );
-                      },
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const MonthlyBurnScreen(),
+                        ),
+                      ),
                       child: _buildFlatMetricCard(
                         label: "Monthly Burn",
                         value: monthlyBurn,
                         icon: Icons.local_fire_department_outlined,
                         isBurn: true,
                         isLoading: _isMonthlyBurnLoading,
+                        emptyLabel: "No data yet",
                       ),
                     ),
                   ),
                 ],
               ),
-
               const SizedBox(height: 32),
-
-              // 4. Trend Chart (Corrected to show Bars)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -553,36 +474,22 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 20),
               GestureDetector(
-                // Drills down to Monthly Burn Screen for more detail
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const MonthlyBurnScreen(),
-                    ),
-                  );
-                },
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MonthlyBurnScreen()),
+                ),
                 child: _buildTrendChart(),
               ),
-
               const SizedBox(height: 40),
-
-              // 6. Breakdown (Pie Chart)
               _buildSectionTitle("Expense Breakdown"),
               const SizedBox(height: 20),
               GestureDetector(
-                // Drills down to Monthly Burn Screen for more detail
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const MonthlyBurnScreen(),
-                    ),
-                  );
-                },
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MonthlyBurnScreen()),
+                ),
                 child: _buildPieChartBreakdown(),
               ),
-
               const SizedBox(height: 40),
             ],
           ),
@@ -590,8 +497,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
-  // --- WIDGET BUILDERS ---
 
   Widget _buildMinimalHeader(BuildContext context) {
     return Row(
@@ -621,12 +526,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        // Minimal Profile Placeholder
         GestureDetector(
-          onTap: () {
-            // Navigate to settings tab (index 4) in bottom navigation
-            widget.onNavigateToTab?.call(4);
-          },
+          onTap: () => widget.onNavigateToTab?.call(4),
           child: Container(
             height: 44,
             width: 44,
@@ -645,7 +546,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildFlatRunwayCard(HealthStatus status) {
     Color statusColor;
     String statusText;
-
     switch (status) {
       case HealthStatus.safe:
         statusColor = const Color(0xFF30D158);
@@ -665,7 +565,7 @@ class _HomeScreenState extends State<HomeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416), // Solid Matte Grey
+        color: const Color(0xFF141416),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
@@ -685,7 +585,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               Row(
                 children: [
-                  // Refresh button for debugging
                   GestureDetector(
                     onTap: _fetchRunwayData,
                     child: Container(
@@ -699,7 +598,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: Colors.white.withValues(alpha: 0.1),
                         ),
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.refresh,
                         color: Colors.white38,
                         size: 16,
@@ -707,7 +606,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Tiny minimal badge
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -822,7 +720,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 24),
-          // Flat Progress Bar
           ClipRRect(
             borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
@@ -843,6 +740,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     bool isBurn = false,
     bool isLoading = false,
+    String? emptyLabel,
   }) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -870,17 +768,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             )
           else
-            AnimatedOpacity(
-              opacity: value != null ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 600),
-              child: Text(
-                value ?? "",
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.5,
-                ),
+            // FIX 3: Show a helpful label when there's no real data.
+            Text(
+              value ?? emptyLabel ?? "--",
+              style: GoogleFonts.inter(
+                color: value != null ? Colors.white : Colors.white38,
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.5,
               ),
             ),
           const SizedBox(height: 4),
@@ -909,6 +804,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // FIX 2: Burn trend chart now uses real data from FinancialDataService.
   Widget _buildTrendChart() {
     return Container(
       width: double.infinity,
@@ -918,21 +814,56 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
-      child: SizedBox(
-        height: 160,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            _buildFlatBar("Jan", 0.4),
-            _buildFlatBar("Feb", 0.5),
-            _buildFlatBar("Mar", 0.45),
-            _buildFlatBar("Apr", 0.6),
-            _buildFlatBar("May", 0.55),
-            _buildFlatBar("Jun", 0.8, isActive: true),
-          ],
-        ),
-      ),
+      child: _isTrendLoading
+          ? const SizedBox(
+              height: 160,
+              child: Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white38,
+                ),
+              ),
+            )
+          : _trendData.isEmpty
+          ? SizedBox(
+              height: 160,
+              child: Center(
+                child: Text(
+                  "No burn history yet",
+                  style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
+                ),
+              ),
+            )
+          : SizedBox(
+              height: 160,
+              child: Builder(
+                builder: (context) {
+                  // Show last 6 months of real data.
+                  final display = _trendData.length > 6
+                      ? _trendData.sublist(_trendData.length - 6)
+                      : _trendData;
+                  final maxAmount = display
+                      .map((d) => (d['amount'] as num).toDouble())
+                      .reduce((a, b) => a > b ? a : b);
+
+                  return Row(
+                    mainAxisAlignment: display.length <= 3
+                        ? MainAxisAlignment.spaceEvenly
+                        : MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: display.map((data) {
+                      final amount = (data['amount'] as num).toDouble();
+                      final pct = maxAmount > 0 ? amount / maxAmount : 0.0;
+                      return _buildFlatBar(
+                        data['month'] as String,
+                        pct,
+                        isActive: data['isCurrentMonth'] as bool? ?? false,
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+            ),
     );
   }
 
@@ -941,7 +872,7 @@ class _HomeScreenState extends State<HomeScreen> {
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         Container(
-          width: 36, // Slightly wider for touch targets
+          width: 36,
           height: 120 * pct,
           decoration: BoxDecoration(
             color: isActive ? Colors.white : const Color(0xFF1F1F22),
@@ -962,7 +893,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPieChartBreakdown() {
-    // Show loading state while data is being fetched
     if (_isPieChartLoading) {
       return Container(
         width: double.infinity,
@@ -981,12 +911,10 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // Get real category breakdown data
     final categoryBreakdown =
         _financialData?['categoryBreakdown'] as Map<String, double>? ?? {};
     final totalExpenses = _financialData?['totalExpenses'] as double? ?? 0;
 
-    // Default categories with colors if no data
     final defaultCategories = {
       'Salaries': {'amount': 27625.0, 'color': const Color(0xFF30D158)},
       'Servers & Infrastructure': {
@@ -1009,13 +937,12 @@ class _HomeScreenState extends State<HomeScreen> {
             }),
           );
 
-    // Convert to list format for pie chart
     final expenseData = categories.entries.map((entry) {
       final amount = entry.value['amount'] as double;
-      final percentage = totalExpenses > 0
-          ? (amount / totalExpenses * 100).round()
-          : 0;
-
+      final percentage = FinancialCalculator.calculatePercentage(
+        amount: amount,
+        total: totalExpenses,
+      );
       return {
         'category': _capitalizeFirstLetter(entry.key),
         'amount': amount,
@@ -1024,7 +951,6 @@ class _HomeScreenState extends State<HomeScreen> {
       };
     }).toList();
 
-    // Sort by percentage (highest first)
     expenseData.sort(
       (a, b) => (b['percentage'] as int).compareTo(a['percentage'] as int),
     );
@@ -1042,11 +968,10 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Pie Chart
               Expanded(
                 flex: 5,
                 child: SizedBox(
-                  height: 140, // Constrained height
+                  height: 140,
                   child: PieChart(
                     PieChartData(
                       sectionsSpace: 4,
@@ -1056,7 +981,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         return PieChartSectionData(
                           color: data['color'] as Color,
                           value: (data['percentage'] as int).toDouble(),
-                          title: '', // Hiding title on chart for cleaner look
+                          title: '',
                           radius: 16,
                           showTitle: false,
                         );
@@ -1066,7 +991,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 32),
-              // Legend
               Expanded(
                 flex: 6,
                 child: Column(
@@ -1087,18 +1011,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  data['category'] as String,
-                                  style: GoogleFonts.inter(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
+                            child: Text(
+                              data['category'] as String,
+                              style: GoogleFonts.inter(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -1122,7 +1041,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 20),
-          // Total Footer
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -1160,12 +1078,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildViewAllButton(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const MonthlyBurnScreen()),
-        );
-      },
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const MonthlyBurnScreen()),
+      ),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(

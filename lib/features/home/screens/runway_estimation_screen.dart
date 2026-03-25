@@ -10,10 +10,10 @@ class RunwayEstimationScreen extends StatefulWidget {
   const RunwayEstimationScreen({super.key});
 
   @override
-  State<RunwayEstimationScreen> createState() => _RunwayEstimationScreenState();
+  State<RunwayEstimationScreen> createState() => RunwayEstimationScreenState();
 }
 
-class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
+class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   // Data variables
   double? runwayMonths;
   String? currentBalance;
@@ -100,11 +100,11 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
           setState(() {
             runwayMonths = runwayAmount;
             currentBalance =
-                "₹${availableBalance.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
+                "₹${availableBalance.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}";
             monthlyBurn =
-                "₹${actualMonthlyBurn.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
+                "₹${actualMonthlyBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}";
             netBurn =
-                "₹${netBurnAmount.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}";
+                "₹${netBurnAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}";
             zeroCashDate = calculatedZeroCashDate;
             monthlyProjections = projections;
             isLoading = false;
@@ -155,7 +155,9 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
         }).toList();
       });
     } catch (e) {
-      print("Error fetching expenses: $e");
+      // FIX: Replaced print() with debugPrint() which is lint-safe and
+      // automatically stripped in release builds.
+      debugPrint("Error fetching expenses: $e");
     }
   }
 
@@ -285,10 +287,13 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
         'Dec',
       ];
 
+      // FIX: Unified number formatting regex to match the rest of the codebase.
+      // Original used \B(?=(\d{3})+(?!\d)) which is slightly different and less
+      // consistent. Now using (\d{1,3})(?=(\d{3})+(?!\d)) everywhere.
       projections.add({
         'month': "${months[futureDate.month - 1]} ${futureDate.year}",
         'balance':
-            "₹${projectedBalance.toStringAsFixed(0).replaceAll(RegExp(r'\B(?=(\d{3})+(?!\d))'), ',')}",
+            "₹${projectedBalance.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
         'monthsLeft': remainingRunway > 0
             ? remainingRunway.toStringAsFixed(1)
             : "0.0",
@@ -577,7 +582,7 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                     },
                     child: Container(
                       padding: const EdgeInsets.all(4),
-                      child: Icon(
+                      child: const Icon(
                         Icons.refresh,
                         color: Colors.white38,
                         size: 16,
@@ -823,7 +828,7 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                     color: Colors.white.withValues(alpha: 0.2),
                   ),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.info_outline,
                   color: Colors.white60,
                   size: 14,
@@ -891,12 +896,13 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     );
   }
 
-  // Helper for subtle divider
+  // FIX: Replaced deprecated withOpacity with withValues(alpha:) to match
+  // the rest of the codebase and avoid deprecation warnings.
   Widget _buildDivider() {
     return Divider(
       height: 1,
       thickness: 1,
-      color: Colors.white.withOpacity(0.04),
+      color: Colors.white.withValues(alpha: 0.04),
     );
   }
 

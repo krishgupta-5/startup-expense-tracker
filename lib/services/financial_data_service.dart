@@ -228,24 +228,14 @@ class FinancialDataService {
           .get();
 
       if (budgetSnapshot.docs.isEmpty) {
-        // Return default budget categories if none exist
-        return {
-          'Salaries': 28000,
-          'Infrastructure': 8000,
-          'Marketing': 5000,
-          'Operations': 2000,
-        };
+        // Return empty budget if none exist - no fake data
+        return {};
       }
 
       return budgetSnapshot.docs.first.data();
     } catch (e) {
-      // Return default budget on error
-      return {
-        'Salaries': 28000,
-        'Infrastructure': 8000,
-        'Marketing': 5000,
-        'Operations': 2000,
-      };
+      // Return empty budget on error - no fake data
+      return {};
     }
   }
 

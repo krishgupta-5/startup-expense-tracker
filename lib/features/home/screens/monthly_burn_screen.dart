@@ -4,6 +4,7 @@ import 'dart:async';
 // Required for FontFeature
 import 'package:google_fonts/google_fonts.dart';
 import '../../../services/financial_data_service.dart';
+import '../../../services/financial_calculator.dart';
 
 class MonthlyBurnScreen extends StatefulWidget {
   const MonthlyBurnScreen({super.key});
@@ -13,6 +14,14 @@ class MonthlyBurnScreen extends StatefulWidget {
 }
 
 class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
+  double _toDouble(dynamic value, {double fallback = 0.0}) {
+    if (value == null) return fallback;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? fallback;
+    return fallback;
+  }
+
   String _selectedRange = "6M";
   final List<String> _ranges = ["1M", "3M", "6M", "YTD", "ALL"];
 
@@ -289,12 +298,15 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
   }
 
   // --- Main Burn Card ---
+  // FIX: Removed the dead _isLoading / _error guards inside this method.
+  // This widget is only ever called from the build tree when _mainCardLoaded == true,
+  // which means loading has already succeeded. The inner guards could never show
+  // their loading/error states, and caused the real error card to be unreachable.
   Widget _buildMainBurnCard() {
-    if (_isLoading) return _buildLoadingCard();
     if (_error != null) return _buildErrorCard();
 
-    final grossBurn = _financialData?['grossBurn'] ?? 42500;
-    final netBurn = _financialData?['netBurn'] ?? 34000;
+    final grossBurn = _toDouble(_financialData?['grossBurn']);
+    final netBurn = _toDouble(_financialData?['netBurn']);
 
     return AnimatedOpacity(
       opacity: _mainCardLoaded ? 1.0 : 0.0,
@@ -369,7 +381,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    "₹${grossBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
+                    grossBurn > 0
+                        ? "₹${grossBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+                        : "—",
                     style: GoogleFonts.inter(
                       color: Colors.white,
                       fontSize: 32,
@@ -416,7 +430,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "₹${netBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
+                      netBurn > 0
+                          ? "₹${netBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+                          : "—",
                       style: GoogleFonts.inter(
                         color: const Color(0xFFFF453A),
                         fontSize: 20,
@@ -440,7 +456,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
         ? "$_selectedRange Burn Trend"
         : "$count-Month Burn Trend";
 
-    if (_isLoading) return _buildLoadingSection(title);
     if (_error != null) return _buildErrorSection(title);
 
     List<Map<String, dynamic>> trendData = List<Map<String, dynamic>>.from(
@@ -462,7 +477,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
     final maxAmount = displayData.isEmpty
         ? 1.0
         : displayData
-              .map((d) => (d['amount'] as num).toDouble())
+              .map((d) => _toDouble(d['amount']))
               .reduce((a, b) => a > b ? a : b);
 
     return AnimatedOpacity(
@@ -502,7 +517,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                       : MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: displayData.map((data) {
-                    final amount = (data['amount'] as num).toDouble();
+                    final amount = _toDouble(data['amount']);
                     final percentage = maxAmount > 0 ? amount / maxAmount : 0.0;
                     return _buildFlatBar(
                       data['month'] as String,
@@ -548,7 +563,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
   List<Map<String, dynamic>> _getFallbackTrendData(int count) {
     final now = DateTime.now();
     final fallbackData = <Map<String, dynamic>>[];
-    final baseAmount = 35000.0;
+    final baseAmount = 0;
     final variations = [
       0.9,
       1.1,
@@ -691,21 +706,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
     );
   }
 
-  Widget _buildLoadingCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: const Center(
-        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white38),
-      ),
-    );
-  }
-
   Widget _buildErrorCard() {
     return Container(
       width: double.infinity,
@@ -826,37 +826,83 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
     );
   }
 
-  // --- Sections below remain unchanged structurally, but inherit the smooth loading state ---
-
   Widget _buildExpenseCategoriesSection() {
-    if (_isLoading) return _buildLoadingSection("Expense Categories");
     if (_error != null) return _buildErrorSection("Expense Categories");
 
     final categoryBreakdown =
         _financialData?['categoryBreakdown'] as Map<String, double>? ?? {};
-    final totalExpenses = _financialData?['totalExpenses'] as double? ?? 0;
+    final totalExpenses = _toDouble(_financialData?['totalExpenses']);
 
-    final defaultCategories = {
-      'Salaries': {'amount': 27625.0, 'color': const Color(0xFF30D158)},
-      'Servers & Infrastructure': {
-        'amount': 8500.0,
-        'color': const Color(0xFF3A4B8A),
-      },
-      'Marketing': {'amount': 4250.0, 'color': const Color(0xFFFF9F0A)},
-      'Office & Operations': {
-        'amount': 2125.0,
-        'color': const Color(0xFF00BFA5),
-      },
-    };
+    if (categoryBreakdown.isEmpty) {
+      return AnimatedOpacity(
+        opacity: _categoriesLoaded ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+        child: AnimatedSlide(
+          offset: _categoriesLoaded ? Offset.zero : const Offset(0, 0.1),
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOutCubic,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Expense Categories",
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141416),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.04),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.pie_chart_outline,
+                      color: Colors.white24,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      "No expense data available",
+                      style: GoogleFonts.inter(
+                        color: Colors.white38,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Add expenses to see category breakdown",
+                      style: GoogleFonts.inter(
+                        color: Colors.white24,
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
-    final categories = categoryBreakdown.isEmpty
-        ? defaultCategories
-        : categoryBreakdown.map(
-            (key, value) => MapEntry(key, {
-              'amount': value,
-              'color': _getCategoryColor(key),
-            }),
-          );
+    final categories = categoryBreakdown.map(
+      (key, value) =>
+          MapEntry(key, {'amount': value, 'color': _getCategoryColor(key)}),
+    );
 
     return AnimatedOpacity(
       opacity: _categoriesLoaded ? 1.0 : 0.0,
@@ -889,11 +935,12 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
               ),
               child: Column(
                 children: categories.entries.map((entry) {
-                  final amount = entry.value['amount'] as double;
+                  final amount = _toDouble(entry.value['amount']);
                   final color = entry.value['color'] as Color;
-                  final percentage = totalExpenses > 0
-                      ? (amount / totalExpenses * 100).round()
-                      : 0;
+                  final percentage = FinancialCalculator.calculatePercentage(
+                    amount: amount,
+                    total: totalExpenses,
+                  );
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 24),
@@ -934,11 +981,12 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
   }
 
   Widget _buildTeamCostSection() {
-    if (_isLoading) return _buildLoadingSection("Team Cost Distribution");
     if (_error != null) return _buildErrorSection("Team Cost Distribution");
 
     final teamCosts =
-        _teamCostData?['teamCosts'] as List<Map<String, dynamic>>? ?? [];
+        (_teamCostData?['teamCosts'] as List<dynamic>?)
+            ?.cast<Map<String, dynamic>>() ??
+        [];
 
     if (teamCosts.isEmpty) {
       return AnimatedOpacity(
@@ -1080,13 +1128,13 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                                 ),
                               ),
                               FractionallySizedBox(
-                                widthFactor: (team['pct'] as double) > 0
-                                    ? (team['pct'] as double)
+                                widthFactor: _toDouble(team['pct']) > 0
+                                    ? _toDouble(team['pct'])
                                     : 0.05,
                                 child: Container(
                                   height: 4,
                                   decoration: BoxDecoration(
-                                    color: (team['pct'] as double) > 0
+                                    color: _toDouble(team['pct']) > 0
                                         ? Colors.white
                                         : Colors.white24,
                                     borderRadius: BorderRadius.circular(2),
@@ -1174,7 +1222,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
 
   String _capitalizeFirstLetter(String text) {
     if (text.isEmpty) return text;
-    return text[0].toUpperCase() + text.substring(1).toLowerCase();
+    return text[0].toUpperCase() + text.substring(1);
   }
 
   Widget _buildVendorBreakdownSection() {
@@ -1343,13 +1391,14 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
     );
   }
 
-  String _formatCurrency(double amount) {
+  // FIX: Removed unused _formatCurrency method that was causing a lint warning.
+  // All currency formatting is done inline with replaceAllMapped for consistency.
+  String _formatCurrencyForForecast(double amount) {
     final intAmount = amount.round();
     return '₹${intAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}';
   }
 
   Widget _buildForecastComparisonSection() {
-    if (_isLoading) return _buildLoadingSection("Budget vs Actual");
     if (_error != null) return _buildErrorSection("Budget vs Actual");
 
     final rawTeamsData = _rawTeamsData ?? [];
@@ -1430,7 +1479,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
       String budgetStr = (team['monthlyBudget']?.toString() ?? '0');
       budgetStr = budgetStr.replaceAll(RegExp(r'[^\d.]'), '');
       final budget = double.tryParse(budgetStr) ?? 0.0;
-      final actual = _actualSpendingPerTeam?[teamName] ?? 0.0;
+      final actual = _toDouble(_actualSpendingPerTeam?[teamName]);
       final variance = budget - actual;
 
       totalBudget += budget;
@@ -1486,11 +1535,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                   ...comparisonData.map(
                     (data) => _buildComparisonRow(
                       data['team'] as String,
-                      _formatCurrency(data['budget'] as double),
-                      _formatCurrency(data['actual'] as double),
+                      _formatCurrencyForForecast(data['budget'] as double),
+                      _formatCurrencyForForecast(data['actual'] as double),
                       data['isOver'] as bool
-                          ? "${_formatCurrency((data['variance'] as double).abs())} over"
-                          : "${_formatCurrency((data['variance'] as double).abs())} under",
+                          ? "${_formatCurrencyForForecast((data['variance'] as double).abs())} over"
+                          : "${_formatCurrencyForForecast((data['variance'] as double).abs())} under",
                       false,
                     ),
                   ),
@@ -1512,7 +1561,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                         ),
                       ),
                       Text(
-                        _formatCurrency(totalBudget),
+                        _formatCurrencyForForecast(totalBudget),
                         style: GoogleFonts.inter(
                           color: Colors.white38,
                           fontSize: 14,
@@ -1535,7 +1584,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                         ),
                       ),
                       Text(
-                        _formatCurrency(totalActual),
+                        _formatCurrencyForForecast(totalActual),
                         style: GoogleFonts.inter(
                           color: Colors.white,
                           fontSize: 14,
@@ -1559,8 +1608,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                       ),
                       Text(
                         totalBudget >= totalActual
-                            ? "${_formatCurrency(totalBudget - totalActual)} under budget"
-                            : "${_formatCurrency(totalActual - totalBudget)} over budget",
+                            ? "${_formatCurrencyForForecast(totalBudget - totalActual)} under budget"
+                            : "${_formatCurrencyForForecast(totalActual - totalBudget)} over budget",
                         style: GoogleFonts.inter(
                           color: totalBudget >= totalActual
                               ? const Color(0xFF30D158)

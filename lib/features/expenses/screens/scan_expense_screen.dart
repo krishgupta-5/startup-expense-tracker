@@ -4,14 +4,14 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_cropper/image_cropper.dart'; // Added for cropping
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'add_expense_screen.dart';
+import '../../../services/api_service.dart';
 
 class ScanExpenseScreen extends StatefulWidget {
   const ScanExpenseScreen({super.key});
@@ -36,12 +36,6 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
 
   // NEW: Holds the image path before processing so user can crop/retake
   String? _capturedImagePath;
-
-  // ✅ Get free API key from: https://aistudio.google.com
-  static const String _geminiModel = 'gemini-3-flash-preview';
-
-  String get _geminiApiKey =>
-      dotenv.env['GEMINI_API_KEY'] ?? 'YOUR_GEMINI_API_KEY';
 
   @override
   void initState() {
@@ -265,31 +259,63 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     }
   }
 
+  // Secure method to make Gemini Vision API call
+  Future<http.Response> _makeGeminiVisionCall(
+    String base64Image,
+    String mediaType,
+    String prompt,
+  ) async {
+    // Get API key securely from ApiService
+    final apiKey = ApiService.geminiApiKey;
+    final url = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=$apiKey',
+    );
+
+    return await http
+        .post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'contents': [
+              {
+                'parts': [
+                  {
+                    // Image data
+                    'inline_data': {
+                      'mime_type': mediaType,
+                      'data': base64Image,
+                    },
+                  },
+                  {
+                    // Text prompt
+                    'text': prompt,
+                  },
+                ],
+              },
+            ],
+            'generationConfig': {
+              'temperature': 0.1, // low = more deterministic/accurate
+              'maxOutputTokens': 500,
+            },
+          }),
+        )
+        .timeout(const Duration(seconds: 45));
+  }
+
   Future<Map<String, String>> _extractWithGeminiVision(
     String base64Image,
     String mediaType,
   ) async {
     try {
-      final response = await http
-          .post(
-            Uri.parse(
-              'https://generativelanguage.googleapis.com/v1beta/models/$_geminiModel:generateContent?key=$_geminiApiKey',
-            ),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'contents': [
-                {
-                  'parts': [
-                    {
-                      // ── IMAGE ──────────────────────────────────────
-                      'inline_data': {
-                        'mime_type': mediaType,
-                        'data': base64Image,
-                      },
-                    },
-                    {
-                      // ── PROMPT ─────────────────────────────────────
-                      'text': '''Look at this receipt/bill image carefully.
+      // Check if API key is configured
+      if (!ApiService.isApiKeyConfigured()) {
+        throw Exception(
+          'Gemini API key not configured. Please check your environment setup.',
+        );
+      }
+
+      // Create the prompt with image data
+      final prompt = '''Look at this receipt/bill image carefully.
 Extract the expense information and return ONLY a valid JSON object — no markdown, no explanation, no extra text.
 
 {
@@ -305,20 +331,18 @@ Rules:
 - merchant = business name only, no address or phone number  
 - restaurants/cafes/food/drinks → category "others"
 - If a field is not visible, use empty string ""
-- Return ONLY the JSON object, absolutely nothing else''',
-                    },
-                  ],
-                },
-              ],
-              'generationConfig': {
-                'temperature': 0.1, // low = more deterministic/accurate
-                'maxOutputTokens': 500,
-              },
-            }),
-          )
-          .timeout(const Duration(seconds: 45));
+- Return ONLY the JSON object, absolutely nothing else''';
 
-      debugPrint('Gemini status: ${response.statusCode}');
+      // For vision models, we need to use a different approach
+      // Since our ApiService is designed for text-only, we'll make a direct call here
+      // but with proper error handling and validation
+      final response = await _makeGeminiVisionCall(
+        base64Image,
+        mediaType,
+        prompt,
+      );
+
+      debugPrint('Gemini response: $response');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

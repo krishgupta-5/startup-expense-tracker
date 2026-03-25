@@ -1,4 +1,3 @@
-// Required for FontFeature
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +10,7 @@ import 'search_expense_screen.dart';
 import 'expense_details_screen.dart';
 import 'scan_expense_screen.dart';
 import 'report_expense_screen.dart';
+import '../../../utils/data_helpers.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -19,7 +19,6 @@ class ExpensesScreen extends StatefulWidget {
   State<ExpensesScreen> createState() => _ExpensesScreenState();
 }
 
-// 1. ADD AutomaticKeepAliveClientMixin
 class _ExpensesScreenState extends State<ExpensesScreen>
     with AutomaticKeepAliveClientMixin {
   // State variables for metrics
@@ -29,7 +28,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   int _daysFromStart = 1;
   bool _isLoading = true;
 
-  // 2. OVERRIDE wantKeepAlive to return true
+  // OVERRIDE wantKeepAlive to return true
   @override
   bool get wantKeepAlive => true;
 
@@ -55,16 +54,14 @@ class _ExpensesScreenState extends State<ExpensesScreen>
 
       if (companyDoc.exists) {
         final companyData = companyDoc.data() as Map<String, dynamic>;
-        final fundingStr = companyData['Funding']?.toString() ?? '0';
-        _totalFunding =
-            double.tryParse(fundingStr.replaceAll(RegExp(r'[^\d.]'), '')) ??
-            0.0;
+        _totalFunding = DataHelpers.safeParseDouble(companyData['Funding']);
       }
 
       // Load all expenses to calculate totals
       final expensesSnapshot = await FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: user.uid)
+          .limit(100)
           .get();
 
       double totalSpent = 0.0;
@@ -72,17 +69,14 @@ class _ExpensesScreenState extends State<ExpensesScreen>
 
       for (var doc in expensesSnapshot.docs) {
         final data = doc.data();
-        final amountStr = data['Amount']?.toString() ?? '0';
-        final amount =
-            double.tryParse(amountStr.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+        final amount = DataHelpers.safeParseDouble(data['Amount']);
         totalSpent += amount;
 
         // Track earliest date for days calculation
-        if (data['Date'] != null) {
-          final date = data['Date'].toDate();
-          if (earliestDate == null || date.isBefore(earliestDate)) {
-            earliestDate = date;
-          }
+        final date = DataHelpers.safeParseDate(data['Date']);
+        if (date != null &&
+            (earliestDate == null || date.isBefore(earliestDate))) {
+          earliestDate = date;
         }
       }
 
@@ -106,7 +100,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
 
   @override
   Widget build(BuildContext context) {
-    // 3. CALL super.build(context)
+    // CALL super.build(context)
     super.build(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -234,7 +228,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          "November", // You might want to make this dynamic later!
+          DataHelpers.formatDate(DateTime.now(), format: 'MMMM'),
           style: GoogleFonts.inter(
             color: Colors.white38,
             fontSize: 14,
@@ -330,7 +324,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
       children: [
         GestureDetector(
           onTap: () {
-            // 4. Update data silently when returning from Add
+            // Update data silently when returning from Add
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const AddExpenseScreen()),
@@ -478,10 +472,11 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     String expenseId,
     BuildContext context,
   ) {
-    final title = tx['Title'] ?? 'Unnamed Expense';
-    final amount = tx['Amount']?.toString() ?? '0.00';
+    final title = DataHelpers.safeParseString(tx['Title']);
+    final amount = DataHelpers.safeParseDouble(tx['Amount']);
+    final formattedAmount = DataHelpers.formatCurrency(amount);
     // Format category to capitalize first letter or match your style
-    final String rawCategory = tx['Category'] ?? 'General';
+    final String rawCategory = DataHelpers.safeParseString(tx['Category']);
     final category = rawCategory.isNotEmpty
         ? '${rawCategory[0].toUpperCase()}${rawCategory.substring(1)}'
         : 'General';
@@ -549,7 +544,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
 
               // Amount - Not clickable
               Text(
-                "₹$amount",
+                formattedAmount,
                 style: GoogleFonts.inter(
                   color: Colors.white,
                   fontSize: 15,
