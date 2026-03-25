@@ -119,7 +119,6 @@ class CashflowService {
 
     for (int i = months - 1; i >= 0; i--) {
       final month = DateTime(now.year, now.month - i, 1);
-      final nextMonth = DateTime(now.year, now.month - i + 1, 1);
       final endOfMonth = DateTime(now.year, now.month - i + 1, 0, 23, 59, 59);
 
       try {

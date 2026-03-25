@@ -6,25 +6,33 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../widgets/telegram_image_picker.dart';
+
 class AddExpenseScreen extends StatefulWidget {
-  const AddExpenseScreen({super.key});
+  // ✅ Accept prefill data from scan screen
+  final Map<String, String>? prefillData;
+  // ✅ Accept image path from scan screen
+  final String? imagePath;
+
+  const AddExpenseScreen({super.key, this.prefillData, this.imagePath});
 
   @override
   State<AddExpenseScreen> createState() => _AddExpenseScreenState();
 }
 
 class _AddExpenseScreenState extends State<AddExpenseScreen> {
-  // Controllers
   late final TextEditingController _amountController;
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _dateController;
+  late final ScrollController _scrollController;
 
-  // Loading State
   bool _isLoading = false;
   bool _isLoadingBanks = true;
 
-  // 2. DATA LISTS
+  // ✅ Attachment file ID from Telegram
+  String? _attachmentFileId;
+
   final categories = {
     'marketing': 'Marketing',
     'infrastructure': 'Infrastructure',
@@ -51,13 +59,57 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   @override
   void initState() {
     super.initState();
-    _amountController = TextEditingController();
-    _titleController = TextEditingController();
-    _descriptionController = TextEditingController();
+
+    // Initialize scroll controller
+    _scrollController = ScrollController();
+
+    final p = widget.prefillData;
+
+    // ✅ Pre-fill amount and title from scan
+    _amountController = TextEditingController(text: p?['amount'] ?? '');
+    _titleController = TextEditingController(text: p?['merchant'] ?? '');
+    _descriptionController = TextEditingController(
+      text: p?['description'] ?? '',
+    );
+
+    // ✅ Parse and apply date from scan (DD/MM/YYYY)
+    if (p?['date'] != null && p!['date']!.isNotEmpty) {
+      try {
+        final parts = p['date']!.split('/');
+        if (parts.length == 3) {
+          final day = int.tryParse(parts[0]);
+          final month = int.tryParse(parts[1]);
+          final year = int.tryParse(parts[2]);
+          if (day != null && month != null && year != null) {
+            final parsed = DateTime(year, month, day);
+            // Only accept dates not in the future
+            if (!parsed.isAfter(DateTime.now())) {
+              _selectedDate = parsed;
+            }
+          }
+        }
+      } catch (_) {
+        // Silently fall back to today
+      }
+    }
+
     _dateController = TextEditingController(
       text: "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
     );
+
+    // ✅ Apply category if valid
+    if (p?['category'] != null && categories.containsKey(p!['category'])) {
+      _selectedCategory = p['category']!;
+    }
+
     _fetchBankAccounts();
+
+    // ✅ Auto-upload image and scroll to attachment section if image path provided
+    if (widget.imagePath != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _autoUploadAndScroll();
+      });
+    }
   }
 
   @override
@@ -66,6 +118,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     _titleController.dispose();
     _descriptionController.dispose();
     _dateController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -81,17 +134,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
       if (doc.exists && doc.data()!.containsKey('Bank Accounts')) {
         final accounts = doc.data()!['Bank Accounts'] as List<dynamic>;
-
         Map<String, String> loadedBanks = {};
+
         for (var acc in accounts) {
           final String name = acc['name'] ?? 'Unknown Bank';
           final String number = acc['number'] ?? '';
-
-          // Format option key and value
           final String key = "$name-$number";
-          final String displayLabel =
+          final String label =
               "$name (****${number.length > 4 ? number.substring(number.length - 4) : number})";
-          loadedBanks[key] = displayLabel;
+          loadedBanks[key] = label;
         }
 
         setState(() {
@@ -109,55 +160,45 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   Future<void> _uploadExpense() async {
-    // Validation
     if (_amountController.text.trim().isEmpty) {
       _showErrorSnackBar("Please enter an amount.");
       return;
     }
-
     final double? amount = double.tryParse(_amountController.text.trim());
     if (amount == null || amount <= 0) {
       _showErrorSnackBar("Please enter a valid amount greater than 0.");
       return;
     }
-
     if (_titleController.text.trim().isEmpty) {
       _showErrorSnackBar("Please enter a title.");
       return;
     }
-
     if (_titleController.text.trim().length < 3) {
       _showErrorSnackBar("Title must be at least 3 characters long.");
       return;
     }
-
     if (_titleController.text.trim().length > 50) {
       _showErrorSnackBar("Title must not exceed 50 characters.");
       return;
     }
-
     if (_descriptionController.text.trim().isNotEmpty &&
         _descriptionController.text.trim().length > 500) {
       _showErrorSnackBar("Description must not exceed 500 characters.");
       return;
     }
-
     if (_selectedDate.isAfter(DateTime.now())) {
       _showErrorSnackBar("Date cannot be in the future.");
       return;
     }
-
     if (_selectedBankAccount == null) {
       _showErrorSnackBar("Please select a bank account.");
       return;
     }
 
-    // Set Loading State
     setState(() => _isLoading = true);
 
     try {
       final id = const Uuid().v4();
-
       await FirebaseFirestore.instance.collection('expenses').doc(id).set({
         "uid": FirebaseAuth.instance.currentUser!.uid,
         "Amount": amount,
@@ -166,27 +207,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         "Date": _selectedDate,
         "Category": _selectedCategory,
         "Type": _selectedType,
-        "BankAccount": _selectedBankAccount, // <-- Added to record
+        "BankAccount": _selectedBankAccount,
+
+        // ✅ ADD THIS LINE
+        "AttachmentFileId": _attachmentFileId ?? '',
+
         "Time": FieldValue.serverTimestamp(),
       });
 
-      // Subtract expense amount from available funds
       await _updateFundsAfterExpense(amount);
 
-      // Navigate back after successful save
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      if (mounted) Navigator.pop(context);
     } on FirebaseException catch (e) {
-      // Error Handling
-      if (mounted) {
-        _showErrorSnackBar(e.message ?? 'Failed to upload expense');
-      }
+      if (mounted) _showErrorSnackBar(e.message ?? 'Failed to upload expense');
     } finally {
-      // Reset loading state
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -195,7 +230,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Get current company data
       final companyDoc = await FirebaseFirestore.instance
           .collection('companies')
           .doc(user.uid)
@@ -205,18 +239,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         final data = companyDoc.data()!;
         final currentTotalExpenses =
             double.tryParse(data["totalExpenses"]?.toString() ?? "0") ?? 0.0;
-
-        // Calculate new total expenses
         final newTotalExpenses = currentTotalExpenses + expenseAmount;
 
-        // Update the totalExpenses field instead of reducing funding
         await FirebaseFirestore.instance
             .collection('companies')
             .doc(user.uid)
             .update({"totalExpenses": newTotalExpenses.toString()});
       }
     } catch (e) {
-      print("DEBUG: Error updating totalExpenses: $e");
+      debugPrint("Error updating totalExpenses: $e");
     }
   }
 
@@ -233,19 +264,17 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: const Color(0xFF09090B),
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: SafeArea(
           child: Column(
             children: [
-              // Header
               _buildHeader(context),
-
-              // Scrollable Form
               Expanded(
                 child: SingleChildScrollView(
+                  controller: _scrollController,
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
@@ -253,7 +282,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     children: [
                       const SizedBox(height: 24),
 
-                      // --- HERO AMOUNT INPUT ---
+                      // ✅ Show "Pre-filled from scan" banner if data came from scan
+                      if (widget.prefillData != null &&
+                          widget.prefillData!.isNotEmpty)
+                        _buildPrefillBanner(),
+
                       Center(
                         child: Column(
                           children: [
@@ -273,16 +306,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       ),
 
                       const SizedBox(height: 40),
-
-                      // Expense Title
                       _buildTextInput(
                         "Expense Title",
                         "e.g. Client Lunch / AWS Bill",
                       ),
-
                       const SizedBox(height: 24),
 
-                      // --- IMPROVED SELECTS ROW ---
                       Row(
                         children: [
                           Expanded(
@@ -291,9 +320,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                               currentValue: _selectedCategory,
                               items: categories,
                               icon: Icons.pie_chart_outline,
-                              onChanged: (val) {
-                                setState(() => _selectedCategory = val!);
-                              },
+                              onChanged: (val) =>
+                                  setState(() => _selectedCategory = val!),
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -303,9 +331,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                               currentValue: _selectedType,
                               items: types,
                               icon: Icons.repeat,
-                              onChanged: (val) {
-                                setState(() => _selectedType = val!);
-                              },
+                              onChanged: (val) =>
+                                  setState(() => _selectedType = val!),
                             ),
                           ),
                         ],
@@ -313,49 +340,34 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
                       const SizedBox(height: 24),
 
-                      // --- BANK ACCOUNT SELECTOR ---
                       if (!_isLoadingBanks && _bankAccounts.isNotEmpty) ...[
                         _buildSelectField(
                           label: "Bank Account",
                           currentValue: _selectedBankAccount ?? "",
                           items: _bankAccounts,
                           icon: Icons.account_balance,
-                          onChanged: (val) {
-                            setState(() => _selectedBankAccount = val!);
-                          },
+                          onChanged: (val) =>
+                              setState(() => _selectedBankAccount = val!),
                         ),
                         const SizedBox(height: 24),
                       ],
 
-                      // Date
                       _buildDateSelector(),
-
                       const SizedBox(height: 24),
-
-                      // Description
                       _buildTextArea("Description / Notes"),
-
                       const SizedBox(height: 32),
-
-                      // Team Member
                       _buildSectionLabel("LINK MEMBER (OPTIONAL)"),
                       const SizedBox(height: 16),
                       _buildTeamSelector(),
-
                       const SizedBox(height: 32),
-
-                      // Attachment
                       _buildSectionLabel("ATTACHMENT"),
                       const SizedBox(height: 16),
                       _buildAttachmentZone(),
-
                       const SizedBox(height: 40),
                     ],
                   ),
                 ),
               ),
-
-              // Save Button
               _buildSaveButton(),
             ],
           ),
@@ -364,7 +376,36 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  // --- COMPONENT BUILDERS ---
+  // ✅ Banner shown when data is pre-filled from scan
+  Widget _buildPrefillBanner() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A84FF).withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFF0A84FF).withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.auto_awesome, color: Color(0xFF0A84FF), size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              "Fields pre-filled from scanned receipt. Review and edit if needed.",
+              style: GoogleFonts.inter(
+                color: const Color(0xFF0A84FF),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
@@ -507,7 +548,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           ),
           child: TextField(
             readOnly: true,
+            controller: _dateController,
             style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+            onTap: _showShadCalendar,
             decoration: InputDecoration(
               icon: const Icon(
                 Icons.calendar_today,
@@ -529,10 +572,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 color: Colors.white38,
               ),
             ),
-            controller: _dateController,
-            onTap: () {
-              _showShadCalendar();
-            },
           ),
         ),
       ],
@@ -695,36 +734,33 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   Widget _buildAttachmentZone() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416).withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.08),
-          style: BorderStyle.solid,
-        ),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.cloud_upload_outlined,
-            color: Colors.white38,
-            size: 24,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Tap to upload receipt",
-            style: GoogleFonts.inter(
-              color: Colors.white38,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
+    return TelegramImagePicker(
+      existingFileId: _attachmentFileId,
+      initialImagePath: widget.imagePath, // Pass initial image path
+      onUploaded: (fileId) {
+        setState(() => _attachmentFileId = fileId);
+      },
+      onRemoved: () {
+        setState(() => _attachmentFileId = null);
+      },
     );
+  }
+
+  // ✅ Auto-upload image from scan and scroll to attachment section
+  Future<void> _autoUploadAndScroll() async {
+    if (widget.imagePath == null) return;
+
+    // Wait a moment for the widget to be fully built
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Scroll to attachment section
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 800),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   Widget _buildSectionLabel(String text) {

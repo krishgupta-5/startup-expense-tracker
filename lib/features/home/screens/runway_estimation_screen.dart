@@ -637,14 +637,16 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  runwayMonths?.toStringAsFixed(1) ?? "0.0",
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 72,
-                    fontWeight: FontWeight.w300,
-                    height: 1.0,
-                    letterSpacing: -3,
+                Flexible(
+                  child: Text(
+                    runwayMonths?.toStringAsFixed(1) ?? "0.0",
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 60,
+                      fontWeight: FontWeight.w300,
+                      height: 1.0,
+                      letterSpacing: -3,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -905,8 +907,8 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // 1. Date
-          SizedBox(
-            width: 80,
+          Expanded(
+            flex: 2,
             child: Text(
               month,
               style: GoogleFonts.inter(
@@ -917,18 +919,22 @@ class _RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             ),
           ),
           // 2. Balance
-          Text(
-            balance,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              fontFeatures: [const FontFeature.tabularFigures()],
+          Expanded(
+            flex: 3,
+            child: Text(
+              balance,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                fontFeatures: [const FontFeature.tabularFigures()],
+              ),
             ),
           ),
           // 3. Months (Fixed Alignment: In Front/One line)
-          SizedBox(
-            width: 80,
+          Expanded(
+            flex: 2,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
