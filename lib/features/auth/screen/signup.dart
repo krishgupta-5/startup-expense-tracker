@@ -408,6 +408,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         });
 
         if (userCredential != null) {
+          if (!mounted) return;
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const CompanySetupScreen()),

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:developer';
 
 /// Service for managing bank accounts with production-grade subcollection model
 ///
@@ -198,7 +199,7 @@ class BankAccountService {
 
       return migratedAccounts;
     } catch (e) {
-      print("Migration failed: $e");
+      log("Migration failed: $e");
       return [];
     }
   }

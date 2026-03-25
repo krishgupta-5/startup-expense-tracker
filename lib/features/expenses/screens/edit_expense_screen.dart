@@ -166,7 +166,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         await Future.delayed(const Duration(milliseconds: 500));
 
         // Pop the Edit Screen to go back to details
-        Navigator.pop(context);
+        if (mounted) {
+          Navigator.pop(context);
+        }
       }
     } on FirebaseException catch (e) {
       if (mounted) {

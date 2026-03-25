@@ -30,7 +30,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
   List<Map<String, dynamic>>? _rawTeamsData;
   Map<String, double>? _actualSpendingPerTeam;
 
-  bool _isLoading = true;
   bool _isRefreshing = false;
   String? _error;
 
@@ -59,7 +58,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
   Future<void> _loadFinancialData() async {
     setState(() {
       if (_financialData == null) {
-        _isLoading = true;
+        _isRefreshing = true;
       } else {
         _isRefreshing = true;
       }
@@ -101,13 +100,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
         _rawTeamsData = futures[2] as List<Map<String, dynamic>>;
         _actualSpendingPerTeam = futures[3] as Map<String, double>;
         _forecastLoaded = true;
-        _isLoading = false;
         _isRefreshing = false;
       });
     } catch (e) {
       setState(() {
         _error = e.toString();
-        _isLoading = false;
         _isRefreshing = false;
       });
     }
@@ -757,39 +754,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildLoadingSection(String title) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 20),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-          ),
-          child: const Center(
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Colors.white38,
-            ),
-          ),
-        ),
-      ],
     );
   }
 

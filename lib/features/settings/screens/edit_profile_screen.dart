@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:developer';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -51,7 +52,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         });
       }
     } catch (e) {
-      print(e.toString());
+      log('Profile data fetch error: $e');
     }
   }
 
@@ -118,7 +119,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             }, SetOptions(merge: true));
       }
     } catch (e) {
-      print(e.toString());
+      log('Profile update error: $e');
     }
   }
 

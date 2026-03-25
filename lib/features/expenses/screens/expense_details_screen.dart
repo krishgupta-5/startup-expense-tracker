@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:developer';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'edit_expense_screen.dart';
 
@@ -765,12 +766,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             .doc(user.uid)
             .update({"totalExpenses": newTotalExpenses.toString()});
 
-        print(
+        log(
           "DEBUG: Updated totalExpenses from $currentTotalExpenses to $newTotalExpenses after deletion",
         );
       }
     } catch (e) {
-      print("DEBUG: Error updating totalExpenses after deletion: $e");
+      log("DEBUG: Error updating totalExpenses after deletion: $e");
     }
   }
 

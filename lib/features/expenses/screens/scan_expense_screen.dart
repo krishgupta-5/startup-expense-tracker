@@ -232,8 +232,9 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
       final ext = imagePath.split('.').last.toLowerCase();
       final mediaType = ext == 'png' ? 'image/png' : 'image/jpeg';
 
-      if (mounted)
+      if (mounted) {
         setState(() => _scanStatus = "Extracting expense details...");
+      }
 
       final result = await _extractWithGeminiVision(base64Image, mediaType);
 
@@ -399,17 +400,17 @@ Rules:
   // ─── HELPERS ───────────────────────────────────────────────────────────────
 
   Map<String, String> _extractFieldsWithRegex(String text) {
-    String _field(String key) {
+    String field(String key) {
       final match = RegExp('"$key"\s*:\s*"([^"]*)"').firstMatch(text);
       return match?.group(1)?.trim() ?? '';
     }
 
     return {
-      'merchant': _field('merchant'),
-      'amount': _field('amount'),
-      'date': _field('date'),
-      'category': _field('category'),
-      'description': _field('description'),
+      'merchant': field('merchant'),
+      'amount': field('amount'),
+      'date': field('date'),
+      'category': field('category'),
+      'description': field('description'),
     };
   }
 
@@ -427,14 +428,21 @@ Rules:
       return 'Could not read receipt clearly.\nTap "Use This" to fill manually,\nor retake with better lighting.';
     }
     final lines = <String>[];
-    if (data['merchant']?.isNotEmpty == true)
+    if (data['merchant']?.isNotEmpty == true) {
       lines.add('🏪  ${data['merchant']}');
-    if (data['amount']?.isNotEmpty == true) lines.add('💰  ₹${data['amount']}');
-    if (data['date']?.isNotEmpty == true) lines.add('📅  ${data['date']}');
-    if (data['category']?.isNotEmpty == true)
+    }
+    if (data['amount']?.isNotEmpty == true) {
+      lines.add('💰  ₹${data['amount']}');
+    }
+    if (data['date']?.isNotEmpty == true) {
+      lines.add('📅  ${data['date']}');
+    }
+    if (data['category']?.isNotEmpty == true) {
       lines.add('🏷️  ${_capitalize(data['category']!)}');
-    if (data['description']?.isNotEmpty == true)
+    }
+    if (data['description']?.isNotEmpty == true) {
       lines.add('📝  ${data['description']}');
+    }
     return lines.join('\n');
   }
 

@@ -323,6 +323,7 @@ class _LoginScreenState extends State<LoginScreen> {
         });
 
         if (userCredential != null) {
+          if (!mounted) return;
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(

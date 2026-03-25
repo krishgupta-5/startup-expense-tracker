@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:developer';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class CompanyDetailsScreen extends StatefulWidget {
@@ -102,7 +103,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         });
       }
     } catch (e) {
-      print(e.toString());
+      log('Company details fetch error: $e');
     }
   }
 
@@ -134,7 +135,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
 
       await _syncOwnerNameToUsers();
     } catch (e) {
-      print(e.toString());
+      log('Company data update error: $e');
     }
   }
 
@@ -151,7 +152,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         "updatedAt": Timestamp.now(),
       }, SetOptions(merge: true));
     } catch (e) {
-      print(e.toString());
+      log('Owner name sync error: $e');
     }
   }
 

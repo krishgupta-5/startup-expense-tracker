@@ -31,11 +31,6 @@ class FinancialDataService {
     _cacheTimestamps[key] = DateTime.now();
   }
 
-  static void _clearCache() {
-    _cache.clear();
-    _cacheTimestamps.clear();
-  }
-
   static Future<Map<String, dynamic>> getMonthlyBurnData() async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
@@ -167,7 +162,6 @@ class FinancialDataService {
     for (int i = 5; i >= 0; i--) {
       final month = DateTime(now.year, now.month - i, 1);
       final nextMonth = DateTime(now.year, now.month - i + 1, 1);
-      final endOfMonth = DateTime(now.year, now.month - i + 1, 0, 23, 59, 59);
 
       try {
         // Get expenses for the month
