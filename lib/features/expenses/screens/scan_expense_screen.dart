@@ -421,7 +421,10 @@ Rules:
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddExpenseScreen(prefillData: _parsedData),
+        builder: (_) => AddExpenseScreen(
+          prefillData: _parsedData,
+          imagePath: _capturedImagePath, // Pass the captured image path
+        ),
       ),
     );
   }

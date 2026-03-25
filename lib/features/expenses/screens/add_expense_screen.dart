@@ -6,11 +6,15 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../widgets/telegram_image_picker.dart';
+
 class AddExpenseScreen extends StatefulWidget {
   // ✅ Accept prefill data from scan screen
   final Map<String, String>? prefillData;
+  // ✅ Accept image path from scan screen
+  final String? imagePath;
 
-  const AddExpenseScreen({super.key, this.prefillData});
+  const AddExpenseScreen({super.key, this.prefillData, this.imagePath});
 
   @override
   State<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -21,9 +25,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _dateController;
+  late final ScrollController _scrollController;
 
   bool _isLoading = false;
   bool _isLoadingBanks = true;
+
+  // ✅ Attachment file ID from Telegram
+  String? _attachmentFileId;
 
   final categories = {
     'marketing': 'Marketing',
@@ -51,6 +59,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Initialize scroll controller
+    _scrollController = ScrollController();
 
     final p = widget.prefillData;
 
@@ -92,6 +103,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
 
     _fetchBankAccounts();
+
+    // ✅ Auto-upload image and scroll to attachment section if image path provided
+    if (widget.imagePath != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _autoUploadAndScroll();
+      });
+    }
   }
 
   @override
@@ -100,6 +118,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     _titleController.dispose();
     _descriptionController.dispose();
     _dateController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -189,6 +208,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         "Category": _selectedCategory,
         "Type": _selectedType,
         "BankAccount": _selectedBankAccount,
+
+        // ✅ ADD THIS LINE
+        "AttachmentFileId": _attachmentFileId ?? '',
+
         "Time": FieldValue.serverTimestamp(),
       });
 
@@ -251,6 +274,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               _buildHeader(context),
               Expanded(
                 child: SingleChildScrollView(
+                  controller: _scrollController,
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
@@ -710,33 +734,33 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   Widget _buildAttachmentZone() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 24),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416).withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.cloud_upload_outlined,
-            color: Colors.white38,
-            size: 24,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Tap to upload receipt",
-            style: GoogleFonts.inter(
-              color: Colors.white38,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
+    return TelegramImagePicker(
+      existingFileId: _attachmentFileId,
+      initialImagePath: widget.imagePath, // Pass initial image path
+      onUploaded: (fileId) {
+        setState(() => _attachmentFileId = fileId);
+      },
+      onRemoved: () {
+        setState(() => _attachmentFileId = null);
+      },
     );
+  }
+
+  // ✅ Auto-upload image from scan and scroll to attachment section
+  Future<void> _autoUploadAndScroll() async {
+    if (widget.imagePath == null) return;
+
+    // Wait a moment for the widget to be fully built
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Scroll to attachment section
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 800),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   Widget _buildSectionLabel(String text) {
