@@ -67,8 +67,11 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   final Set<String> _selectedCategories = {};
 
   // Step 6: Team
-  final List<String> _departments = ["Engineering", "Marketing"];
-  final TextEditingController _deptController = TextEditingController();
+  final List<Map<String, dynamic>> _teams = [
+    {"name": "Engineering", "members": []},
+    {"name": "Marketing", "members": []},
+  ];
+  final TextEditingController _teamController = TextEditingController();
 
   // --- METHODS ---
 
@@ -83,7 +86,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     _workDescController.dispose();
     _fundingController.dispose();
     _runwayController.dispose();
-    _deptController.dispose();
+    _teamController.dispose();
     for (var acc in _bankAccounts) {
       acc["name"]?.dispose();
       acc["number"]?.dispose();
@@ -168,8 +171,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         break;
 
       case 5: // Team
-        if (_departments.isEmpty) {
-          _errors.add('departments');
+        if (_teams.isEmpty) {
+          _errors.add('teams');
           isValid = false;
         }
         break;
@@ -182,6 +185,30 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     }
 
     return isValid;
+  }
+
+  Future<void> createTeamsInTeamsCollection() async {
+    try {
+      final userId = FirebaseAuth.instance.currentUser!.uid;
+
+      // Create each team in the teams collection
+      for (var team in _teams) {
+        await FirebaseFirestore.instance.collection('teams').add({
+          "uid": userId,
+          "teamName": team["name"],
+          "monthlyBudget": 0.0, // Default budget
+          "color": "blue", // Default color
+          "iconCodePoint": 0xe7fd, // Group icon
+          "iconFontFamily": "MaterialIcons",
+          "createdAt": FieldValue.serverTimestamp(),
+          "updatedAt": FieldValue.serverTimestamp(),
+        });
+      }
+
+      log("Teams created in teams collection successfully");
+    } catch (e) {
+      log('Error creating teams in teams collection: $e');
+    }
   }
 
   Future<void> uploadCompanyData() async {
@@ -208,8 +235,11 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         "Runway": _runwayController.text.trim(),
         "Bank Accounts": formattedBankAccounts,
         "Categories": _selectedCategories.toList(),
-        "Departments": _departments,
+        "Teams": _teams,
       });
+
+      // Create teams in teams collection
+      await createTeamsInTeamsCollection();
 
       // Set companySetup flag in users collection
       await FirebaseFirestore.instance.collection('users').doc(userId).set({
@@ -635,14 +665,41 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   }
 
   Widget _buildStep6Team() {
-    final hasError = _errors.contains('departments');
+    final hasError = _errors.contains('teams');
 
     return _buildPageContainer(
-      title: "Departments",
-      subtitle: "Who spends the money?",
+      title: "Teams",
+      subtitle: "Teams will be created automatically for your company.",
+      extraHeader: Padding(
+        padding: const EdgeInsets.only(bottom: 24),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.white70, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  "Default teams (Engineering, Marketing) will be created. You can add more teams after setup.",
+                  style: GoogleFonts.inter(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
       children: [
-        ..._departments.map(
-          (dept) => Padding(
+        ..._teams.map((team) {
+          return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -654,23 +711,41 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    dept,
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+                  Row(
+                    children: [
+                      Icon(Icons.group, color: Colors.white60, size: 18),
+                      const SizedBox(width: 12),
+                      Text(
+                        team["name"],
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
                   ),
-                  GestureDetector(
-                    onTap: () => setState(() => _departments.remove(dept)),
-                    child: const Icon(
-                      Icons.close,
-                      color: Colors.white60,
-                      size: 18,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      "${team["members"]?.length ?? 0} members",
+                      style: GoogleFonts.inter(
+                        color: Colors.white60,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ),
+          );
+        }),
         const SizedBox(height: 16),
         ShakeWidget(
           shake: hasError,
@@ -678,20 +753,20 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             children: [
               Expanded(
                 child: _buildInputField(
-                  _deptController,
-                  "Add Dept (e.g. Sales)",
-                  "departments",
-                  icon: Icons.domain_add,
+                  _teamController,
+                  "Add Team (e.g. Sales)",
+                  "teams",
+                  icon: Icons.group_add,
                 ),
               ),
               const SizedBox(width: 12),
               GestureDetector(
                 onTap: () {
-                  if (_deptController.text.isNotEmpty) {
+                  if (_teamController.text.isNotEmpty) {
                     setState(() {
-                      _departments.add(_deptController.text);
-                      _deptController.clear();
-                      _clearError('departments');
+                      _teams.add({"name": _teamController.text, "members": []});
+                      _teamController.clear();
+                      _clearError('teams');
                     });
                   }
                 },

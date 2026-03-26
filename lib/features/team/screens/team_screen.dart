@@ -75,16 +75,67 @@ class _TeamScreenState extends State<TeamScreen> {
   }
 
   // 3. Local Filter Logic for Firebase Docs
-  Future<List<QueryDocumentSnapshot>> _filterAndSortTeams(
-    List<QueryDocumentSnapshot> docs,
+  Future<List<Map<String, dynamic>>> _getAllTeams() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return [];
+
+    try {
+      // 1. Fetch teams from teams collection (manually created teams)
+      final teamsSnapshot = await FirebaseFirestore.instance
+          .collection('teams')
+          .where('uid', isEqualTo: user.uid)
+          .get();
+
+      // 2. Fetch teams from companies collection (company setup teams)
+      final companySnapshot = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(user.uid)
+          .get();
+
+      List<Map<String, dynamic>> allTeams = [];
+
+      // Add manually created teams
+      for (var doc in teamsSnapshot.docs) {
+        final data = doc.data();
+        allTeams.add({...data, 'id': doc.id, 'source': 'teams_collection'});
+      }
+
+      // Add company setup teams
+      if (companySnapshot.exists) {
+        final companyData = companySnapshot.data() as Map<String, dynamic>;
+        final List<dynamic> companyTeams = companyData['Teams'] ?? [];
+
+        for (var team in companyTeams) {
+          allTeams.add({
+            'teamName': team['name'],
+            'members': team['members'] ?? [],
+            'monthlyBudget': 0.0, // Default budget for company setup teams
+            'color': 'blue', // Default color
+            'iconCodePoint': 0xe7fd, // Default group icon
+            'iconFontFamily': 'MaterialIcons',
+            'source': 'company_setup',
+            'id':
+                'company_setup_${team['name']}', // Unique ID for company setup teams
+          });
+        }
+      }
+
+      return allTeams;
+    } catch (e) {
+      debugPrint("Error fetching teams: $e");
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _filterAndSortTeams(
+    List<Map<String, dynamic>> teams,
   ) async {
     // A. Filter by Search Query
-    List<QueryDocumentSnapshot> teams = docs;
+    List<Map<String, dynamic>> filteredTeams = teams;
 
     if (_searchQuery.isNotEmpty) {
-      teams = teams.where((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        final teamName = (data['teamName'] ?? '').toString().toLowerCase();
+      filteredTeams = teams.where((team) {
+        final teamName = (team['teamName'] ?? '').toString().toLowerCase();
         return teamName.contains(_searchQuery.toLowerCase());
       }).toList();
     }
@@ -94,38 +145,42 @@ class _TeamScreenState extends State<TeamScreen> {
       // For team size, we need to fetch member counts asynchronously
       final teamSizes = <String, int>{};
 
-      for (final doc in teams) {
-        final membersSnapshot = await FirebaseFirestore.instance
-            .collection('members')
-            .where('teamId', isEqualTo: doc.id)
-            .get();
-        teamSizes[doc.id] = membersSnapshot.docs.length;
+      for (final team in filteredTeams) {
+        if (team['source'] == 'company_setup') {
+          // Company setup teams have members array directly
+          final members = team['members'] as List<dynamic>? ?? [];
+          teamSizes[team['id'] as String] = members.length;
+        } else {
+          // Manually created teams need to fetch from members collection
+          final membersSnapshot = await FirebaseFirestore.instance
+              .collection('members')
+              .where('teamId', isEqualTo: team['id'])
+              .get();
+          teamSizes[team['id'] as String] = membersSnapshot.docs.length;
+        }
       }
 
-      teams.sort((a, b) {
-        final sizeA = teamSizes[a.id] ?? 0;
-        final sizeB = teamSizes[b.id] ?? 0;
+      filteredTeams.sort((a, b) {
+        final sizeA = teamSizes[a['id'] as String] ?? 0;
+        final sizeB = teamSizes[b['id'] as String] ?? 0;
         return _selectedOrder == "Low-High"
             ? sizeA.compareTo(sizeB)
             : sizeB.compareTo(sizeA);
       });
     } else {
       // For synchronous sorting options
-      teams.sort((a, b) {
-        final dataA = a.data() as Map<String, dynamic>;
-        final dataB = b.data() as Map<String, dynamic>;
-
+      filteredTeams.sort((a, b) {
         switch (_selectedSortOption) {
           case "Name":
-            final nameA = (dataA['teamName'] ?? '').toString().toLowerCase();
-            final nameB = (dataB['teamName'] ?? '').toString().toLowerCase();
+            final nameA = (a['teamName'] ?? '').toString().toLowerCase();
+            final nameB = (b['teamName'] ?? '').toString().toLowerCase();
             return _selectedOrder == "A-Z"
                 ? nameA.compareTo(nameB)
                 : nameB.compareTo(nameA);
 
           case "Monthly Amount":
-            final costA = (dataA['monthlyBudget'] ?? 0.0) as double;
-            final costB = (dataB['monthlyBudget'] ?? 0.0) as double;
+            final costA = (a['monthlyBudget'] ?? 0.0) as double;
+            final costB = (b['monthlyBudget'] ?? 0.0) as double;
             return _selectedOrder == "Low-High"
                 ? costA.compareTo(costB)
                 : costB.compareTo(costA);
@@ -136,7 +191,7 @@ class _TeamScreenState extends State<TeamScreen> {
       });
     }
 
-    return teams;
+    return filteredTeams;
   }
 
   // Toggle order when the same chip is clicked again
@@ -239,11 +294,8 @@ class _TeamScreenState extends State<TeamScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return _buildEmptyState("Please log in.");
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('teams')
-          .where('uid', isEqualTo: user.uid)
-          .snapshots(),
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: _getAllTeams(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -259,12 +311,12 @@ class _TeamScreenState extends State<TeamScreen> {
           return _buildEmptyState("Error loading teams.");
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return _buildEmptyState("You don't have any teams yet.");
         }
 
-        return FutureBuilder<List<QueryDocumentSnapshot>>(
-          future: _filterAndSortTeams(snapshot.data!.docs),
+        return FutureBuilder<List<Map<String, dynamic>>>(
+          future: _filterAndSortTeams(snapshot.data!),
           builder: (context, futureSnapshot) {
             if (futureSnapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -280,9 +332,9 @@ class _TeamScreenState extends State<TeamScreen> {
               return _buildEmptyState("Error sorting teams.");
             }
 
-            final docs = futureSnapshot.data ?? [];
+            final teams = futureSnapshot.data ?? [];
 
-            if (docs.isEmpty) {
+            if (teams.isEmpty) {
               return _buildEmptyState("No teams match your search.");
             }
 
@@ -294,9 +346,9 @@ class _TeamScreenState extends State<TeamScreen> {
                 100,
               ), // Bottom padding for FAB
               physics: const BouncingScrollPhysics(),
-              itemCount: docs.length,
+              itemCount: teams.length,
               itemBuilder: (context, index) {
-                return _buildTeamCard(context, docs[index]);
+                return _buildTeamCard(context, teams[index]);
               },
             );
           },
@@ -506,29 +558,28 @@ class _TeamScreenState extends State<TeamScreen> {
     );
   }
 
-  Widget _buildTeamCard(BuildContext context, QueryDocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-
+  Widget _buildTeamCard(BuildContext context, Map<String, dynamic> teamData) {
     debugPrint(
-      "Building team card for team ID: ${doc.id}, team name: ${data['teamName']}",
+      "Building team card for team ID: ${teamData['id']}, team name: ${teamData['teamName']}",
     );
 
-    final name = data['teamName'] ?? 'Unnamed Team';
-    final rawCost = data['monthlyBudget'] ?? 0.0;
+    final name = teamData['teamName'] ?? 'Unnamed Team';
+    final rawCost = teamData['monthlyBudget'] ?? 0.0;
     final cost = "₹${rawCost.toStringAsFixed(2)}";
-    final color = _getColorFromName(data['color'] ?? 'blue');
-    final icon = _getIconFromData(data);
+    final color = _getColorFromName(teamData['color'] ?? 'blue');
+    final icon = _getIconFromData(teamData);
+    final teamId = teamData['id'] as String;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: GestureDetector(
         onTap: () {
-          // Pass the team ID to details screen (you'll need to update TeamDetailScreen to accept this)
+          // Pass team data to details screen
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) =>
-                  TeamDetailScreen(teamId: doc.id, initialTeamData: data),
+                  TeamDetailScreen(teamId: teamId, initialTeamData: teamData),
             ),
           );
         },
@@ -567,59 +618,8 @@ class _TeamScreenState extends State<TeamScreen> {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          // Real-time member count
-                          StreamBuilder<QuerySnapshot>(
-                            stream: FirebaseFirestore.instance
-                                .collection('members')
-                                .where('teamId', isEqualTo: doc.id)
-                                .snapshots(),
-                            builder: (context, membersSnapshot) {
-                              if (membersSnapshot.hasError) {
-                                debugPrint(
-                                  "Error fetching members: ${membersSnapshot.error}",
-                                );
-                                return Text(
-                                  "Error loading members",
-                                  style: GoogleFonts.inter(
-                                    color: Colors.redAccent,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                );
-                              }
-
-                              if (membersSnapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return Text(
-                                  "Loading...",
-                                  style: GoogleFonts.inter(
-                                    color: Colors.white38,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                );
-                              }
-
-                              final memberCount =
-                                  membersSnapshot.data?.docs.length ?? 0;
-                              debugPrint(
-                                "Team ${doc.id} has $memberCount members",
-                              );
-
-                              final memberCountStr = memberCount == 1
-                                  ? "1 Member"
-                                  : "$memberCount Members";
-
-                              return Text(
-                                memberCountStr,
-                                style: GoogleFonts.inter(
-                                  color: Colors.white54,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              );
-                            },
-                          ),
+                          // Member count display
+                          _buildMemberCount(teamData),
                         ],
                       ),
                     ],
@@ -637,52 +637,8 @@ class _TeamScreenState extends State<TeamScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Avatar Pile with real member data
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('members')
-                        .where('teamId', isEqualTo: doc.id)
-                        .snapshots(),
-                    builder: (context, membersSnapshot) {
-                      if (membersSnapshot.hasError) {
-                        debugPrint(
-                          "Error fetching members for avatars: ${membersSnapshot.error}",
-                        );
-                        return Text(
-                          "Error loading members",
-                          style: GoogleFonts.inter(
-                            color: Colors.redAccent,
-                            fontSize: 12,
-                          ),
-                        );
-                      }
-
-                      final membersDocs = membersSnapshot.data?.docs ?? [];
-                      debugPrint(
-                        "Avatar pile - Team ${doc.id} has ${membersDocs.length} members",
-                      );
-
-                      final List<String> avatars = [];
-                      final List<String> names = [];
-
-                      for (var memberDoc in membersDocs) {
-                        final memberData =
-                            memberDoc.data() as Map<String, dynamic>;
-                        final String name = memberData['fullName'] ?? 'Unnamed';
-                        final String? avatarUrl = memberData['avatarUrl'];
-
-                        names.add(name);
-                        if (avatarUrl != null && avatarUrl.isNotEmpty) {
-                          avatars.add(avatarUrl);
-                        } else {
-                          avatars.add(''); // Empty string for generated avatar
-                        }
-                      }
-
-                      return _buildAvatarPile(avatars, names);
-                    },
-                  ),
-
+                  // Avatar Pile
+                  _buildAvatarPile(teamData),
                   // Monthly Cost
                   Row(
                     children: [
@@ -712,46 +668,173 @@ class _TeamScreenState extends State<TeamScreen> {
     );
   }
 
-  Widget _buildAvatarPile(List<String> images, List<String> names) {
-    if (images.isEmpty && names.isEmpty) {
+  Widget _buildMemberCount(Map<String, dynamic> teamData) {
+    final source = teamData['source'] as String?;
+
+    if (source == 'company_setup') {
+      // Company setup teams have members array directly
+      final members = teamData['members'] as List<dynamic>? ?? [];
+      final memberCount = members.length;
+      final memberCountStr = memberCount == 1
+          ? "1 Member"
+          : "$memberCount Members";
+
+      return Text(
+        memberCountStr,
+        style: GoogleFonts.inter(
+          color: Colors.white54,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
+      );
+    } else {
+      // Manually created teams need to fetch from members collection
+      final teamId = teamData['id'] as String;
+      return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('members')
+            .where('teamId', isEqualTo: teamId)
+            .snapshots(),
+        builder: (context, membersSnapshot) {
+          if (membersSnapshot.hasError) {
+            debugPrint("Error fetching members: ${membersSnapshot.error}");
+            return Text(
+              "Error loading members",
+              style: GoogleFonts.inter(
+                color: Colors.redAccent,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            );
+          }
+
+          if (membersSnapshot.connectionState == ConnectionState.waiting) {
+            return Text(
+              "Loading...",
+              style: GoogleFonts.inter(
+                color: Colors.white38,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            );
+          }
+
+          final memberCount = membersSnapshot.data?.docs.length ?? 0;
+          debugPrint("Team $teamId has $memberCount members");
+
+          final memberCountStr = memberCount == 1
+              ? "1 Member"
+              : "$memberCount Members";
+
+          return Text(
+            memberCountStr,
+            style: GoogleFonts.inter(
+              color: Colors.white54,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          );
+        },
+      );
+    }
+  }
+
+  Widget _buildAvatarPile(Map<String, dynamic> teamData) {
+    final source = teamData['source'] as String?;
+
+    if (source == 'company_setup') {
+      // Company setup teams have members array directly
+      final members = teamData['members'] as List<dynamic>? ?? [];
+      if (members.isEmpty) {
+        return Text(
+          "No members",
+          style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
+        );
+      }
+
+      final List<String> names = members
+          .map(
+            (member) =>
+                (member as Map<String, dynamic>)['fullName']?.toString() ??
+                'Unnamed',
+          )
+          .toList();
+
+      return _buildAvatarWidget(names, []);
+    } else {
+      // Manually created teams need to fetch from members collection
+      final teamId = teamData['id'] as String;
+      return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('members')
+            .where('teamId', isEqualTo: teamId)
+            .snapshots(),
+        builder: (context, membersSnapshot) {
+          if (membersSnapshot.hasError) {
+            debugPrint(
+              "Error fetching members for avatars: ${membersSnapshot.error}",
+            );
+            return Text(
+              "Error loading members",
+              style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 12),
+            );
+          }
+
+          final membersDocs = membersSnapshot.data?.docs ?? [];
+          debugPrint(
+            "Avatar pile - Team $teamId has ${membersDocs.length} members",
+          );
+
+          final List<String> avatars = [];
+          final List<String> names = [];
+
+          for (var memberDoc in membersDocs) {
+            final memberData = memberDoc.data() as Map<String, dynamic>;
+            final String name = memberData['fullName'] ?? 'Unnamed';
+            final String? avatarUrl = memberData['avatarUrl'];
+
+            names.add(name);
+            if (avatarUrl != null && avatarUrl.isNotEmpty) {
+              avatars.add(avatarUrl);
+            } else {
+              avatars.add(''); // Empty string for generated avatar
+            }
+          }
+
+          return _buildAvatarWidget(names, avatars);
+        },
+      );
+    }
+  }
+
+  Widget _buildAvatarWidget(List<String> names, List<String> avatars) {
+    if (names.isEmpty) {
       return Text(
         "No members",
         style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
       );
     }
 
-    // Use names if available, otherwise generate placeholder names
-    final List<String> displayNames = names.isNotEmpty
-        ? names
-        : List.generate(images.length, (index) => "Member ${index + 1}");
-
     return SizedBox(
       height: 24,
       width: 100, // Fixed width to allow stacking
       child: Stack(
-        children: List.generate(
-          (images.length > 3
-              ? 3
-              : images.length > displayNames.length
-              ? displayNames.length
-              : images.length),
-          (index) {
-            return Positioned(
-              left: index * 18.0, // Overlap amount
-              child: AvatarWidget(
-                name: displayNames[index],
-                size: 24,
-                imageUrl:
-                    images.length > index &&
-                        images[index].isNotEmpty &&
-                        !images[index].contains('ui-avatars.com')
-                    ? images[index]
-                    : null,
-                fontSize: 8.0,
-              ),
-            );
-          },
-        ),
+        children: List.generate((names.length > 3 ? 3 : names.length), (index) {
+          return Positioned(
+            left: index * 18.0, // Overlap amount
+            child: AvatarWidget(
+              name: names[index],
+              size: 24,
+              imageUrl:
+                  avatars.length > index &&
+                      avatars[index].isNotEmpty &&
+                      !avatars[index].contains('ui-avatars.com')
+                  ? avatars[index]
+                  : null,
+              fontSize: 8.0,
+            ),
+          );
+        }),
       ),
     );
   }
