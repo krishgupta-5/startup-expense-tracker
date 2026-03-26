@@ -25,7 +25,49 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
     super.dispose();
   }
 
+  void _showMinimalToast(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: isError
+                  ? const Color(0xFFFF453A)
+                  : const Color(0xFF30D158),
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF141416),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        duration: const Duration(seconds: 3),
+        elevation: 0,
+      ),
+    );
+  }
+
   Future<void> _saveBankAccount() async {
+    // Dismiss keyboard on submit
+    FocusScope.of(context).unfocus();
+
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -50,37 +92,12 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
           });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Bank account added successfully",
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
-            backgroundColor: const Color(0xFF30D158),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
-        // Return true to signal that the data was updated
+        _showMinimalToast("Bank account added successfully");
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Error adding bank account: $e",
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
-            backgroundColor: const Color(0xFFFF453A),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
+        _showMinimalToast("Error adding bank account", isError: true);
       }
     } finally {
       if (mounted) {
@@ -94,33 +111,26 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
-      body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
-        child: SafeArea(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Matching Header
-                _buildHeader(context),
+      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      body: GestureDetector(
+        onTap: () =>
+            FocusScope.of(context).unfocus(), // Tap to dismiss keyboard
+        child: AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle.light,
+          child: SafeArea(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Matching Header
+                  _buildHeader(context),
 
-                const SizedBox(height: 32),
+                  const SizedBox(height: 40),
 
-                // Main Form Container matching FundsOverviewScreen style
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF141416),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.04),
-                    ),
-                  ),
-                  child: Form(
+                  // Form Section (No outer card, sits flat on background like Setup screen)
+                  Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,12 +169,12 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
 
                         _buildTextField(
                           controller: _bankNameController,
-                          label: "Bank Name",
+                          label: "BANK NAME",
                           hint: "e.g., HDFC Bank, SBI",
-                          icon: Icons.account_balance,
+                          icon: Icons.account_balance_outlined,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return 'Required';
+                              return 'Bank name is required';
                             }
                             return null;
                           },
@@ -174,52 +184,52 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
 
                         _buildTextField(
                           controller: _accountNumberController,
-                          label: "Account Number",
+                          label: "ACCOUNT NUMBER",
                           hint: "Enter account number",
                           icon: Icons.numbers,
                           keyboardType: TextInputType.number,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return 'Required';
+                              return 'Account number is required';
                             }
                             if (value.trim().length < 4) {
-                              return 'Too short';
+                              return 'Please enter a valid account number';
                             }
                             return null;
                           },
                         ),
 
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 48),
 
                         SizedBox(
                           width: double.infinity,
+                          height: 56,
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _saveBankAccount,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF30D158),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.black,
+                              disabledBackgroundColor: Colors.white70,
+                              elevation: 0,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                              disabledBackgroundColor: const Color(
-                                0xFF30D158,
-                              ).withValues(alpha: 0.5),
                             ),
                             child: _isLoading
                                 ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
+                                    width: 24,
+                                    height: 24,
                                     child: CircularProgressIndicator(
-                                      color: Colors.white,
+                                      color: Colors.black,
                                       strokeWidth: 2,
                                     ),
                                   )
                                 : Text(
                                     "Link Bank Account",
                                     style: GoogleFonts.inter(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
                                     ),
                                   ),
                           ),
@@ -227,8 +237,8 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
                       ],
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -248,7 +258,9 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFF141416),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.1),
+              ), // Matched alpha to 0.1
             ),
             child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
           ),
@@ -280,6 +292,21 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
     );
   }
 
+  Widget _buildLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        text,
+        style: GoogleFonts.inter(
+          color: Colors.white70, // Matches Login/Setup
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -291,46 +318,38 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            color: Colors.white70,
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 8),
+        _buildLabel(label),
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-          ),
+          style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+          cursorColor: Colors.white,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 15),
-            prefixIcon: Icon(icon, color: Colors.white38, size: 20),
+            prefixIcon: Icon(icon, color: Colors.white60, size: 20),
             filled: true,
-            // Uses the same subtle highlight background as the "Available for Operations" box
-            fillColor: Colors.white.withValues(alpha: 0.03),
+            fillColor: const Color(0xFF141416), // Matches Setup inputs
             contentPadding: const EdgeInsets.symmetric(vertical: 16),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
-                color: Colors.white.withValues(alpha: 0.06),
+                color: Colors.white.withValues(alpha: 0.1),
               ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
-                color: Colors.white.withValues(alpha: 0.06),
+                color: Colors.white.withValues(alpha: 0.1),
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFF30D158)),
+              borderSide: BorderSide(
+                color: Colors.white.withValues(
+                  alpha: 0.3,
+                ), // Slightly brighter on focus
+              ),
             ),
             errorStyle: GoogleFonts.inter(
               color: const Color(0xFFFF453A),
@@ -339,8 +358,12 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
-                color: const Color(0xFFFF453A).withValues(alpha: 0.5),
+                color: const Color(0xFFFF453A).withValues(alpha: 0.6),
               ),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFFFF453A)),
             ),
           ),
           validator: validator,

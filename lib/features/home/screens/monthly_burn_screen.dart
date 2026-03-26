@@ -57,11 +57,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
 
   Future<void> _loadFinancialData() async {
     setState(() {
-      if (_financialData == null) {
-        _isRefreshing = true;
-      } else {
-        _isRefreshing = true;
-      }
+      _isRefreshing = true;
       _error = null;
       // Reset progressive loading states
       _mainCardLoaded = false;
@@ -124,9 +120,10 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
       case "6M":
         return 6;
       case "YTD":
-        return DateTime.now().month;
+        return DateTime.now()
+            .month; // Returns exactly the number of months since January
       case "ALL":
-        return 12;
+        return 999; // Large number to grab all available data
       default:
         return 6;
     }
@@ -175,10 +172,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                     _teamsLoaded
                         ? _buildTeamCostSection()
                         : _buildSkeletonSection("Team Cost Distribution"),
-                    const SizedBox(height: 32),
-
-                    // Vendor section (always shown)
-                    _buildVendorBreakdownSection(),
                     const SizedBox(height: 32),
 
                     // Show forecast or shimmer
@@ -286,11 +279,27 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
     );
   }
 
+  // --- Standardized Minimal Empty State ---
+  Widget _buildEmptyState(String text) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Text(
+          text,
+          style: GoogleFonts.inter(
+            color: Colors.white38,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+
   // --- Main Burn Card ---
-  // FIX: Removed the dead _isLoading / _error guards inside this method.
-  // This widget is only ever called from the build tree when _mainCardLoaded == true,
-  // which means loading has already succeeded. The inner guards could never show
-  // their loading/error states, and caused the real error card to be unreachable.
   Widget _buildMainBurnCard() {
     if (_error != null) return _buildErrorCard();
 
@@ -372,7 +381,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                   Text(
                     grossBurn > 0
                         ? "₹${grossBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                        : "—",
+                        : "₹0",
                     style: GoogleFonts.inter(
                       color: Colors.white,
                       fontSize: 32,
@@ -421,7 +430,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                     Text(
                       netBurn > 0
                           ? "₹${netBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                          : "—",
+                          : "₹0",
                       style: GoogleFonts.inter(
                         color: const Color(0xFFFF453A),
                         fontSize: 20,
@@ -451,7 +460,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
       _financialData?['trendData'] ?? [],
     );
 
-    List<Map<String, dynamic>> displayData;
+    List<Map<String, dynamic>> displayData = [];
 
     if (trendData.isNotEmpty) {
       if (trendData.length > count) {
@@ -459,8 +468,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
       } else {
         displayData = trendData;
       }
-    } else {
-      displayData = _getFallbackTrendData(count);
     }
 
     final maxAmount = displayData.isEmpty
@@ -498,24 +505,44 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
               ),
-              child: SizedBox(
-                height: 160,
-                child: Row(
-                  mainAxisAlignment: displayData.length <= 3
-                      ? MainAxisAlignment.spaceEvenly
-                      : MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: displayData.map((data) {
-                    final amount = _toDouble(data['amount']);
-                    final percentage = maxAmount > 0 ? amount / maxAmount : 0.0;
-                    return _buildFlatBar(
-                      data['month'] as String,
-                      percentage,
-                      isActive: data['isCurrentMonth'] as bool? ?? false,
-                    );
-                  }).toList(),
-                ),
-              ),
+              child: displayData.isEmpty
+                  ? _buildEmptyState("Not enough data for trend analysis")
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        // Dynamically calculate bar width to fit ALL and YTD on screen perfectly
+                        final int barCount = displayData.length;
+                        final double totalGapSpace = barCount > 1
+                            ? (barCount - 1) * 8.0
+                            : 0.0;
+                        double barWidth =
+                            (constraints.maxWidth - totalGapSpace) / barCount;
+                        if (barWidth > 40.0)
+                          barWidth = 40.0; // Cap width at 40px
+
+                        return SizedBox(
+                          height: 160,
+                          child: Row(
+                            mainAxisAlignment: barCount <= 3
+                                ? MainAxisAlignment.spaceEvenly
+                                : MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: displayData.map((data) {
+                              final amount = _toDouble(data['amount']);
+                              final percentage = maxAmount > 0
+                                  ? amount / maxAmount
+                                  : 0.0;
+                              return _buildFlatBar(
+                                data['month'] as String,
+                                percentage,
+                                barWidth,
+                                isActive:
+                                    data['isCurrentMonth'] as bool? ?? false,
+                              );
+                            }).toList(),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -523,12 +550,23 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
     );
   }
 
-  Widget _buildFlatBar(String label, double pct, {bool isActive = false}) {
+  Widget _buildFlatBar(
+    String label,
+    double pct,
+    double width, {
+    bool isActive = false,
+  }) {
+    // Truncate the month label slightly if width is getting very small (like in 'ALL' view)
+    String displayLabel = label;
+    if (width < 25 && displayLabel.length > 1) {
+      displayLabel = displayLabel.substring(0, 1);
+    }
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         Container(
-          width: 40,
+          width: width,
           height: 120 * pct,
           decoration: BoxDecoration(
             color: isActive ? Colors.white : const Color(0xFF1F1F22),
@@ -537,7 +575,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
         ),
         const SizedBox(height: 12),
         Text(
-          label,
+          displayLabel,
           style: GoogleFonts.inter(
             color: isActive ? Colors.white : Colors.white38,
             fontSize: 12,
@@ -548,56 +586,573 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
     );
   }
 
-  // --- Fallback Data Method ---
-  List<Map<String, dynamic>> _getFallbackTrendData(int count) {
-    final now = DateTime.now();
-    final fallbackData = <Map<String, dynamic>>[];
-    final baseAmount = 0;
-    final variations = [
-      0.9,
-      1.1,
-      0.95,
-      1.05,
-      0.85,
-      1.0,
-      1.02,
-      0.98,
-      1.15,
-      0.88,
-      0.92,
-      1.08,
-    ];
+  Widget _buildExpenseCategoriesSection() {
+    if (_error != null) return _buildErrorSection("Expense Categories");
 
-    for (int i = count - 1; i >= 0; i--) {
-      final month = DateTime(now.year, now.month - i, 1);
-      final variationIndex = i % variations.length;
-      final amount = baseAmount * variations[variationIndex];
-      fallbackData.add({
-        'month': _getMonthAbbreviation(month.month),
-        'amount': amount,
-        'isCurrentMonth': i == 0,
+    final categoryBreakdown =
+        _financialData?['categoryBreakdown'] as Map<String, double>? ?? {};
+    final totalExpenses = _toDouble(_financialData?['totalExpenses']);
+
+    return AnimatedOpacity(
+      opacity: _categoriesLoaded ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOut,
+      child: AnimatedSlide(
+        offset: _categoriesLoaded ? Offset.zero : const Offset(0, 0.1),
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeOutCubic,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Expense Categories",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF141416),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              ),
+              child: categoryBreakdown.isEmpty
+                  ? _buildEmptyState("No expense data available")
+                  : Column(
+                      children: categoryBreakdown.entries.map((entry) {
+                        final amount = _toDouble(entry.value);
+                        final color = _getCategoryColor(entry.key);
+                        final percentage =
+                            FinancialCalculator.calculatePercentage(
+                              amount: amount,
+                              total: totalExpenses,
+                            );
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 24),
+                          child: _buildCategoryRow(
+                            _capitalizeFirstLetter(entry.key),
+                            "₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
+                            percentage,
+                            color,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getCategoryColor(String category) {
+    switch (category.toLowerCase()) {
+      case 'salaries':
+      case 'salary':
+        return const Color(0xFF30D158);
+      case 'servers':
+      case 'infrastructure':
+      case 'servers & infrastructure':
+        return const Color(0xFF3A4B8A);
+      case 'marketing':
+        return const Color(0xFFFF9F0A);
+      case 'office':
+      case 'operations':
+      case 'office & operations':
+        return const Color(0xFF00BFA5);
+      default:
+        return const Color(0xFF8E8E93);
+    }
+  }
+
+  Widget _buildTeamCostSection() {
+    if (_error != null) return _buildErrorSection("Team Cost Distribution");
+
+    final teamCosts =
+        (_teamCostData?['teamCosts'] as List<dynamic>?)
+            ?.cast<Map<String, dynamic>>() ??
+        [];
+
+    return AnimatedOpacity(
+      opacity: _teamsLoaded ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOut,
+      child: AnimatedSlide(
+        offset: _teamsLoaded ? Offset.zero : const Offset(0, 0.1),
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeOutCubic,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Team Cost Distribution",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF141416),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              ),
+              child: teamCosts.isEmpty
+                  ? _buildEmptyState("No team data available")
+                  : Column(
+                      children: teamCosts.map((team) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 24),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: Text(
+                                  team['name'] as String,
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 4,
+                                child: Text(
+                                  team['cost'] as String,
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    fontFeatures: [
+                                      const FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                flex: 2,
+                                child: Stack(
+                                  children: [
+                                    Container(
+                                      height: 4,
+                                      width: double.infinity,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1F1F22),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                    FractionallySizedBox(
+                                      widthFactor: _toDouble(team['pct']) > 0
+                                          ? _toDouble(team['pct'])
+                                          : 0.05,
+                                      child: Container(
+                                        height: 4,
+                                        decoration: BoxDecoration(
+                                          color: _toDouble(team['pct']) > 0
+                                              ? Colors.white
+                                              : Colors.white24,
+                                          borderRadius: BorderRadius.circular(
+                                            2,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryRow(
+    String label,
+    String value,
+    int percentage,
+    Color color,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          flex: 5,
+          child: Text(
+            label,
+            style: GoogleFonts.inter(
+              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.left,
+          ),
+        ),
+        const SizedBox(width: 16),
+        SizedBox(
+          width: 80,
+          child: Text(
+            value,
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              fontFeatures: [const FontFeature.tabularFigures()],
+            ),
+            textAlign: TextAlign.right,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          flex: 3,
+          child: Stack(
+            children: [
+              Container(
+                height: 4,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1F1F22),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              FractionallySizedBox(
+                widthFactor: percentage / 100.0,
+                child: Container(
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _capitalizeFirstLetter(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1);
+  }
+
+  String _formatCurrencyForForecast(double amount) {
+    final intAmount = amount.round();
+    return '₹${intAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}';
+  }
+
+  Widget _buildForecastComparisonSection() {
+    if (_error != null) return _buildErrorSection("Budget vs Actual");
+
+    final rawTeamsData = _rawTeamsData ?? [];
+
+    return AnimatedOpacity(
+      opacity: _forecastLoaded ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOut,
+      child: AnimatedSlide(
+        offset: _forecastLoaded ? Offset.zero : const Offset(0, 0.1),
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeOutCubic,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Budget vs Actual",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF141416),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              ),
+              child: rawTeamsData.isEmpty
+                  ? _buildEmptyState("No team budget data available")
+                  : _buildForecastDataContent(rawTeamsData),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildForecastDataContent(List<Map<String, dynamic>> rawTeamsData) {
+    double totalBudget = 0;
+    double totalActual = 0;
+    List<Map<String, dynamic>> comparisonData = [];
+
+    for (var team in rawTeamsData) {
+      final teamName = team['teamName'] as String? ?? 'Unknown Team';
+      String budgetStr = (team['monthlyBudget']?.toString() ?? '0');
+      budgetStr = budgetStr.replaceAll(RegExp(r'[^\d.]'), '');
+      final budget = double.tryParse(budgetStr) ?? 0.0;
+      final actual = _toDouble(_actualSpendingPerTeam?[teamName]);
+      final variance = budget - actual;
+
+      totalBudget += budget;
+      totalActual += actual;
+
+      comparisonData.add({
+        'team': teamName,
+        'budget': budget,
+        'actual': actual,
+        'variance': variance,
+        'isOver': variance < 0,
       });
     }
 
-    return fallbackData;
+    return Column(
+      children: [
+        _buildComparisonRow("Team", "Budget", "Actual", "Variance", true),
+        ...comparisonData.map(
+          (data) => _buildComparisonRow(
+            data['team'] as String,
+            _formatCurrencyForForecast(data['budget'] as double),
+            _formatCurrencyForForecast(data['actual'] as double),
+            data['isOver'] as bool
+                ? "${_formatCurrencyForForecast((data['variance'] as double).abs())} over"
+                : "${_formatCurrencyForForecast((data['variance'] as double).abs())} under",
+            false,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(height: 1, color: Colors.white.withValues(alpha: 0.1)),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "Total Budget",
+              style: GoogleFonts.inter(
+                color: Colors.white38,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              _formatCurrencyForForecast(totalBudget),
+              style: GoogleFonts.inter(
+                color: Colors.white38,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                fontFeatures: [const FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "Total Actual",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              _formatCurrencyForForecast(totalActual),
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                fontFeatures: [const FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "Variance",
+              style: GoogleFonts.inter(
+                color: Colors.white38,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              totalBudget >= totalActual
+                  ? "${_formatCurrencyForForecast(totalBudget - totalActual)} under budget"
+                  : "${_formatCurrencyForForecast(totalActual - totalBudget)} over budget",
+              style: GoogleFonts.inter(
+                color: totalBudget >= totalActual
+                    ? const Color(0xFF30D158)
+                    : const Color(0xFFFF453A),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                fontFeatures: [const FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
-  String _getMonthAbbreviation(int month) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return months[(month - 1) % 12];
+  Widget _buildComparisonRow(
+    String category,
+    String budget,
+    String actual,
+    String variance,
+    bool isHeader,
+  ) {
+    bool isOver = variance.contains("over");
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 4,
+            child: Text(
+              category,
+              style: GoogleFonts.inter(
+                color: isHeader ? Colors.white : Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 4,
+            child: Text(
+              budget,
+              textAlign: TextAlign.end,
+              style: GoogleFonts.inter(
+                color: isHeader ? Colors.white : Colors.white38,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 4,
+            child: Text(
+              actual,
+              textAlign: TextAlign.end,
+              style: GoogleFonts.inter(
+                color: isHeader ? Colors.white : Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 4,
+            child: Text(
+              isHeader
+                  ? variance
+                  : variance.replaceAll(" under", "").replaceAll(" over", ""),
+              textAlign: TextAlign.end,
+              style: GoogleFonts.inter(
+                color: isHeader
+                    ? Colors.white
+                    : isOver
+                    ? const Color(0xFFFF453A)
+                    : const Color(0xFF30D158),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Minimal Error State Components ---
+  Widget _buildErrorCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            "Failed to load financial data",
+            style: GoogleFonts.inter(
+              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: _loadFinancialData,
+            child: Text(
+              "Tap to retry",
+              style: GoogleFonts.inter(
+                color: const Color(0xFF30D158),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorSection(String title) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          ),
+          child: _buildEmptyState("Failed to load data"),
+        ),
+      ],
+    );
   }
 
   // --- Skeleton Loading Components ---
@@ -619,7 +1174,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
             children: [
               Row(
                 children: [
-                  // Badge shimmer
                   Container(
                     width: 80,
                     height: 24,
@@ -640,7 +1194,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                     ),
                   ),
                   const Spacer(),
-                  // Second badge shimmer
                   Container(
                     width: 80,
                     height: 24,
@@ -663,7 +1216,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                 ],
               ),
               const SizedBox(height: 40),
-              // Main amount shimmer
               Container(
                 width: 200,
                 height: 40,
@@ -684,7 +1236,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              // Net burn card shimmer
               Container(
                 width: double.infinity,
                 height: 80,
@@ -783,11 +1334,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Title Shimmer
         _buildShimmerEffect(150, 24),
         const SizedBox(height: 20),
-
-        // Content Container Shimmer
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(24),
@@ -803,975 +1351,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
               const SizedBox(height: 16),
               _buildShimmerEffect(double.infinity, 16),
               const SizedBox(height: 16),
-              _buildShimmerEffect(
-                200,
-                16,
-              ), // Slightly shorter for visual variety
+              _buildShimmerEffect(200, 16),
             ],
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildErrorCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: Column(
-        children: [
-          const Icon(Icons.error_outline, color: Color(0xFFFF453A), size: 48),
-          const SizedBox(height: 16),
-          Text(
-            "Failed to load financial data",
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _error ?? "Unknown error",
-            style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          GestureDetector(
-            onTap: _loadFinancialData,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF30D158).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: const Color(0xFF30D158).withValues(alpha: 0.3),
-                ),
-              ),
-              child: Text(
-                "Retry",
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF30D158),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorSection(String title) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 20),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-          ),
-          child: Center(
-            child: Text(
-              "Failed to load data",
-              style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildExpenseCategoriesSection() {
-    if (_error != null) return _buildErrorSection("Expense Categories");
-
-    final categoryBreakdown =
-        _financialData?['categoryBreakdown'] as Map<String, double>? ?? {};
-    final totalExpenses = _toDouble(_financialData?['totalExpenses']);
-
-    if (categoryBreakdown.isEmpty) {
-      return AnimatedOpacity(
-        opacity: _categoriesLoaded ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 600),
-        curve: Curves.easeInOut,
-        child: AnimatedSlide(
-          offset: _categoriesLoaded ? Offset.zero : const Offset(0, 0.1),
-          duration: const Duration(milliseconds: 600),
-          curve: Curves.easeOutCubic,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Expense Categories",
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF141416),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.04),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.pie_chart_outline,
-                      color: Colors.white24,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      "No expense data available",
-                      style: GoogleFonts.inter(
-                        color: Colors.white38,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Add expenses to see category breakdown",
-                      style: GoogleFonts.inter(
-                        color: Colors.white24,
-                        fontSize: 12,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final categories = categoryBreakdown.map(
-      (key, value) =>
-          MapEntry(key, {'amount': value, 'color': _getCategoryColor(key)}),
-    );
-
-    return AnimatedOpacity(
-      opacity: _categoriesLoaded ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeInOut,
-      child: AnimatedSlide(
-        offset: _categoriesLoaded ? Offset.zero : const Offset(0, 0.1),
-        duration: const Duration(milliseconds: 600),
-        curve: Curves.easeOutCubic,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Expense Categories",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0xFF141416),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-              ),
-              child: Column(
-                children: categories.entries.map((entry) {
-                  final amount = _toDouble(entry.value['amount']);
-                  final color = entry.value['color'] as Color;
-                  final percentage = FinancialCalculator.calculatePercentage(
-                    amount: amount,
-                    total: totalExpenses,
-                  );
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    child: _buildCategoryRow(
-                      _capitalizeFirstLetter(entry.key),
-                      "₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
-                      percentage,
-                      color,
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _getCategoryColor(String category) {
-    switch (category.toLowerCase()) {
-      case 'salaries':
-      case 'salary':
-        return const Color(0xFF30D158);
-      case 'servers':
-      case 'infrastructure':
-      case 'servers & infrastructure':
-        return const Color(0xFF3A4B8A);
-      case 'marketing':
-        return const Color(0xFFFF9F0A);
-      case 'office':
-      case 'operations':
-      case 'office & operations':
-        return const Color(0xFF00BFA5);
-      default:
-        return const Color(0xFF8E8E93);
-    }
-  }
-
-  Widget _buildTeamCostSection() {
-    if (_error != null) return _buildErrorSection("Team Cost Distribution");
-
-    final teamCosts =
-        (_teamCostData?['teamCosts'] as List<dynamic>?)
-            ?.cast<Map<String, dynamic>>() ??
-        [];
-
-    if (teamCosts.isEmpty) {
-      return AnimatedOpacity(
-        opacity: _teamsLoaded ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 600),
-        curve: Curves.easeInOut,
-        child: AnimatedSlide(
-          offset: _teamsLoaded ? Offset.zero : const Offset(0, 0.1),
-          duration: const Duration(milliseconds: 600),
-          curve: Curves.easeOutCubic,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Team Cost Distribution",
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF141416),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.04),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.groups_outlined,
-                      color: Colors.white24,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      "No team data available",
-                      style: GoogleFonts.inter(
-                        color: Colors.white38,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Create teams and add members to see cost distribution",
-                      style: GoogleFonts.inter(
-                        color: Colors.white24,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return AnimatedOpacity(
-      opacity: _teamsLoaded ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeInOut,
-      child: AnimatedSlide(
-        offset: _teamsLoaded ? Offset.zero : const Offset(0, 0.1),
-        duration: const Duration(milliseconds: 600),
-        curve: Curves.easeOutCubic,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Team Cost Distribution",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0xFF141416),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-              ),
-              child: Column(
-                children: teamCosts.map((team) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: Text(
-                            team['name'] as String,
-                            style: GoogleFonts.inter(
-                              color: Colors.white70,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 4,
-                          child: Text(
-                            team['cost'] as String,
-                            style: GoogleFonts.inter(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              fontFeatures: [
-                                const FontFeature.tabularFigures(),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Stack(
-                            children: [
-                              Container(
-                                height: 4,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1F1F22),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                              FractionallySizedBox(
-                                widthFactor: _toDouble(team['pct']) > 0
-                                    ? _toDouble(team['pct'])
-                                    : 0.05,
-                                child: Container(
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    color: _toDouble(team['pct']) > 0
-                                        ? Colors.white
-                                        : Colors.white24,
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryRow(
-    String label,
-    String value,
-    int percentage,
-    Color color,
-  ) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 5,
-          child: Text(
-            label,
-            style: GoogleFonts.inter(
-              color: Colors.white70,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.left,
-          ),
-        ),
-        const SizedBox(width: 16),
-        SizedBox(
-          width: 80,
-          child: Text(
-            value,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              fontFeatures: [const FontFeature.tabularFigures()],
-            ),
-            textAlign: TextAlign.right,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          flex: 3,
-          child: Stack(
-            children: [
-              Container(
-                height: 4,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1F1F22),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              FractionallySizedBox(
-                widthFactor: percentage / 100.0,
-                child: Container(
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _capitalizeFirstLetter(String text) {
-    if (text.isEmpty) return text;
-    return text[0].toUpperCase() + text.substring(1);
-  }
-
-  Widget _buildVendorBreakdownSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Top Vendors",
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 20),
-        Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-          ),
-          child: Stack(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    _buildVendorRow("AWS", "Cloud Services", "₹3,800/month"),
-                    const SizedBox(height: 16),
-                    _buildVendorRow(
-                      "Google Workspace",
-                      "Productivity",
-                      "₹450/month",
-                    ),
-                    const SizedBox(height: 16),
-                    _buildVendorRow("Slack", "Communication", "₹350/month"),
-                    const SizedBox(height: 16),
-                    _buildVendorRow("HubSpot", "Marketing", "₹1,200/month"),
-                  ],
-                ),
-              ),
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.92),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF0A84FF,
-                          ).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(100),
-                          border: Border.all(
-                            color: const Color(
-                              0xFF0A84FF,
-                            ).withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Text(
-                          "COMING SOON",
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFF0A84FF),
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        "Vendor analytics will be available",
-                        style: GoogleFonts.inter(
-                          color: Colors.white60,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        "in the next update",
-                        style: GoogleFonts.inter(
-                          color: Colors.white60,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildVendorRow(String name, String service, String cost) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFF1F1F22),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Text(
-                name.substring(0, 2).toUpperCase(),
-                style: GoogleFonts.inter(
-                  color: Colors.white38,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  service,
-                  style: GoogleFonts.inter(
-                    color: Colors.white38,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            cost,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              fontFeatures: [const FontFeature.tabularFigures()],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // FIX: Removed unused _formatCurrency method that was causing a lint warning.
-  // All currency formatting is done inline with replaceAllMapped for consistency.
-  String _formatCurrencyForForecast(double amount) {
-    final intAmount = amount.round();
-    return '₹${intAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}';
-  }
-
-  Widget _buildForecastComparisonSection() {
-    if (_error != null) return _buildErrorSection("Budget vs Actual");
-
-    final rawTeamsData = _rawTeamsData ?? [];
-
-    if (rawTeamsData.isEmpty) {
-      return AnimatedOpacity(
-        opacity: _forecastLoaded ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 600),
-        curve: Curves.easeInOut,
-        child: AnimatedSlide(
-          offset: _forecastLoaded ? Offset.zero : const Offset(0, 0.1),
-          duration: const Duration(milliseconds: 600),
-          curve: Curves.easeOutCubic,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Budget vs Actual",
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF141416),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.04),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.account_balance_wallet_outlined,
-                      color: Colors.white24,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      "No team budget data available",
-                      style: GoogleFonts.inter(
-                        color: Colors.white38,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Create teams and set budgets to see comparison",
-                      style: GoogleFonts.inter(
-                        color: Colors.white24,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    double totalBudget = 0;
-    double totalActual = 0;
-    List<Map<String, dynamic>> comparisonData = [];
-
-    for (var team in rawTeamsData) {
-      final teamName = team['teamName'] as String? ?? 'Unknown Team';
-      String budgetStr = (team['monthlyBudget']?.toString() ?? '0');
-      budgetStr = budgetStr.replaceAll(RegExp(r'[^\d.]'), '');
-      final budget = double.tryParse(budgetStr) ?? 0.0;
-      final actual = _toDouble(_actualSpendingPerTeam?[teamName]);
-      final variance = budget - actual;
-
-      totalBudget += budget;
-      totalActual += actual;
-
-      comparisonData.add({
-        'team': teamName,
-        'budget': budget,
-        'actual': actual,
-        'variance': variance,
-        'isOver': variance < 0,
-      });
-    }
-
-    return AnimatedOpacity(
-      opacity: _forecastLoaded ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeInOut,
-      child: AnimatedSlide(
-        offset: _forecastLoaded ? Offset.zero : const Offset(0, 0.1),
-        duration: const Duration(milliseconds: 600),
-        curve: Curves.easeOutCubic,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Budget vs Actual",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0xFF141416),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-              ),
-              child: Column(
-                children: [
-                  _buildComparisonRow(
-                    "Team",
-                    "Budget",
-                    "Actual",
-                    "Variance",
-                    true,
-                  ),
-                  ...comparisonData.map(
-                    (data) => _buildComparisonRow(
-                      data['team'] as String,
-                      _formatCurrencyForForecast(data['budget'] as double),
-                      _formatCurrencyForForecast(data['actual'] as double),
-                      data['isOver'] as bool
-                          ? "${_formatCurrencyForForecast((data['variance'] as double).abs())} over"
-                          : "${_formatCurrencyForForecast((data['variance'] as double).abs())} under",
-                      false,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    height: 1,
-                    color: Colors.white.withValues(alpha: 0.1),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Total Budget",
-                        style: GoogleFonts.inter(
-                          color: Colors.white38,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        _formatCurrencyForForecast(totalBudget),
-                        style: GoogleFonts.inter(
-                          color: Colors.white38,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          fontFeatures: [const FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Total Actual",
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        _formatCurrencyForForecast(totalActual),
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          fontFeatures: [const FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Variance",
-                        style: GoogleFonts.inter(
-                          color: Colors.white38,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        totalBudget >= totalActual
-                            ? "${_formatCurrencyForForecast(totalBudget - totalActual)} under budget"
-                            : "${_formatCurrencyForForecast(totalActual - totalBudget)} over budget",
-                        style: GoogleFonts.inter(
-                          color: totalBudget >= totalActual
-                              ? const Color(0xFF30D158)
-                              : const Color(0xFFFF453A),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          fontFeatures: [const FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildComparisonRow(
-    String category,
-    String budget,
-    String actual,
-    String variance,
-    bool isHeader,
-  ) {
-    bool isOver = variance.contains("over");
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 4,
-            child: Text(
-              category,
-              style: GoogleFonts.inter(
-                color: isHeader ? Colors.white : Colors.white70,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 4,
-            child: Text(
-              budget,
-              textAlign: TextAlign.end,
-              style: GoogleFonts.inter(
-                color: isHeader ? Colors.white : Colors.white38,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 4,
-            child: Text(
-              actual,
-              textAlign: TextAlign.end,
-              style: GoogleFonts.inter(
-                color: isHeader ? Colors.white : Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 4,
-            child: Text(
-              isHeader
-                  ? variance
-                  : variance.replaceAll(" under", "").replaceAll(" over", ""),
-              textAlign: TextAlign.end,
-              style: GoogleFonts.inter(
-                color: isHeader
-                    ? Colors.white
-                    : isOver
-                    ? const Color(0xFFFF453A)
-                    : const Color(0xFF30D158),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

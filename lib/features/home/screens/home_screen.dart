@@ -26,38 +26,68 @@ class _HomeScreenState extends State<HomeScreen> {
   String? runwayValue;
   bool isLoading = true;
   String? errorMessage;
-  // FIX 1: Removed _timer — the fake per-minute decrement was misleading users.
   String? totalFundsAvailable;
   String? monthlyBurn;
   List<Map<String, dynamic>> allExpenses = [];
 
   Map<String, dynamic>? _financialData;
   bool _isPieChartLoading = true;
-
   bool _isMonthlyBurnLoading = true;
   bool _isFundsLoading = true;
 
-  // FIX 2: Real trend data from FinancialDataService instead of hardcoded bars.
   List<Map<String, dynamic>> _trendData = [];
   bool _isTrendLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _loadAllData();
+  }
+
+  Future<void> _loadAllData() async {
     _fetchRunwayData();
     fetchTotalFundsAvailable();
     fetchMonthlyBurn();
     _loadFinancialDataForPieChart();
-    // FIX 1: _startDailyDecrement() removed entirely.
   }
 
-  @override
-  void dispose() {
-    super.dispose();
+  // --- MINIMAL EMPTY STATE COMPONENT ---
+  Widget _buildEmptyState(String text) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Text(
+          text,
+          style: GoogleFonts.inter(
+            color: Colors.white38,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
   }
 
   Widget _buildRunwayDisplay(String runwayValue) {
     final runway = double.tryParse(runwayValue) ?? 0;
+
+    // Show empty state if 0 or no data
+    if (runway <= 0) {
+      return Text(
+        "--",
+        style: GoogleFonts.inter(
+          color: Colors.white,
+          fontSize: 56,
+          fontWeight: FontWeight.w400,
+          height: 1.0,
+          letterSpacing: -2,
+        ),
+      );
+    }
+
     final wholeMonths = runway.floor();
     final remainingDays = ((runway - wholeMonths) * 30).round();
 
@@ -139,12 +169,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _getRunwaySubtitle(String runwayValue) {
-    return "";
+    if (double.tryParse(runwayValue) == 0 || runwayValue == "0") {
+      return "Add expenses to calculate";
+    }
+    return "remaining";
   }
 
   double _calculateRunwayProgress() {
     if (runwayValue == null || errorMessage != null) return 0.0;
     final runway = double.tryParse(runwayValue!) ?? 0;
+    if (runway == 0) return 0.0;
+
     const double criticalThreshold = 3;
     const double warningThreshold = 6;
     const double safeThreshold = 12;
@@ -166,10 +201,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   HealthStatus _calculateHealthStatus() {
-    if (runwayValue == null || errorMessage != null) {
-      return HealthStatus.critical;
-    }
+    if (isLoading) return HealthStatus.unknown;
+    if (runwayValue == null || errorMessage != null)
+      return HealthStatus.unknown;
+
     final runway = double.tryParse(runwayValue!) ?? 0;
+    if (runway <= 0) return HealthStatus.unknown;
     if (runway <= 3) return HealthStatus.critical;
     if (runway <= 6) return HealthStatus.warning;
     return HealthStatus.safe;
@@ -179,12 +216,11 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        if (mounted) {
+        if (mounted)
           setState(() {
             errorMessage = "User not authenticated";
             isLoading = false;
           });
-        }
         return;
       }
 
@@ -200,35 +236,31 @@ class _HomeScreenState extends State<HomeScreen> {
         if (runwayFromFirebase != "0") {
           final runwayAmount =
               double.tryParse(runwayFromFirebase.toString()) ?? 0;
-          if (mounted) {
+          if (mounted)
             setState(() {
               runwayValue = runwayAmount.toStringAsFixed(2);
               isLoading = false;
             });
-          }
         } else {
-          if (mounted) {
+          if (mounted)
             setState(() {
-              errorMessage = "No runway data found";
+              runwayValue = "0";
               isLoading = false;
             });
-          }
         }
       } else {
-        if (mounted) {
+        if (mounted)
           setState(() {
             errorMessage = "No company data found";
             isLoading = false;
           });
-        }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted)
         setState(() {
-          errorMessage = "Failed to load runway data: $e";
+          errorMessage = "Failed to load runway data";
           isLoading = false;
         });
-      }
     }
   }
 
@@ -252,14 +284,22 @@ class _HomeScreenState extends State<HomeScreen> {
         final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
         final totalExpenses =
             data["totalExpenses"] ?? data["total_expenses"] ?? "0";
+
         if (funding != null) {
           final fundingAmount = double.tryParse(funding.toString()) ?? 0;
           final totalExpensesAmount =
               double.tryParse(totalExpenses.toString()) ?? 0;
-          final availableFunds = fundingAmount - totalExpensesAmount;
+          final availableFundsNum = fundingAmount - totalExpensesAmount;
+
           if (mounted) {
             setState(() {
-              totalFundsAvailable = "₹${availableFunds.toStringAsFixed(0)}";
+              String formattedFunds = availableFundsNum
+                  .toStringAsFixed(0)
+                  .replaceAllMapped(
+                    RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                    (match) => '${match[1]},',
+                  );
+              totalFundsAvailable = "₹$formattedFunds";
               _isFundsLoading = false;
             });
           }
@@ -281,17 +321,15 @@ class _HomeScreenState extends State<HomeScreen> {
       await _fetchAllExpenses();
       final currentMonthBurnAmount = _calculateCurrentMonthBurn();
 
-      // FIX 3: Only show real data. Show null (empty) if no expenses exist.
       if (mounted) {
         setState(() {
           monthlyBurn = currentMonthBurnAmount > 0
-              ? "₹${currentMonthBurnAmount.toStringAsFixed(0)}"
+              ? "₹${currentMonthBurnAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
               : null;
           _isMonthlyBurnLoading = false;
         });
       }
     } catch (e) {
-      // FIX 3: Don't show a fake fallback on error. Show nothing instead.
       if (mounted) {
         setState(() {
           monthlyBurn = null;
@@ -318,12 +356,8 @@ class _HomeScreenState extends State<HomeScreen> {
             final data = doc.data();
             return {
               'id': doc.id,
-              'title': data['Title'] ?? 'Unnamed Expense',
               'amount': (data['Amount'] as num).toDouble(),
-              'category': data['Category'] ?? 'General',
               'date': data['Date'],
-              'description': data['Description'] ?? '',
-              'type': data['Type'] ?? 'one_time',
             };
           }).toList();
         });
@@ -334,7 +368,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   double _calculateCurrentMonthBurn() {
-    if (allExpenses.isEmpty) return 0; // FIX 3: Return 0, not 42500.
+    if (allExpenses.isEmpty) return 0;
     final now = DateTime.now();
     double currentMonthTotal = 0;
     for (var expense in allExpenses) {
@@ -353,12 +387,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     setState(() => _isPieChartLoading = true);
     try {
-      // FIX 2: Load trend data alongside pie chart data.
       final financialData = await FinancialDataService.getMonthlyBurnData();
       if (mounted) {
         setState(() {
           _financialData = financialData;
-          // Extract real trend data for the burn trend chart.
           final rawTrend = financialData['trendData'] as List? ?? [];
           _trendData = List<Map<String, dynamic>>.from(rawTrend);
           _isPieChartLoading = false;
@@ -366,7 +398,6 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      log("Error loading financial data: $e");
       if (mounted) {
         setState(() {
           _isPieChartLoading = false;
@@ -459,7 +490,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         icon: Icons.local_fire_department_outlined,
                         isBurn: true,
                         isLoading: _isMonthlyBurnLoading,
-                        emptyLabel: "No data yet",
+                        emptyLabel: "₹0", // Clean empty label
                       ),
                     ),
                   ),
@@ -550,15 +581,19 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (status) {
       case HealthStatus.safe:
         statusColor = const Color(0xFF30D158);
-        statusText = "Safe";
+        statusText = "SAFE";
         break;
       case HealthStatus.warning:
         statusColor = const Color(0xFFFF9F0A);
-        statusText = "Warning";
+        statusText = "WARNING";
         break;
       case HealthStatus.critical:
         statusColor = const Color(0xFFFF453A);
-        statusText = "Critical";
+        statusText = "CRITICAL";
+        break;
+      case HealthStatus.unknown:
+        statusColor = Colors.white54;
+        statusText = "NO DATA";
         break;
     }
 
@@ -587,7 +622,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: _fetchRunwayData,
+                    onTap: _loadAllData,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -599,11 +634,20 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: Colors.white.withValues(alpha: 0.1),
                         ),
                       ),
-                      child: const Icon(
-                        Icons.refresh,
-                        color: Colors.white38,
-                        size: 16,
-                      ),
+                      child: isLoading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white38,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.refresh,
+                              color: Colors.white38,
+                              size: 16,
+                            ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -613,9 +657,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(100),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.1),
+                        color: statusColor.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Row(
@@ -632,9 +677,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text(
                           statusText,
                           style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                            color: statusColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ],
@@ -659,31 +705,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     letterSpacing: -2,
                   ),
                 )
-              else if (errorMessage != null)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "!",
-                      style: GoogleFonts.inter(
-                        color: const Color(0xFFFF453A),
-                        fontSize: 56,
-                        fontWeight: FontWeight.w400,
-                        height: 1.0,
-                        letterSpacing: -2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      errorMessage!,
-                      style: GoogleFonts.inter(
-                        color: const Color(0xFFFF453A),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                )
               else
                 Expanded(
                   child: Column(
@@ -706,18 +727,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-              const SizedBox(width: 12),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  _getRunwaySubtitle(runwayValue ?? "0"),
-                  style: GoogleFonts.inter(
-                    color: Colors.white38,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 24),
@@ -769,11 +778,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             )
           else
-            // FIX 3: Show a helpful label when there's no real data.
             Text(
-              value ?? emptyLabel ?? "--",
+              value ?? emptyLabel ?? "₹0",
               style: GoogleFonts.inter(
-                color: value != null ? Colors.white : Colors.white38,
+                color: value != null ? Colors.white : Colors.white54,
                 fontSize: 22,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.5,
@@ -805,7 +813,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // FIX 2: Burn trend chart now uses real data from FinancialDataService.
   Widget _buildTrendChart() {
     return Container(
       width: double.infinity,
@@ -826,26 +833,19 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             )
           : _trendData.isEmpty
-          ? SizedBox(
-              height: 160,
-              child: Center(
-                child: Text(
-                  "No burn history yet",
-                  style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
-                ),
-              ),
-            )
+          ? _buildEmptyState("Not enough data for trend analysis")
           : SizedBox(
               height: 160,
               child: Builder(
                 builder: (context) {
-                  // Show last 6 months of real data.
                   final display = _trendData.length > 6
                       ? _trendData.sublist(_trendData.length - 6)
                       : _trendData;
-                  final maxAmount = display
-                      .map((d) => (d['amount'] as num).toDouble())
-                      .reduce((a, b) => a > b ? a : b);
+                  final maxAmount = display.isEmpty
+                      ? 1.0
+                      : display
+                            .map((d) => (d['amount'] as num).toDouble())
+                            .reduce((a, b) => a > b ? a : b);
 
                   return Row(
                     mainAxisAlignment: display.length <= 3
@@ -916,27 +916,24 @@ class _HomeScreenState extends State<HomeScreen> {
         _financialData?['categoryBreakdown'] as Map<String, double>? ?? {};
     final totalExpenses = _financialData?['totalExpenses'] as double? ?? 0;
 
-    final defaultCategories = {
-      'Salaries': {'amount': 27625.0, 'color': const Color(0xFF30D158)},
-      'Servers & Infrastructure': {
-        'amount': 8500.0,
-        'color': const Color(0xFF3A4B8A),
-      },
-      'Marketing': {'amount': 4250.0, 'color': const Color(0xFFFF9F0A)},
-      'Office & Operations': {
-        'amount': 2125.0,
-        'color': const Color(0xFF00BFA5),
-      },
-    };
+    // REMOVED DUMMY DATA. If empty, show sleek empty state.
+    if (categoryBreakdown.isEmpty || totalExpenses == 0) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        ),
+        child: _buildEmptyState("No expense data available"),
+      );
+    }
 
-    final categories = categoryBreakdown.isEmpty
-        ? defaultCategories
-        : categoryBreakdown.map(
-            (key, value) => MapEntry(key, {
-              'amount': value,
-              'color': _getCategoryColor(key),
-            }),
-          );
+    final categories = categoryBreakdown.map(
+      (key, value) =>
+          MapEntry(key, {'amount': value, 'color': _getCategoryColor(key)}),
+    );
 
     final expenseData = categories.entries.map((entry) {
       final amount = entry.value['amount'] as double;
@@ -1019,6 +1016,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -1110,4 +1108,4 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-enum HealthStatus { safe, warning, critical }
+enum HealthStatus { safe, warning, critical, unknown }
