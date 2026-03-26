@@ -7,11 +7,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:developer';
 
+import '../../../services/financial_calculator.dart';
 import 'runway_estimation_screen.dart';
 import 'funds_overview_screen.dart';
 import 'monthly_burn_screen.dart';
 import '../../../services/financial_data_service.dart';
-import '../../../services/financial_calculator.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(int)? onNavigateToTab;
@@ -319,7 +319,22 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _isMonthlyBurnLoading = true);
     try {
       await _fetchAllExpenses();
-      final currentMonthBurnAmount = _calculateCurrentMonthBurn();
+
+      // Convert expenses to format expected by FinancialCalculator
+      final expensesForCalculation = allExpenses
+          .map(
+            (expense) => {
+              'amount': expense['amount'] as double,
+              'date': expense['date'],
+              'type':
+                  'one_time', // Default type since original data doesn't specify
+            },
+          )
+          .toList();
+
+      final currentMonthBurnAmount = FinancialCalculator.currentMonthBurn(
+        expensesForCalculation,
+      );
 
       if (mounted) {
         setState(() {
@@ -344,19 +359,22 @@ class _HomeScreenState extends State<HomeScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final expensesSnapshot = await FirebaseFirestore.instance
+      final QuerySnapshot querySnapshot = await FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: user.uid)
           .orderBy('Date', descending: true)
+          .limit(100)
           .get();
 
       if (mounted) {
         setState(() {
-          allExpenses = expensesSnapshot.docs.map((doc) {
-            final data = doc.data();
+          allExpenses = querySnapshot.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
             return {
               'id': doc.id,
-              'amount': (data['Amount'] as num).toDouble(),
+              'title': data['Title'] ?? 'Unnamed Expense',
+              'amount': (data['Amount'] as num?)?.toDouble() ?? 0.0,
+              'category': data['Category'] ?? 'General',
               'date': data['Date'],
             };
           }).toList();
@@ -365,22 +383,6 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       log("Error fetching expenses: $e");
     }
-  }
-
-  double _calculateCurrentMonthBurn() {
-    if (allExpenses.isEmpty) return 0;
-    final now = DateTime.now();
-    double currentMonthTotal = 0;
-    for (var expense in allExpenses) {
-      final expenseDate = expense['date'] as Timestamp?;
-      if (expenseDate != null) {
-        final dt = expenseDate.toDate();
-        if (dt.month == now.month && dt.year == now.year) {
-          currentMonthTotal += expense['amount'] as double;
-        }
-      }
-    }
-    return currentMonthTotal;
   }
 
   Future<void> _loadFinancialDataForPieChart() async {
@@ -781,8 +783,8 @@ class _HomeScreenState extends State<HomeScreen> {
             Text(
               value ?? emptyLabel ?? "₹0",
               style: GoogleFonts.inter(
-                color: value != null ? Colors.white : Colors.white54,
-                fontSize: 22,
+                color: value != null ? Colors.white : Colors.white38,
+                fontSize: 18,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.5,
               ),

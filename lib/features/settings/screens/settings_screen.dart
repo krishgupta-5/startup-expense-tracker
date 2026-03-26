@@ -377,27 +377,31 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _buildLogoutButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton(
-        onPressed: () {
-          FirebaseAuth.instance.signOut();
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1F1F22),
-          foregroundColor: const Color(0xFFFF453A),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: const Color(0xFFFF453A).withValues(alpha: 0.1),
+    return Builder(
+      builder: (context) => SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: () async {
+            await FirebaseAuth.instance.signOut();
+            // AuthWrapper / NavigationWrapper will handle redirect automatically
+            // via its auth stream listener. No manual navigation needed.
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF1F1F22),
+            foregroundColor: const Color(0xFFFF453A),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(
+                color: const Color(0xFFFF453A).withValues(alpha: 0.1),
+              ),
             ),
           ),
-        ),
-        child: Text(
-          "Log Out",
-          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold),
+          child: Text(
+            "Log Out",
+            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
         ),
       ),
     );

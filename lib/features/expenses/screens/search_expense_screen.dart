@@ -67,76 +67,83 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     super.dispose();
   }
 
-  // 4. SMART LOCAL FILTER & SORT LOGIC
-  List<QueryDocumentSnapshot> _filterAndSortDocs(
-    List<QueryDocumentSnapshot> docs,
-  ) {
-    final filtered = docs.where((doc) {
-      final data = doc.data() as Map<String, dynamic>;
+  // 4. PAGINATION STATE
+  DocumentSnapshot? _lastDocument;
+  static const int _pageSize = 20;
+  bool _hasMore = true;
 
-      if (data['Date'] == null || data['Date'] is! Timestamp) return false;
-      final txDate = (data['Date'] as Timestamp).toDate();
+  // ✅ FIX: Build Firestore query with filters instead of local filtering
+  Query _buildExpensesQuery() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) throw Exception('User not authenticated');
 
-      // A. Search Query Filter
-      if (_searchQuery.isNotEmpty) {
-        final title = (data['Title'] ?? '').toString().toLowerCase();
-        if (!title.contains(_searchQuery.toLowerCase())) return false;
+    Query query = FirebaseFirestore.instance
+        .collection('expenses')
+        .where('uid', isEqualTo: user.uid)
+        .orderBy('Date', descending: true)
+        .limit(_pageSize);
+
+    // Apply date filters
+    if (_exactDate != null) {
+      final startOfDay = DateTime(
+        _exactDate!.year,
+        _exactDate!.month,
+        _exactDate!.day,
+      );
+      final endOfDay = startOfDay
+          .add(const Duration(days: 1))
+          .subtract(const Duration(milliseconds: 1));
+      query = query
+          .where('Date', isGreaterThanOrEqualTo: startOfDay)
+          .where('Date', isLessThan: endOfDay);
+    } else if (_selectedMonthKey != 'all') {
+      final monthMap = {
+        'Jan': 1,
+        'Feb': 2,
+        'Mar': 3,
+        'Apr': 4,
+        'May': 5,
+        'Jun': 6,
+        'Jul': 7,
+        'Aug': 8,
+        'Sep': 9,
+        'Oct': 10,
+        'Nov': 11,
+        'Dec': 12,
+      };
+      final month = monthMap[_selectedMonthKey];
+      if (month != null) {
+        final year = int.tryParse(_selectedYear) ?? DateTime.now().year;
+        final startOfMonth = DateTime(year, month);
+        final endOfMonth = DateTime(
+          year,
+          month + 1,
+          0,
+        ).subtract(const Duration(milliseconds: 1));
+        query = query
+            .where('Date', isGreaterThanOrEqualTo: startOfMonth)
+            .where('Date', isLessThan: endOfMonth);
       }
+    }
 
-      // B. Category Filter
-      if (_selectedCategoryKey != 'all') {
-        final txCat = (data['Category'] ?? '').toString().toLowerCase();
-        if (txCat != _selectedCategoryKey) return false;
-      }
+    // Apply category filter
+    if (_selectedCategoryKey != 'all') {
+      query = query.where('Category', isEqualTo: _selectedCategoryKey);
+    }
 
-      // C. Date Filter (Exact Day OR Month/Year)
-      if (_exactDate != null) {
-        if (txDate.year != _exactDate!.year ||
-            txDate.month != _exactDate!.month ||
-            txDate.day != _exactDate!.day) {
-          return false;
-        }
-      } else {
-        // Year Match
-        if (txDate.year.toString() != _selectedYear) return false;
-        // Month Match
-        if (_selectedMonthKey != 'all') {
-          final monthMap = {
-            'Jan': 1,
-            'Feb': 2,
-            'Mar': 3,
-            'Apr': 4,
-            'May': 5,
-            'Jun': 6,
-            'Jul': 7,
-            'Aug': 8,
-            'Sep': 9,
-            'Oct': 10,
-            'Nov': 11,
-            'Dec': 12,
-          };
-          if (txDate.month != monthMap[_selectedMonthKey]) return false;
-        }
-      }
+    // Apply search filter with proper range query
+    if (_searchQuery.isNotEmpty) {
+      query = query
+          .where('Title', isGreaterThanOrEqualTo: _searchQuery)
+          .where('Title', isLessThanOrEqualTo: _searchQuery + '\uf8ff');
+    }
 
-      return true;
-    }).toList();
+    // Apply pagination
+    if (_lastDocument != null) {
+      query = query.startAfterDocument(_lastDocument!);
+    }
 
-    // D. Sort Logic
-    filtered.sort((a, b) {
-      final dataA = a.data() as Map<String, dynamic>;
-      final dataB = b.data() as Map<String, dynamic>;
-      final dateA = (dataA['Date'] as Timestamp).toDate();
-      final dateB = (dataB['Date'] as Timestamp).toDate();
-
-      if (_sortOrder == 'newest') {
-        return dateB.compareTo(dateA); // Descending
-      } else {
-        return dateA.compareTo(dateB); // Ascending
-      }
-    });
-
-    return filtered;
+    return query;
   }
 
   @override
@@ -228,6 +235,9 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                           _selectedMonthKey = key;
                           _exactDate =
                               null; // Clear exact date if user clicks a month
+                          _lastDocument =
+                              null; // Reset pagination when filter changes
+                          _hasMore = true;
                         });
                       },
                       child: Container(
@@ -278,7 +288,14 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                     final isSelected = _selectedCategoryKey == key;
 
                     return GestureDetector(
-                      onTap: () => setState(() => _selectedCategoryKey = key),
+                      onTap: () {
+                        setState(() {
+                          _selectedCategoryKey = key;
+                          // Reset pagination when filter changes
+                          _lastDocument = null;
+                          _hasMore = true;
+                        });
+                      },
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -321,17 +338,15 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     );
   }
 
-  // --- WIDGET HELPERS ---
-
   Widget _buildFirebaseResults() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return _buildEmptyState("User not logged in");
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('expenses')
-          .where('uid', isEqualTo: user.uid)
-          .snapshots(),
+    // ✅ FIX: Use Firestore query with filters instead of local filtering
+    final query = _buildExpensesQuery();
+
+    return FutureBuilder<QuerySnapshot>(
+      future: query.get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -347,14 +362,18 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _buildEmptyState("No expenses found");
+          if (_lastDocument == null) {
+            return _buildEmptyState("No expenses found");
+          } else {
+            return _buildEmptyState("No more expenses found");
+          }
         }
 
-        // Apply Local Filtering and Sorting
-        final docs = _filterAndSortDocs(snapshot.data!.docs);
+        final docs = snapshot.data!.docs;
 
-        if (docs.isEmpty) {
-          return _buildEmptyState("No matching expenses found");
+        // Update pagination state
+        if (docs.length < _pageSize) {
+          _hasMore = false;
         }
 
         return ListView.builder(
@@ -442,7 +461,13 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                       )
                     : null,
               ),
-              onChanged: (val) => setState(() => _searchQuery = val),
+              onChanged: (val) {
+                setState(() {
+                  _searchQuery = val;
+                  _lastDocument = null; // Reset pagination when search changes
+                  _hasMore = true;
+                });
+              },
             ),
           ),
         ],
@@ -630,6 +655,9 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                         _selectedMonthKey = _months.keys.elementAt(
                           date.month,
                         ); // 1 = Jan, etc.
+                        _lastDocument =
+                            null; // Reset pagination when filter changes
+                        _hasMore = true;
                       });
                       Navigator.pop(context);
                     }
@@ -714,6 +742,9 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                           _selectedYear = year;
                           _exactDate =
                               null; // Clear exact date if changing year manually
+                          _lastDocument =
+                              null; // Reset pagination when filter changes
+                          _hasMore = true;
                         });
                         Navigator.pop(context);
                       },
@@ -794,7 +825,12 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: GestureDetector(
                       onTap: () {
-                        setState(() => _sortOrder = option.toLowerCase());
+                        setState(() {
+                          _sortOrder = option.toLowerCase();
+                          // Reset pagination when sort changes
+                          _lastDocument = null;
+                          _hasMore = true;
+                        });
                         Navigator.pop(context);
                       },
                       child: Container(

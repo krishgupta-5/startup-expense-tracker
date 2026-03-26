@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/features/auth/screen/signup.dart';
 import 'package:startup_expense_tracker/features/auth/screen/forget_password.dart';
-import 'package:startup_expense_tracker/features/auth/services/auth_service.dart';
 import 'package:startup_expense_tracker/features/auth/services/google_sign_in_service.dart';
 import 'package:startup_expense_tracker/shared/utils/error_handler.dart';
 
@@ -18,7 +17,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool _isPasswordVisible = false;
   bool _isLoading = false;
-  int _loginAttempts = 0;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -35,29 +33,6 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // Backend rate limiting check
-    final isRateLimited = await AuthService.isRateLimited(email);
-    if (isRateLimited) {
-      ErrorHandler.handleValidationError(
-        context: context,
-        field: 'Login',
-        validationMessage: 'Too many attempts. Try again in 5 minutes.',
-      );
-      return;
-    }
-
-    // Account lock check
-    final isLocked = await AuthService.isAccountLocked(email);
-    if (isLocked) {
-      ErrorHandler.handleValidationError(
-        context: context,
-        field: 'Login',
-        validationMessage:
-            'Account temporarily locked due to suspicious activity.',
-      );
-      return;
-    }
-
     setState(() {
       _isLoading = true;
     });
@@ -68,37 +43,14 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text.trim(),
       );
 
-      // Record successful login
-      await AuthService.recordLoginAttempt(email, true);
-
       // Do nothing, AuthWrapper will handle navigation
     } on FirebaseAuthException catch (e) {
-      // Record failed login
-      await AuthService.recordLoginAttempt(email, false);
-
-      // Increment login attempt counter
-      _loginAttempts++;
-
-      // Lock account after multiple failures
-      if (e.code == 'too-many-requests' || _loginAttempts >= 4) {
-        await AuthService.lockAccountTemporarily(
-          email,
-          const Duration(minutes: 15),
-        );
-      }
-
       ErrorHandler.handleAuthError(
         context: context,
         error: e,
         onRetry: loginUserWithEmailAndPassword,
       );
     } catch (e) {
-      // Record failed login
-      await AuthService.recordLoginAttempt(email, false);
-
-      // Increment login attempt counter
-      _loginAttempts++;
-
       ErrorHandler.handleError(
         context: context,
         error: e,

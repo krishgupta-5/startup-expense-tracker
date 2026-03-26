@@ -21,7 +21,11 @@ service cloud.firestore {
       allow read, write: if request.auth != null 
         && request.auth.uid == userId
         && (request.auth.token.email_verified == true || 
-            request.auth.token.firebase.sign_in_provider == 'google.com');
+            request.auth.token.firebase.sign_in_provider == 'google.com')
+        // Server-side duplicate prevention: prevent setting companyId if already exists
+        && (request.resource.data.companyId == null || 
+             resource.data.companyId == null ||
+             request.resource.data.companyId == resource.data.companyId);
     }
     
     // Companies collection - email verification required
@@ -35,12 +39,18 @@ service cloud.firestore {
         && request.auth.uid == resource.data.userId;
     }
     
-    // Expenses collection - email verification required
+    // Expenses collection - email verification required + amount validation
     match /expenses/{expenseId} {
       allow read, write: if request.auth != null 
         && (request.auth.token.email_verified == true || 
             request.auth.token.firebase.sign_in_provider == 'google.com')
-        && request.auth.uid == resource.data.userId;
+        && request.auth.uid == resource.data.userId
+        // ✅ CRITICAL: Server-side validation for expense data
+        && request.resource.data.Amount is number
+        && request.resource.data.Amount > 0
+        && request.resource.data.Title is string
+        && request.resource.data.Title.length > 0
+        && request.resource.data.Title.length <= 50;
     }
     
     // Funding collection - email verification required

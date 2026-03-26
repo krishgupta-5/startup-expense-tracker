@@ -11,6 +11,7 @@ import 'expense_details_screen.dart';
 import 'scan_expense_screen.dart';
 import 'report_expense_screen.dart';
 import '../../../utils/data_helpers.dart';
+import '../../../services/financial_calculator.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -25,7 +26,6 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   double _totalFunding = 0.0;
   double _totalExpenses = 0.0;
   double _avgDaily = 0.0;
-  int _daysFromStart = 1;
   bool _isLoading = true;
 
   // OVERRIDE wantKeepAlive to return true
@@ -46,50 +46,54 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         return;
       }
 
+      // ✅ FIX: Get companyId from user document
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final companyId = userDoc.data()?['companyId'];
+      if (companyId == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
       // Load company funding data
       final companyDoc = await FirebaseFirestore.instance
           .collection('companies')
-          .doc(user.uid)
+          .doc(companyId)
           .get();
 
       if (companyDoc.exists) {
         final companyData = companyDoc.data() as Map<String, dynamic>;
         _totalFunding = DataHelpers.safeParseDouble(companyData['Funding']);
+        _totalExpenses = DataHelpers.safeParseDouble(
+          companyData['totalExpenses'],
+        );
       }
 
-      // Load all expenses to calculate totals
+      // Only fetch expenses for display and burn calculation
       final expensesSnapshot = await FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: user.uid)
-          .limit(100)
           .get();
 
-      double totalSpent = 0.0;
-      DateTime? earliestDate;
-
+      // Convert expenses to format expected by FinancialCalculator
+      List<Map<String, dynamic>> expenses = [];
       for (var doc in expensesSnapshot.docs) {
         final data = doc.data();
-        final amount = DataHelpers.safeParseDouble(data['Amount']);
-        totalSpent += amount;
-
-        // Track earliest date for days calculation
-        final date = DataHelpers.safeParseDate(data['Date']);
-        if (date != null &&
-            (earliestDate == null || date.isBefore(earliestDate))) {
-          earliestDate = date;
-        }
+        expenses.add({
+          'amount': DataHelpers.safeParseDouble(data['Amount']),
+          'date': data['Date'],
+          'type': data['Type'] ?? 'one_time',
+        });
       }
 
-      _totalExpenses = totalSpent;
-
-      // Calculate days from start date
-      if (earliestDate != null) {
-        _daysFromStart = DateTime.now().difference(earliestDate).inDays;
-        if (_daysFromStart < 1) _daysFromStart = 1; // Avoid division by zero
-      }
-
-      // Calculate average daily spending
-      _avgDaily = _totalExpenses / _daysFromStart;
+      // Calculate average daily burn using rolling window (last 30 days)
+      final rollingMonthlyBurn = FinancialCalculator.rollingAverageMonthlyBurn(
+        expenses,
+      );
+      _avgDaily = rollingMonthlyBurn / 30; // Convert to daily average
 
       if (mounted) setState(() => _isLoading = false);
     } catch (e) {

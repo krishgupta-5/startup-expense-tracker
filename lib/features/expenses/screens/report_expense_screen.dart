@@ -8,6 +8,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../../../utils/data_helpers.dart';
 
 class ReportExpenseScreen extends StatefulWidget {
   const ReportExpenseScreen({super.key});
@@ -261,9 +262,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
           continue;
         }
 
-        final amount = data['Amount'] is int
-            ? (data['Amount'] as int).toDouble()
-            : (data['Amount'] as double? ?? 0.0);
+        // ✅ FIX: Use DataHelpers instead of manual parsing
+        final amount = DataHelpers.safeParseDouble(data['Amount']);
 
         DateTime docDate = (data['Date'] as Timestamp).toDate();
 
@@ -329,7 +329,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
           _formatDate(data['Date']),
           data['Title'].toString(),
           data['Category'].toString().toUpperCase(),
-          "INR ${(data['Amount'] as double).toStringAsFixed(2)}",
+          // ✅ FIX: Use DataHelpers instead of manual casting
+          "INR ${DataHelpers.safeParseDouble(data['Amount']).toStringAsFixed(2)}",
         ];
       }).toList();
 
@@ -683,9 +684,10 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                               final String category =
                                   (data['Category']?.toString() ?? 'other')
                                       .toLowerCase();
-                              final double amount = data['Amount'] is int
-                                  ? (data['Amount'] as int).toDouble()
-                                  : (data['Amount'] as double? ?? 0.0);
+                              // ✅ FIX: Use DataHelpers instead of manual parsing
+                              final double amount = DataHelpers.safeParseDouble(
+                                data['Amount'],
+                              );
 
                               if (docDate.isBefore(startDate) ||
                                   docDate.isAfter(endDate)) {

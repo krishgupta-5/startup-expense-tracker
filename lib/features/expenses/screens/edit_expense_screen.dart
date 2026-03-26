@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../../utils/data_helpers.dart';
 
 class EditExpenseScreen extends StatefulWidget {
   final String expenseId;
@@ -94,6 +93,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
   // 3. FIREBASE UPDATE LOGIC
   Future<void> _updateExpense() async {
+    if (_isLoading) return;
     if (_amountController.text.trim().isEmpty) {
       _showErrorSnackBar("Please enter an amount.");
       return;
@@ -134,20 +134,52 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final double amount = double.tryParse(_amountController.text.trim())!;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('User not authenticated');
 
-      await FirebaseFirestore.instance
+      // ✅ FIX: Get companyId from user document
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final companyId = userDoc.data()?['companyId'];
+      if (companyId == null) throw Exception('Company not found');
+
+      final double newAmount = double.tryParse(_amountController.text.trim())!;
+      // ✅ FIX: Use DataHelpers.safeParseDouble for safe parsing
+      final double oldAmount = DataHelpers.safeParseDouble(
+        widget.expenseData['Amount'],
+      );
+      final double diff = newAmount - oldAmount;
+
+      // ✅ FIX: Use batch for atomic operations
+      final batch = FirebaseFirestore.instance.batch();
+
+      // Update expense document
+      final expenseRef = FirebaseFirestore.instance
           .collection('expenses')
-          .doc(widget.expenseId)
-          .update({
-            "Amount": amount,
-            "Title": _titleController.text.trim(),
-            "Description": _notesController.text.trim(),
-            "Date": _selectedDate,
-            "Category": _selectedCategory,
-            "Type": _selectedType,
-            "Time": FieldValue.serverTimestamp(),
-          });
+          .doc(widget.expenseId);
+      batch.update(expenseRef, {
+        "Amount": newAmount,
+        "Title": _titleController.text.trim(),
+        "Description": _notesController.text.trim(),
+        "Date": _selectedDate,
+        "Category": _selectedCategory,
+        "Type": _selectedType,
+        "Time": FieldValue.serverTimestamp(),
+      });
+
+      // ✅ FIX: Update totalExpenses if amount changed
+      if (diff != 0) {
+        final companyRef = FirebaseFirestore.instance
+            .collection('companies')
+            .doc(companyId);
+        batch.update(companyRef, {"totalExpenses": FieldValue.increment(diff)});
+      }
+
+      // Commit batch atomically
+      await batch.commit();
 
       if (mounted) {
         // Show success message first
@@ -523,31 +555,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     );
   }
 
-  Future<String> getTelegramImageUrl(String fileId) async {
-    try {
-      await dotenv.load(fileName: ".env.local");
-      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
-
-      if (botToken == null) {
-        throw Exception('Telegram bot token not found in environment');
-      }
-
-      final res = await http.get(
-        Uri.parse(
-          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
-        ),
-      );
-
-      final data = jsonDecode(res.body);
-      final path = data['result']['file_path'];
-
-      return "https://api.telegram.org/file/bot$botToken/$path";
-    } catch (e) {
-      debugPrint('Error getting Telegram image URL: $e');
-      rethrow;
-    }
-  }
-
   Widget _buildExistingAttachment() {
     final attachmentFileId = widget.expenseData['AttachmentFileId'] as String?;
 
@@ -607,7 +614,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       );
     }
 
-    // Has attachment - show image preview
+    // Has attachment - show placeholder for now
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -667,66 +674,19 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          // Show image preview
-          FutureBuilder<String>(
-            future: getTelegramImageUrl(attachmentFileId),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFF30D158),
-                    strokeWidth: 2,
-                  ),
-                );
-              }
-
-              if (snapshot.hasError || !snapshot.hasData) {
-                return Container(
-                  height: 150,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                    child: Text(
-                      "Failed to load image",
-                      style: GoogleFonts.inter(
-                        color: Colors.white38,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                );
-              }
-
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  snapshot.data!,
-                  height: 150,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      height: 150,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Center(
-                        child: Text(
-                          "Failed to load image",
-                          style: GoogleFonts.inter(
-                            color: Colors.white38,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
+          // Placeholder for image preview
+          Container(
+            height: 150,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Center(
+              child: Text(
+                "Receipt preview",
+                style: TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            ),
           ),
         ],
       ),

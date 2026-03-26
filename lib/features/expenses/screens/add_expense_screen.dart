@@ -6,8 +6,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../services/bank_account_service.dart';
 import '../../../widgets/telegram_image_picker.dart';
-import '../../../utils/data_helpers.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   // ✅ Accept prefill data from scan screen
@@ -125,36 +125,41 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   Future<void> _fetchBankAccounts() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      debugPrint('🔍 DEBUG: Starting to fetch bank accounts...');
+      final accounts = await BankAccountService.getBankAccounts();
+      debugPrint(
+        '🔍 DEBUG: BankAccountService returned ${accounts.length} accounts',
+      );
 
-      final doc = await FirebaseFirestore.instance
-          .collection('companies')
-          .doc(user.uid)
-          .get();
+      Map<String, String> loadedBanks = {};
 
-      if (doc.exists && doc.data()!.containsKey('Bank Accounts')) {
-        final accounts = doc.data()!['Bank Accounts'] as List<dynamic>;
-        Map<String, String> loadedBanks = {};
-
-        for (var acc in accounts) {
-          final String name = acc['name'] ?? 'Unknown Bank';
-          final String number = acc['number'] ?? '';
-          final String key = "$name-$number";
-          final String label =
-              "$name (****${number.length > 4 ? number.substring(number.length - 4) : number})";
-          loadedBanks[key] = label;
-        }
-
-        setState(() {
-          _bankAccounts = loadedBanks;
-          if (_bankAccounts.isNotEmpty) {
-            _selectedBankAccount = _bankAccounts.keys.first;
-          }
-        });
+      for (var acc in accounts) {
+        final String name = acc['name'] ?? 'Unknown Bank';
+        final String last4 = acc['last4'] ?? '';
+        final String key = "$name-$last4";
+        final String label = "$name (****$last4)";
+        loadedBanks[key] = label;
+        debugPrint('🔍 DEBUG: Added bank: $key -> $label');
       }
+
+      debugPrint(
+        '🔍 DEBUG: Total loaded banks map: ${loadedBanks.keys.toList()}',
+      );
+
+      setState(() {
+        _bankAccounts = loadedBanks;
+        debugPrint(
+          '🔍 DEBUG: Set _bankAccounts with ${_bankAccounts.length} items',
+        );
+        if (_bankAccounts.isNotEmpty) {
+          _selectedBankAccount = _bankAccounts.keys.first;
+          debugPrint(
+            '🔍 DEBUG: Selected default bank account: $_selectedBankAccount',
+          );
+        }
+      });
     } catch (e) {
-      debugPrint("Failed to load bank accounts: $e");
+      debugPrint('❌ DEBUG: Failed to load bank accounts: $e');
     } finally {
       if (mounted) setState(() => _isLoadingBanks = false);
     }
@@ -192,16 +197,48 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       return;
     }
     if (_selectedBankAccount == null) {
-      _showErrorSnackBar("Please select a bank account.");
+      if (_bankAccounts.isEmpty) {
+        _showErrorSnackBar(
+          "No bank accounts available. Please add a bank account in your company profile first.",
+        );
+      } else {
+        _showErrorSnackBar("Please select a bank account.");
+      }
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      // ✅ FIX: Get companyId from user document with validation
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final companyId = userDoc.data()?['companyId'];
+      // ✅ MANDATORY GUARD: Prevent batch if companyId is null
+      if (companyId == null) {
+        throw Exception(
+          'Company not found. Please complete company setup first.',
+        );
+      }
+
       final id = const Uuid().v4();
-      await FirebaseFirestore.instance.collection('expenses').doc(id).set({
-        "uid": FirebaseAuth.instance.currentUser!.uid,
+
+      // ✅ FIX: Use batch for atomic operations
+      final batch = FirebaseFirestore.instance.batch();
+
+      // Set expense document
+      final expenseRef = FirebaseFirestore.instance
+          .collection('expenses')
+          .doc(id);
+      batch.set(expenseRef, {
+        "uid": user.uid,
+        "companyId": companyId,
         "Amount": amount,
         "Title": _titleController.text.trim(),
         "Description": _descriptionController.text.trim(),
@@ -209,47 +246,24 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         "Category": _selectedCategory,
         "Type": _selectedType,
         "BankAccount": _selectedBankAccount,
-
-        // ✅ ADD THIS LINE
         "AttachmentFileId": _attachmentFileId ?? '',
-
         "Time": FieldValue.serverTimestamp(),
       });
 
-      await _updateFundsAfterExpense(amount);
+      // ✅ FIX: Atomic totalExpenses update using FieldValue.increment
+      final companyRef = FirebaseFirestore.instance
+          .collection('companies')
+          .doc(companyId);
+      batch.update(companyRef, {"totalExpenses": FieldValue.increment(amount)});
+
+      // Commit batch atomically
+      await batch.commit();
 
       if (mounted) Navigator.pop(context);
     } on FirebaseException catch (e) {
       if (mounted) _showErrorSnackBar(e.message ?? 'Failed to upload expense');
     } finally {
       if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _updateFundsAfterExpense(double expenseAmount) async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      final companyDoc = await FirebaseFirestore.instance
-          .collection('companies')
-          .doc(user.uid)
-          .get();
-
-      if (companyDoc.exists && companyDoc.data() != null) {
-        final data = companyDoc.data()!;
-        final currentTotalExpenses = DataHelpers.safeParseDouble(
-          data["totalExpenses"],
-        );
-        final newTotalExpenses = currentTotalExpenses + expenseAmount;
-
-        await FirebaseFirestore.instance
-            .collection('companies')
-            .doc(user.uid)
-            .update({"totalExpenses": newTotalExpenses});
-      }
-    } catch (e) {
-      debugPrint("Error updating totalExpenses: $e");
     }
   }
 
@@ -350,6 +364,37 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                           icon: Icons.account_balance,
                           onChanged: (val) =>
                               setState(() => _selectedBankAccount = val!),
+                        ),
+                        const SizedBox(height: 24),
+                      ] else if (!_isLoadingBanks && _bankAccounts.isEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            border: Border.all(
+                              color: Colors.red.withOpacity(0.3),
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.warning_amber_outlined,
+                                color: Colors.red[700],
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  "No bank accounts found. Please add a bank account in your company profile first.",
+                                  style: GoogleFonts.inter(
+                                    color: Colors.red[700],
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 24),
                       ],

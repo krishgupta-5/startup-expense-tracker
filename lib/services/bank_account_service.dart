@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:developer';
 
+import 'package:flutter/material.dart';
+
 /// Service for managing bank accounts with production-grade subcollection model
 ///
 /// Uses stable IDs from Firestore subcollection instead of fragile array-based
@@ -16,6 +18,8 @@ class BankAccountService {
     if (user == null) throw Exception('User not authenticated');
 
     try {
+      debugPrint('🔍 DEBUG: Fetching bank accounts for user: ${user.uid}');
+
       // Try subcollection first (new model)
       final bankAccountsSnapshot = await _firestore
           .collection("companies")
@@ -25,8 +29,12 @@ class BankAccountService {
           .orderBy('createdAt', descending: true)
           .get();
 
+      debugPrint(
+        '🔍 DEBUG: Bank accounts snapshot found: ${bankAccountsSnapshot.docs.length} documents',
+      );
+
       if (bankAccountsSnapshot.docs.isNotEmpty) {
-        return bankAccountsSnapshot.docs.map((doc) {
+        final accounts = bankAccountsSnapshot.docs.map((doc) {
           final data = doc.data();
           return {
             'id': data['id'] ?? doc.id,
@@ -40,11 +48,18 @@ class BankAccountService {
             'isActive': data['isActive'] ?? true,
           };
         }).toList();
+
+        debugPrint('🔍 DEBUG: Returning ${accounts.length} bank accounts');
+        return accounts;
       }
 
+      debugPrint(
+        '🔍 DEBUG: No bank accounts in subcollection, checking legacy...',
+      );
       // Fallback: Check for legacy array-based accounts and migrate
       return await _migrateLegacyBankAccounts(user.uid);
     } catch (e) {
+      debugPrint('❌ DEBUG: Error fetching bank accounts: $e');
       throw Exception('Failed to fetch bank accounts: $e');
     }
   }
@@ -141,19 +156,27 @@ class BankAccountService {
     String uid,
   ) async {
     try {
+      debugPrint('🔍 DEBUG: Checking legacy bank accounts for user: $uid');
+
       final docSnapshot = await _firestore
           .collection("companies")
           .doc(uid)
           .get();
 
       if (!docSnapshot.exists || docSnapshot.data() == null) {
+        debugPrint('🔍 DEBUG: No company document found for user: $uid');
         return [];
       }
 
       final data = docSnapshot.data()!;
       final bankAccountsData = data["Bank Accounts"] as List<dynamic>? ?? [];
 
+      debugPrint(
+        '🔍 DEBUG: Found ${bankAccountsData.length} legacy bank accounts',
+      );
+
       if (bankAccountsData.isEmpty) {
+        debugPrint('🔍 DEBUG: No legacy bank accounts found');
         return [];
       }
 

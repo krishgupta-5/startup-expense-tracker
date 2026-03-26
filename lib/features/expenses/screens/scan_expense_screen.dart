@@ -5,7 +5,6 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -23,9 +22,8 @@ class ScanExpenseScreen extends StatefulWidget {
 class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     with SingleTickerProviderStateMixin {
   bool _isScanning = false;
-  String _scannedResult = "";
   String _scanStatus = "Initializing...";
-  bool _flashOn = false;
+  String _scannedResult = "";
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   int _selectedCameraIndex = 0;
@@ -34,8 +32,15 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
   late AnimationController _scanAnimController;
   Map<String, String> _parsedData = {};
 
-  // NEW: Holds the image path before processing so user can crop/retake
+  // NEW: Holds image path before processing so user can crop/retake
   String? _capturedImagePath;
+
+  // Flash state
+  bool _flashOn = false;
+
+  // ✅ FIX: Loading locks and cost control
+  bool _isProcessing = false;
+  static const int _maxImageSizeMB = 2; // Limit to 2MB for cost control
 
   @override
   void initState() {
@@ -181,10 +186,25 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     }
   }
 
-  // NEW: Crop Image Logic
+  // NEW: Crop Image Logic with compression
   Future<void> _cropImage() async {
     if (_capturedImagePath == null) return;
     try {
+      // ✅ FIX: Check image size before processing
+      final imageFile = File(_capturedImagePath!);
+      final imageSizeBytes = await imageFile.length();
+      final imageSizeMB = imageSizeBytes / (1024 * 1024);
+
+      if (imageSizeMB > _maxImageSizeMB) {
+        if (mounted) {
+          _showErrorDialog(
+            "Image too large",
+            "Images larger than ${_maxImageSizeMB}MB are not supported to control costs. Please choose a smaller image.",
+          );
+          return;
+        }
+      }
+
       final croppedFile = await ImageCropper().cropImage(
         sourcePath: _capturedImagePath!,
         uiSettings: [
@@ -197,7 +217,12 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
           ),
           IOSUiSettings(title: 'Crop Receipt'),
         ],
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 85, // Add compression to reduce size
+        maxWidth: 1024,
+        maxHeight: 1024,
       );
+
       if (croppedFile != null) {
         setState(() {
           _capturedImagePath = croppedFile.path;
@@ -212,14 +237,20 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
   void _cancelCapture() {
     setState(() {
       _capturedImagePath = null;
+      _parsedData = {};
+      _scannedResult = "";
     });
   }
 
   // ─── CORE: IMAGE → BASE64 → GEMINI VISION ──────────────────────────────────
 
   Future<void> _processScannedImage(String imagePath) async {
+    // ✅ FIX: Add processing guard to prevent spam
+    if (_isProcessing) return;
+
     setState(() {
       _isScanning = true;
+      _isProcessing = true;
       _scanStatus = "Reading receipt...";
       _scannedResult = "";
     });
@@ -257,50 +288,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     } finally {
       _scanAnimController.stop();
       _scanAnimController.reset();
+      setState(() => _isProcessing = false);
     }
-  }
-
-  // Secure method to make Gemini Vision API call
-  Future<http.Response> _makeGeminiVisionCall(
-    String base64Image,
-    String mediaType,
-    String prompt,
-  ) async {
-    // Get API key securely from ApiService
-    final apiKey = ApiService.geminiApiKey;
-    final url = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=$apiKey',
-    );
-
-    return await http
-        .post(
-          url,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'contents': [
-              {
-                'parts': [
-                  {
-                    // Image data
-                    'inline_data': {
-                      'mime_type': mediaType,
-                      'data': base64Image,
-                    },
-                  },
-                  {
-                    // Text prompt
-                    'text': prompt,
-                  },
-                ],
-              },
-            ],
-            'generationConfig': {
-              'temperature': 0.1, // low = more deterministic/accurate
-              'maxOutputTokens': 500,
-            },
-          }),
-        )
-        .timeout(const Duration(seconds: 45));
   }
 
   Future<Map<String, String>> _extractWithGeminiVision(
@@ -308,112 +297,20 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     String mediaType,
   ) async {
     try {
-      // Check if API key is configured
-      if (!ApiService.isApiKeyConfigured()) {
-        throw Exception(
-          'Gemini API key not configured. Please check your environment setup.',
-        );
-      }
-
-      // Create the prompt with image data
-      final prompt = '''Look at this receipt/bill image carefully.
-Extract the expense information and return ONLY a valid JSON object — no markdown, no explanation, no extra text.
-
-{
-  "merchant": "business name only (e.g. Liquor Street)",
-  "amount": "GRAND TOTAL as plain decimal e.g. 1139.00 — the final total after all taxes",
-  "date": "DD/MM/YYYY — convert any date format you see",
-  "category": "one of exactly: marketing | infrastructure | office | software | transport | design | others",
-  "description": "one-line summary under 60 chars, NO newlines, e.g. Dinner at Liquor Street"
-}
-
-Rules:
-- amount = the FINAL/GRAND TOTAL, not subtotal
-- merchant = business name only, no address or phone number  
-- restaurants/cafes/food/drinks → category "others"
-- If a field is not visible, use empty string ""
-- Return ONLY the JSON object, absolutely nothing else''';
-
-      // For vision models, we need to use a different approach
-      // Since our ApiService is designed for text-only, we'll make a direct call here
-      // but with proper error handling and validation
-      final response = await _makeGeminiVisionCall(
-        base64Image,
-        mediaType,
-        prompt,
+      // ✅ FIX: Use ApiService with built-in retry and fallback
+      final result = await ApiService.extractReceiptData(
+        base64Image: base64Image,
+        mediaType: mediaType,
       );
 
-      debugPrint('Gemini response: $response');
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        // Extract text from Gemini response structure
-        final text =
-            data['candidates']?[0]?['content']?['parts']?[0]?['text']
-                as String? ??
-            '';
-
-        debugPrint('Gemini response: $text');
-
-        // Strip any accidental markdown fences
-        final cleaned = text
-            .replaceAll(RegExp(r'```json\s*'), '')
-            .replaceAll(RegExp(r'```\s*'), '')
-            .trim();
-
-        // Extract JSON — try clean parse first, then field-by-field fallback
-        final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(cleaned);
-        if (jsonMatch != null) {
-          try {
-            final Map<String, dynamic> parsed = jsonDecode(jsonMatch.group(0)!);
-            return parsed.map(
-              (k, v) => MapEntry(k, (v ?? '').toString().trim()),
-            );
-          } catch (_) {
-            // JSON truncated/malformed — fall through to regex extraction
-          }
-        }
-        debugPrint('Falling back to field-by-field regex extraction');
-        return _extractFieldsWithRegex(cleaned);
-      } else {
-        // Log full error for debugging
-        debugPrint('Gemini error ${response.statusCode}: ${response.body}');
-
-        // Show helpful message based on error code
-        if (response.statusCode == 400) {
-          debugPrint('Tip: Check if image is too large or API key is wrong');
-        } else if (response.statusCode == 403) {
-          debugPrint('Tip: API key invalid or Gemini API not enabled');
-        } else if (response.statusCode == 429) {
-          debugPrint('Tip: Rate limit hit — wait a moment and retry');
-        }
-
-        return _emptyResult();
-      }
+      return result;
     } catch (e) {
       debugPrint('Gemini Vision error: $e');
       return _emptyResult();
     }
   }
 
-  // ─── HELPERS ───────────────────────────────────────────────────────────────
-
-  Map<String, String> _extractFieldsWithRegex(String text) {
-    String field(String key) {
-      final match = RegExp('"$key"\\s*:\\s*"([^"]*)"').firstMatch(text);
-      return match?.group(1)?.trim() ?? '';
-    }
-
-    return {
-      'merchant': field('merchant'),
-      'amount': field('amount'),
-      'date': field('date'),
-      'category': field('category'),
-      'description': field('description'),
-    };
-  }
-
+  // Helper method to return empty result
   Map<String, String> _emptyResult() => {
     'merchant': '',
     'amount': '',
@@ -665,6 +562,55 @@ Rules:
     );
   }
 
+  // ✅ FIX: Helper method for error dialogs
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF141416),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  message,
+                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("OK"),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // Preview Bottom Controls (Retake, Crop, Use Photo)
   Widget _buildPreviewBottomControls() {
     return Container(
@@ -888,7 +834,25 @@ Rules:
               Expanded(
                 flex: 2,
                 child: GestureDetector(
-                  onTap: _navigateToAddExpense,
+                  onTap: () async {
+                    if (_isProcessing) {
+                      _showErrorDialog(
+                        "Processing in progress",
+                        "Please wait for the current operation to complete.",
+                      );
+                      return;
+                    }
+
+                    setState(() => _isProcessing = true);
+
+                    try {
+                      _navigateToAddExpense();
+                    } catch (e) {
+                      _showErrorDialog("Navigation Error", e.toString());
+                    } finally {
+                      setState(() => _isProcessing = false);
+                    }
+                  },
                   child: Container(
                     height: 52,
                     decoration: BoxDecoration(

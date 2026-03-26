@@ -1,19 +1,106 @@
-{
-  "indexes": [
-    {
-      "collectionGroup": "expenses",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "uid",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "Date",
-          "order": "DESCENDING"
-        }
-      ]
-    }
-  ],
-  "fieldOverrides": []
-}
+# Firestore Indexes for Expense Tracker Performance
+# Deploy with: firebase deploy --only functions
+
+# Composite Indexes
+# These indexes optimize query performance for the most common query patterns
+
+# 1. Expense Query Index
+# Optimizes queries by uid, date, category, title, and amount
+indexes:
+  - collection: expenses
+    fields:
+      - uid
+      - Date
+      - Category
+      - Title
+      - Amount
+    queryScope: COLLECTION
+
+# 2. Company-User-Expense Index
+# For joining companies with their expenses
+indexes:
+  - collection: expenses
+    fields:
+      - uid
+      - Date
+      - Category
+      - Amount
+    queryScope: COLLECTION
+
+# 3. User-Company Index
+# For user-to-company lookups
+indexes:
+  - collection: users
+    fields:
+      - uid
+      - companyId
+    queryScope: COLLECTION
+
+# 4. Company Index
+# For company data access
+indexes:
+  - collection: companies
+    fields:
+      - userId
+      - totalExpenses
+      - Funding
+      - createdAt
+      - updatedAt
+    queryScope: COLLECTION
+
+# 5. Funding Index
+# For funding records
+indexes:
+  - collection: funding
+    fields:
+      - userId
+      - amount
+      - createdAt
+      - status
+    queryScope: COLLECTION
+
+# 6. Team Index
+# For team member access
+indexes:
+  - collection: team
+    fields:
+      - userId
+      - members
+      - createdAt
+      - updatedAt
+    queryScope: COLLECTION
+
+# Index Exclusions
+# Single-field indexes are excluded for performance
+# Add these only if you have specific query patterns that need them
+
+# Deployment Notes
+# Monitor index performance after deployment
+# Use Firebase console to analyze query patterns
+# Consider adding array indexes for multi-field queries if needed
+
+# Query Optimization Examples
+# These indexes support the following common query patterns:
+
+# Query by user and date range:
+# db.collection('expenses')
+#   .where('uid', '==', userId)
+#   .where('Date', '>=', startDate)
+#   .where('Date', '<=', endDate)
+#   .orderBy('Date', 'desc')
+#   .limit(20)
+
+# Query by user, category, and date:
+# db.collection('expenses')
+#   .where('uid', '==', userId)
+#   .where('Category', '==', category)
+#   .where('Date', '>=', startDate)
+#   .where('Date', '<=', endDate)
+#   .orderBy('Date', 'desc')
+#   .limit(20)
+
+# Query by title search (requires compound index):
+# db.collection('expenses')
+#   .where('uid', '==', userId)
+#   .where('Title', '>=', searchTerm)
+#   .orderBy('Date', 'desc')

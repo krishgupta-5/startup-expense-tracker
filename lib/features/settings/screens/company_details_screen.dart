@@ -76,29 +76,48 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final snapshot = await FirebaseFirestore.instance
+      // First try fetching directly by uid as doc ID (matches how updateCompanyData saves)
+      final directDoc = await FirebaseFirestore.instance
           .collection("companies")
-          .where("uid", isEqualTo: user.uid)
-          .limit(1)
+          .doc(user.uid)
           .get();
 
-      if (snapshot.docs.isNotEmpty) {
-        final data = snapshot.docs.first.data();
+      DocumentSnapshot<Map<String, dynamic>>? doc;
+      if (directDoc.exists) {
+        doc = directDoc;
+      } else {
+        // Fallback: query by uid field for legacy docs
+        final snapshot = await FirebaseFirestore.instance
+            .collection("companies")
+            .where("uid", isEqualTo: user.uid)
+            .limit(1)
+            .get();
+        if (snapshot.docs.isNotEmpty) {
+          doc = snapshot.docs.first;
+        }
+      }
+
+      if (doc != null && doc.exists) {
+        final data = doc.data()!;
+        if (!mounted) return;
         setState(() {
           _companyNameController.text = data["Company Name"] ?? "";
           _ownerNameController.text = data["Owner Name"] ?? "";
           _emailController.text = data["Email"] ?? "";
           _addressController.text = data["Company Address"] ?? "";
           _descController.text = data["Company Work"] ?? "";
-          _fundingController.text = data["Funding"] ?? "";
-          _runwayController.text = data["Runway"] ?? "";
+          _fundingController.text = data["Funding"]?.toString() ?? "";
+          _runwayController.text = data["Runway"]?.toString() ?? "";
           _selectedType = data["Company Type"] ?? "sole_proprietorship";
 
           final bankAccountsData =
               data["Bank Accounts"] as List<dynamic>? ?? [];
           _bankAccounts.clear();
           for (var account in bankAccountsData) {
-            _addBankAccount(account["name"] ?? "", account["number"] ?? "");
+            _addBankAccount(
+              account["name"]?.toString() ?? "",
+              account["number"]?.toString() ?? "",
+            );
           }
         });
       }
@@ -389,7 +408,15 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _buildSectionLabel("LINKED BANK ACCOUNTS"),
+            Text(
+              "LINKED BANK ACCOUNTS",
+              style: GoogleFonts.inter(
+                color: Colors.white24,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.5,
+              ),
+            ),
             GestureDetector(
               onTap: () => _addBankAccount(),
               child: Container(

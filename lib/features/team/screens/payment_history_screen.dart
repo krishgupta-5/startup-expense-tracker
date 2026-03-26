@@ -10,12 +10,14 @@ class PaymentHistoryScreen extends StatelessWidget {
   final DateTime joiningDate;
   final double salary;
   final String memberName;
+  final String memberId;
 
   const PaymentHistoryScreen({
     super.key,
     required this.joiningDate,
     required this.salary,
     required this.memberName,
+    required this.memberId,
   });
 
   // Helper to format currency
@@ -93,8 +95,9 @@ class PaymentHistoryScreen extends StatelessWidget {
                           data['Category']?.toString().toLowerCase() ?? '';
                       final String title = data['Title']?.toString() ?? '';
 
-                      // Filter: Must be a salary expense AND contain the member's name
-                      if (category == 'salary' && title.contains(memberName)) {
+                      // Filter: Must be a salary expense AND match the member's ID
+                      if (category == 'salary' &&
+                          data['memberId'] == memberId) {
                         final double amt = data['Amount'] is int
                             ? (data['Amount'] as int).toDouble()
                             : (data['Amount'] as double? ?? 0.0);

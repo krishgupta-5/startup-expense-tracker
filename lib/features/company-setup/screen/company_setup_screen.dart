@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:startup_expense_tracker/features/navigation/screens/main_navigation_wrapper.dart';
 import 'dart:developer';
 
 class CompanySetupScreen extends StatefulWidget {
@@ -19,6 +18,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   int _currentPage = 0;
   final int _totalPages = 6;
   bool _isFinishing = false;
+  bool _isLoading = true;
 
   // --- VALIDATION STATE ---
   final Set<String> _errors = {};
@@ -76,6 +76,40 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   // --- METHODS ---
 
   @override
+  void initState() {
+    super.initState();
+    _checkOnboardingStatus();
+  }
+
+  Future<void> _checkOnboardingStatus() async {
+    try {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+
+      if (userDoc.exists && userDoc.data()?['companySetup'] == true) {
+        // User already completed setup, redirect back
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+        return;
+      }
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      log('Error checking onboarding status: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
     _ownerNameController.dispose();
@@ -106,6 +140,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   void _removeBankAccount(int index) {
     if (_bankAccounts.length > 1) {
       setState(() {
+        // Dispose controllers before removal to prevent memory leaks
+        _bankAccounts[index]["name"]?.dispose();
+        _bankAccounts[index]["number"]?.dispose();
         _bankAccounts.removeAt(index);
         // Clear potential errors for removed fields
         _errors.remove('bank_name_$index');
@@ -131,23 +168,41 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
 
     switch (_currentPage) {
       case 0: // Identity
-        if (_ownerNameController.text.trim().isEmpty) _errors.add('owner');
-        if (_mobileController.text.trim().isEmpty) _errors.add('mobile');
-        if (_countryController.text.trim().isEmpty) _errors.add('country');
-        if (_companyNameController.text.trim().isEmpty) _errors.add('company');
+        if (_ownerNameController.text.trim().isEmpty) {
+          _errors.add('owner');
+        }
+        if (!RegExp(r'^\d{10}$').hasMatch(_mobileController.text.trim())) {
+          _errors.add('mobile');
+        }
+        if (_countryController.text.trim().isEmpty) {
+          _errors.add('country');
+        }
+        if (_companyNameController.text.trim().isEmpty) {
+          _errors.add('company');
+        }
         isValid = _errors.isEmpty;
         break;
 
       case 1: // Structure
-        if (_selectedCompanyType == null) _errors.add('type');
-        if (_workDescController.text.trim().isEmpty) _errors.add('work');
-        if (_addressController.text.trim().isEmpty) _errors.add('address');
+        if (_selectedCompanyType == null) {
+          _errors.add('type');
+        }
+        if (_workDescController.text.trim().isEmpty) {
+          _errors.add('work');
+        }
+        if (_addressController.text.trim().isEmpty) {
+          _errors.add('address');
+        }
         isValid = _errors.isEmpty;
         break;
 
       case 2: // Financials
-        if (_fundingController.text.trim().isEmpty) _errors.add('funding');
-        if (_runwayController.text.trim().isEmpty) _errors.add('runway');
+        if (double.tryParse(_fundingController.text.trim()) == null) {
+          _errors.add('funding');
+        }
+        if (int.tryParse(_runwayController.text.trim()) == null) {
+          _errors.add('runway');
+        }
         isValid = _errors.isEmpty;
         break;
 
@@ -211,51 +266,109 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     }
   }
 
-  Future<void> uploadCompanyData() async {
+  // Helper method to format bank data securely (no full numbers stored)
+  Map<String, dynamic> _formatBankAccount(
+    Map<String, TextEditingController> account,
+  ) {
+    final accountNumber = account["number"]!.text.trim();
+    String last4 = "";
+
+    if (accountNumber.length >= 4) {
+      last4 = accountNumber.substring(accountNumber.length - 4);
+    }
+
+    return {
+      "bankName": account["name"]!.text.trim(),
+      "last4": last4,
+      "verified":
+          false, // TODO: Integrate with Razorpay/Plaid/Stripe for bank verification
+      "verificationMethod": "manual", // Future: "plaid", "razorpay", "stripe"
+      "verificationId": null, // Future: Store verification provider ID
+    };
+  }
+
+  Future<bool> uploadCompanyData() async {
     try {
-      final formattedBankAccounts = _bankAccounts.map((account) {
-        return {
-          "name": account["name"]!.text.trim(),
-          "number": account["number"]!.text.trim(),
-        };
-      }).toList();
       final userId = FirebaseAuth.instance.currentUser!.uid;
 
-      // Upload company data to companies collection
-      await FirebaseFirestore.instance.collection('companies').doc(userId).set({
-        "uid": FirebaseAuth.instance.currentUser!.uid,
-        "Owner Name": _ownerNameController.text.trim(),
-        "Mobile Number": _mobileController.text.trim(),
-        "Country Location": _countryController.text.trim(),
-        "Company Name": _companyNameController.text.trim(),
-        "Company Type": _selectedCompanyType,
-        "Company Work": _workDescController.text.trim(),
-        "Company Address": _addressController.text.trim(),
-        "Funding": _fundingController.text.trim(),
-        "Runway": _runwayController.text.trim(),
-        "Bank Accounts": formattedBankAccounts,
-        "Categories": _selectedCategories.toList(),
-        "Teams": _teams,
+      final List<Map<String, dynamic>> formattedBankAccounts = _bankAccounts
+          .map(_formatBankAccount)
+          .toList();
+      final List<Map<String, dynamic>> departments = _teams
+          .map((team) => {"name": team["name"], "members": team["members"]})
+          .toList();
+
+      // Use Firestore transaction for atomic operation
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final userRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId);
+        final companyRef = FirebaseFirestore.instance
+            .collection('companies')
+            .doc(userId);
+
+        // Upload company data to companies collection
+        transaction.set(companyRef, {
+          "uid": FirebaseAuth.instance.currentUser!.uid,
+          "Owner Name": _ownerNameController.text.trim(),
+          "Mobile Number": _mobileController.text.trim(),
+          "Country Location": _countryController.text.trim(),
+          "Company Name": _companyNameController.text.trim(),
+          "Company Type": _selectedCompanyType,
+          "Company Work": _workDescController.text.trim(),
+          "Company Address": _addressController.text.trim(),
+          "Funding": _fundingController.text.trim(),
+          "Runway": _runwayController.text.trim(),
+          "Bank Accounts": formattedBankAccounts,
+          "Categories": _selectedCategories.toList(),
+          "Departments": departments,
+          "createdAt": FieldValue.serverTimestamp(),
+        });
+
+        // User document with company link
+        transaction.set(userRef, {
+          "companySetup": true,
+          "companyId": userId,
+          "email": FirebaseAuth.instance.currentUser!.email,
+          "createdAt": FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        return true;
       });
 
-      // Create teams in teams collection
+      // Create teams in separate collection after successful transaction
       await createTeamsInTeamsCollection();
 
-      // Set companySetup flag in users collection
-      await FirebaseFirestore.instance.collection('users').doc(userId).set({
-        "companySetup": true,
-        "email": FirebaseAuth.instance.currentUser!.email,
-        "createdAt": FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      log("Company setup completed successfully");
+      return true;
     } catch (e) {
       log('Company setup error: $e');
+      return false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF09090B),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Checking setup status...',
+                style: GoogleFonts.inter(color: Colors.white70, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF09090B),
       resizeToAvoidBottomInset: true,
@@ -880,7 +993,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               ), // MATCHES LABELS
             ),
             const SizedBox(height: 24),
-            ?extraHeader,
+            if (extraHeader != null) extraHeader,
             ...children,
             const SizedBox(height: 100),
           ],
@@ -922,15 +1035,26 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     );
                   } else {
                     setState(() => _isFinishing = true);
-                    await uploadCompanyData();
+
+                    bool success = await uploadCompanyData();
+
+                    if (!success) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            "Failed to setup company. Please try again.",
+                          ),
+                          backgroundColor: Color(0xFFFF453A),
+                        ),
+                      );
+                      setState(() => _isFinishing = false);
+                      return;
+                    }
+
                     if (!mounted) return;
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const MainNavigationWrapper(),
-                      ),
-                      (route) => false,
-                    );
+                    // Navigate back to let AuthWrapper handle the flow
+                    Navigator.of(context).pop();
                   }
                 },
           style: ElevatedButton.styleFrom(
