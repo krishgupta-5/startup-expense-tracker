@@ -12,6 +12,7 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+.windsurf/
 
 # Environment variables
 .env.local

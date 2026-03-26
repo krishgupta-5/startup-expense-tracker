@@ -1,14 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Helper functions for data parsing and validation
-/// 
+///
 /// This class provides standardized methods for parsing common data types
 /// throughout the application to ensure consistency and prevent crashes.
 class DataHelpers {
   DataHelpers._();
 
   /// Safely parse dynamic values to double
-  /// 
+  ///
   /// [value] - The dynamic value to parse (can be String, double, int, or null)
   /// Returns parsed double value, defaults to 0.0 if parsing fails
   static double safeParseDouble(dynamic value) {
@@ -24,7 +24,7 @@ class DataHelpers {
   }
 
   /// Safely parse dynamic values to String
-  /// 
+  ///
   /// [value] - The dynamic value to parse
   /// Returns string representation, defaults to empty string if null
   static String safeParseString(dynamic value) {
@@ -33,7 +33,7 @@ class DataHelpers {
   }
 
   /// Safely parse dynamic values to int
-  /// 
+  ///
   /// [value] - The dynamic value to parse
   /// Returns parsed int value, defaults to 0 if parsing fails
   static int safeParseInt(dynamic value) {
@@ -48,7 +48,7 @@ class DataHelpers {
   }
 
   /// Safely parse date values from Firestore
-  /// 
+  ///
   /// [value] - The date value to parse (can be Timestamp, DateTime, or null)
   /// Returns DateTime object, null if parsing fails
   static DateTime? safeParseDate(dynamic value) {
@@ -59,7 +59,7 @@ class DataHelpers {
   }
 
   /// Safely parse boolean values
-  /// 
+  ///
   /// [value] - The dynamic value to parse
   /// Returns boolean value, defaults to false if parsing fails
   static bool safeParseBool(dynamic value) {
@@ -75,7 +75,7 @@ class DataHelpers {
   }
 
   /// Validate if a string is not empty after trimming
-  /// 
+  ///
   /// [value] - The string to validate
   /// Returns true if string is not empty after trimming
   static bool isNotEmpty(String? value) {
@@ -83,7 +83,7 @@ class DataHelpers {
   }
 
   /// Validate email format
-  /// 
+  ///
   /// [email] - The email string to validate
   /// Returns true if email format is valid
   static bool isValidEmail(String? email) {
@@ -92,23 +92,27 @@ class DataHelpers {
   }
 
   /// Format currency amount for display
-  /// 
+  ///
   /// [amount] - The amount to format
   /// [currency] - Currency symbol (defaults to '₹')
   /// [decimalDigits] - Number of decimal places (defaults to 0)
   /// Returns formatted currency string
-  static String formatCurrency(double amount, {String currency = '₹', int decimalDigits = 0}) {
+  static String formatCurrency(
+    double amount, {
+    String currency = '₹',
+    int decimalDigits = 0,
+  }) {
     return '$currency${amount.toStringAsFixed(decimalDigits)}';
   }
 
   /// Format date for display
-  /// 
+  ///
   /// [date] - The date to format
   /// [format] - Format pattern (defaults to 'dd/MM/yyyy')
   /// Returns formatted date string
   static String formatDate(DateTime? date, {String format = 'dd/MM/yyyy'}) {
     if (date == null) return 'N/A';
-    
+
     switch (format.toLowerCase()) {
       case 'mmm yyyy':
         return '${_getMonthName(date.month)} ${date.year}';
@@ -121,19 +125,29 @@ class DataHelpers {
   }
 
   /// Get month name from month number
-  /// 
+  ///
   /// [month] - Month number (1-12)
   /// Returns month name
   static String _getMonthName(int month) {
     const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     return months[month - 1];
   }
 
   /// Truncate text to specified length with ellipsis
-  /// 
+  ///
   /// [text] - The text to truncate
   /// [maxLength] - Maximum length before truncation
   /// Returns truncated text with ellipsis if needed
@@ -143,7 +157,7 @@ class DataHelpers {
   }
 
   /// Generate error message for API responses
-  /// 
+  ///
   /// [error] - The error object
   /// [fallbackMessage] - Default message if error is null
   /// Returns user-friendly error message

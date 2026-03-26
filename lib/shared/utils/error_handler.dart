@@ -72,10 +72,7 @@ class ErrorHandler {
         break;
     }
 
-    ErrorPopup.showAuth(
-      context: context,
-      message: message,
-    );
+    ErrorPopup.showAuth(context: context, message: message);
   }
 
   static void handleValidationError({
@@ -111,10 +108,7 @@ class ErrorHandler {
         break;
     }
 
-    ErrorPopup.showValidation(
-      context: context,
-      message: message,
-    );
+    ErrorPopup.showValidation(context: context, message: message);
   }
 
   static void handleNetworkError({
@@ -126,10 +120,7 @@ class ErrorHandler {
         customMessage ??
         'Unable to connect to the server. Please check your internet connection and try again.';
 
-    ErrorPopup.showNetwork(
-      context: context,
-      message: message,
-    );
+    ErrorPopup.showNetwork(context: context, message: message);
   }
 
   static void handleServerError({
@@ -141,10 +132,7 @@ class ErrorHandler {
         customMessage ??
         'Server is currently unavailable. Please try again in a few moments.';
 
-    ErrorPopup.showServer(
-      context: context,
-      message: message,
-    );
+    ErrorPopup.showServer(context: context, message: message);
   }
 
   static void handleGeneralError({
@@ -167,10 +155,7 @@ class ErrorHandler {
     VoidCallback? onAction,
     String? actionText,
   }) {
-    ErrorPopup.showSuccess(
-      context: context,
-      message: message,
-    );
+    ErrorPopup.showSuccess(context: context, message: message);
   }
 
   static void handleWarning({
@@ -179,10 +164,7 @@ class ErrorHandler {
     VoidCallback? onAction,
     String? actionText,
   }) {
-    ErrorPopup.showWarning(
-      context: context,
-      message: message,
-    );
+    ErrorPopup.showWarning(context: context, message: message);
   }
 
   static void handleInfo({
@@ -191,10 +173,7 @@ class ErrorHandler {
     VoidCallback? onAction,
     String? actionText,
   }) {
-    ErrorPopup.showInfo(
-      context: context,
-      message: message,
-    );
+    ErrorPopup.showInfo(context: context, message: message);
   }
 
   static void handleError({

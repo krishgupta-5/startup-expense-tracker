@@ -10,10 +10,7 @@ class ErrorHelper {
   static void showErrorSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.inter(color: Colors.white),
-        ),
+        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
         backgroundColor: Colors.redAccent,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 4),
@@ -25,10 +22,7 @@ class ErrorHelper {
   static void showSuccessSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.inter(color: Colors.black),
-        ),
+        content: Text(message, style: GoogleFonts.inter(color: Colors.black)),
         backgroundColor: const Color(0xFF30D158),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
@@ -40,10 +34,7 @@ class ErrorHelper {
   static void showInfoSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.inter(color: Colors.white),
-        ),
+        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
         backgroundColor: const Color(0xFF0A84FF),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
@@ -55,10 +46,7 @@ class ErrorHelper {
   static void showWarningSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.inter(color: Colors.black),
-        ),
+        content: Text(message, style: GoogleFonts.inter(color: Colors.black)),
         backgroundColor: const Color(0xFF9B59B6),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
@@ -82,11 +70,7 @@ class ErrorHelper {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.error_outline,
-            color: Colors.redAccent,
-            size: 48,
-          ),
+          Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
           const SizedBox(height: 16),
           Text(
             message,
@@ -135,11 +119,7 @@ class ErrorHelper {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon ?? Icons.inbox_outlined,
-            color: Colors.white38,
-            size: 64,
-          ),
+          Icon(icon ?? Icons.inbox_outlined, color: Colors.white38, size: 64),
           const SizedBox(height: 20),
           Text(
             message,
@@ -203,10 +183,17 @@ class ErrorHelper {
   }
 
   /// Handle and display errors consistently
-  static void handleError(BuildContext context, dynamic error, {String? fallbackMessage}) {
-    final errorMessage = DataHelpers.getErrorMessage(error, fallbackMessage ?? 'An unexpected error occurred.');
+  static void handleError(
+    BuildContext context,
+    dynamic error, {
+    String? fallbackMessage,
+  }) {
+    final errorMessage = DataHelpers.getErrorMessage(
+      error,
+      fallbackMessage ?? 'An unexpected error occurred.',
+    );
     showErrorSnackBar(context, errorMessage);
-    
+
     // Also log to console for debugging
     debugPrint('🚨 Error: $error');
     debugPrint('🚨 Message: $errorMessage');

@@ -150,10 +150,12 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
 
       case 3: // Bank
         for (var i = 0; i < _bankAccounts.length; i++) {
-          if (_bankAccounts[i]["name"]!.text.trim().isEmpty)
+          if (_bankAccounts[i]["name"]!.text.trim().isEmpty) {
             _errors.add('bank_name_$i');
-          if (_bankAccounts[i]["number"]!.text.trim().isEmpty)
+          }
+          if (_bankAccounts[i]["number"]!.text.trim().isEmpty) {
             _errors.add('bank_num_$i');
+          }
         }
         isValid = _errors.isEmpty;
         break;
@@ -589,8 +591,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     isSelected
                         ? _selectedCategories.remove(cat)
                         : _selectedCategories.add(cat);
-                    if (_selectedCategories.isNotEmpty)
+                    if (_selectedCategories.isNotEmpty) {
                       _clearError('categories');
+                    }
                   });
                 },
                 child: AnimatedContainer(
@@ -802,7 +805,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               ), // MATCHES LABELS
             ),
             const SizedBox(height: 24),
-            if (extraHeader != null) extraHeader,
+            ?extraHeader,
             ...children,
             const SizedBox(height: 100),
           ],

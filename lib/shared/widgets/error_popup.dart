@@ -302,7 +302,7 @@ class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
       case ErrorType.authentication:
       case ErrorType.server:
       case ErrorType.general:
-      return Colors.redAccent;
+        return Colors.redAccent;
     }
   }
 }
