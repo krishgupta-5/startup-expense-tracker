@@ -66,7 +66,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   ];
   final Set<String> _selectedCategories = {};
 
-  // Step 6: Team
+  // Step 6: Team (Pre-populated, but not mandatory)
   final List<Map<String, dynamic>> _teams = [
     {"name": "Engineering", "members": []},
     {"name": "Marketing", "members": []},
@@ -163,18 +163,12 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         isValid = _errors.isEmpty;
         break;
 
-      case 4: // Categories
-        if (_selectedCategories.isEmpty) {
-          _errors.add('categories');
-          isValid = false;
-        }
+      case 4: // Categories (NOW OPTIONAL)
+        isValid = true;
         break;
 
-      case 5: // Team
-        if (_teams.isEmpty) {
-          _errors.add('teams');
-          isValid = false;
-        }
+      case 5: // Team (NOW OPTIONAL)
+        isValid = true;
         break;
     }
 
@@ -187,11 +181,166 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     return isValid;
   }
 
+  // --- COMPREHENSIVE VALIDATION FOR FINISH ---
+  bool _validateAllMandatoryFields() {
+    setState(() {
+      _errors.clear();
+    });
+
+    bool isValid = true;
+
+    // Step 1: Identity
+    if (_ownerNameController.text.trim().isEmpty) {
+      _errors.add('owner');
+      isValid = false;
+    }
+    if (_mobileController.text.trim().isEmpty) {
+      _errors.add('mobile');
+      isValid = false;
+    }
+    if (_countryController.text.trim().isEmpty) {
+      _errors.add('country');
+      isValid = false;
+    }
+    if (_companyNameController.text.trim().isEmpty) {
+      _errors.add('company');
+      isValid = false;
+    }
+
+    // Step 2: Structure
+    if (_selectedCompanyType == null) {
+      _errors.add('type');
+      isValid = false;
+    }
+    if (_workDescController.text.trim().isEmpty) {
+      _errors.add('work');
+      isValid = false;
+    }
+    if (_addressController.text.trim().isEmpty) {
+      _errors.add('address');
+      isValid = false;
+    }
+
+    // Step 3: Financials
+    if (_fundingController.text.trim().isEmpty) {
+      _errors.add('funding');
+      isValid = false;
+    }
+    if (_runwayController.text.trim().isEmpty) {
+      _errors.add('runway');
+      isValid = false;
+    }
+
+    // Step 4: Bank
+    for (var i = 0; i < _bankAccounts.length; i++) {
+      if (_bankAccounts[i]["name"]!.text.trim().isEmpty) {
+        _errors.add('bank_name_$i');
+        isValid = false;
+      }
+      if (_bankAccounts[i]["number"]!.text.trim().isEmpty) {
+        _errors.add('bank_num_$i');
+        isValid = false;
+      }
+    }
+
+    if (!isValid) {
+      HapticFeedback.heavyImpact();
+      setState(() {});
+    }
+
+    return isValid;
+  }
+
+  // --- SHOW VALIDATION ERROR DIALOG ---
+  void _showValidationErrorDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF141416),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            "Missing Required Information",
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          content: Text(
+            "Please fill in all mandatory fields before finishing the setup. The required fields are marked with errors.",
+            style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Navigate to the first page with errors
+                _navigateToFirstErrorPage();
+              },
+              child: Text(
+                "Go to Missing Fields",
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF0A84FF),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // --- NAVIGATE TO FIRST ERROR PAGE ---
+  void _navigateToFirstErrorPage() {
+    // Check each step in order and navigate to the first one with errors
+    if (_errors.contains('owner') ||
+        _errors.contains('mobile') ||
+        _errors.contains('country') ||
+        _errors.contains('company')) {
+      _pageController.animateToPage(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else if (_errors.contains('type') ||
+        _errors.contains('work') ||
+        _errors.contains('address')) {
+      _pageController.animateToPage(
+        1,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else if (_errors.contains('funding') || _errors.contains('runway')) {
+      _pageController.animateToPage(
+        2,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else if (_errors.any(
+      (error) =>
+          error.startsWith('bank_name_') || error.startsWith('bank_num_'),
+    )) {
+      _pageController.animateToPage(
+        3,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+    setState(() {
+      _currentPage = _pageController.page?.round() ?? 0;
+    });
+  }
+
   Future<void> createTeamsInTeamsCollection() async {
     try {
       final userId = FirebaseAuth.instance.currentUser!.uid;
 
-      // Create each team in the teams collection
+      // Create each team in the teams collection (if they left any)
       for (var team in _teams) {
         await FirebaseFirestore.instance.collection('teams').add({
           "uid": userId,
@@ -235,7 +384,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         "Runway": _runwayController.text.trim(),
         "Bank Accounts": formattedBankAccounts,
         "Categories": _selectedCategories.toList(),
-        "Teams": _teams,
       });
 
       // Create teams in teams collection
@@ -574,102 +722,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   }
 
   Widget _buildStep5Categories() {
-    final hasError = _errors.contains('categories');
-
     return _buildPageContainer(
       title: "Categories",
-      subtitle: "What do you spend money on?",
-      extraHeader: Padding(
-        padding: const EdgeInsets.only(bottom: 24),
-        child: AnimatedDefaultTextStyle(
-          duration: const Duration(milliseconds: 200),
-          style: GoogleFonts.inter(
-            color: hasError ? const Color(0xFFFF453A) : Colors.white70,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-          child: Row(
-            children: [
-              if (hasError) ...[
-                const Icon(
-                  Icons.error_outline,
-                  color: Color(0xFFFF453A),
-                  size: 14,
-                ),
-                const SizedBox(width: 6),
-              ],
-              Text(
-                hasError
-                    ? "Please select at least one category"
-                    : "Select all that apply",
-              ),
-            ],
-          ),
-        ),
-      ),
-      children: [
-        ShakeWidget(
-          shake: hasError,
-          child: Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: _allCategories.map((cat) {
-              final isSelected = _selectedCategories.contains(cat);
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    isSelected
-                        ? _selectedCategories.remove(cat)
-                        : _selectedCategories.add(cat);
-                    if (_selectedCategories.isNotEmpty) {
-                      _clearError('categories');
-                    }
-                  });
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected ? Colors.white : const Color(0xFF141416),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: isSelected
-                          ? Colors.white
-                          : (hasError
-                                ? const Color(0xFFFF453A)
-                                : Colors.white.withValues(alpha: 0.1)),
-                    ),
-                  ),
-                  child: Text(
-                    cat,
-                    style: GoogleFonts.inter(
-                      color: isSelected
-                          ? Colors.black
-                          : (hasError
-                                ? const Color(0xFFFF453A)
-                                : Colors.white70),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStep6Team() {
-    final hasError = _errors.contains('teams');
-
-    return _buildPageContainer(
-      title: "Teams",
-      subtitle: "Teams will be created automatically for your company.",
+      subtitle: "Setup default categories (Optional)",
       extraHeader: Padding(
         padding: const EdgeInsets.only(bottom: 24),
         child: Container(
@@ -681,11 +736,87 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           ),
           child: Row(
             children: [
-              Icon(Icons.info_outline, color: Colors.white70, size: 20),
+              const Icon(Icons.info_outline, color: Colors.white70, size: 20),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  "Default teams (Engineering, Marketing) will be created. You can add more teams after setup.",
+                  "You can skip this and customize categories later from your dashboard.",
+                  style: GoogleFonts.inter(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      children: [
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: _allCategories.map((cat) {
+            final isSelected = _selectedCategories.contains(cat);
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  isSelected
+                      ? _selectedCategories.remove(cat)
+                      : _selectedCategories.add(cat);
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.white : const Color(0xFF141416),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isSelected
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.1),
+                  ),
+                ),
+                child: Text(
+                  cat,
+                  style: GoogleFonts.inter(
+                    color: isSelected ? Colors.black : Colors.white70,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStep6Team() {
+    return _buildPageContainer(
+      title: "Teams",
+      subtitle: "Setup initial departments (Optional)",
+      extraHeader: Padding(
+        padding: const EdgeInsets.only(bottom: 24),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.info_outline, color: Colors.white70, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  "You can skip this and add teams later from your dashboard.",
                   style: GoogleFonts.inter(
                     color: Colors.white70,
                     fontSize: 12,
@@ -713,7 +844,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.group, color: Colors.white60, size: 18),
+                      const Icon(Icons.group, color: Colors.white60, size: 18),
                       const SizedBox(width: 12),
                       Text(
                         team["name"],
@@ -724,20 +855,14 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                       ),
                     ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      "${team["members"]?.length ?? 0} members",
-                      style: GoogleFonts.inter(
-                        color: Colors.white60,
-                        fontSize: 12,
+                  GestureDetector(
+                    onTap: () => setState(() => _teams.remove(team)),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white38,
+                        size: 18,
                       ),
                     ),
                   ),
@@ -747,44 +872,36 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           );
         }),
         const SizedBox(height: 16),
-        ShakeWidget(
-          shake: hasError,
-          child: Row(
-            children: [
-              Expanded(
-                child: _buildInputField(
-                  _teamController,
-                  "Add Team (e.g. Sales)",
-                  "teams",
-                  icon: Icons.group_add,
-                ),
+        Row(
+          children: [
+            Expanded(
+              child: _buildInputField(
+                _teamController,
+                "Add Team (e.g. Sales)",
+                "teams", // Even though it's optional, we pass a key to use the same widget builder
+                icon: Icons.group_add,
               ),
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () {
-                  if (_teamController.text.isNotEmpty) {
-                    setState(() {
-                      _teams.add({"name": _teamController.text, "members": []});
-                      _teamController.clear();
-                      _clearError('teams');
-                    });
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: hasError ? const Color(0xFFFF453A) : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    Icons.arrow_upward,
-                    color: hasError ? Colors.white : Colors.black,
-                    size: 20,
-                  ),
+            ),
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: () {
+                if (_teamController.text.isNotEmpty) {
+                  setState(() {
+                    _teams.add({"name": _teamController.text, "members": []});
+                    _teamController.clear();
+                  });
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
                 ),
+                child: const Icon(Icons.add, color: Colors.black, size: 20),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );
@@ -874,13 +991,10 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             const SizedBox(height: 8),
             Text(
               subtitle,
-              style: GoogleFonts.inter(
-                color: Colors.white70,
-                fontSize: 16,
-              ), // MATCHES LABELS
+              style: GoogleFonts.inter(color: Colors.white70, fontSize: 16),
             ),
             const SizedBox(height: 24),
-            ?extraHeader,
+            if (extraHeader != null) extraHeader,
             ...children,
             const SizedBox(height: 100),
           ],
@@ -911,16 +1025,24 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               : () async {
                   FocusScope.of(context).unfocus();
 
-                  if (!_validateCurrentStep()) {
-                    return; // Stop if validation fails (Shake animation handles feedback)
-                  }
-
                   if (_currentPage < _totalPages - 1) {
+                    // For regular navigation, validate current step only
+                    if (!_validateCurrentStep()) {
+                      return; // Stop if validation fails (Shake animation handles feedback)
+                    }
+
                     _pageController.nextPage(
                       duration: const Duration(milliseconds: 300),
                       curve: Curves.easeInOut,
                     );
                   } else {
+                    // For finish, validate ALL mandatory fields
+                    if (!_validateAllMandatoryFields()) {
+                      // Show error message and navigate to first error page
+                      _showValidationErrorDialog();
+                      return;
+                    }
+
                     setState(() => _isFinishing = true);
                     await uploadCompanyData();
                     if (!mounted) return;
@@ -971,7 +1093,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       child: Text(
         text,
         style: GoogleFonts.inter(
-          color: Colors.white70, // MATCHES LOGIN LABELS
+          color: Colors.white70,
           fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
@@ -980,13 +1102,12 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     );
   }
 
-  // --- UPDATED TO MATCH LOGIN UI WITH ICONS AND PADDING ---
   Widget _buildInputField(
     TextEditingController controller,
     String hint,
     String errorKey, {
     bool isNumber = false,
-    IconData? icon, // Optional Icon Parameter added
+    IconData? icon,
   }) {
     final hasError = _errors.contains(errorKey);
 
@@ -1000,7 +1121,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           border: Border.all(
             color: hasError
                 ? const Color(0xFFFF453A)
-                : Colors.white.withValues(alpha: 0.1), // MATCHES LOGIN BORDER
+                : Colors.white.withValues(alpha: 0.1),
           ),
         ),
         child: TextField(
@@ -1017,7 +1138,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   : Colors.white60,
               fontSize: 15,
             ),
-            // Replicates the sleek icon from your Login page
             icon: icon != null
                 ? Icon(
                     icon,
@@ -1026,16 +1146,13 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   )
                 : null,
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 16,
-            ), // MATCHES LOGIN PADDING
+            contentPadding: const EdgeInsets.symmetric(vertical: 16),
           ),
         ),
       ),
     );
   }
 
-  // --- UPDATED TO MATCH LOGIN UI WITH ICONS AND PADDING ---
   Widget _buildTextArea(
     TextEditingController controller,
     String hint,
@@ -1054,7 +1171,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           border: Border.all(
             color: hasError
                 ? const Color(0xFFFF453A)
-                : Colors.white.withValues(alpha: 0.1), // MATCHES LOGIN BORDER
+                : Colors.white.withValues(alpha: 0.1),
           ),
         ),
         child: TextField(
@@ -1071,7 +1188,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   : Colors.white60,
               fontSize: 15,
             ),
-            // Replicates the sleek icon from your Login page
             icon: icon != null
                 ? Icon(
                     icon,
@@ -1080,9 +1196,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   )
                 : null,
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 16,
-            ), // MATCHES LOGIN PADDING
+            contentPadding: const EdgeInsets.symmetric(vertical: 16),
           ),
         ),
       ),

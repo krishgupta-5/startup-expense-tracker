@@ -80,44 +80,18 @@ class _TeamScreenState extends State<TeamScreen> {
     if (user == null) return [];
 
     try {
-      // 1. Fetch teams from teams collection (manually created teams)
+      // Fetch teams from teams collection (single source of truth)
       final teamsSnapshot = await FirebaseFirestore.instance
           .collection('teams')
           .where('uid', isEqualTo: user.uid)
           .get();
 
-      // 2. Fetch teams from companies collection (company setup teams)
-      final companySnapshot = await FirebaseFirestore.instance
-          .collection('companies')
-          .doc(user.uid)
-          .get();
-
       List<Map<String, dynamic>> allTeams = [];
 
-      // Add manually created teams
+      // Add teams from teams collection
       for (var doc in teamsSnapshot.docs) {
         final data = doc.data();
         allTeams.add({...data, 'id': doc.id, 'source': 'teams_collection'});
-      }
-
-      // Add company setup teams
-      if (companySnapshot.exists) {
-        final companyData = companySnapshot.data() as Map<String, dynamic>;
-        final List<dynamic> companyTeams = companyData['Teams'] ?? [];
-
-        for (var team in companyTeams) {
-          allTeams.add({
-            'teamName': team['name'],
-            'members': team['members'] ?? [],
-            'monthlyBudget': 0.0, // Default budget for company setup teams
-            'color': 'blue', // Default color
-            'iconCodePoint': 0xe7fd, // Default group icon
-            'iconFontFamily': 'MaterialIcons',
-            'source': 'company_setup',
-            'id':
-                'company_setup_${team['name']}', // Unique ID for company setup teams
-          });
-        }
       }
 
       return allTeams;
@@ -146,18 +120,12 @@ class _TeamScreenState extends State<TeamScreen> {
       final teamSizes = <String, int>{};
 
       for (final team in filteredTeams) {
-        if (team['source'] == 'company_setup') {
-          // Company setup teams have members array directly
-          final members = team['members'] as List<dynamic>? ?? [];
-          teamSizes[team['id'] as String] = members.length;
-        } else {
-          // Manually created teams need to fetch from members collection
-          final membersSnapshot = await FirebaseFirestore.instance
-              .collection('members')
-              .where('teamId', isEqualTo: team['id'])
-              .get();
-          teamSizes[team['id'] as String] = membersSnapshot.docs.length;
-        }
+        // All teams are now from teams collection, so fetch from members collection
+        final membersSnapshot = await FirebaseFirestore.instance
+            .collection('members')
+            .where('teamId', isEqualTo: team['id'])
+            .get();
+        teamSizes[team['id'] as String] = membersSnapshot.docs.length;
       }
 
       filteredTeams.sort((a, b) {
@@ -669,142 +637,99 @@ class _TeamScreenState extends State<TeamScreen> {
   }
 
   Widget _buildMemberCount(Map<String, dynamic> teamData) {
-    final source = teamData['source'] as String?;
-
-    if (source == 'company_setup') {
-      // Company setup teams have members array directly
-      final members = teamData['members'] as List<dynamic>? ?? [];
-      final memberCount = members.length;
-      final memberCountStr = memberCount == 1
-          ? "1 Member"
-          : "$memberCount Members";
-
-      return Text(
-        memberCountStr,
-        style: GoogleFonts.inter(
-          color: Colors.white54,
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-        ),
-      );
-    } else {
-      // Manually created teams need to fetch from members collection
-      final teamId = teamData['id'] as String;
-      return StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('members')
-            .where('teamId', isEqualTo: teamId)
-            .snapshots(),
-        builder: (context, membersSnapshot) {
-          if (membersSnapshot.hasError) {
-            debugPrint("Error fetching members: ${membersSnapshot.error}");
-            return Text(
-              "Error loading members",
-              style: GoogleFonts.inter(
-                color: Colors.redAccent,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            );
-          }
-
-          if (membersSnapshot.connectionState == ConnectionState.waiting) {
-            return Text(
-              "Loading...",
-              style: GoogleFonts.inter(
-                color: Colors.white38,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            );
-          }
-
-          final memberCount = membersSnapshot.data?.docs.length ?? 0;
-          debugPrint("Team $teamId has $memberCount members");
-
-          final memberCountStr = memberCount == 1
-              ? "1 Member"
-              : "$memberCount Members";
-
+    // All teams are now from teams collection, so fetch from members collection
+    final teamId = teamData['id'] as String;
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('members')
+          .where('teamId', isEqualTo: teamId)
+          .snapshots(),
+      builder: (context, membersSnapshot) {
+        if (membersSnapshot.hasError) {
+          debugPrint("Error fetching members: ${membersSnapshot.error}");
           return Text(
-            memberCountStr,
+            "Error loading members",
             style: GoogleFonts.inter(
-              color: Colors.white54,
+              color: Colors.redAccent,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
           );
-        },
-      );
-    }
+        }
+
+        if (membersSnapshot.connectionState == ConnectionState.waiting) {
+          return Text(
+            "Loading...",
+            style: GoogleFonts.inter(
+              color: Colors.white38,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          );
+        }
+
+        final memberCount = membersSnapshot.data?.docs.length ?? 0;
+        debugPrint("Team $teamId has $memberCount members");
+
+        final memberCountStr = memberCount == 1
+            ? "1 Member"
+            : "$memberCount Members";
+
+        return Text(
+          memberCountStr,
+          style: GoogleFonts.inter(
+            color: Colors.white54,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildAvatarPile(Map<String, dynamic> teamData) {
-    final source = teamData['source'] as String?;
-
-    if (source == 'company_setup') {
-      // Company setup teams have members array directly
-      final members = teamData['members'] as List<dynamic>? ?? [];
-      if (members.isEmpty) {
-        return Text(
-          "No members",
-          style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
-        );
-      }
-
-      final List<String> names = members
-          .map(
-            (member) =>
-                (member as Map<String, dynamic>)['fullName']?.toString() ??
-                'Unnamed',
-          )
-          .toList();
-
-      return _buildAvatarWidget(names, []);
-    } else {
-      // Manually created teams need to fetch from members collection
-      final teamId = teamData['id'] as String;
-      return StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('members')
-            .where('teamId', isEqualTo: teamId)
-            .snapshots(),
-        builder: (context, membersSnapshot) {
-          if (membersSnapshot.hasError) {
-            debugPrint(
-              "Error fetching members for avatars: ${membersSnapshot.error}",
-            );
-            return Text(
-              "Error loading members",
-              style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 12),
-            );
-          }
-
-          final membersDocs = membersSnapshot.data?.docs ?? [];
+    // All teams are now from teams collection, so fetch from members collection
+    final teamId = teamData['id'] as String;
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('members')
+          .where('teamId', isEqualTo: teamId)
+          .snapshots(),
+      builder: (context, membersSnapshot) {
+        if (membersSnapshot.hasError) {
           debugPrint(
-            "Avatar pile - Team $teamId has ${membersDocs.length} members",
+            "Error fetching members for avatars: ${membersSnapshot.error}",
           );
+          return Text(
+            "Error loading members",
+            style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 12),
+          );
+        }
 
-          final List<String> avatars = [];
-          final List<String> names = [];
+        final membersDocs = membersSnapshot.data?.docs ?? [];
+        debugPrint(
+          "Avatar pile - Team $teamId has ${membersDocs.length} members",
+        );
 
-          for (var memberDoc in membersDocs) {
-            final memberData = memberDoc.data() as Map<String, dynamic>;
-            final String name = memberData['fullName'] ?? 'Unnamed';
-            final String? avatarUrl = memberData['avatarUrl'];
+        final List<String> avatars = [];
+        final List<String> names = [];
 
-            names.add(name);
-            if (avatarUrl != null && avatarUrl.isNotEmpty) {
-              avatars.add(avatarUrl);
-            } else {
-              avatars.add(''); // Empty string for generated avatar
-            }
+        for (var memberDoc in membersDocs) {
+          final memberData = memberDoc.data() as Map<String, dynamic>;
+          final String name = memberData['fullName'] ?? 'Unnamed';
+          final String? avatarUrl = memberData['avatarUrl'];
+
+          names.add(name);
+          if (avatarUrl != null && avatarUrl.isNotEmpty) {
+            avatars.add(avatarUrl);
+          } else {
+            avatars.add(''); // Empty string for generated avatar
           }
+        }
 
-          return _buildAvatarWidget(names, avatars);
-        },
-      );
-    }
+        return _buildAvatarWidget(names, avatars);
+      },
+    );
   }
 
   Widget _buildAvatarWidget(List<String> names, List<String> avatars) {
