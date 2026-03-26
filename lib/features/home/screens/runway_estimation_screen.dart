@@ -203,8 +203,9 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
 
   String _calculateZeroCashDate(double calculatedRunwayMonths) {
     if (calculatedRunwayMonths <= 0) return "Funds depleted";
-    if (calculatedRunwayMonths > 120)
+    if (calculatedRunwayMonths > 120) {
       return "10+ Years"; // Cap to avoid massive dates
+    }
 
     final now = DateTime.now();
     final zeroCashDateTime = now.add(

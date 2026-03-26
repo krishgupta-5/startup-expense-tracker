@@ -20,10 +20,21 @@ class BankAccountService {
     try {
       debugPrint('🔍 DEBUG: Fetching bank accounts for user: ${user.uid}');
 
+      // ✅ FIX: Get companyId from user document first
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+
+      final companyId = userDoc.data()?['companyId'];
+      if (companyId == null) {
+        debugPrint('🔍 DEBUG: No companyId found for user: ${user.uid}');
+        return [];
+      }
+
+      debugPrint('🔍 DEBUG: Using companyId: $companyId');
+
       // Try subcollection first (new model)
       final bankAccountsSnapshot = await _firestore
           .collection("companies")
-          .doc(user.uid)
+          .doc(companyId) // ✅ Use companyId instead of user.uid
           .collection("bankAccounts")
           .where('isActive', isEqualTo: true)
           .orderBy('createdAt', descending: true)
@@ -57,7 +68,7 @@ class BankAccountService {
         '🔍 DEBUG: No bank accounts in subcollection, checking legacy...',
       );
       // Fallback: Check for legacy array-based accounts and migrate
-      return await _migrateLegacyBankAccounts(user.uid);
+      return await _migrateLegacyBankAccounts(companyId);
     } catch (e) {
       debugPrint('❌ DEBUG: Error fetching bank accounts: $e');
       throw Exception('Failed to fetch bank accounts: $e');
@@ -153,18 +164,22 @@ class BankAccountService {
 
   /// 🔥 PRODUCTION FIX: Migrate legacy array-based bank accounts to subcollection
   static Future<List<Map<String, dynamic>>> _migrateLegacyBankAccounts(
-    String uid,
+    String companyId,
   ) async {
     try {
-      debugPrint('🔍 DEBUG: Checking legacy bank accounts for user: $uid');
+      debugPrint(
+        '🔍 DEBUG: Checking legacy bank accounts for company: $companyId',
+      );
 
       final docSnapshot = await _firestore
           .collection("companies")
-          .doc(uid)
+          .doc(companyId)
           .get();
 
       if (!docSnapshot.exists || docSnapshot.data() == null) {
-        debugPrint('🔍 DEBUG: No company document found for user: $uid');
+        debugPrint(
+          '🔍 DEBUG: No company document found for company: $companyId',
+        );
         return [];
       }
 
@@ -191,7 +206,7 @@ class BankAccountService {
         // Create new subcollection document
         final bankRef = _firestore
             .collection("companies")
-            .doc(uid)
+            .doc(companyId)
             .collection("bankAccounts")
             .doc();
 
@@ -216,7 +231,7 @@ class BankAccountService {
       await batch.commit();
 
       // Optionally clean up legacy array after successful migration
-      // await _firestore.collection("companies").doc(uid).update({
+      // await _firestore.collection("companies").doc(companyId).update({
       //   "Bank Accounts": FieldValue.delete(),
       // });
 
