@@ -22,8 +22,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   void initState() {
-    loadUserProfile();
     super.initState();
+    loadUserProfile();
   }
 
   @override
@@ -56,8 +56,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  Future<void> updateUserProfile() async {
+  Future<bool> updateUserProfile() async {
     try {
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: const Color(0xFF141416),
@@ -65,7 +66,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             "Updating profile...",
             style: GoogleFonts.inter(color: Colors.white),
           ),
-          duration: const Duration(milliseconds: 500),
+          duration: const Duration(milliseconds: 800),
         ),
       );
 
@@ -81,11 +82,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         "phone": _phoneController.text.trim(),
         "location": _locationController.text.trim(),
         "uid": uid,
-        "updatedAt": Timestamp.now(),
+        "updatedAt": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
       // Sync name to companies collection
       await _syncNameToCompanies();
+      return true;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -98,6 +100,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
         );
       }
+      return false;
     }
   }
 
@@ -115,7 +118,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             .doc(companySnapshot.docs.first.id)
             .set({
               "Owner Name": _nameController.text.trim(),
-              "updatedAt": Timestamp.now(),
+              "updatedAt": FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
       }
     } catch (e) {
@@ -311,8 +314,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         height: 56,
         child: ElevatedButton(
           onPressed: () async {
-            await updateUserProfile();
+            final success = await updateUserProfile();
             if (mounted) {
+              if (success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: const Color(0xFF30D158),
+                    content: Text(
+                      "Profile updated successfully!",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
               Navigator.pop(context);
             }
           },

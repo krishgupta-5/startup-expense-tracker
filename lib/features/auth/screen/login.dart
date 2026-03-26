@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/features/auth/screen/signup.dart';
 import 'package:startup_expense_tracker/features/auth/screen/forget_password.dart';
-import 'package:startup_expense_tracker/features/navigation/screens/main_navigation_wrapper.dart';
 import 'package:startup_expense_tracker/features/auth/services/google_sign_in_service.dart';
 import 'package:startup_expense_tracker/shared/utils/error_handler.dart';
 
@@ -22,21 +21,29 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
 
   Future<void> loginUserWithEmailAndPassword() async {
+    final email = _emailController.text.trim();
+
+    // Email validation
+    if (!email.contains('@')) {
+      ErrorHandler.handleValidationError(
+        context: context,
+        field: 'Email',
+        validationMessage: 'Enter a valid email',
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
 
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
+        email: email,
         password: _passwordController.text.trim(),
       );
 
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MainNavigationWrapper()),
-      );
+      // Do nothing, AuthWrapper will handle navigation
     } on FirebaseAuthException catch (e) {
       ErrorHandler.handleAuthError(
         context: context,
@@ -351,12 +358,7 @@ class _LoginScreenState extends State<LoginScreen> {
             });
 
             if (userCredential != null) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const MainNavigationWrapper(),
-                ),
-              );
+              // Do nothing, AuthWrapper will react automatically
             } else {
               ErrorHandler.handleAuthError(
                 context: context,

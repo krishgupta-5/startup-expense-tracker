@@ -237,6 +237,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                             joiningDate: joinedDateObj,
                                             salary: cost,
                                             memberName: name,
+                                            memberId: widget.memberId,
                                           ),
                                     ),
                                   );
@@ -721,8 +722,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               data['Category']?.toString().toLowerCase() ?? '';
           final String title = data['Title']?.toString() ?? '';
 
-          // Filter: Must be a salary expense AND contain the member's name
-          if (category == 'salary' && title.contains(memberName)) {
+          // Filter: Must be a salary expense AND match the member's ID
+          if (category == 'salary' && data['memberId'] == widget.memberId) {
             final double amt = data['Amount'] is int
                 ? (data['Amount'] as int).toDouble()
                 : (data['Amount'] as double? ?? 0.0);

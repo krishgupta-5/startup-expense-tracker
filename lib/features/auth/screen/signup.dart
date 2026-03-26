@@ -3,10 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:startup_expense_tracker/features/company-setup/screen/company_setup_screen.dart';
 import 'package:startup_expense_tracker/features/auth/services/google_sign_in_service.dart';
 import 'package:startup_expense_tracker/shared/utils/error_handler.dart';
 import 'login.dart';
+import 'package:startup_expense_tracker/features/company-setup/screen/company_setup_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -24,21 +24,35 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _confirmPasswordController = TextEditingController();
 
   Future<void> createUserWithEmailAndPassword() async {
+    // Email validation
+    if (!_emailController.text.contains('@')) {
+      ErrorHandler.handleValidationError(
+        context: context,
+        field: 'Email',
+        validationMessage: 'Enter a valid email',
+      );
+      return;
+    }
+
+    // Strong password validation
+    final password = _passwordController.text.trim();
+    if (password.length < 8 ||
+        !password.contains(RegExp(r'[A-Z]')) ||
+        !password.contains(RegExp(r'[0-9]'))) {
+      ErrorHandler.handleValidationError(
+        context: context,
+        field: 'Password',
+        validationMessage: 'Use 8+ chars, 1 uppercase, 1 number',
+      );
+      return;
+    }
+
     if (_passwordController.text.trim() !=
         _confirmPasswordController.text.trim()) {
       ErrorHandler.handleValidationError(
         context: context,
         field: 'Password',
         validationMessage: 'passwords do not match',
-      );
-      return;
-    }
-
-    if (_passwordController.text.trim().length < 6) {
-      ErrorHandler.handleValidationError(
-        context: context,
-        field: 'Password',
-        validationMessage: 'password must be at least 6 characters',
       );
       return;
     }
@@ -61,18 +75,31 @@ class _SignUpScreenState extends State<SignUpScreen> {
           'uid': user.uid,
           'email': user.email ?? '',
           'provider': 'email',
-          'createdAt': Timestamp.now(),
-          'updatedAt': Timestamp.now(),
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
         });
+
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF30D158),
+              content: Text(
+                'Account created successfully!',
+                style: GoogleFonts.inter(color: Colors.white),
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+
+          // Navigate to company setup screen directly
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
+          );
+        }
       }
 
-      if (!mounted) return;
-
-      // Navigate to company setup for new users
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const CompanySetupScreen()),
-      );
+      // Do nothing, AuthWrapper will handle navigation
     } on FirebaseAuthException catch (e) {
       ErrorHandler.handleAuthError(
         context: context,
@@ -438,12 +465,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             });
 
             if (userCredential != null) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const CompanySetupScreen(),
-                ),
-              );
+              // Do nothing, AuthWrapper will react automatically
             } else {
               ErrorHandler.handleAuthError(
                 context: context,

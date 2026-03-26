@@ -13,7 +13,28 @@ class MonthlyBurnScreen extends StatefulWidget {
   State<MonthlyBurnScreen> createState() => _MonthlyBurnScreenState();
 }
 
-class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
+class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _shimmerController;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _shimmerController.repeat();
+    _loadFinancialData();
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _shimmerController.dispose();
+    super.dispose();
+  }
+
   double _toDouble(dynamic value, {double fallback = 0.0}) {
     if (value == null) return fallback;
     if (value is double) return value;
@@ -43,18 +64,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
   // Debouncing
   Timer? _debounceTimer;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadFinancialData();
-  }
-
-  @override
-  void dispose() {
-    _debounceTimer?.cancel();
-    super.dispose();
-  }
-
   Future<void> _loadFinancialData() async {
     setState(() {
       _isRefreshing = true;
@@ -68,19 +77,27 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
     });
 
     try {
-      // Load all data simultaneously for faster loading
-      final futures = await Future.wait([
-        FinancialDataService.getMonthlyBurnData(),
-        FinancialDataService.getTeamCostDistribution(),
-        FinancialDataService.getRawTeamsData(),
-        FinancialDataService.getActualSpendingPerTeam(),
+      // Load all data simultaneously for faster loading with individual error handling
+      final results = await Future.wait([
+        FinancialDataService.getMonthlyBurnData().catchError(
+          (e) => <String, dynamic>{},
+        ),
+        FinancialDataService.getTeamCostDistribution().catchError(
+          (e) => <String, dynamic>{},
+        ),
+        FinancialDataService.getRawTeamsData().catchError(
+          (e) => <Map<String, dynamic>>[],
+        ),
+        FinancialDataService.getActualSpendingPerTeam().catchError(
+          (e) => <String, double>{},
+        ),
       ]);
 
       setState(() {
-        _financialData = futures[0] as Map<String, dynamic>;
-        _teamCostData = futures[1] as Map<String, dynamic>;
-        _rawTeamsData = futures[2] as List<Map<String, dynamic>>;
-        _actualSpendingPerTeam = futures[3] as Map<String, double>;
+        _financialData = results[0] as Map<String, dynamic>?;
+        _teamCostData = results[1] as Map<String, dynamic>?;
+        _rawTeamsData = results[2] as List<Map<String, dynamic>>?;
+        _actualSpendingPerTeam = results[3] as Map<String, double>?;
 
         // Set all loading states to true at once
         _mainCardLoaded = true;
@@ -92,7 +109,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
       });
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = "Failed to load financial data: ${e.toString()}";
         _isRefreshing = false;
       });
     }
@@ -1165,10 +1182,10 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
-      child: TweenAnimationBuilder(
-        duration: const Duration(milliseconds: 1500),
-        tween: Tween<double>(begin: -1.0, end: 2.0),
-        builder: (context, double value, child) {
+      child: AnimatedBuilder(
+        animation: _shimmerController,
+        builder: (context, child) {
+          final value = _shimmerController.value;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1303,10 +1320,10 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen> {
   }
 
   Widget _buildShimmerEffect(double width, double height) {
-    return TweenAnimationBuilder(
-      duration: const Duration(milliseconds: 1500),
-      tween: Tween<double>(begin: -1.0, end: 2.0),
-      builder: (context, double value, child) {
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        final value = _shimmerController.value;
         return Container(
           width: width,
           height: height,

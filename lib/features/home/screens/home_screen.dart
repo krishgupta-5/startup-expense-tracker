@@ -45,10 +45,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadAllData() async {
-    _fetchRunwayData();
-    fetchTotalFundsAvailable();
-    fetchMonthlyBurn();
-    _loadFinancialDataForPieChart();
+    await _fetchRunwayData();
+    await fetchTotalFundsAvailable();
+    await fetchMonthlyBurn();
+    await _loadFinancialDataForPieChart();
   }
 
   // --- MINIMAL EMPTY STATE COMPONENT ---

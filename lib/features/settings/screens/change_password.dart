@@ -36,6 +36,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   @override
   void dispose() {
+    _newPassController.removeListener(_validatePassword);
     _oldPassController.dispose();
     _newPassController.dispose();
     _confirmPassController.dispose();

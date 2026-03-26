@@ -6,6 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../services/bank_account_service.dart';
+
 class ProcessPaymentScreen extends StatefulWidget {
   final String memberId;
   final String memberName;
@@ -55,35 +57,24 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
 
   Future<void> _fetchBankAccounts() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      final accounts = await BankAccountService.getBankAccounts();
 
-      final doc = await FirebaseFirestore.instance
-          .collection('companies')
-          .doc(user.uid)
-          .get();
+      Map<String, String> loadedBanks = {};
+      for (var acc in accounts) {
+        final String name = acc['name'] ?? 'Unknown Bank';
+        final String last4 = acc['last4'] ?? '';
 
-      if (doc.exists && doc.data()!.containsKey('Bank Accounts')) {
-        final accounts = doc.data()!['Bank Accounts'] as List<dynamic>;
-
-        Map<String, String> loadedBanks = {};
-        for (var acc in accounts) {
-          final String name = acc['name'] ?? 'Unknown Bank';
-          final String number = acc['number'] ?? '';
-
-          final String key = "$name-$number";
-          final String displayLabel =
-              "$name (****${number.length > 4 ? number.substring(number.length - 4) : number})";
-          loadedBanks[key] = displayLabel;
-        }
-
-        setState(() {
-          _bankAccounts = loadedBanks;
-          if (_bankAccounts.isNotEmpty) {
-            _selectedBankAccount = _bankAccounts.keys.first;
-          }
-        });
+        final String key = "$name-$last4";
+        final String displayLabel = "$name (****$last4)";
+        loadedBanks[key] = displayLabel;
       }
+
+      setState(() {
+        _bankAccounts = loadedBanks;
+        if (_bankAccounts.isNotEmpty) {
+          _selectedBankAccount = _bankAccounts.keys.first;
+        }
+      });
     } catch (e) {
       debugPrint("Failed to load bank accounts: $e");
     } finally {
@@ -136,6 +127,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
         "Category": "salary",
         "Type": "recurring",
         "BankAccount": _selectedBankAccount,
+        "memberId": widget.memberId, // Add memberId for proper filtering
         "Time": FieldValue.serverTimestamp(),
       });
 
@@ -154,7 +146,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
         await FirebaseFirestore.instance
             .collection('companies')
             .doc(user.uid)
-            .update({"totalExpenses": newTotalExpenses.toString()});
+            .update({"totalExpenses": newTotalExpenses});
       }
 
       if (mounted) {

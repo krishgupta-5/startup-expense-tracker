@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class RateUsScreen extends StatefulWidget {
   const RateUsScreen({super.key});
@@ -416,13 +417,26 @@ class _RateUsScreenState extends State<RateUsScreen> {
   }
 
   Future<void> _launchPlayStore() async {
-    // TODO: Implement Play Store navigation
-    // For now, show a dialog or snackbar
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Opening Play Store...', style: GoogleFonts.inter()),
-        backgroundColor: Colors.white24,
-      ),
+    // Replace with your actual app package name
+    const packageName = 'com.yourcompany.startupexpensetracker';
+    final Uri playStoreUri = Uri.parse(
+      'https://play.google.com/store/apps/details?id=$packageName',
     );
+    if (await canLaunchUrl(playStoreUri)) {
+      await launchUrl(playStoreUri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not open Play Store.',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }

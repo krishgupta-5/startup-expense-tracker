@@ -59,7 +59,11 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
         final currentQuarter = ((now.month - 1) ~/ 3) + 1;
         final startMonth = (currentQuarter - 1) * 3 + 1;
         startDate = DateTime(now.year, startMonth, 1);
-        endDate = DateTime(now.year, startMonth + 3, 0, 23, 59, 59);
+        // Safe end: last day of the quarter's last month, handles Dec overflow
+        final endMonth = startMonth + 2;
+        final endYear = endMonth > 12 ? now.year + 1 : now.year;
+        final safeEndMonth = endMonth > 12 ? endMonth - 12 : endMonth;
+        endDate = DateTime(endYear, safeEndMonth + 1, 0, 23, 59, 59);
         reportTitle = "Quarterly Expenses - Q$currentQuarter ${now.year}";
       } else {
         // Annual (Assuming Financial Year April - March)

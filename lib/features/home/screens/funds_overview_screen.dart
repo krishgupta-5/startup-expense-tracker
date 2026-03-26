@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:developer';
 import 'add_bank_account_screen.dart';
 import '../../expenses/screens/expense_details_screen.dart';
+import '../../../services/financial_calculator.dart';
 
 class FundsOverviewScreen extends StatefulWidget {
   const FundsOverviewScreen({super.key});
@@ -120,6 +121,56 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     }).toList();
   }
 
+  String _getHealthStatus() {
+    if (isLoading || available == null || fundingAmount == null)
+      return "NO DATA";
+
+    final runwayMonths = FinancialCalculator.runwayMonths(
+      availableFunds: available!,
+      monthlyBurn: _calculateCurrentMonthBurn(),
+    );
+
+    return FinancialCalculator.runwayHealthStatus(runwayMonths);
+  }
+
+  Color _getHealthStatusColor() {
+    final status = _getHealthStatus();
+    switch (status) {
+      case "SAFE":
+        return const Color(0xFF30D158);
+      case "WARNING":
+        return const Color(0xFFFF9F0A);
+      case "CRITICAL":
+        return const Color(0xFFFF453A);
+      default:
+        return Colors.white54;
+    }
+  }
+
+  double _calculateCurrentMonthBurn() {
+    if (allExpenses.isEmpty) return 0;
+    final now = DateTime.now();
+    double currentMonthTotal = 0;
+    for (var expense in allExpenses) {
+      final expenseDate = expense['date'] as String?;
+      if (expenseDate != null) {
+        // Parse date string and check if it's current month
+        final parts = expenseDate.split('/');
+        if (parts.length >= 2) {
+          final month = int.tryParse(parts[0]);
+          final year = int.tryParse(parts[1]);
+          if (month != null &&
+              year != null &&
+              month == now.month &&
+              year == now.year) {
+            currentMonthTotal += (expense['amount'] as num).toDouble();
+          }
+        }
+      }
+    }
+    return currentMonthTotal;
+  }
+
   Future<void> _fetchAllExpenses() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -172,8 +223,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         final Map<String, double> bankSpending = {};
         for (var account in bankAccountsData) {
           final bankName = account["name"] ?? 'Unknown Bank';
-          final accountNumber = account["number"] ?? '';
-          bankSpending["$bankName-$accountNumber"] = 0.0;
+          final last4 = account["last4"] ?? '';
+          bankSpending["$bankName-$last4"] = 0.0;
         }
 
         for (var expense in allExpenses) {
@@ -189,12 +240,12 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         bankAccounts = bankAccountsData.asMap().entries.map((entry) {
           final account = entry.value;
           final bankName = account["name"] ?? 'Unknown Bank';
-          final accountNumber = account["number"] ?? '';
-          final totalSpent = bankSpending["$bankName-$accountNumber"] ?? 0.0;
+          final last4 = account["last4"] ?? '';
+          final totalSpent = bankSpending["$bankName-$last4"] ?? 0.0;
           return {
             'name': bankName,
-            'number': accountNumber,
-            'maskedNumber': _maskAccountNumber(accountNumber),
+            'number': last4,
+            'maskedNumber': _maskAccountNumber(last4),
             'totalSpent': totalSpent,
           };
         }).toList();
@@ -410,16 +461,16 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF30D158).withValues(alpha: 0.1),
+                  color: _getHealthStatusColor().withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(100),
                   border: Border.all(
-                    color: const Color(0xFF30D158).withValues(alpha: 0.3),
+                    color: _getHealthStatusColor().withValues(alpha: 0.3),
                   ),
                 ),
                 child: Text(
-                  "HEALTHY",
+                  _getHealthStatus(),
                   style: GoogleFonts.inter(
-                    color: const Color(0xFF30D158),
+                    color: _getHealthStatusColor(),
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.0,

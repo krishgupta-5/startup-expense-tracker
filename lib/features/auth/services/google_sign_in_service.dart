@@ -21,6 +21,7 @@ class GoogleSignInService {
       // Create a new credential
       final OAuthCredential credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
+        // accessToken: googleAuth.accessToken, // TODO: Check if available in current version
       );
 
       // Sign in to Firebase with the Google credential
@@ -43,14 +44,20 @@ class GoogleSignInService {
         .collection('users')
         .doc(user.uid);
 
+    // Set user data without overwriting createdAt
     await userRef.set({
       'uid': user.uid,
       'email': user.email ?? '',
       'displayName': user.displayName ?? '',
       'photoURL': user.photoURL ?? '',
       'provider': 'google',
-      'createdAt': FieldValue.serverTimestamp(),
+      'companySetup': false,
       'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    // Only set createdAt if it doesn't exist
+    await userRef.set({
+      'createdAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 

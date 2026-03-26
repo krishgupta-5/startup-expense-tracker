@@ -4,11 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'dart:developer';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'edit_expense_screen.dart';
+import '../../../utils/data_helpers.dart';
 
 class ExpenseDetailsScreen extends StatefulWidget {
   final String expenseId;
@@ -25,16 +22,6 @@ class ExpenseDetailsScreen extends StatefulWidget {
 }
 
 class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
-  double safeParse(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) {
-      return double.tryParse(value.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
-    }
-    return 0.0;
-  }
-
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
@@ -91,7 +78,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   ) {
     // Safely extract data from Firebase
     final title = expenseData['Title'] ?? 'Unnamed Expense';
-    final amount = safeParse(expenseData['Amount']);
+    // ✅ FIX: Use DataHelpers instead of manual parsing
+    final amount = DataHelpers.safeParseDouble(expenseData['Amount']);
     final rawCategory = expenseData['Category']?.toString() ?? 'General';
     final category = rawCategory.toUpperCase();
     final rawType = expenseData['Type']?.toString() ?? 'one_time';
@@ -139,7 +127,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                             _buildCategoryBadge(category),
                             const SizedBox(height: 24),
                             Text(
-                              "₹${amount.toStringAsFixed(2)}",
+                              "₹${DataHelpers.formatCurrency(amount)}",
                               style: GoogleFonts.inter(
                                 color: Colors.white,
                                 fontSize: 48,
@@ -254,11 +242,29 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         return;
       }
 
-      final id = const Uuid().v4();
+      // ✅ FIX: Get companyId from user document
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
 
-      await FirebaseFirestore.instance.collection('expenses').doc(id).set({
+      final companyId = userDoc.data()?['companyId'];
+      if (companyId == null) throw Exception('Company not found');
+
+      final id = const Uuid().v4();
+      final amount = DataHelpers.safeParseDouble(expenseData['Amount']);
+
+      // ✅ FIX: Use batch for atomic operations
+      final batch = FirebaseFirestore.instance.batch();
+
+      // Set new expense document
+      final expenseRef = FirebaseFirestore.instance
+          .collection('expenses')
+          .doc(id);
+      batch.set(expenseRef, {
         "uid": user.uid,
-        "Amount": expenseData['Amount'] ?? 0.0,
+        "companyId": companyId,
+        "Amount": amount,
         "Title": "${expenseData['Title'] ?? 'Expense'} (Copy)",
         "Description": expenseData['Description'] ?? '',
         "Date": DateTime.now(),
@@ -266,6 +272,15 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         "Type": expenseData['Type'] ?? 'one_time',
         "Time": FieldValue.serverTimestamp(),
       });
+
+      // ✅ FIX: Update totalExpenses atomically
+      final companyRef = FirebaseFirestore.instance
+          .collection('companies')
+          .doc(companyId);
+      batch.update(companyRef, {"totalExpenses": FieldValue.increment(amount)});
+
+      // Commit batch atomically
+      await batch.commit();
 
       if (context.mounted) {
         Navigator.pop(context); // Close bottom sheet
@@ -447,31 +462,6 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     );
   }
 
-  Future<String> getTelegramImageUrl(String fileId) async {
-    try {
-      await dotenv.load(fileName: ".env.local");
-      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
-
-      if (botToken == null) {
-        throw Exception('Telegram bot token not found in environment');
-      }
-
-      final res = await http.get(
-        Uri.parse(
-          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
-        ),
-      );
-
-      final data = jsonDecode(res.body);
-      final path = data['result']['file_path'];
-
-      return "https://api.telegram.org/file/bot$botToken/$path";
-    } catch (e) {
-      debugPrint('Error getting Telegram image URL: $e');
-      rethrow;
-    }
-  }
-
   Widget _buildAttachmentPreview(Map<String, dynamic> expenseData) {
     final attachmentFileId = expenseData['AttachmentFileId'] as String?;
 
@@ -524,7 +514,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       );
     }
 
-    // Has attachment - show image preview
+    // Has attachment - show placeholder for now
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -578,66 +568,19 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          // Show image preview
-          FutureBuilder<String>(
-            future: getTelegramImageUrl(attachmentFileId),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFF30D158),
-                    strokeWidth: 2,
-                  ),
-                );
-              }
-
-              if (snapshot.hasError || !snapshot.hasData) {
-                return Container(
-                  height: 150,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Center(
-                    child: Text(
-                      "Failed to load image",
-                      style: GoogleFonts.inter(
-                        color: Colors.white38,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                );
-              }
-
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  snapshot.data!,
-                  height: 150,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      height: 150,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Center(
-                        child: Text(
-                          "Failed to load image",
-                          style: GoogleFonts.inter(
-                            color: Colors.white38,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
+          // Placeholder for image preview
+          Container(
+            height: 150,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Center(
+              child: Text(
+                "Receipt preview",
+                style: TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+            ),
           ),
         ],
       ),
@@ -705,16 +648,44 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
                     // --- FIREBASE DELETE LOGIC ---
                     try {
-                      // Get the expense amount before deleting
-                      final expenseAmount = widget.expenseData['Amount'] ?? 0.0;
+                      // Get expense amount before deleting
+                      final expenseAmount = DataHelpers.safeParseDouble(
+                        widget.expenseData['Amount'],
+                      );
 
-                      await FirebaseFirestore.instance
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user == null)
+                        throw Exception('User not authenticated');
+
+                      // Get companyId from user document
+                      final userDoc = await FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(user.uid)
+                          .get();
+
+                      final companyId = userDoc.data()?['companyId'];
+                      if (companyId == null)
+                        throw Exception('Company not found');
+
+                      // Use batch for atomic operations
+                      final batch = FirebaseFirestore.instance.batch();
+
+                      // Delete expense document
+                      final expenseRef = FirebaseFirestore.instance
                           .collection('expenses')
-                          .doc(widget.expenseId)
-                          .delete();
+                          .doc(widget.expenseId);
+                      batch.delete(expenseRef);
 
-                      // Update totalExpenses by subtracting the deleted expense amount
-                      await _updateTotalExpensesAfterDeletion(expenseAmount);
+                      // Update totalExpenses atomically
+                      final companyRef = FirebaseFirestore.instance
+                          .collection('companies')
+                          .doc(companyId);
+                      batch.update(companyRef, {
+                        "totalExpenses": FieldValue.increment(-expenseAmount),
+                      });
+
+                      // Commit batch atomically
+                      await batch.commit();
 
                       if (context.mounted) {
                         Navigator.pop(context); // Go back to the list screen
@@ -739,40 +710,6 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         );
       },
     );
-  }
-
-  Future<void> _updateTotalExpensesAfterDeletion(double expenseAmount) async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      // Get current company data
-      final companyDoc = await FirebaseFirestore.instance
-          .collection('companies')
-          .doc(user.uid)
-          .get();
-
-      if (companyDoc.exists && companyDoc.data() != null) {
-        final data = companyDoc.data()!;
-        final currentTotalExpenses =
-            double.tryParse(data["totalExpenses"]?.toString() ?? "0") ?? 0.0;
-
-        // Calculate new total expenses (subtract the deleted expense)
-        final newTotalExpenses = currentTotalExpenses - expenseAmount;
-
-        // Update the totalExpenses field
-        await FirebaseFirestore.instance
-            .collection('companies')
-            .doc(user.uid)
-            .update({"totalExpenses": newTotalExpenses.toString()});
-
-        log(
-          "DEBUG: Updated totalExpenses from $currentTotalExpenses to $newTotalExpenses after deletion",
-        );
-      }
-    } catch (e) {
-      log("DEBUG: Error updating totalExpenses after deletion: $e");
-    }
   }
 
   Widget _buildActionOption({

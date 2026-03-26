@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
+import '../../../services/financial_calculator.dart';
 
 class RunwayEstimationScreen extends StatefulWidget {
   const RunwayEstimationScreen({super.key});
@@ -71,8 +72,21 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
 
         final availableBalance = fundingAmount - totalExpensesAmount;
 
-        // Calculate current month burn
-        final currentMonthBurnAmount = _calculateCurrentMonthBurn();
+        // Calculate current month burn using FinancialCalculator with proper scaling
+        final expensesForCalculation = allExpenses
+            .map(
+              (expense) => {
+                'amount': expense['amount'] as double,
+                'date': expense['date'],
+                'type':
+                    'one_time', // Default type since original data doesn't specify
+              },
+            )
+            .toList();
+
+        final currentMonthBurnAmount = FinancialCalculator.currentMonthBurn(
+          expensesForCalculation,
+        );
         double actualMonthlyBurn = currentMonthBurnAmount;
 
         if (actualMonthlyBurn == 0 && allExpenses.isNotEmpty) {
@@ -166,25 +180,6 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     }
   }
 
-  double _calculateCurrentMonthBurn() {
-    if (allExpenses.isEmpty) return 0;
-
-    final now = DateTime.now();
-    double currentMonthTotal = 0;
-
-    for (var expense in allExpenses) {
-      final expenseDate = expense['date'] as Timestamp?;
-      if (expenseDate != null) {
-        final expenseDateTime = expenseDate.toDate();
-        if (expenseDateTime.month == now.month &&
-            expenseDateTime.year == now.year) {
-          currentMonthTotal += expense['amount'] as double;
-        }
-      }
-    }
-    return currentMonthTotal;
-  }
-
   double _calculateAverageMonthlyBurn() {
     if (allExpenses.isEmpty) return 0;
     Map<String, double> monthlyTotals = {};
@@ -208,8 +203,9 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
 
   String _calculateZeroCashDate(double calculatedRunwayMonths) {
     if (calculatedRunwayMonths <= 0) return "Funds depleted";
-    if (calculatedRunwayMonths > 120)
+    if (calculatedRunwayMonths > 120) {
       return "10+ Years"; // Cap to avoid massive dates
+    }
 
     final now = DateTime.now();
     final zeroCashDateTime = now.add(

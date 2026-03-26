@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -21,6 +22,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
+    // Email validation
+    if (!_emailController.text.contains('@')) {
+      _showErrorSnackBar('Enter a valid email');
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -30,9 +37,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         email: _emailController.text.trim(),
       );
 
+      // Log successful password reset request
+      await AuthService.logPasswordReset(
+        email: _emailController.text.trim(),
+        status: 'success',
+      );
+
       if (mounted) {
         _showSuccessSnackBar('Password reset link sent to your email');
-        Navigator.pop(context);
+        // Don't auto pop - let user confirm
       }
     } on FirebaseAuthException catch (e) {
       String errorMessage;
@@ -52,8 +65,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         default:
           errorMessage = 'Failed to send reset link: ${e.message}';
       }
+
+      // Log failed password reset request
+      await AuthService.logPasswordReset(
+        email: _emailController.text.trim(),
+        status: 'failed',
+        error: e.code,
+      );
+
       _showErrorSnackBar(errorMessage);
     } catch (e) {
+      // Log unexpected error
+      await AuthService.logPasswordReset(
+        email: _emailController.text.trim(),
+        status: 'failed',
+        error: 'unexpected_error',
+      );
+
       _showErrorSnackBar('An unexpected error occurred');
     } finally {
       if (mounted) {
