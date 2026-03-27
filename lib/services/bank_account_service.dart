@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:developer';
 
 import 'package:flutter/material.dart';
 
@@ -22,57 +21,307 @@ class BankAccountService {
 
       // ✅ FIX: Get companyId from user document first
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      debugPrint('🔍 DEBUG: User document exists: ${userDoc.exists}');
+
+      if (userDoc.exists && userDoc.data() != null) {
+        debugPrint('🔍 DEBUG: User document data: ${userDoc.data()}');
+      }
 
       final companyId = userDoc.data()?['companyId'];
       if (companyId == null) {
         debugPrint('🔍 DEBUG: No companyId found for user: ${user.uid}');
-        return [];
+        debugPrint(
+          '🔍 DEBUG: Available fields in user doc: ${userDoc.data()?.keys.toList()}',
+        );
+
+        // Try fallback to user.uid as companyId
+        debugPrint('🔍 DEBUG: Trying fallback with user.uid as companyId');
+        return await _getBankAccountsWithCompanyId(user.uid);
       }
 
       debugPrint('🔍 DEBUG: Using companyId: $companyId');
+      return await _getBankAccountsWithCompanyId(companyId);
+    } catch (e) {
+      debugPrint('❌ DEBUG: Error fetching bank accounts: $e');
+      debugPrint('❌ DEBUG: Error stack trace: ${StackTrace.current}');
+      throw Exception('Failed to fetch bank accounts: $e');
+    }
+  }
 
-      // Try subcollection first (new model)
-      final bankAccountsSnapshot = await _firestore
-          .collection("companies")
-          .doc(companyId) // ✅ Use companyId instead of user.uid
-          .collection("bankAccounts")
-          .where('isActive', isEqualTo: true)
-          .orderBy('createdAt', descending: true)
-          .get();
+  /// Helper method to get bank accounts with a specific companyId
+  static Future<List<Map<String, dynamic>>> _getBankAccountsWithCompanyId(
+    String companyId,
+  ) async {
+    try {
+      debugPrint('🔍 DEBUG: Getting bank accounts for companyId: $companyId');
 
-      debugPrint(
-        '🔍 DEBUG: Bank accounts snapshot found: ${bankAccountsSnapshot.docs.length} documents',
+      // First try subcollection (new model)
+      final subcollectionAccounts = await _getBankAccountsFromSubcollection(
+        companyId,
       );
-
-      if (bankAccountsSnapshot.docs.isNotEmpty) {
-        final accounts = bankAccountsSnapshot.docs.map((doc) {
-          final data = doc.data();
-          return {
-            'id': data['id'] ?? doc.id,
-            'name': data['name'] ?? 'Unknown Bank',
-            'number': data['number'] ?? '',
-            'last4': data['last4'] ?? '',
-            'maskedNumber':
-                data['maskedNumber'] ??
-                _maskAccountNumber(data['number'] ?? ''),
-            'createdAt': data['createdAt'],
-            'isActive': data['isActive'] ?? true,
-          };
-        }).toList();
-
-        debugPrint('🔍 DEBUG: Returning ${accounts.length} bank accounts');
-        return accounts;
+      if (subcollectionAccounts.isNotEmpty) {
+        debugPrint(
+          '🔍 DEBUG: Found ${subcollectionAccounts.length} accounts in subcollection',
+        );
+        return subcollectionAccounts;
       }
 
       debugPrint(
-        '🔍 DEBUG: No bank accounts in subcollection, checking legacy...',
+        '🔍 DEBUG: No accounts in subcollection, checking company document array...',
       );
-      // Fallback: Check for legacy array-based accounts and migrate
-      return await _migrateLegacyBankAccounts(companyId);
+
+      // Fallback to company document array (from company setup)
+      final arrayAccounts = await _getBankAccountsFromCompanyArray(companyId);
+      if (arrayAccounts.isNotEmpty) {
+        debugPrint(
+          '🔍 DEBUG: Found ${arrayAccounts.length} accounts in company array',
+        );
+        return arrayAccounts;
+      }
+
+      debugPrint('🔍 DEBUG: No bank accounts found anywhere');
+      return [];
     } catch (e) {
-      debugPrint('❌ DEBUG: Error fetching bank accounts: $e');
-      throw Exception('Failed to fetch bank accounts: $e');
+      debugPrint('❌ DEBUG: Error in _getBankAccountsWithCompanyId: $e');
+      return [];
     }
+  }
+
+  /// Get bank accounts from subcollection (new model)
+  static Future<List<Map<String, dynamic>>> _getBankAccountsFromSubcollection(
+    String companyId,
+  ) async {
+    try {
+      // Try subcollection first (new model) - remove orderBy to avoid index requirement
+      final bankAccountsSnapshot = await _firestore
+          .collection("companies")
+          .doc(companyId)
+          .collection("bankAccounts")
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      debugPrint(
+        '🔍 DEBUG: Subcollection snapshot found: ${bankAccountsSnapshot.docs.length} documents',
+      );
+
+      if (bankAccountsSnapshot.docs.isNotEmpty) {
+        // Sort client-side by createdAt (newest first)
+        final sortedDocs = bankAccountsSnapshot.docs.toList();
+        sortedDocs.sort((a, b) {
+          final aTime = a.data()['createdAt'] as Timestamp?;
+          final bTime = b.data()['createdAt'] as Timestamp?;
+          if (aTime == null && bTime == null) return 0;
+          if (aTime == null) return 1;
+          if (bTime == null) return -1;
+          return bTime.compareTo(aTime); // Descending order
+        });
+
+        final accounts = sortedDocs
+            .map((doc) => _processBankAccountDocument(doc))
+            .toList();
+        return accounts;
+      }
+      return [];
+    } catch (e) {
+      debugPrint('❌ DEBUG: Error getting subcollection accounts: $e');
+      return [];
+    }
+  }
+
+  /// Get bank accounts from company document array (company setup model)
+  static Future<List<Map<String, dynamic>>> _getBankAccountsFromCompanyArray(
+    String companyId,
+  ) async {
+    try {
+      final companyDoc = await _firestore
+          .collection("companies")
+          .doc(companyId)
+          .get();
+
+      if (!companyDoc.exists || companyDoc.data() == null) {
+        debugPrint('🔍 DEBUG: No company document found');
+        return [];
+      }
+
+      final data = companyDoc.data()!;
+      debugPrint('🔍 DEBUG: Company document keys: ${data.keys.toList()}');
+
+      // Check for different possible field names for bank accounts array
+      final bankAccountsData =
+          data["Bank Accounts"] as List<dynamic>? ??
+          data["bankAccounts"] as List<dynamic>? ??
+          data["bank_accounts"] as List<dynamic>? ??
+          [];
+
+      debugPrint(
+        '🔍 DEBUG: Found ${bankAccountsData.length} bank accounts in company array',
+      );
+
+      if (bankAccountsData.isEmpty) {
+        return [];
+      }
+
+      final accounts = bankAccountsData
+          .map((accountData) {
+            debugPrint(
+              '🔍 DEBUG: Processing company array bank account: $accountData',
+            );
+
+            // Handle the format from company setup
+            if (accountData is Map<String, dynamic>) {
+              return _processCompanyArrayBankAccount(accountData);
+            }
+            return <String, dynamic>{};
+          })
+          .where((account) => account.isNotEmpty)
+          .toList();
+
+      return accounts;
+    } catch (e) {
+      debugPrint('❌ DEBUG: Error getting company array accounts: $e');
+      return [];
+    }
+  }
+
+  /// Process bank account document from subcollection
+  static Map<String, dynamic> _processBankAccountDocument(
+    DocumentSnapshot doc,
+  ) {
+    final data = doc.data() as Map<String, dynamic>?;
+    if (data == null) {
+      debugPrint('🔍 DEBUG: Document data is null');
+      return {};
+    }
+
+    debugPrint('🔍 DEBUG: Full bank account document data: $data');
+    debugPrint('🔍 DEBUG: Document ID: ${doc.id}');
+    debugPrint('🔍 DEBUG: Available fields: ${data.keys.toList()}');
+
+    // Show all string fields that could be the bank name
+    final possibleNameFields = <String, String>{};
+    data.forEach((key, value) {
+      if (value is String && value.isNotEmpty) {
+        possibleNameFields[key] = value;
+        debugPrint('🔍 DEBUG: String field - $key: "$value"');
+      }
+    });
+
+    // Try different possible field names for the bank name
+    String bankName =
+        data['name']?.toString() ??
+        data['bankName']?.toString() ??
+        data['bank_name']?.toString() ??
+        data['accountName']?.toString() ??
+        data['account_name']?.toString() ??
+        data['title']?.toString() ??
+        data['displayName']?.toString() ??
+        data['display_name']?.toString() ??
+        data['institution']?.toString() ??
+        data['bank']?.toString() ??
+        'Unknown Bank';
+
+    // If still unknown, try to use the first non-empty string field
+    if (bankName == 'Unknown Bank' && possibleNameFields.isNotEmpty) {
+      final firstField = possibleNameFields.entries.first;
+      bankName = firstField.value;
+      debugPrint(
+        '🔍 DEBUG: Using fallback field "${firstField.key}" with value: "$bankName"',
+      );
+    }
+
+    // Clean up the bank name - capitalize properly and handle "unknown bank"
+    if (bankName.toLowerCase() == 'unknown bank') {
+      bankName = 'Bank Account';
+    } else {
+      // Capitalize first letter of each word
+      bankName = bankName
+          .split(' ')
+          .map((word) {
+            if (word.isEmpty) return word;
+            return word[0].toUpperCase() + word.substring(1).toLowerCase();
+          })
+          .join(' ');
+    }
+
+    debugPrint('🔍 DEBUG: Cleaned bank name: "$bankName"');
+    debugPrint('🔍 DEBUG: All possible name fields: $possibleNameFields');
+
+    // Also check for account number fields
+    final accountNumber =
+        data['number']?.toString() ??
+        data['accountNumber']?.toString() ??
+        data['account_number']?.toString() ??
+        data['account']?.toString() ??
+        '';
+
+    debugPrint('🔍 DEBUG: Account number: "$accountNumber"');
+
+    // Handle last4 digits properly
+    String last4 = data['last4']?.toString() ?? '';
+    if (last4.isEmpty && accountNumber.isNotEmpty) {
+      last4 = _extractLast4(accountNumber);
+    }
+
+    // If still no last4, use a default
+    if (last4.isEmpty) {
+      last4 = '****';
+      debugPrint('🔍 DEBUG: No account number available, using default last4');
+    }
+
+    debugPrint('🔍 DEBUG: Final last4: "$last4"');
+
+    return {
+      'id': data['id']?.toString() ?? doc.id,
+      'name': bankName,
+      'number': accountNumber,
+      'last4': last4,
+      'maskedNumber':
+          data['maskedNumber']?.toString() ??
+          _maskAccountNumber(accountNumber.isNotEmpty ? accountNumber : '****'),
+      'createdAt': data['createdAt'],
+      'isActive': data['isActive'] ?? true,
+    };
+  }
+
+  /// Process bank account from company array (company setup format)
+  static Map<String, dynamic> _processCompanyArrayBankAccount(
+    Map<String, dynamic> accountData,
+  ) {
+    debugPrint('🔍 DEBUG: Processing company array bank account: $accountData');
+
+    // Company setup uses "bankName" field
+    String bankName = accountData['bankName'] ?? 'Unknown Bank';
+
+    // Clean up the bank name
+    if (bankName.toLowerCase() == 'unknown bank') {
+      bankName = 'Bank Account';
+    } else {
+      bankName = bankName
+          .split(' ')
+          .map((word) {
+            if (word.isEmpty) return word;
+            return word[0].toUpperCase() + word.substring(1).toLowerCase();
+          })
+          .join(' ');
+    }
+
+    final String last4 = accountData['last4'] ?? '****';
+    final String accountNumber = ''; // Not stored in company setup format
+
+    debugPrint(
+      '🔍 DEBUG: Company array bank - Name: "$bankName", Last4: "$last4"',
+    );
+
+    return {
+      'id':
+          'company_array_${DateTime.now().millisecondsSinceEpoch}', // Generate unique ID
+      'name': bankName,
+      'number': accountNumber,
+      'last4': last4,
+      'maskedNumber': _maskAccountNumber('****'),
+      'createdAt': DateTime.now(), // Use current time as fallback
+      'isActive': true,
+    };
   }
 
   /// 🔥 PRODUCTION FIX: Calculate spending for each bank account using stable ID matching
@@ -162,87 +411,6 @@ class BankAccountService {
     }
   }
 
-  /// 🔥 PRODUCTION FIX: Migrate legacy array-based bank accounts to subcollection
-  static Future<List<Map<String, dynamic>>> _migrateLegacyBankAccounts(
-    String companyId,
-  ) async {
-    try {
-      debugPrint(
-        '🔍 DEBUG: Checking legacy bank accounts for company: $companyId',
-      );
-
-      final docSnapshot = await _firestore
-          .collection("companies")
-          .doc(companyId)
-          .get();
-
-      if (!docSnapshot.exists || docSnapshot.data() == null) {
-        debugPrint(
-          '🔍 DEBUG: No company document found for company: $companyId',
-        );
-        return [];
-      }
-
-      final data = docSnapshot.data()!;
-      final bankAccountsData = data["Bank Accounts"] as List<dynamic>? ?? [];
-
-      debugPrint(
-        '🔍 DEBUG: Found ${bankAccountsData.length} legacy bank accounts',
-      );
-
-      if (bankAccountsData.isEmpty) {
-        debugPrint('🔍 DEBUG: No legacy bank accounts found');
-        return [];
-      }
-
-      // Migrate to subcollection
-      final batch = _firestore.batch();
-      final List<Map<String, dynamic>> migratedAccounts = [];
-
-      for (var account in bankAccountsData) {
-        final bankName =
-            account["name"] ?? account["bankName"] ?? 'Unknown Bank';
-        final accountNumber = account["number"] ?? '';
-
-        // Create new subcollection document
-        final bankRef = _firestore
-            .collection("companies")
-            .doc(companyId)
-            .collection("bankAccounts")
-            .doc();
-
-        final bankData = {
-          "id": bankRef.id,
-          "name": _normalizeBankName(bankName),
-          "number": accountNumber,
-          "last4": accountNumber.length >= 4
-              ? accountNumber.substring(accountNumber.length - 4)
-              : accountNumber,
-          "maskedNumber": _maskAccountNumber(accountNumber),
-          "createdAt": FieldValue.serverTimestamp(),
-          "isActive": true,
-          "legacyKey": "$bankName-$accountNumber", // Keep for migration
-        };
-
-        batch.set(bankRef, bankData);
-        migratedAccounts.add(bankData);
-      }
-
-      // Commit migration
-      await batch.commit();
-
-      // Optionally clean up legacy array after successful migration
-      // await _firestore.collection("companies").doc(companyId).update({
-      //   "Bank Accounts": FieldValue.delete(),
-      // });
-
-      return migratedAccounts;
-    } catch (e) {
-      log("Migration failed: $e");
-      return [];
-    }
-  }
-
   /// 🔥 PRODUCTION FIX: Normalize bank name to prevent duplicates
   static String _normalizeBankName(String input) {
     return input.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
@@ -261,6 +429,12 @@ class BankAccountService {
     } catch (e) {
       return {'id': null};
     }
+  }
+
+  /// Extract last 4 digits from account number
+  static String _extractLast4(String accountNumber) {
+    if (accountNumber.length <= 4) return accountNumber;
+    return accountNumber.substring(accountNumber.length - 4);
   }
 
   /// Mask account number for display

@@ -14,7 +14,9 @@ import '../../../services/currency_formatter.dart';
 import '../../../services/user_country_service.dart';
 
 class AddMemberScreen extends StatefulWidget {
-  const AddMemberScreen({super.key});
+  final String teamId;
+
+  const AddMemberScreen({super.key, required this.teamId});
 
   @override
   State<AddMemberScreen> createState() => _AddMemberScreenState();
@@ -28,7 +30,6 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   late final TextEditingController _costController;
 
   bool _isLoading = false;
-  bool _isLoadingTeams = true;
 
   String _userCountryCode = '+1'; // Default to USD
   bool _isLoadingCountry = false; // Start as false since we use sync method
@@ -37,8 +38,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   static final Map<String, String> _telegramPhotoCache = {};
 
   // 2. DATA LISTS
-  Map<String, String> _teams = {}; // Will be populated from Firebase
-  String? _selectedTeamId;
+  late String _selectedTeamId;
 
   final Map<String, String> types = {
     'full_time': 'Full-time',
@@ -64,7 +64,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
     _jobTitleController = TextEditingController();
     _costController = TextEditingController();
 
-    _fetchTeams();
+    _selectedTeamId = widget.teamId;
   }
 
   Future<void> _loadUserCountryCode() async {
@@ -87,35 +87,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
 
   // --- FIREBASE LOGIC ---
 
-  Future<void> _fetchTeams() async {
-    try {
-      final uid = FirebaseAuth.instance.currentUser!.uid;
-      final snapshot = await FirebaseFirestore.instance
-          .collection('teams')
-          .where('uid', isEqualTo: uid)
-          .get();
-
-      final Map<String, String> fetchedTeams = {};
-      for (var doc in snapshot.docs) {
-        fetchedTeams[doc.id] = doc.data()['teamName'] ?? 'Unnamed Team';
-      }
-
-      if (mounted) {
-        setState(() {
-          _teams = fetchedTeams;
-          if (_teams.isNotEmpty) {
-            _selectedTeamId = _teams.keys.first;
-          }
-          _isLoadingTeams = false;
-        });
-      }
-    } catch (e) {
-      debugPrint("Error fetching teams: $e");
-      if (mounted) {
-        setState(() => _isLoadingTeams = false);
-      }
-    }
-  }
+  // Removed _fetchTeams since team assignment is now automatic
 
   Future<void> _saveMember() async {
     // Basic Validation
@@ -149,10 +121,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       return;
     }
 
-    if (_selectedTeamId == null) {
-      _showErrorSnackBar("Please create a team first before adding members.");
-      return;
-    }
+    // Team assignment validation removed since teamId is now required
 
     // Monthly cost is now mandatory
     if (_costController.text.trim().isEmpty) {
@@ -540,45 +509,60 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
 
                       const SizedBox(height: 32),
 
-                      // --- ASSIGNMENT ---
+                      // --- TEAM INFO ---
                       _buildSectionLabel("TEAM ASSIGNMENT"),
                       const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _isLoadingTeams
-                                ? const Center(
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : _teams.isEmpty
-                                ? Text(
-                                    "No teams found",
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141416),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.04),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.group, color: Colors.white38, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Member will be added to current team",
                                     style: GoogleFonts.inter(
-                                      color: Colors.redAccent,
-                                      fontSize: 13,
+                                      color: Colors.white38,
+                                      fontSize: 12,
                                     ),
-                                  )
-                                : _buildSelectField(
-                                    label: "Team",
-                                    currentValue: _selectedTeamId,
-                                    items: _teams,
-                                    onChanged: (val) =>
-                                        setState(() => _selectedTeamId = val),
                                   ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildSelectField(
-                              label: "Type",
-                              currentValue: _employmentType,
-                              items: types,
-                              onChanged: (val) =>
-                                  setState(() => _employmentType = val!),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    "Automatic team assignment",
+                                    style: GoogleFonts.inter(
+                                      color: const Color(0xFF30D158),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // --- EMPLOYMENT TYPE ---
+                      _buildSectionLabel("EMPLOYMENT TYPE"),
+                      const SizedBox(height: 16),
+                      _buildSelectField(
+                        label: "Type",
+                        currentValue: _employmentType,
+                        items: types,
+                        onChanged: (val) =>
+                            setState(() => _employmentType = val!),
                       ),
 
                       const SizedBox(height: 32),

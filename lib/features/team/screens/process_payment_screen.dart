@@ -37,6 +37,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
 
   Map<String, String> _bankAccounts = {};
   String? _selectedBankAccount;
+  String? _selectedPaymentMethod; // 'bank' or 'cash'
 
   @override
   void initState() {
@@ -45,6 +46,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
       text: widget.defaultAmount.toStringAsFixed(2),
     );
     _reasonController = TextEditingController();
+    _selectedPaymentMethod = 'bank'; // Default to bank payment
     _fetchBankAccounts();
   }
 
@@ -56,29 +58,53 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
   }
 
   Future<void> _fetchBankAccounts() async {
+    debugPrint('🔍 DEBUG: Starting to fetch bank accounts...');
     try {
       final accounts = await BankAccountService.getBankAccounts();
+      debugPrint(
+        '🔍 DEBUG: BankAccountService returned ${accounts.length} accounts',
+      );
 
       Map<String, String> loadedBanks = {};
       for (var acc in accounts) {
         final String name = acc['name'] ?? 'Unknown Bank';
         final String last4 = acc['last4'] ?? '';
 
-        final String key = "$name-$last4";
+        final String key = acc['id'];
         final String displayLabel = "$name (****$last4)";
         loadedBanks[key] = displayLabel;
+
+        debugPrint('🔍 DEBUG: Processed account - Name: $name, Last4: $last4,');
+        debugPrint('🔍 DEBUG: Account key: $key, Display label: $displayLabel');
       }
+
+      debugPrint('🔍 DEBUG: Final bank accounts map: $loadedBanks');
 
       setState(() {
         _bankAccounts = loadedBanks;
         if (_bankAccounts.isNotEmpty) {
           _selectedBankAccount = _bankAccounts.keys.first;
+          debugPrint('🔍 DEBUG: Selected bank account: $_selectedBankAccount');
+        } else {
+          // If no bank accounts, default to cash payment
+          _selectedPaymentMethod = 'cash';
+          debugPrint(
+            '🔍 DEBUG: No bank accounts found, defaulting to cash payment',
+          );
         }
       });
     } catch (e) {
-      debugPrint("Failed to load bank accounts: $e");
+      debugPrint("❌ DEBUG: Failed to load bank accounts: $e");
+      debugPrint("❌ DEBUG: Error stack trace: ${StackTrace.current}");
+      // On error, default to cash payment
+      setState(() {
+        _selectedPaymentMethod = 'cash';
+      });
     } finally {
       if (mounted) setState(() => _isLoadingBanks = false);
+      debugPrint(
+        '🔍 DEBUG: Bank account fetching completed. Loading state set to false.',
+      );
     }
   }
 
@@ -95,7 +121,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
       return;
     }
 
-    if (_selectedBankAccount == null) {
+    if (_selectedPaymentMethod == 'bank' && _selectedBankAccount == null) {
       _showErrorSnackBar("Please select a bank account to pay from.");
       return;
     }
@@ -126,7 +152,10 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
         "Date": DateTime.now(),
         "Category": "salary",
         "Type": "recurring",
-        "BankAccount": _selectedBankAccount,
+        "BankAccount": _selectedPaymentMethod == 'bank'
+            ? _selectedBankAccount
+            : 'cash',
+        "PaymentMethod": _selectedPaymentMethod, // Add payment method field
         "memberId": widget.memberId, // Add memberId for proper filtering
         "Time": FieldValue.serverTimestamp(),
       });
@@ -226,30 +255,34 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
 
                       const SizedBox(height: 40),
 
-                      // Bank Selector
-                      if (_isLoadingBanks)
-                        const Center(
-                          child: CircularProgressIndicator(
-                            color: Colors.white38,
-                          ),
-                        )
-                      else if (_bankAccounts.isEmpty)
-                        Text(
-                          "No bank accounts found. Please add a bank account in your company profile first.",
-                          style: GoogleFonts.inter(color: Colors.redAccent),
-                        )
-                      else
-                        _buildSelectField(
-                          label: "Pay From Bank Account",
-                          currentValue: _selectedBankAccount ?? "",
-                          items: _bankAccounts,
-                          icon: Icons.account_balance,
-                          onChanged: (val) {
-                            setState(() => _selectedBankAccount = val!);
-                          },
-                        ),
+                      // Payment Method Selector
+                      if (!_isLoadingBanks) _buildPaymentMethodSelector(),
+
+                      const SizedBox(height: 16),
+
+                      // Debug button (only in development)
+                      if (widget
+                          .isAdvance) // Only show for advances to avoid clutter
+                        _buildDebugButton(),
 
                       const SizedBox(height: 24),
+
+                      // Bank Account Selector (only show if bank is selected)
+                      if (_selectedPaymentMethod == 'bank') ...[
+                        if (_bankAccounts.isEmpty)
+                          _buildNoBankAccountsMessage()
+                        else
+                          _buildSelectField(
+                            label: "Pay From Bank Account",
+                            currentValue: _selectedBankAccount ?? "",
+                            items: _bankAccounts,
+                            icon: Icons.account_balance,
+                            onChanged: (val) {
+                              setState(() => _selectedBankAccount = val!);
+                            },
+                          ),
+                        const SizedBox(height: 24),
+                      ],
 
                       // Reason Field (ONLY FOR ADVANCE)
                       if (widget.isAdvance)
@@ -395,6 +428,298 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPaymentMethodSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel("Payment Method"),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          ),
+          child: Column(
+            children: [
+              _buildPaymentOption(
+                value: 'bank',
+                title: 'Bank Transfer',
+                subtitle: 'Pay from registered bank account',
+                icon: Icons.account_balance,
+                isAvailable: _bankAccounts.isNotEmpty,
+              ),
+              if (_bankAccounts.isNotEmpty) const SizedBox(height: 4),
+              _buildPaymentOption(
+                value: 'cash',
+                title: 'Cash Payment',
+                subtitle: 'Pay with cash or manual transfer',
+                icon: Icons.money,
+                isAvailable: true,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPaymentOption({
+    required String value,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isAvailable,
+  }) {
+    final isSelected = _selectedPaymentMethod == value;
+
+    return GestureDetector(
+      onTap: isAvailable
+          ? () {
+              setState(() => _selectedPaymentMethod = value);
+            }
+          : null,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? Colors.white.withValues(alpha: 0.2)
+                : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isAvailable
+                    ? (isSelected
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.1))
+                    : Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: isAvailable
+                    ? (isSelected ? Colors.black : Colors.white)
+                    : Colors.white.withValues(alpha: 0.3),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      color: isAvailable
+                          ? (isSelected ? Colors.white : Colors.white70)
+                          : Colors.white.withValues(alpha: 0.3),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      color: isAvailable
+                          ? Colors.white.withValues(alpha: 0.5)
+                          : Colors.white.withValues(alpha: 0.2),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.check, color: Colors.black, size: 14),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoBankAccountsMessage() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF9F0A).withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFFF9F0A).withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: const Color(0xFFFF9F0A),
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                "No Bank Accounts",
+                style: GoogleFonts.inter(
+                  color: const Color(0xFFFF9F0A),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "No bank accounts found. Please add a bank account in your company profile, or select cash payment.",
+            style: GoogleFonts.inter(
+              color: Colors.white.withValues(alpha: 0.7),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDebugButton() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF5E5CE6).withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFF5E5CE6).withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Debug Info",
+            style: GoogleFonts.inter(
+              color: const Color(0xFF5E5CE6),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  "Bank Accounts: ${_bankAccounts.length}",
+                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 11),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  "Payment Method: ${_selectedPaymentMethod ?? 'none'}",
+                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 11),
+                ),
+              ),
+            ],
+          ),
+          if (_bankAccounts.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              "Available Banks: ${_bankAccounts.keys.join(', ')}",
+              style: GoogleFonts.inter(color: Colors.white60, fontSize: 10),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    debugPrint('🔍 DEBUG: Manual refresh triggered');
+                    _fetchBankAccounts();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF5E5CE6),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      "Refresh Bank Accounts",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    debugPrint(
+                      '🔍 DEBUG: Clearing bank account cache and forcing refresh',
+                    );
+                    setState(() {
+                      _bankAccounts.clear();
+                      _selectedBankAccount = null;
+                    });
+                    _fetchBankAccounts();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF9F0A),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      "Clear & Refresh",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

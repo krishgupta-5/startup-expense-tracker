@@ -144,7 +144,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
         for (var acc in accounts) {
           final String name = acc['name'] ?? acc['bankName'] ?? 'Unknown Bank';
-          final String last4 = acc['last4'] ?? '';
+          final String last4 = acc['last4'] ?? acc['number'] ?? '';
           final String key = "$name-$last4";
           final String label = last4.isNotEmpty ? "$name (****$last4)" : name;
           loadedBanks[key] = label;
@@ -152,9 +152,17 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
         setState(() {
           _bankAccounts = loadedBanks;
+          // Add "Cash" option at the beginning
+          _bankAccounts["Cash-"] = "Cash";
           if (_bankAccounts.isNotEmpty) {
             _selectedBankAccount = _bankAccounts.keys.first;
           }
+        });
+      } else {
+        // No bank accounts found, still provide Cash option
+        setState(() {
+          _bankAccounts = {"Cash-": "Cash"};
+          _selectedBankAccount = "Cash-";
         });
       }
     } catch (e) {
@@ -196,7 +204,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       return;
     }
     if (_selectedBankAccount == null) {
-      _showErrorSnackBar("Please select a bank account.");
+      _showErrorSnackBar("Please select a bank account or cash.");
       return;
     }
 
@@ -348,7 +356,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
                       if (!_isLoadingBanks && _bankAccounts.isNotEmpty) ...[
                         _buildSelectField(
-                          label: "Bank Account",
+                          label: "Payment Method",
                           currentValue: _selectedBankAccount ?? "",
                           items: _bankAccounts,
                           icon: Icons.account_balance,

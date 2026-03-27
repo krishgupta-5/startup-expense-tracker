@@ -462,7 +462,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
+                  horizontal: 10,
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
@@ -472,13 +472,16 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                     color: _getHealthStatusColor().withValues(alpha: 0.3),
                   ),
                 ),
-                child: Text(
-                  _getHealthStatus(),
-                  style: GoogleFonts.inter(
-                    color: _getHealthStatusColor(),
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.0,
+                child: Flexible(
+                  child: Text(
+                    _getHealthStatus(),
+                    style: GoogleFonts.inter(
+                      color: _getHealthStatusColor(),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.0,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
@@ -493,7 +496,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                   GestureDetector(
                     onTap: _loadData,
                     child: Container(

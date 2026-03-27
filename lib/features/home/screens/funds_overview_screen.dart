@@ -243,7 +243,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         for (var account in bankAccountsData) {
           final bankName =
               account["name"] ?? account["bankName"] ?? 'Unknown Bank';
-          final last4 = account["last4"] ?? '';
+          final last4 = account["last4"] ?? account["number"] ?? '';
           bankSpending["$bankName-$last4"] = 0.0;
         }
 
@@ -261,7 +261,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           final account = entry.value;
           final bankName =
               account["name"] ?? account["bankName"] ?? 'Unknown Bank';
-          final last4 = account["last4"] ?? '';
+          final last4 = account["last4"] ?? account["number"] ?? '';
           final totalSpent = bankSpending["$bankName-$last4"] ?? 0.0;
           return {
             'name': bankName,

@@ -32,6 +32,13 @@ class FinancialDataService {
     _cacheTimestamps[key] = DateTime.now();
   }
 
+  // Method to clear all cache (for testing)
+  static void clearAllCache() {
+    _cache.clear();
+    _cacheTimestamps.clear();
+    print('DEBUG: All cache cleared');
+  }
+
   static Future<Map<String, dynamic>> getMonthlyBurnData() async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
@@ -39,12 +46,17 @@ class FinancialDataService {
     final cacheKey = 'monthly_burn_${user.uid}';
     final cachedData = _getCachedData<Map<String, dynamic>>(cacheKey);
     if (cachedData != null) {
+      print('DEBUG: Returning cached monthly burn data');
       return cachedData;
     }
 
     final now = DateTime.now();
     final startOfMonth = DateTime(now.year, now.month, 1);
     final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+
+    print(
+      'DEBUG: Fetching monthly burn data from ${startOfMonth.toIso8601String()} to ${endOfMonth.toIso8601String()}',
+    );
 
     try {
       // Run all queries in parallel for better performance
@@ -53,6 +65,11 @@ class FinancialDataService {
         _firestore
             .collection('expenses')
             .where('uid', isEqualTo: user.uid)
+            .where(
+              'Date',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth),
+            )
+            .where('Date', isLessThanOrEqualTo: Timestamp.fromDate(endOfMonth))
             .get(),
         // Get budget data
         _getBudgetData(user.uid),
@@ -60,12 +77,24 @@ class FinancialDataService {
         _getMonthlyRevenue(user.uid, startOfMonth, endOfMonth),
         // Get trend data
         _getSixMonthTrend(user.uid),
+        // Get team member data for salaries
+        _firestore
+            .collection('team_members')
+            .where('uid', isEqualTo: user.uid)
+            .get(),
       ]);
 
       final expensesSnapshot = futures[0] as QuerySnapshot;
       final budgetComparison = futures[1] as Map<String, dynamic>;
       final revenue = futures[2] as double;
       final trendData = futures[3] as List<Map<String, dynamic>>;
+      final teamMembersSnapshot = futures[4] as QuerySnapshot;
+
+      print('DEBUG: Found ${expensesSnapshot.docs.length} expenses');
+      print('DEBUG: Budget data keys: ${budgetComparison.keys.toList()}');
+      print('DEBUG: Revenue: $revenue');
+      print('DEBUG: Trend data length: ${trendData.length}');
+      print('DEBUG: Found ${teamMembersSnapshot.docs.length} team members');
 
       // Process data efficiently
       double totalExpenses = 0;
@@ -73,7 +102,7 @@ class FinancialDataService {
       Map<String, double> categoryTotals = {};
       Map<String, double> vendorTotals = {};
 
-      // Process expenses with date filtering
+      // Process expenses (already filtered by date in query)
       for (var doc in expensesSnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>?;
         if (data == null) continue;
@@ -82,27 +111,37 @@ class FinancialDataService {
         final category = data['Category']?.toString() ?? 'Other';
         final vendor = data['Vendor']?.toString() ?? 'Unknown';
 
-        // Filter by date in code
+        totalExpenses += amount;
+        categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
+        vendorTotals[vendor] = (vendorTotals[vendor] ?? 0) + amount;
+
         final expenseDate = (data['Date'] as Timestamp?)?.toDate();
-        if (expenseDate != null &&
-            expenseDate.isAfter(
-              startOfMonth.subtract(const Duration(days: 1)),
-            ) &&
-            expenseDate.isBefore(endOfMonth.add(const Duration(days: 1)))) {
-          totalExpenses += amount;
-          categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
-          vendorTotals[vendor] = (vendorTotals[vendor] ?? 0) + amount;
-        }
+        print(
+          'DEBUG: Processed expense - Amount: $amount, Category: $category, Date: $expenseDate',
+        );
       }
 
-      // Use salaries from budget data (more efficient than processing team members)
-      salariesTotal =
-          double.tryParse(budgetComparison['Salaries']?.toString() ?? '0') ??
-          0.0;
+      // Calculate salaries from actual team members
+      for (var doc in teamMembersSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data == null) continue;
+
+        final salary = double.tryParse(data['salary']?.toString() ?? '0') ?? 0;
+        salariesTotal += salary;
+
+        print('DEBUG: Team member salary: $salary');
+      }
+
+      print('DEBUG: Total expenses: $totalExpenses');
+      print('DEBUG: Category totals: $categoryTotals');
+      print('DEBUG: Salaries total: $salariesTotal');
 
       // Calculate monthly burn metrics
       final grossBurn = totalExpenses + salariesTotal;
       final netBurn = grossBurn - revenue;
+
+      print('DEBUG: Gross burn: $grossBurn');
+      print('DEBUG: Net burn: $netBurn');
 
       final result = {
         'grossBurn': grossBurn,
@@ -122,6 +161,7 @@ class FinancialDataService {
       _setCachedData(cacheKey, result);
       return result;
     } catch (e) {
+      print('ERROR in getMonthlyBurnData: $e');
       throw Exception('Failed to fetch financial data: $e');
     }
   }
@@ -216,20 +256,41 @@ class FinancialDataService {
 
   static Future<Map<String, dynamic>> _getBudgetData(String uid) async {
     try {
-      final budgetSnapshot = await _firestore
-          .collection('budgets')
+      // Fetch all teams for the user
+      final teamsSnapshot = await _firestore
+          .collection('teams')
           .where('uid', isEqualTo: uid)
-          .limit(1)
           .get();
 
-      if (budgetSnapshot.docs.isEmpty) {
-        // Return empty budget if none exist - no fake data
+      if (teamsSnapshot.docs.isEmpty) {
+        print('DEBUG: No teams found, returning empty budget');
         return {};
       }
 
-      return budgetSnapshot.docs.first.data();
+      // Aggregate budget data by team
+      Map<String, dynamic> budgetData = {};
+      double totalBudget = 0.0;
+
+      for (var doc in teamsSnapshot.docs) {
+        final teamData = doc.data();
+        final teamName = teamData['teamName'] as String? ?? 'Unknown Team';
+        final monthlyBudget = (teamData['monthlyBudget'] ?? 0.0) as double;
+
+        if (monthlyBudget > 0) {
+          budgetData[teamName] = monthlyBudget;
+          totalBudget += monthlyBudget;
+        }
+
+        print('DEBUG: Team $teamName has budget: $monthlyBudget');
+      }
+
+      // Add total
+      budgetData['Total'] = totalBudget;
+
+      print('DEBUG: Final budget data: $budgetData');
+      return budgetData;
     } catch (e) {
-      // Return empty budget on error - no fake data
+      print('DEBUG: Error fetching team budget data: $e');
       return {};
     }
   }
@@ -322,10 +383,25 @@ class FinancialDataService {
             (entry) => {
               'name': entry.key,
               'cost': _formatCurrency(entry.value),
-              'pct': totalCost > 0 ? entry.value / totalCost : 0.0,
+              'pct': totalCost > 0 ? (entry.value / totalCost) : 0.0,
             },
           )
           .toList();
+
+      // Ensure percentages add up to 1.0 by normalizing
+      if (totalCost > 0 && teamCostList.isNotEmpty) {
+        final calculatedTotal = teamCostList.fold<double>(
+          0.0,
+          (sum, team) => sum + (team['pct'] as double),
+        );
+
+        // Normalize if there are floating point precision issues
+        if ((calculatedTotal - 1.0).abs() > 0.001) {
+          for (var team in teamCostList) {
+            team['pct'] = (team['pct'] as double) / calculatedTotal;
+          }
+        }
+      }
 
       // Sort by cost (highest first)
       teamCostList.sort(
