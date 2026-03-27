@@ -143,11 +143,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         Map<String, String> loadedBanks = {};
 
         for (var acc in accounts) {
-          final String name = acc['name'] ?? 'Unknown Bank';
-          final String number = acc['number'] ?? '';
-          final String key = "$name-$number";
-          final String label =
-              "$name (****${number.length > 4 ? number.substring(number.length - 4) : number})";
+          final String name = acc['name'] ?? acc['bankName'] ?? 'Unknown Bank';
+          final String last4 = acc['last4'] ?? '';
+          final String key = "$name-$last4";
+          final String label = last4.isNotEmpty ? "$name (****$last4)" : name;
           loadedBanks[key] = label;
         }
 

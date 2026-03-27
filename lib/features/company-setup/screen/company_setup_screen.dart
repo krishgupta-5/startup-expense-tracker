@@ -6,11 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'dart:developer';
 
-import 'package:startup_expense_tracker/shared/widgets/error_popup.dart';
-
-// Make sure to import your ErrorPopup class here
-// import 'error_popup.dart'; 
-
 class CompanySetupScreen extends StatefulWidget {
   const CompanySetupScreen({super.key});
 
@@ -35,6 +30,22 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   final _companyNameController = TextEditingController();
   final _mobileController = TextEditingController();
   final _countryController = TextEditingController();
+
+  // Country Code State
+  String _selectedCountryCode = "+91";
+  String _selectedFlag = "🇮🇳";
+
+  final List<Map<String, String>> _countryCodes = [
+    {"code": "+1", "flag": "🇺🇸", "name": "United States"},
+    {"code": "+91", "flag": "🇮🇳", "name": "India"},
+    {"code": "+44", "flag": "🇬🇧", "name": "United Kingdom"},
+    {"code": "+61", "flag": "🇦🇺", "name": "Australia"},
+    {"code": "+81", "flag": "🇯🇵", "name": "Japan"},
+    {"code": "+49", "flag": "🇩🇪", "name": "Germany"},
+    {"code": "+33", "flag": "🇫🇷", "name": "France"},
+    {"code": "+971", "flag": "🇦🇪", "name": "United Arab Emirates"},
+    {"code": "+65", "flag": "🇸🇬", "name": "Singapore"},
+  ];
 
   // Step 2: Legal & Loc
   final _addressController = TextEditingController();
@@ -65,14 +76,14 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     "Legal",
     "Software",
     "Hardware",
-    "Design", // Fixed missing comma here from original code
+    "Design",
     "Travel",
     "Meals",
     "Contractors",
   ];
   final Set<String> _selectedCategories = {};
 
-  // Step 6: Team (Pre-populated, but not mandatory)
+  // Step 6: Team
   final List<Map<String, dynamic>> _teams = [
     {"name": "Engineering", "members": []},
     {"name": "Marketing", "members": []},
@@ -168,37 +179,41 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     bool isValid = true;
 
     switch (_currentPage) {
-      case 0: // Identity
+      case 0:
         if (_ownerNameController.text.trim().isEmpty) _errors.add('owner');
-        if (!RegExp(r'^\d{10}$').hasMatch(_mobileController.text.trim())) _errors.add('mobile');
+        if (_mobileController.text.trim().isEmpty) _errors.add('mobile');
         if (_countryController.text.trim().isEmpty) _errors.add('country');
         if (_companyNameController.text.trim().isEmpty) _errors.add('company');
         isValid = _errors.isEmpty;
         break;
 
-      case 1: // Structure
+      case 1:
         if (_selectedCompanyType == null) _errors.add('type');
         if (_workDescController.text.trim().isEmpty) _errors.add('work');
         if (_addressController.text.trim().isEmpty) _errors.add('address');
         isValid = _errors.isEmpty;
         break;
 
-      case 2: // Financials
-        if (double.tryParse(_fundingController.text.trim()) == null) _errors.add('funding');
-        if (int.tryParse(_runwayController.text.trim()) == null) _errors.add('runway');
+      case 2:
+        if (double.tryParse(_fundingController.text.trim()) == null)
+          _errors.add('funding');
+        if (int.tryParse(_runwayController.text.trim()) == null)
+          _errors.add('runway');
         isValid = _errors.isEmpty;
         break;
 
-      case 3: // Bank
+      case 3:
         for (var i = 0; i < _bankAccounts.length; i++) {
-          if (_bankAccounts[i]["name"]!.text.trim().isEmpty) _errors.add('bank_name_$i');
-          if (_bankAccounts[i]["number"]!.text.trim().isEmpty) _errors.add('bank_num_$i');
+          if (_bankAccounts[i]["name"]!.text.trim().isEmpty)
+            _errors.add('bank_name_$i');
+          if (_bankAccounts[i]["number"]!.text.trim().isEmpty)
+            _errors.add('bank_num_$i');
         }
         isValid = _errors.isEmpty;
         break;
 
-      case 4: // Categories
-      case 5: // Team
+      case 4:
+      case 5:
         isValid = true;
         break;
     }
@@ -218,21 +233,54 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
 
     bool isValid = true;
 
-    if (_ownerNameController.text.trim().isEmpty) { _errors.add('owner'); isValid = false; }
-    if (_mobileController.text.trim().isEmpty) { _errors.add('mobile'); isValid = false; }
-    if (_countryController.text.trim().isEmpty) { _errors.add('country'); isValid = false; }
-    if (_companyNameController.text.trim().isEmpty) { _errors.add('company'); isValid = false; }
+    if (_ownerNameController.text.trim().isEmpty) {
+      _errors.add('owner');
+      isValid = false;
+    }
+    if (_mobileController.text.trim().isEmpty) {
+      _errors.add('mobile');
+      isValid = false;
+    }
+    if (_countryController.text.trim().isEmpty) {
+      _errors.add('country');
+      isValid = false;
+    }
+    if (_companyNameController.text.trim().isEmpty) {
+      _errors.add('company');
+      isValid = false;
+    }
 
-    if (_selectedCompanyType == null) { _errors.add('type'); isValid = false; }
-    if (_workDescController.text.trim().isEmpty) { _errors.add('work'); isValid = false; }
-    if (_addressController.text.trim().isEmpty) { _errors.add('address'); isValid = false; }
+    if (_selectedCompanyType == null) {
+      _errors.add('type');
+      isValid = false;
+    }
+    if (_workDescController.text.trim().isEmpty) {
+      _errors.add('work');
+      isValid = false;
+    }
+    if (_addressController.text.trim().isEmpty) {
+      _errors.add('address');
+      isValid = false;
+    }
 
-    if (_fundingController.text.trim().isEmpty) { _errors.add('funding'); isValid = false; }
-    if (_runwayController.text.trim().isEmpty) { _errors.add('runway'); isValid = false; }
+    if (_fundingController.text.trim().isEmpty) {
+      _errors.add('funding');
+      isValid = false;
+    }
+    if (_runwayController.text.trim().isEmpty) {
+      _errors.add('runway');
+      isValid = false;
+    }
 
     for (var i = 0; i < _bankAccounts.length; i++) {
-      if (_bankAccounts[i]["name"]!.text.trim().isEmpty) { _errors.add('bank_name_$i'); isValid = false; }
-      if (_bankAccounts[i]["number"]!.text.trim().isEmpty) { _errors.add('bank_num_$i'); isValid = false; }
+      if (_bankAccounts[i]["name"]!.text.trim().isEmpty) {
+        _errors.add('bank_name_$i');
+        isValid = false;
+      }
+      if (_bankAccounts[i]["number"]!.text.trim().isEmpty) {
+        _errors.add('bank_num_$i');
+        isValid = false;
+      }
     }
 
     if (!isValid) {
@@ -243,14 +291,13 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     return isValid;
   }
 
-  // --- SHOW VALIDATION ERROR DIALOG (UPDATED TO USE ERROR POPUP) ---
   void _showValidationErrorDialog() {
     ErrorPopup.showValidation(
       context: context,
-      message: "Please fill in all mandatory fields before finishing. Redirecting you to missing fields...",
+      message:
+          "Please fill in all mandatory fields before finishing. Redirecting you to missing fields...",
     );
-    
-    // Automatically route them to the missing fields after showing the popup
+
     Future.delayed(const Duration(milliseconds: 1200), () {
       if (mounted) {
         _navigateToFirstErrorPage();
@@ -263,15 +310,34 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         _errors.contains('mobile') ||
         _errors.contains('country') ||
         _errors.contains('company')) {
-      _pageController.animateToPage(0, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+      _pageController.animateToPage(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     } else if (_errors.contains('type') ||
         _errors.contains('work') ||
         _errors.contains('address')) {
-      _pageController.animateToPage(1, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+      _pageController.animateToPage(
+        1,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     } else if (_errors.contains('funding') || _errors.contains('runway')) {
-      _pageController.animateToPage(2, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-    } else if (_errors.any((error) => error.startsWith('bank_name_') || error.startsWith('bank_num_'))) {
-      _pageController.animateToPage(3, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+      _pageController.animateToPage(
+        2,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else if (_errors.any(
+      (error) =>
+          error.startsWith('bank_name_') || error.startsWith('bank_num_'),
+    )) {
+      _pageController.animateToPage(
+        3,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     }
     setState(() {
       _currentPage = _pageController.page?.round() ?? 0;
@@ -299,7 +365,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     }
   }
 
-  Map<String, dynamic> _formatBankAccount(Map<String, TextEditingController> account) {
+  Map<String, dynamic> _formatBankAccount(
+    Map<String, TextEditingController> account,
+  ) {
     final accountNumber = account["number"]!.text.trim();
     String last4 = "";
     if (accountNumber.length >= 4) {
@@ -317,17 +385,28 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   Future<bool> uploadCompanyData() async {
     try {
       final userId = FirebaseAuth.instance.currentUser!.uid;
-      final List<Map<String, dynamic>> formattedBankAccounts = 
-          _bankAccounts.map((account) => _formatBankAccount(account)).toList();
+      final List<Map<String, dynamic>> formattedBankAccounts = _bankAccounts
+          .map((account) => _formatBankAccount(account))
+          .toList();
 
-      final result = await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
-        final companyRef = FirebaseFirestore.instance.collection('companies').doc(userId);
+      // Combine Country Code and Mobile Number
+      final String fullMobileNumber =
+          "$_selectedCountryCode ${_mobileController.text.trim()}";
+
+      final result = await FirebaseFirestore.instance.runTransaction((
+        transaction,
+      ) async {
+        final userRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId);
+        final companyRef = FirebaseFirestore.instance
+            .collection('companies')
+            .doc(userId);
 
         transaction.set(companyRef, {
           "uid": userId,
           "Owner Name": _ownerNameController.text.trim(),
-          "Mobile Number": _mobileController.text.trim(),
+          "Mobile Number": fullMobileNumber,
           "Country Location": _countryController.text.trim(),
           "Company Name": _companyNameController.text.trim(),
           "Company Type": _selectedCompanyType,
@@ -360,7 +439,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     }
   }
 
-  // --- NEW SUBMIT METHOD ---
   Future<void> _submitSetup() async {
     FocusScope.of(context).unfocus();
 
@@ -451,7 +529,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     );
   }
 
-  // --- HEADER WITH SKIP BUTTON ---
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -478,7 +555,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Back Button
               if (_currentPage > 0)
                 GestureDetector(
                   onTap: () => _pageController.previousPage(
@@ -502,9 +578,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   ),
                 )
               else
-                const SizedBox(width: 38, height: 38), // Maintain spacing
+                const SizedBox(width: 38, height: 38),
 
-              // Skip Button (Only visible on Step 5 and 6)
               if (_currentPage >= 4)
                 GestureDetector(
                   onTap: () {
@@ -514,11 +589,14 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                         curve: Curves.easeInOut,
                       );
                     } else {
-                      _submitSetup(); // Finish setup if skipped on last page
+                      _submitSetup();
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF141416),
                       borderRadius: BorderRadius.circular(20),
@@ -538,7 +616,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   ),
                 )
               else
-                const SizedBox(width: 38, height: 38), // Maintain spacing
+                const SizedBox(width: 38, height: 38),
             ],
           ),
         ],
@@ -574,7 +652,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               style: GoogleFonts.inter(color: Colors.white70, fontSize: 16),
             ),
             const SizedBox(height: 24),
-            ?extraHeader,
+            if (extraHeader != null) extraHeader,
             ...children,
             const SizedBox(height: 100),
           ],
@@ -606,15 +684,13 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   FocusScope.of(context).unfocus();
 
                   if (_currentPage < _totalPages - 1) {
-                    if (!_validateCurrentStep()) {
-                      return; 
-                    }
+                    if (!_validateCurrentStep()) return;
                     _pageController.nextPage(
                       duration: const Duration(milliseconds: 300),
                       curve: Curves.easeInOut,
                     );
                   } else {
-                    _submitSetup(); // Use the new extracted method
+                    _submitSetup();
                   }
                 },
           style: ElevatedButton.styleFrom(
@@ -635,7 +711,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   ),
                 )
               : Text(
-                  _currentPage == _totalPages - 1 ? "Finish Setup" : "Next Step",
+                  _currentPage == _totalPages - 1
+                      ? "Finish Setup"
+                      : "Next Step",
                   style: GoogleFonts.inter(
                     color: Colors.black,
                     fontWeight: FontWeight.bold,
@@ -647,23 +725,38 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     );
   }
 
-  // --- STEPS (1 through 6 stay mostly untouched) ---
+  // --- STEPS ---
   Widget _buildStep1Identity() {
     return _buildPageContainer(
       title: "Identity",
       subtitle: "Let's start with the basics.",
       children: [
         _buildLabel("OWNER NAME"),
-        _buildInputField(_ownerNameController, "Your Full Name", "owner", icon: Icons.person_outline),
+        _buildInputField(
+          _ownerNameController,
+          "Your Full Name",
+          "owner",
+          icon: Icons.person_outline,
+        ),
         const SizedBox(height: 32),
         _buildLabel("MOBILE NUMBER"),
-        _buildInputField(_mobileController, "+1 234 567 8900", "mobile", isNumber: true, icon: Icons.phone_outlined),
+        _buildPhoneInputField(_mobileController, "98765 43210", "mobile"),
         const SizedBox(height: 32),
         _buildLabel("COUNTRY LOCATION"),
-        _buildInputField(_countryController, "United States", "country", icon: Icons.public),
+        _buildInputField(
+          _countryController,
+          "United States",
+          "country",
+          icon: Icons.public,
+        ),
         const SizedBox(height: 32),
         _buildLabel("COMPANY NAME"),
-        _buildInputField(_companyNameController, "Startup Name", "company", icon: Icons.business),
+        _buildInputField(
+          _companyNameController,
+          "Startup Name",
+          "company",
+          icon: Icons.business,
+        ),
       ],
     );
   }
@@ -703,7 +796,10 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     value: e.key,
                     child: Text(
                       e.value,
-                      style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ),
@@ -723,10 +819,20 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         ),
         const SizedBox(height: 32),
         _buildLabel("WHAT IS THE WORK?"),
-        _buildTextArea(_workDescController, "e.g. SaaS Platform...", "work", icon: Icons.description_outlined),
+        _buildTextArea(
+          _workDescController,
+          "e.g. SaaS Platform...",
+          "work",
+          icon: Icons.description_outlined,
+        ),
         const SizedBox(height: 32),
         _buildLabel("REGISTERED ADDRESS"),
-        _buildTextArea(_addressController, "Full Address...", "address", icon: Icons.location_on_outlined),
+        _buildTextArea(
+          _addressController,
+          "Full Address...",
+          "address",
+          icon: Icons.location_on_outlined,
+        ),
       ],
     );
   }
@@ -744,7 +850,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 Text(
                   "TOTAL FUNDS LEFT",
                   style: GoogleFonts.inter(
-                    color: _errors.contains('funding') ? const Color(0xFFFF453A) : Colors.white70,
+                    color: _errors.contains('funding')
+                        ? const Color(0xFFFF453A)
+                        : Colors.white70,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.5,
@@ -758,14 +866,18 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     textAlign: TextAlign.center,
                     onChanged: (_) => _clearError('funding'),
                     style: GoogleFonts.inter(
-                      color: _errors.contains('funding') ? const Color(0xFFFF453A) : Colors.white,
+                      color: _errors.contains('funding')
+                          ? const Color(0xFFFF453A)
+                          : Colors.white,
                       fontSize: 48,
                       fontWeight: FontWeight.w600,
                     ),
                     decoration: InputDecoration(
                       prefixText: "₹ ",
                       prefixStyle: GoogleFonts.inter(
-                        color: _errors.contains('funding') ? const Color(0xFFFF453A) : Colors.white70,
+                        color: _errors.contains('funding')
+                            ? const Color(0xFFFF453A)
+                            : Colors.white70,
                         fontSize: 48,
                       ),
                       hintText: "0",
@@ -785,7 +897,13 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         ),
         const SizedBox(height: 60),
         _buildLabel("TARGET RUNWAY (MONTHS)"),
-        _buildInputField(_runwayController, "e.g. 18", "runway", isNumber: true, icon: Icons.timeline),
+        _buildInputField(
+          _runwayController,
+          "e.g. 18",
+          "runway",
+          isNumber: true,
+          icon: Icons.timeline,
+        ),
       ],
     );
   }
@@ -828,9 +946,20 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _buildInputField(_bankAccounts[index]["name"]!, "Bank Name (e.g. HDFC)", "bank_name_$index", icon: Icons.account_balance_outlined),
+                _buildInputField(
+                  _bankAccounts[index]["name"]!,
+                  "Bank Name (e.g. HDFC)",
+                  "bank_name_$index",
+                  icon: Icons.account_balance_outlined,
+                ),
                 const SizedBox(height: 12),
-                _buildInputField(_bankAccounts[index]["number"]!, "Account Number", "bank_num_$index", isNumber: true, icon: Icons.numbers),
+                _buildInputField(
+                  _bankAccounts[index]["number"]!,
+                  "Account Number",
+                  "bank_num_$index",
+                  isNumber: true,
+                  icon: Icons.numbers,
+                ),
               ],
             ),
           );
@@ -883,12 +1012,17 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected ? Colors.white : const Color(0xFF141416),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.1),
+                    color: isSelected
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
                 child: Text(
@@ -931,7 +1065,10 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                       const SizedBox(width: 12),
                       Text(
                         team["name"],
-                        style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
                       ),
                     ],
                   ),
@@ -939,7 +1076,11 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     onTap: () => setState(() => _teams.remove(team)),
                     child: Container(
                       padding: const EdgeInsets.all(4),
-                      child: const Icon(Icons.close, color: Colors.white38, size: 18),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white38,
+                        size: 18,
+                      ),
                     ),
                   ),
                 ],
@@ -951,7 +1092,12 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildInputField(_teamController, "Add Team (e.g. Sales)", "teams", icon: Icons.group_add),
+              child: _buildInputField(
+                _teamController,
+                "Add Team (e.g. Sales)",
+                "teams",
+                icon: Icons.group_add,
+              ),
             ),
             const SizedBox(width: 12),
             GestureDetector(
@@ -1010,7 +1156,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           color: const Color(0xFF141416),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: hasError ? const Color(0xFFFF453A) : Colors.white.withValues(alpha: 0.1),
+            color: hasError
+                ? const Color(0xFFFF453A)
+                : Colors.white.withValues(alpha: 0.1),
           ),
         ),
         child: TextField(
@@ -1022,17 +1170,203 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: GoogleFonts.inter(
-              color: hasError ? const Color(0xFFFF453A).withValues(alpha: 0.6) : Colors.white60,
+              color: hasError
+                  ? const Color(0xFFFF453A).withValues(alpha: 0.6)
+                  : Colors.white60,
               fontSize: 15,
             ),
             icon: icon != null
-                ? Icon(icon, color: hasError ? const Color(0xFFFF453A) : Colors.white60, size: 20)
+                ? Icon(
+                    icon,
+                    color: hasError ? const Color(0xFFFF453A) : Colors.white60,
+                    size: 20,
+                  )
                 : null,
             border: InputBorder.none,
             contentPadding: const EdgeInsets.symmetric(vertical: 16),
           ),
         ),
       ),
+    );
+  }
+
+  // --- NEW: THEMED PHONE INPUT WITH COUNTRY CODE SELECTOR ---
+  Widget _buildPhoneInputField(
+    TextEditingController controller,
+    String hint,
+    String errorKey,
+  ) {
+    final hasError = _errors.contains(errorKey);
+
+    return ShakeWidget(
+      shake: hasError,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: hasError
+                ? const Color(0xFFFF453A)
+                : Colors.white.withValues(alpha: 0.1),
+          ),
+        ),
+        child: Row(
+          children: [
+            GestureDetector(
+              onTap: _showCountryCodePicker,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                color: Colors.transparent,
+                child: Row(
+                  children: [
+                    Text(
+                      "$_selectedFlag $_selectedCountryCode",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.keyboard_arrow_down,
+                      color: Colors.white60,
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              height: 24,
+              width: 1,
+              color: Colors.white.withValues(alpha: 0.1),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                keyboardType: TextInputType.phone,
+                onChanged: (_) => _clearError(errorKey),
+                style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+                cursorColor: Colors.white,
+                decoration: InputDecoration(
+                  hintText: hint,
+                  hintStyle: GoogleFonts.inter(
+                    color: hasError
+                        ? const Color(0xFFFF453A).withValues(alpha: 0.6)
+                        : Colors.white60,
+                    fontSize: 15,
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- NEW: THEMED COUNTRY CODE PICKER DIALOG ---
+  void _showCountryCodePicker() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF141416),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Container(
+            constraints: const BoxConstraints(maxHeight: 400),
+            padding: const EdgeInsets.only(top: 16, bottom: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Select Country Code",
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white38,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+                Expanded(
+                  child: ListView.builder(
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: _countryCodes.length,
+                    itemBuilder: (context, index) {
+                      final country = _countryCodes[index];
+                      final isSelected =
+                          _selectedCountryCode == country["code"];
+
+                      return ListTile(
+                        onTap: () {
+                          setState(() {
+                            _selectedCountryCode = country["code"]!;
+                            _selectedFlag = country["flag"]!;
+                          });
+                          Navigator.pop(context);
+                        },
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 4,
+                        ),
+                        leading: Text(
+                          country["flag"]!,
+                          style: const TextStyle(fontSize: 22),
+                        ),
+                        title: Text(
+                          country["name"]!,
+                          style: GoogleFonts.inter(
+                            color: isSelected ? Colors.white : Colors.white70,
+                            fontSize: 14,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        trailing: Text(
+                          country["code"]!,
+                          style: GoogleFonts.inter(
+                            color: isSelected ? Colors.white : Colors.white38,
+                            fontSize: 14,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -1052,7 +1386,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           color: const Color(0xFF141416),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: hasError ? const Color(0xFFFF453A) : Colors.white.withValues(alpha: 0.1),
+            color: hasError
+                ? const Color(0xFFFF453A)
+                : Colors.white.withValues(alpha: 0.1),
           ),
         ),
         child: TextField(
@@ -1064,11 +1400,17 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: GoogleFonts.inter(
-              color: hasError ? const Color(0xFFFF453A).withValues(alpha: 0.6) : Colors.white60,
+              color: hasError
+                  ? const Color(0xFFFF453A).withValues(alpha: 0.6)
+                  : Colors.white60,
               fontSize: 15,
             ),
             icon: icon != null
-                ? Icon(icon, color: hasError ? const Color(0xFFFF453A) : Colors.white60, size: 20)
+                ? Icon(
+                    icon,
+                    color: hasError ? const Color(0xFFFF453A) : Colors.white60,
+                    size: 20,
+                  )
                 : null,
             border: InputBorder.none,
             contentPadding: const EdgeInsets.symmetric(vertical: 16),
@@ -1079,7 +1421,10 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   }
 }
 
-// --- SHAKE ANIMATION WIDGET ---
+// ==========================================
+// UTILITY CLASSES (ShakeWidget & ErrorPopup)
+// ==========================================
+
 class ShakeWidget extends StatefulWidget {
   final Widget child;
   final bool shake;
@@ -1090,14 +1435,18 @@ class ShakeWidget extends StatefulWidget {
   State<ShakeWidget> createState() => _ShakeWidgetState();
 }
 
-class _ShakeWidgetState extends State<ShakeWidget> with SingleTickerProviderStateMixin {
+class _ShakeWidgetState extends State<ShakeWidget>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
     _animation = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 0.0, end: 8.0), weight: 1),
       TweenSequenceItem(tween: Tween(begin: 8.0, end: -8.0), weight: 2),
@@ -1133,5 +1482,235 @@ class _ShakeWidgetState extends State<ShakeWidget> with SingleTickerProviderStat
       },
       child: widget.child,
     );
+  }
+}
+
+enum ErrorType {
+  validation,
+  network,
+  authentication,
+  server,
+  general,
+  success,
+  warning,
+  info,
+}
+
+class ErrorPopup {
+  static void show({
+    required BuildContext context,
+    required String title,
+    required String message,
+    required ErrorType type,
+    Duration? duration,
+  }) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry overlayEntry;
+
+    overlayEntry = OverlayEntry(
+      builder: (context) => _ErrorPopupWidget(
+        title: title,
+        message: message,
+        type: type,
+        onDismiss: () => overlayEntry.remove(),
+        duration: duration ?? _getDurationForType(type),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+  }
+
+  static Duration _getDurationForType(ErrorType type) {
+    switch (type) {
+      case ErrorType.success:
+      case ErrorType.info:
+        return const Duration(seconds: 3);
+      case ErrorType.warning:
+        return const Duration(seconds: 4);
+      case ErrorType.validation:
+      case ErrorType.network:
+      case ErrorType.authentication:
+      case ErrorType.server:
+      case ErrorType.general:
+        return const Duration(seconds: 5);
+    }
+  }
+
+  static void showValidation({
+    required BuildContext context,
+    required String message,
+  }) {
+    show(
+      context: context,
+      title: 'Validation Error',
+      message: message,
+      type: ErrorType.validation,
+    );
+  }
+
+  static void showServer({
+    required BuildContext context,
+    required String message,
+  }) {
+    show(
+      context: context,
+      title: 'Server Error',
+      message: message,
+      type: ErrorType.server,
+    );
+  }
+}
+
+class _ErrorPopupWidget extends StatefulWidget {
+  final String title;
+  final String message;
+  final ErrorType type;
+  final VoidCallback onDismiss;
+  final Duration duration;
+
+  const _ErrorPopupWidget({
+    required this.title,
+    required this.message,
+    required this.type,
+    required this.onDismiss,
+    required this.duration,
+  });
+
+  @override
+  State<_ErrorPopupWidget> createState() => _ErrorPopupWidgetState();
+}
+
+class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Curves.easeOutBack,
+          ),
+        );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+
+    _animationController.forward();
+
+    if (widget.duration.inMilliseconds > 0) {
+      Future.delayed(widget.duration, () {
+        if (mounted) {
+          _dismiss();
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _dismiss() {
+    _animationController.reverse().then((_) {
+      widget.onDismiss();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 16,
+      left: 24,
+      right: 24,
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Material(
+            color: Colors.transparent,
+            child: GestureDetector(
+              onTap: _dismiss,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141416),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      style: GoogleFonts.inter(
+                        color: _getStatusColor(),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.message,
+                      style: GoogleFonts.inter(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getStatusColor() {
+    switch (widget.type) {
+      case ErrorType.success:
+        return Colors.greenAccent;
+      case ErrorType.warning:
+        return Colors.orangeAccent;
+      case ErrorType.info:
+        return Colors.lightBlueAccent;
+      case ErrorType.validation:
+      case ErrorType.network:
+      case ErrorType.authentication:
+      case ErrorType.server:
+      case ErrorType.general:
+        return Colors.redAccent;
+    }
   }
 }

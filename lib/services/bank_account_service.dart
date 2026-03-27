@@ -200,7 +200,8 @@ class BankAccountService {
       final List<Map<String, dynamic>> migratedAccounts = [];
 
       for (var account in bankAccountsData) {
-        final bankName = account["name"] ?? 'Unknown Bank';
+        final bankName =
+            account["name"] ?? account["bankName"] ?? 'Unknown Bank';
         final accountNumber = account["number"] ?? '';
 
         // Create new subcollection document

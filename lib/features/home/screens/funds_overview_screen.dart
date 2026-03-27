@@ -223,7 +223,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
 
         final Map<String, double> bankSpending = {};
         for (var account in bankAccountsData) {
-          final bankName = account["name"] ?? 'Unknown Bank';
+          final bankName =
+              account["name"] ?? account["bankName"] ?? 'Unknown Bank';
           final last4 = account["last4"] ?? '';
           bankSpending["$bankName-$last4"] = 0.0;
         }
@@ -240,7 +241,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
 
         bankAccounts = bankAccountsData.asMap().entries.map((entry) {
           final account = entry.value;
-          final bankName = account["name"] ?? 'Unknown Bank';
+          final bankName =
+              account["name"] ?? account["bankName"] ?? 'Unknown Bank';
           final last4 = account["last4"] ?? '';
           final totalSpent = bankSpending["$bankName-$last4"] ?? 0.0;
           return {
