@@ -103,7 +103,8 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         setState(() {
           _companyNameController.text = data["Company Name"] ?? "";
           _ownerNameController.text = data["Owner Name"] ?? "";
-          _emailController.text = data["Email"] ?? "";
+          // Use Firebase Auth email since company setup doesn't save email to companies
+          _emailController.text = user.email ?? "";
           _addressController.text = data["Company Address"] ?? "";
           _descController.text = data["Company Work"] ?? "";
           _fundingController.text = data["Funding"]?.toString() ?? "";
@@ -115,8 +116,8 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
           _bankAccounts.clear();
           for (var account in bankAccountsData) {
             _addBankAccount(
-              account["name"]?.toString() ?? "",
-              account["number"]?.toString() ?? "",
+              account["bankName"]?.toString() ?? "", // Fixed field name
+              account["last4"]?.toString() ?? "", // Fixed field name
             );
           }
         });
@@ -146,8 +147,11 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
             "Company Type": _selectedType,
             "Bank Accounts": _bankAccounts.map((account) {
               return {
-                "name": account["name"]!.text,
-                "number": account["number"]!.text,
+                "bankName": account["name"]!.text, // Fixed field name
+                "last4": account["number"]!.text, // Fixed field name
+                "verified": false,
+                "verificationMethod": "manual",
+                "verificationId": null,
               };
             }).toList(),
           }, SetOptions(merge: true));
@@ -168,6 +172,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
 
       await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
         "name": _ownerNameController.text.trim(),
+        "email": _emailController.text.trim(), // Also sync email
         "updatedAt": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
@@ -483,17 +488,20 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                         ),
                         TextField(
                           controller: _bankAccounts[index]["number"],
-                          keyboardType: TextInputType.number,
+                          enabled: false, // Make read-only for security
                           style: GoogleFonts.inter(
                             color: Colors.white70,
                             fontSize: 13,
                           ),
                           decoration: InputDecoration(
-                            hintText: "Account Number",
+                            hintText:
+                                "****", // Show placeholder for last 4 digits
                             hintStyle: GoogleFonts.inter(color: Colors.white24),
                             border: InputBorder.none,
                             isDense: true,
                             contentPadding: EdgeInsets.zero,
+                            prefixText:
+                                "**** ", // Visual indicator for masked number
                           ),
                         ),
                       ],

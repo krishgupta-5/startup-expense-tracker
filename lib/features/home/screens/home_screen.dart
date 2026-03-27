@@ -202,8 +202,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   HealthStatus _calculateHealthStatus() {
     if (isLoading) return HealthStatus.unknown;
-    if (runwayValue == null || errorMessage != null)
+    if (runwayValue == null || errorMessage != null) {
       return HealthStatus.unknown;
+    }
 
     final runway = double.tryParse(runwayValue!) ?? 0;
     if (runway <= 0) return HealthStatus.unknown;
@@ -216,11 +217,12 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             errorMessage = "User not authenticated";
             isLoading = false;
           });
+        }
         return;
       }
 
@@ -236,31 +238,35 @@ class _HomeScreenState extends State<HomeScreen> {
         if (runwayFromFirebase != "0") {
           final runwayAmount =
               double.tryParse(runwayFromFirebase.toString()) ?? 0;
-          if (mounted)
+          if (mounted) {
             setState(() {
               runwayValue = runwayAmount.toStringAsFixed(2);
               isLoading = false;
             });
+          }
         } else {
-          if (mounted)
+          if (mounted) {
             setState(() {
               runwayValue = "0";
               isLoading = false;
             });
+          }
         }
       } else {
-        if (mounted)
+        if (mounted) {
           setState(() {
             errorMessage = "No company data found";
             isLoading = false;
           });
+        }
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           errorMessage = "Failed to load runway data";
           isLoading = false;
         });
+      }
     }
   }
 

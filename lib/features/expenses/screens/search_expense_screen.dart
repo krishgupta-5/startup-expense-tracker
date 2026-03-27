@@ -135,7 +135,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     if (_searchQuery.isNotEmpty) {
       query = query
           .where('Title', isGreaterThanOrEqualTo: _searchQuery)
-          .where('Title', isLessThanOrEqualTo: _searchQuery + '\uf8ff');
+          .where('Title', isLessThanOrEqualTo: '$_searchQuery\uf8ff');
     }
 
     // Apply pagination

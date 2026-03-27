@@ -849,8 +849,9 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
 
   List<Map<String, dynamic>> _calculateRiskFactors() {
     final List<Map<String, dynamic>> risks = [];
-    if (allExpenses.isEmpty || runwayMonths == null || runwayMonths! <= 0)
+    if (allExpenses.isEmpty || runwayMonths == null || runwayMonths! <= 0) {
       return risks;
+    }
 
     final Map<String, double> categoryTotals = {};
     for (var expense in allExpenses) {
