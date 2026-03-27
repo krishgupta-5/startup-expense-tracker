@@ -81,15 +81,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
         // Show success message
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: const Color(0xFF30D158),
-              content: Text(
-                'Account created successfully!',
-                style: GoogleFonts.inter(color: Colors.white),
-              ),
-              duration: const Duration(seconds: 2),
-            ),
+          ErrorHandler.handleSuccess(
+            context: context,
+            message: 'Account created successfully! Welcome to our platform.',
           );
 
           // Navigate to company setup screen directly
@@ -465,6 +459,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
             });
 
             if (userCredential != null) {
+              // Show success message
+              if (mounted) {
+                ErrorHandler.handleSuccess(
+                  context: context,
+                  message:
+                      'Google sign-up successful! Welcome to our platform.',
+                );
+              }
               // Do nothing, AuthWrapper will react automatically
             } else {
               ErrorHandler.handleAuthError(

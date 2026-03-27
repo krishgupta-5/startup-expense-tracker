@@ -43,6 +43,14 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text.trim(),
       );
 
+      // Show success message
+      if (mounted) {
+        ErrorHandler.handleSuccess(
+          context: context,
+          message: 'Login successful! Welcome back.',
+        );
+      }
+
       // Do nothing, AuthWrapper will handle navigation
     } on FirebaseAuthException catch (e) {
       ErrorHandler.handleAuthError(
@@ -358,6 +366,13 @@ class _LoginScreenState extends State<LoginScreen> {
             });
 
             if (userCredential != null) {
+              // Show success message
+              if (mounted) {
+                ErrorHandler.handleSuccess(
+                  context: context,
+                  message: 'Google sign-in successful! Welcome back.',
+                );
+              }
               // Do nothing, AuthWrapper will react automatically
             } else {
               ErrorHandler.handleAuthError(
