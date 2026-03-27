@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/currency_formatter.dart';
 
 /// Helper functions for data parsing and validation
 ///
@@ -94,15 +95,19 @@ class DataHelpers {
   /// Format currency amount for display
   ///
   /// [amount] - The amount to format
-  /// [currency] - Currency symbol (defaults to '₹')
+  /// [countryCode] - Country code for currency symbol (defaults to +1 for USD)
   /// [decimalDigits] - Number of decimal places (defaults to 0)
   /// Returns formatted currency string
   static String formatCurrency(
     double amount, {
-    String currency = '₹',
-    int decimalDigits = 0,
+    String countryCode = '+1',
+    int? decimalDigits,
   }) {
-    return '$currency${amount.toStringAsFixed(decimalDigits)}';
+    return CurrencyFormatter.format(
+      amount,
+      countryCode: countryCode,
+      decimalPlaces: decimalDigits,
+    );
   }
 
   /// Format date for display

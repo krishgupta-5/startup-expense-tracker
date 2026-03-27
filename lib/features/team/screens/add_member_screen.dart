@@ -4,6 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'dart:io';
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
 
 class AddMemberScreen extends StatefulWidget {
   const AddMemberScreen({super.key});
@@ -22,6 +30,12 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   bool _isLoading = false;
   bool _isLoadingTeams = true;
 
+  String _userCountryCode = '+1'; // Default to USD
+  bool _isLoadingCountry = false; // Start as false since we use sync method
+
+  // Cache for Telegram photos to avoid repeated fetching
+  static final Map<String, String> _telegramPhotoCache = {};
+
   // 2. DATA LISTS
   Map<String, String> _teams = {}; // Will be populated from Firebase
   String? _selectedTeamId;
@@ -35,16 +49,31 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
 
   String _employmentType = "full_time";
   DateTime _joiningDate = DateTime.now();
+  String? _telegramFileId;
+  String? _fileName;
 
   @override
   void initState() {
     super.initState();
+    // Get country code synchronously for instant display
+    _userCountryCode = UserCountryService.getUserCountryCodeSync();
+    // Load in background for more accurate result
+    _loadUserCountryCode();
     _nameController = TextEditingController();
     _emailController = TextEditingController();
     _jobTitleController = TextEditingController();
     _costController = TextEditingController();
 
     _fetchTeams();
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final countryCode = await UserCountryService.getUserCountryCode();
+    if (mounted && countryCode != _userCountryCode) {
+      setState(() {
+        _userCountryCode = countryCode;
+      });
+    }
   }
 
   @override
@@ -125,17 +154,26 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       return;
     }
 
-    if (_costController.text.trim().isNotEmpty) {
-      final double? cost = double.tryParse(_costController.text.trim());
-      if (cost == null || cost < 0) {
-        _showErrorSnackBar("Please enter a valid monthly cost.");
-        return;
-      }
+    // Monthly cost is now mandatory
+    if (_costController.text.trim().isEmpty) {
+      _showErrorSnackBar(
+        "Monthly cost is required. Please enter the member's monthly cost.",
+      );
+      return;
+    }
 
-      if (cost > 999999.99) {
-        _showErrorSnackBar("Monthly cost amount is too high.");
-        return;
-      }
+    final double? cost = double.tryParse(_costController.text.trim());
+    if (cost == null || cost < 0) {
+      _showErrorSnackBar("Please enter a valid monthly cost.");
+      return;
+    }
+
+    // Allow much higher amounts (up to 99 million)
+    if (cost > 99999999.99) {
+      _showErrorSnackBar(
+        "Monthly cost amount is too high. Maximum allowed is 99,999,999.99",
+      );
+      return;
     }
 
     if (_joiningDate.isAfter(DateTime.now())) {
@@ -146,9 +184,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final double cost = _costController.text.trim().isEmpty
-          ? 0.0
-          : double.tryParse(_costController.text.trim())!;
+      final double cost = double.parse(_costController.text.trim());
 
       await FirebaseFirestore.instance.collection('members').add({
         "uid": FirebaseAuth.instance.currentUser!.uid,
@@ -160,7 +196,8 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
         "employmentType": _employmentType,
         "monthlyCost": cost,
         "createdAt": FieldValue.serverTimestamp(),
-        // "avatarUrl": "" // TODO: Implement avatar upload later
+        "avatarUrl": _telegramFileId ?? "",
+        "telegramFileId": _telegramFileId ?? "",
       });
 
       debugPrint("Member added successfully with teamId: $_selectedTeamId");
@@ -197,6 +234,249 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  // --- TELEGRAM IMAGE UPLOAD METHODS ---
+  Future<String?> uploadToTelegram(String filePath) async {
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      final uri = Uri.parse("https://api.telegram.org/bot$botToken/sendPhoto");
+
+      var request = http.MultipartRequest('POST', uri);
+      request.fields['chat_id'] = '-1003885930746';
+
+      request.files.add(await http.MultipartFile.fromPath('photo', filePath));
+
+      final response = await request.send();
+
+      if (response.statusCode == 200) {
+        final res = await http.Response.fromStream(response);
+        final data = jsonDecode(res.body);
+
+        // Take highest quality image
+        return data['result']['photo'].last['file_id'];
+      } else {
+        throw Exception("Upload failed: ${response.statusCode}");
+      }
+    } catch (e) {
+      debugPrint('Error uploading to Telegram: $e');
+      return null;
+    }
+  }
+
+  Future<String> getTelegramImageUrl(String fileId) async {
+    // Check cache first
+    if (_telegramPhotoCache.containsKey(fileId)) {
+      return _telegramPhotoCache[fileId]!;
+    }
+
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      final res = await http.get(
+        Uri.parse(
+          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
+        ),
+      );
+
+      final data = jsonDecode(res.body);
+      final path = data['result']['file_path'];
+      final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
+
+      // Cache the result
+      _telegramPhotoCache[fileId] = imageUrl;
+
+      return imageUrl;
+    } catch (e) {
+      debugPrint('Error getting Telegram image URL: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _showImagePicker() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF141416),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => _buildImagePickerSheet(),
+    );
+  }
+
+  Widget _buildImagePickerSheet() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white12,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              "Upload Photo",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildImagePickerOption(
+                  Icons.camera_alt,
+                  "Camera",
+                  () => _pickImage(ImageSource.camera),
+                ),
+                _buildImagePickerOption(
+                  Icons.photo_library,
+                  "Gallery",
+                  () => _pickImage(ImageSource.gallery),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImagePickerOption(
+    IconData icon,
+    String label,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pop(context);
+        onTap();
+      },
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: const Color(0xFF09090B),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Icon(icon, color: Colors.white, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              color: Colors.white38,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        imageQuality: 90,
+        maxWidth: 800,
+        maxHeight: 800,
+      );
+
+      if (image != null) {
+        final File? croppedFile = await _cropImage(File(image.path));
+        if (croppedFile != null) {
+          await _uploadImageToTelegram(croppedFile);
+        }
+      }
+    } catch (e) {
+      debugPrint("Error picking image: $e");
+      _showErrorSnackBar("Failed to pick image");
+    }
+  }
+
+  Future<File?> _cropImage(File sourceFile) async {
+    try {
+      final CroppedFile? croppedFile = await ImageCropper().cropImage(
+        sourcePath: sourceFile.path,
+        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 80,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Crop Photo',
+            toolbarColor: const Color(0xFF141416),
+            toolbarWidgetColor: Colors.white,
+            backgroundColor: const Color(0xFF09090B),
+            activeControlsWidgetColor: Colors.white,
+            lockAspectRatio: true,
+          ),
+          IOSUiSettings(
+            title: 'Crop Photo',
+            aspectRatioLockEnabled: true,
+            minimumAspectRatio: 1.0,
+          ),
+        ],
+      );
+      return croppedFile != null ? File(croppedFile.path) : null;
+    } catch (e) {
+      debugPrint("Error cropping image: $e");
+      return sourceFile;
+    }
+  }
+
+  Future<void> _uploadImageToTelegram(File imageFile) async {
+    try {
+      setState(() => _isLoading = true);
+      _fileName = imageFile.path.split('/').last;
+
+      final fileId = await uploadToTelegram(imageFile.path);
+
+      if (fileId == null) {
+        throw Exception('Failed to upload image to Telegram');
+      }
+
+      if (mounted) {
+        setState(() {
+          _telegramFileId = fileId;
+          _isLoading = false;
+        });
+        debugPrint("Image uploaded to Telegram successfully: $fileId");
+      }
+    } catch (e) {
+      debugPrint("Error uploading image to Telegram: $e");
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _fileName = null;
+        _showErrorSnackBar("Failed to upload image to Telegram");
+      }
+    }
   }
 
   @override
@@ -365,13 +645,10 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
     );
   }
 
-  // Placeholder Avatar Uploader (No functionality yet)
+  // Avatar Uploader with Telegram functionality
   Widget _buildAvatarUploader() {
     return GestureDetector(
-      onTap: () {
-        // TODO: Implement image picker and Firebase Storage upload
-        debugPrint("Avatar uploader tapped - implement later!");
-      },
+      onTap: _showImagePicker,
       child: Column(
         children: [
           Container(
@@ -388,7 +665,42 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                const Icon(Icons.person, color: Colors.white12, size: 48),
+                if (_telegramFileId != null)
+                  FutureBuilder<String>(
+                    future: getTelegramImageUrl(_telegramFileId!),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const CircularProgressIndicator(
+                          color: Colors.white38,
+                          strokeWidth: 2,
+                        );
+                      }
+                      if (snapshot.hasError || !snapshot.hasData) {
+                        return const Icon(
+                          Icons.person,
+                          color: Colors.white12,
+                          size: 48,
+                        );
+                      }
+                      return ClipOval(
+                        child: Image.network(
+                          snapshot.data!,
+                          width: 100,
+                          height: 100,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(
+                              Icons.person,
+                              color: Colors.white12,
+                              size: 48,
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  )
+                else
+                  const Icon(Icons.person, color: Colors.white12, size: 48),
                 Positioned(
                   bottom: 0,
                   right: 0,
@@ -398,11 +710,20 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                       color: Colors.white,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.camera_alt,
-                      color: Colors.black,
-                      size: 16,
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.black,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.camera_alt,
+                            color: Colors.black,
+                            size: 16,
+                          ),
                   ),
                 ),
               ],
@@ -410,9 +731,13 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            "Upload Photo (Coming Soon)",
+            _telegramFileId != null
+                ? "Photo uploaded to Telegram"
+                : "Upload Photo",
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: _telegramFileId != null
+                  ? const Color(0xFF30D158)
+                  : Colors.white38,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -469,7 +794,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              "₹",
+              CurrencyFormatter.getCurrencySymbol(_userCountryCode),
               style: GoogleFonts.inter(
                 color: Color(0xFF30D158),
                 fontSize: 20,

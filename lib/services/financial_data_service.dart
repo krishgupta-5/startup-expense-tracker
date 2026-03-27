@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'currency_formatter.dart';
 
 class FinancialDataService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -252,10 +253,8 @@ class FinancialDataService {
   }
 
   // Helper method to format currency properly
-  static String _formatCurrency(double amount) {
-    // Convert to integer to remove decimal places, then format with commas
-    final intAmount = amount.round();
-    return '₹${intAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}';
+  static String _formatCurrency(double amount, {String countryCode = '+1'}) {
+    return CurrencyFormatter.formatByCountry(amount, countryCode);
   }
 
   static Future<Map<String, dynamic>> getTeamCostDistribution() async {

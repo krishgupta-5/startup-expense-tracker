@@ -75,12 +75,17 @@ class AvatarWidget extends StatelessWidget {
       ),
       child: imageUrl == null || imageUrl!.isEmpty
           ? Center(
-              child: Text(
-                initials,
-                style: GoogleFonts.inter(
-                  color: textColor ?? Colors.white,
-                  fontSize: fontSize * (size / 48.0), // Scale font with size
-                  fontWeight: fontWeight,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  initials,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    color: textColor ?? Colors.white,
+                    fontSize: fontSize,
+                    fontWeight: fontWeight,
+                    height: 1.0,
+                  ),
                 ),
               ),
             )

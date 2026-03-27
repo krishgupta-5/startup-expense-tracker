@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../shared/widgets/error_popup.dart';
 
 class EditTeamScreen extends StatefulWidget {
   final String teamId;
@@ -27,7 +28,6 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
   bool _isDeleting = false;
 
   late String _selectedColor;
-  late IconData _selectedIcon;
 
   // Data Options
   final List<Map<String, dynamic>> _colors = [
@@ -36,15 +36,6 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     {"name": "Purple", "color": const Color(0xFFA259FF)},
     {"name": "Green", "color": const Color(0xFF30D158)},
     {"name": "Red", "color": const Color(0xFFFF453A)},
-  ];
-
-  final List<IconData> _icons = [
-    Icons.code,
-    Icons.campaign_outlined,
-    Icons.brush_outlined,
-    Icons.attach_money,
-    Icons.security,
-    Icons.support_agent,
   ];
 
   @override
@@ -63,14 +54,6 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     );
 
     _selectedColor = widget.teamData['color'] ?? "Blue";
-
-    // Safely reconstruct the IconData
-    if (widget.teamData['iconCodePoint'] != null &&
-        widget.teamData['iconFontFamily'] != null) {
-      _selectedIcon = _getIconFromData(widget.teamData);
-    } else {
-      _selectedIcon = Icons.code; // Fallback
-    }
   }
 
   @override
@@ -85,7 +68,10 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
 
   Future<void> _updateTeam() async {
     if (_nameController.text.trim().isEmpty) {
-      _showErrorSnackBar("Please enter a team name.");
+      ErrorPopup.showValidation(
+        context: context,
+        message: "Please enter a team name.",
+      );
       return;
     }
 
@@ -103,26 +89,22 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
             "description": _descController.text.trim(),
             "monthlyBudget": budget,
             "color": _selectedColor,
-            "iconCodePoint": _selectedIcon.codePoint,
-            "iconFontFamily": _selectedIcon.fontFamily,
           });
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Team updated successfully!",
-              style: GoogleFonts.inter(),
-            ),
-            backgroundColor: const Color(0xFF30D158),
-            behavior: SnackBarBehavior.floating,
-          ),
+        ErrorPopup.showSuccess(
+          context: context,
+          message: "Team updated successfully!",
         );
       }
     } on FirebaseException catch (e) {
       if (mounted) {
-        _showErrorSnackBar(e.message ?? 'Failed to update team');
+        ErrorPopup.showError(
+          context: context,
+          title: 'Server Error',
+          message: e.message ?? 'Failed to update team',
+        );
       }
     } finally {
       if (mounted) {
@@ -135,27 +117,42 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     setState(() => _isDeleting = true);
 
     try {
+      // First, delete all members associated with this team
+      final membersSnapshot = await FirebaseFirestore.instance
+          .collection('members')
+          .where('teamId', isEqualTo: widget.teamId)
+          .get();
+
+      // Delete all members in a batch
+      final batch = FirebaseFirestore.instance.batch();
+      for (var memberDoc in membersSnapshot.docs) {
+        batch.delete(memberDoc.reference);
+      }
+      await batch.commit();
+
+      // Then delete the team document
       await FirebaseFirestore.instance
           .collection('teams')
           .doc(widget.teamId)
           .delete();
 
       if (mounted) {
-        // Pop twice to go back to the main Teams list (closing edit screen + details screen)
+        // Pop twice to go back to main Teams list
         Navigator.of(context).pop();
         Navigator.of(context).pop();
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Team deleted.", style: GoogleFonts.inter()),
-            backgroundColor: Colors.black,
-            behavior: SnackBarBehavior.floating,
-          ),
+        ErrorPopup.showSuccess(
+          context: context,
+          message: "Team and all its members deleted.",
         );
       }
     } on FirebaseException catch (e) {
       if (mounted) {
-        _showErrorSnackBar(e.message ?? 'Failed to delete team');
+        ErrorPopup.showError(
+          context: context,
+          title: 'Delete Error',
+          message: e.message ?? 'Failed to delete team',
+        );
       }
     } finally {
       if (mounted) {
@@ -164,64 +161,133 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     }
   }
 
+  // --- GORGEOUS CUSTOM DELETE DIALOG ---
   void _showDeleteConfirmation() {
     showDialog(
       context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.8), // Darken backdrop
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF141416),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            "Delete Team?",
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Text(
-            "Are you sure you want to delete this team? This action cannot be undone.",
-            style: GoogleFonts.inter(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                "Cancel",
-                style: GoogleFonts.inter(color: Colors.white54),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context); // Close dialog
-                _deleteTeam(); // Execute delete
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF453A),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141416), // Match theme
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
                 ),
-              ),
-              child: Text(
-                "Delete",
-                style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-              ),
+              ],
             ),
-          ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icon & Title
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF453A).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Color(0xFFFF453A),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        "Delete Team?",
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // Warning Text
+                Text(
+                  "This action cannot be undone. The team and all associated members will be permanently removed from your organization.",
+                  style: GoogleFonts.inter(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                // Action Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "Cancel",
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.pop(context); // Close dialog
+                          _deleteTeam(); // Execute delete
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF453A),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "Delete",
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         );
       },
-    );
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-      ),
     );
   }
 
@@ -265,8 +331,9 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
                           color: Colors.white,
                           fontSize: 32,
                           fontWeight: FontWeight.w600,
+                          letterSpacing: -1,
                         ),
-                        cursorColor: const Color(0xFF30D158),
+                        cursorColor: const Color(0xFF0A84FF), // Match primary
                         decoration: InputDecoration(
                           hintText: "Team Name",
                           hintStyle: GoogleFonts.inter(
@@ -283,8 +350,8 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
                       const SizedBox(height: 40),
 
                       // --- BUDGET SETTINGS ---
-                      _buildSectionLabel("FINANCIALS"),
-                      const SizedBox(height: 16),
+                      _buildSectionLabel("MONTHLY BUDGET"),
+                      const SizedBox(height: 8),
                       _buildBudgetInput(),
 
                       const SizedBox(height: 32),
@@ -306,29 +373,11 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
                             color: Colors.white.withValues(alpha: 0.04),
                           ),
                         ),
-                        child: Column(
-                          children: [
-                            // Color Picker
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: _colors
-                                  .map((c) => _buildColorOption(c))
-                                  .toList(),
-                            ),
-                            const SizedBox(height: 24),
-                            Divider(
-                              color: Colors.white.withValues(alpha: 0.04),
-                              height: 1,
-                            ),
-                            const SizedBox(height: 24),
-                            // Icon Picker
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: _icons
-                                  .map((i) => _buildIconOption(i))
-                                  .toList(),
-                            ),
-                          ],
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: _colors
+                              .map((c) => _buildColorOption(c))
+                              .toList(),
                         ),
                       ),
 
@@ -389,64 +438,22 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
 
   Widget _buildBudgetInput() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF30D158).withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.attach_money,
-              color: Color(0xFF30D158),
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "MONTHLY BUDGET",
-                  style: GoogleFonts.inter(
-                    color: Colors.white24,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                TextField(
-                  controller: _budgetController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                    suffixText: "USD",
-                    suffixStyle: GoogleFonts.inter(
-                      color: Colors.white38,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      child: TextField(
+        controller: _budgetController,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        cursorColor: Colors.white,
+        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+        decoration: InputDecoration(
+          hintText: "0.00",
+          hintStyle: GoogleFonts.inter(color: Colors.white24),
+          border: InputBorder.none,
+        ),
       ),
     );
   }
@@ -467,6 +474,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
           child: TextField(
             controller: controller,
             style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+            cursorColor: Colors.white,
             maxLines: 3,
             minLines: 3,
             decoration: InputDecoration(
@@ -502,30 +510,6 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
             height: 16,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildIconOption(IconData icon) {
-    final bool isSelected = _selectedIcon == icon;
-
-    return GestureDetector(
-      onTap: () => setState(() => _selectedIcon = icon),
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: isSelected
-              ? null
-              : Border.all(color: Colors.white.withValues(alpha: 0.1)),
-        ),
-        child: Icon(
-          icon,
-          color: isSelected ? Colors.black : Colors.white54,
-          size: 20,
         ),
       ),
     );
@@ -567,7 +551,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Disband Team",
+                      "Delete Team",
                       style: GoogleFonts.inter(
                         color: const Color(0xFFFF453A),
                         fontSize: 15,
@@ -576,7 +560,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      "This action cannot be undone.",
+                      "Permanently remove team and all members",
                       style: GoogleFonts.inter(
                         color: const Color(0xFFFF453A).withValues(alpha: 0.6),
                         fontSize: 12,
@@ -669,37 +653,5 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
         ),
       ),
     );
-  }
-
-  // Helper method to get IconData from stored data
-  IconData _getIconFromData(Map<String, dynamic> data) {
-    if (data['iconCodePoint'] != null && data['iconFontFamily'] != null) {
-      // Use a switch statement with common icon code points to ensure tree shaking
-      switch (data['iconCodePoint']) {
-        case 0xe3af:
-          return Icons.work;
-        case 0xe0af:
-          return Icons.business;
-        case 0xe7fd:
-          return Icons.group;
-        case 0xe226:
-          return Icons.code;
-        case 0xe86c:
-          return Icons.design_services;
-        case 0xe85d:
-          return Icons.computer;
-        case 0xe53b:
-          return Icons.build;
-        case 0xe251:
-          return Icons.lightbulb;
-        case 0xe7f1:
-          return Icons.trending_up;
-        case 0xe8b6:
-          return Icons.people;
-        default:
-          return Icons.code;
-      }
-    }
-    return Icons.code; // Fallback
   }
 }

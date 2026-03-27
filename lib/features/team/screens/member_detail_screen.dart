@@ -3,6 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // NOTE: Ensure these files exist or comment them out if testing in isolation
 import 'edit_member_screen.dart';
@@ -11,6 +14,8 @@ import 'payment_history_screen.dart';
 import 'process_payment_screen.dart';
 import 'transaction_details_screen.dart';
 import '../../../widgets/avatar_widget.dart';
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
 
 class MemberDetailScreen extends StatefulWidget {
   final String memberId;
@@ -22,6 +27,30 @@ class MemberDetailScreen extends StatefulWidget {
 }
 
 class _MemberDetailScreenState extends State<MemberDetailScreen> {
+  String _userCountryCode = '+1'; // Default to USD
+  bool _isLoadingCountry = false; // Start as false since we use sync method
+
+  // Cache for Telegram photos to avoid repeated fetching
+  static final Map<String, String> _telegramPhotoCache = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // Get country code synchronously for instant display
+    _userCountryCode = UserCountryService.getUserCountryCodeSync();
+    // Load in background for more accurate result
+    _loadUserCountryCode();
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final countryCode = await UserCountryService.getUserCountryCode();
+    if (mounted && countryCode != _userCountryCode) {
+      setState(() {
+        _userCountryCode = countryCode;
+      });
+    }
+  }
+
   // Format the raw employment type to a readable string
   String _formatEmploymentType(String raw) {
     switch (raw) {
@@ -83,10 +112,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               if (snapshot.hasError ||
                   !snapshot.hasData ||
                   !snapshot.data!.exists) {
-                return const Center(
+                return Center(
                   child: Text(
                     "Member not found.",
-                    style: TextStyle(color: Colors.white54),
+                    style: GoogleFonts.inter(color: Colors.white54),
                   ),
                 );
               }
@@ -98,7 +127,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               final String email = memberData['email'] ?? "No Email";
               final String status = memberData['status'] ?? "Active";
               final double cost = (memberData['monthlyCost'] ?? 0.0) as double;
-              final String salary = "₹${cost.toStringAsFixed(2)}";
+              final String salary = _isLoadingCountry
+                  ? CurrencyFormatter.formatByCountry(cost, '+1')
+                  : CurrencyFormatter.formatByCountry(cost, _userCountryCode);
               final String empType = _formatEmploymentType(
                 memberData['employmentType'] ?? "",
               );
@@ -112,10 +143,18 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
               final String teamId = memberData['teamId'] ?? "";
 
-              // Generate dynamic avatar
-              final String avatarUrl =
-                  memberData['avatarUrl'] ??
-                  "https://ui-avatars.com/api/?name=${Uri.encodeComponent(name)}&background=random&color=fff";
+              // Check for Telegram photo in both telegramFileId and avatarUrl fields
+              final String? telegramFileId = memberData['telegramFileId'];
+              final String? avatarUrl = memberData['avatarUrl'];
+
+              // Determine if avatarUrl contains a Telegram file ID (for backward compatibility)
+              final String? telegramFileIdFromAvatar =
+                  (avatarUrl != null &&
+                      avatarUrl.isNotEmpty &&
+                      !avatarUrl.startsWith('http') &&
+                      !avatarUrl.contains('ui-avatars.com'))
+                  ? avatarUrl
+                  : null;
 
               return Column(
                 children: [
@@ -153,8 +192,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                     name,
                                     role,
                                     teamName,
-                                    avatarUrl,
+                                    avatarUrl ?? "",
                                     status,
+                                    telegramFileId ?? telegramFileIdFromAvatar,
                                   ),
 
                                   const SizedBox(height: 32),
@@ -183,10 +223,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                           _buildSectionTitle("EMPLOYMENT DETAILS"),
                           const SizedBox(height: 16),
                           Container(
-                            padding: const EdgeInsets.all(24),
+                            padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
                               color: const Color(0xFF141416),
-                              borderRadius: BorderRadius.circular(24),
+                              borderRadius: BorderRadius.circular(
+                                20,
+                              ), // Matched
                               border: Border.all(
                                 color: Colors.white.withValues(alpha: 0.04),
                               ),
@@ -301,14 +343,19 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               ),
             ),
           ),
-          Text(
-            "Member Profile",
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+
+          Expanded(
+            child: Text(
+              "Member Profile",
+              textAlign: TextAlign.center, // Centered title
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
+
           GestureDetector(
             onTap: () => _showMemberActionSheet(
               context,
@@ -342,6 +389,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     String team,
     String avatarUrl,
     String status,
+    String? telegramFileId,
   ) {
     Color statusColor = status == "Active"
         ? const Color(0xFF30D158)
@@ -363,14 +411,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 ),
               ),
             ),
-            AvatarWidget(
-              name: name,
-              size: 100,
-              imageUrl:
-                  avatarUrl.isNotEmpty && avatarUrl.contains('ui-avatars.com')
-                  ? null
-                  : avatarUrl,
-            ),
+            _buildMemberAvatar(name, 100, avatarUrl, telegramFileId),
           ],
         ),
         const SizedBox(height: 16),
@@ -380,6 +421,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             color: Colors.white,
             fontSize: 24,
             fontWeight: FontWeight.w600,
+            letterSpacing: -0.5,
           ),
         ),
         const SizedBox(height: 4),
@@ -421,7 +463,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20), // Matched to 20
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
       child: Column(
@@ -437,10 +479,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            isPaused ? "₹0.00" : salary,
+            isPaused
+                ? "${CurrencyFormatter.getCurrencySymbol(_isLoadingCountry ? '+1' : _userCountryCode)}0.00"
+                : salary,
             style: GoogleFonts.inter(
               color: isPaused ? Colors.white38 : Colors.white,
-              fontSize: 40,
+              fontSize: 42, // Matched size to 42
               fontWeight: FontWeight.w600,
               letterSpacing: -1,
               decoration: isPaused ? TextDecoration.lineThrough : null,
@@ -514,7 +558,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           }
         }
 
-        // Helper function to safely add months to a date (handles edge cases like Jan 31 -> Feb 28)
+        // Helper function to safely add months to a date
         DateTime addMonths(DateTime date, int months) {
           int newYear = date.year + (date.month + months - 1) ~/ 12;
           int newMonth = (date.month + months - 1) % 12 + 1;
@@ -528,14 +572,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         }
 
         // 2. Calculate Next Due Date mathematically
-        // Every payment pushes the due date 1 month forward. First salary is due 1 month after joining.
         DateTime nextDueDate = addMonths(joinedDate, totalPaymentsMade + 1);
-
         DateTime now = DateTime.now();
         DateTime today = DateTime(now.year, now.month, now.day);
 
         // 3. Determine if it's an Advance
-        // If today is strictly before the next calculated due date, paying now is an advance.
         bool isAdvance = today.isBefore(nextDueDate);
 
         // 4. Formatting for UI
@@ -685,7 +726,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: const Color(0xFF141416),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20), // Matched
               border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
             ),
             child: const Center(
@@ -700,7 +741,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: const Color(0xFF141416),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20), // Matched
               border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
             ),
             child: Center(
@@ -734,7 +775,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               "rawData": data,
               "rawDate": data['Date'] as Timestamp?,
               "date": _formatDate(data['Date'] as Timestamp?),
-              "amt": "₹${amt.toStringAsFixed(2)}",
+              "amt": _isLoadingCountry
+                  ? CurrencyFormatter.formatByCountry(amt, '+1')
+                  : CurrencyFormatter.formatByCountry(amt, _userCountryCode),
               "title": title.contains("Advance")
                   ? "Advance Payout"
                   : "Salary Payout",
@@ -758,7 +801,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: const Color(0xFF141416),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20), // Matched
               border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
             ),
             child: Center(
@@ -803,7 +846,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF141416),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(20), // Matched
                     border: Border.all(
                       color: Colors.white.withValues(alpha: 0.04),
                     ),
@@ -955,6 +998,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.0,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 24),
 
@@ -1072,51 +1117,243 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     );
   }
 
+  // --- GORGEOUS CUSTOM DELETE DIALOG ---
   void _showDeleteConfirmation(BuildContext context, String memberName) {
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF141416),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          "Remove Member?",
-          style: GoogleFonts.inter(color: Colors.white),
-        ),
-        content: Text(
-          "This will remove $memberName from the team and archive all payment history.",
-          style: GoogleFonts.inter(color: Colors.white54),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(
-              "CANCEL",
-              style: GoogleFonts.inter(color: Colors.white),
+      barrierColor: Colors.black.withValues(alpha: 0.8), // Darken backdrop
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141416), // Match theme
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              try {
-                await FirebaseFirestore.instance
-                    .collection('members')
-                    .doc(widget.memberId)
-                    .delete();
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icon & Title
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF453A).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Color(0xFFFF453A),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        "Remove Member?",
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // Warning Text
+                Text(
+                  "This will permanently remove $memberName from the team and archive all associated payment history.",
+                  style: GoogleFonts.inter(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                // Action Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(dialogContext),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "Cancel",
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          Navigator.pop(dialogContext);
+                          try {
+                            await FirebaseFirestore.instance
+                                .collection('members')
+                                .doc(widget.memberId)
+                                .delete();
 
-                if (context.mounted) {
-                  Navigator.pop(context);
-                }
-              } catch (e) {
-                debugPrint("Failed to delete member: $e");
-              }
-            },
-            child: Text(
-              "REMOVE",
-              style: GoogleFonts.inter(color: const Color(0xFFFF453A)),
+                            if (context.mounted) {
+                              Navigator.pop(context); // Go back to team detail
+                            }
+                          } catch (e) {
+                            debugPrint("Failed to delete member: $e");
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF453A),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "Remove",
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
+  }
+
+  // Build member avatar with Telegram photo support
+  Widget _buildMemberAvatar(
+    String name,
+    double size,
+    String avatarUrl,
+    String? telegramFileId,
+  ) {
+    // Check if it's a Telegram photo
+    if (telegramFileId != null && telegramFileId.isNotEmpty) {
+      return FutureBuilder<String>(
+        future: getTelegramImageUrl(telegramFileId),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            // Show loading indicator while fetching Telegram photo
+            return Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: const Color(0xFF141416),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: Center(
+                child: SizedBox(
+                  width: size * 0.3,
+                  height: size * 0.3,
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white38,
+                  ),
+                ),
+              ),
+            );
+          } else if (snapshot.hasError || !snapshot.hasData) {
+            // Fallback to generated avatar on error
+            return AvatarWidget(
+              name: name,
+              size: size,
+              imageUrl: null,
+              fontSize: size * 0.4,
+            );
+          } else {
+            // Show Telegram photo
+            return AvatarWidget(
+              name: name,
+              size: size,
+              imageUrl: snapshot.data!,
+              fontSize: size * 0.4,
+            );
+          }
+        },
+      );
+    } else {
+      // Handle regular avatar URL
+      return AvatarWidget(
+        name: name,
+        size: size,
+        imageUrl: avatarUrl.isNotEmpty && !avatarUrl.contains('ui-avatars.com')
+            ? avatarUrl
+            : null,
+        fontSize: size * 0.4,
+      );
+    }
+  }
+
+  // Telegram photo fetching methods with caching
+  Future<String> getTelegramImageUrl(String fileId) async {
+    // Check cache first
+    if (_telegramPhotoCache.containsKey(fileId)) {
+      return _telegramPhotoCache[fileId]!;
+    }
+
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      final res = await http.get(
+        Uri.parse(
+          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
+        ),
+      );
+
+      final data = jsonDecode(res.body);
+      final path = data['result']['file_path'];
+      final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
+
+      // Cache the result
+      _telegramPhotoCache[fileId] = imageUrl;
+
+      return imageUrl;
+    } catch (e) {
+      debugPrint('Error getting Telegram image URL: $e');
+      rethrow;
+    }
   }
 }

@@ -292,7 +292,8 @@ class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
   Color _getStatusColor() {
     switch (widget.type) {
       case ErrorType.success:
-        return Colors.greenAccent;
+        return Colors
+            .redAccent; // RED for success (positive actions like delete)
       case ErrorType.warning:
         return Colors.orangeAccent;
       case ErrorType.info:
@@ -302,7 +303,7 @@ class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
       case ErrorType.authentication:
       case ErrorType.server:
       case ErrorType.general:
-        return Colors.redAccent;
+        return Colors.greenAccent; // GREEN for errors (negative things)
     }
   }
 }

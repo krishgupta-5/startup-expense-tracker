@@ -4,8 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/features/team/screens/create_team_screen.dart';
+import 'package:startup_expense_tracker/features/team/screens/member_detail_screen.dart';
 import 'team_detail_screen.dart';
 import '../../../widgets/avatar_widget.dart';
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class TeamScreen extends StatefulWidget {
   const TeamScreen({super.key});
@@ -14,7 +20,7 @@ class TeamScreen extends StatefulWidget {
   State<TeamScreen> createState() => _TeamScreenState();
 }
 
-class _TeamScreenState extends State<TeamScreen> {
+class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   // 1. Search State
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
@@ -23,6 +29,55 @@ class _TeamScreenState extends State<TeamScreen> {
   // 2. Filter State (Defaults)
   String _selectedSortOption = "Name";
   String _selectedOrder = "A-Z"; // Default order
+
+  // Refresh state
+  bool _needsRefresh = false;
+  String _userCountryCode = '+1'; // Default to USD
+  bool _isLoadingCountry = false; // Start as false since we use sync method
+
+  // Cache for Telegram photos to avoid repeated fetching
+  static final Map<String, String> _telegramPhotoCache = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen for app lifecycle changes to refresh when returning to foreground
+    WidgetsBinding.instance.addObserver(this);
+    // Get country code synchronously for instant display
+    _userCountryCode = UserCountryService.getUserCountryCodeSync();
+    // Load in background for more accurate result
+    _loadUserCountryCode();
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final countryCode = await UserCountryService.getUserCountryCode();
+    if (mounted && countryCode != _userCountryCode) {
+      setState(() {
+        _userCountryCode = countryCode;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _needsRefresh) {
+      setState(() {
+        _needsRefresh = false;
+      });
+    }
+  }
+
+  // Method to trigger refresh
+  void _refreshData() {
+    setState(() {});
+  }
 
   // Reconstruct Icon from Font Family & Code Point saved in Firebase
   IconData _getIconFromData(Map<String, dynamic> data) {
@@ -74,31 +129,25 @@ class _TeamScreenState extends State<TeamScreen> {
     }
   }
 
-  // 3. Local Filter Logic for Firebase Docs
-  Future<List<Map<String, dynamic>>> _getAllTeams() async {
+  // Stream for real-time team updates
+  Stream<List<Map<String, dynamic>>> _getTeamsStream() {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return [];
+    if (user == null) return Stream.value([]);
 
-    try {
-      // Fetch teams from teams collection (single source of truth)
-      final teamsSnapshot = await FirebaseFirestore.instance
-          .collection('teams')
-          .where('uid', isEqualTo: user.uid)
-          .get();
+    return FirebaseFirestore.instance
+        .collection('teams')
+        .where('uid', isEqualTo: user.uid)
+        .snapshots()
+        .map((snapshot) {
+          List<Map<String, dynamic>> allTeams = [];
 
-      List<Map<String, dynamic>> allTeams = [];
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            allTeams.add({...data, 'id': doc.id, 'source': 'teams_collection'});
+          }
 
-      // Add teams from teams collection
-      for (var doc in teamsSnapshot.docs) {
-        final data = doc.data();
-        allTeams.add({...data, 'id': doc.id, 'source': 'teams_collection'});
-      }
-
-      return allTeams;
-    } catch (e) {
-      debugPrint("Error fetching teams: $e");
-      return [];
-    }
+          return allTeams;
+        });
   }
 
   Future<List<Map<String, dynamic>>> _filterAndSortTeams(
@@ -191,27 +240,38 @@ class _TeamScreenState extends State<TeamScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: Colors.black, // Dark background
-        // --- NEW TEAM BUTTON ---
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const CreateTeamScreen()),
-            );
-          },
-          backgroundColor: const Color(0xFF0A84FF),
-          elevation: 4,
-          icon: const Icon(Icons.add, color: Colors.white, size: 20),
-          label: Text(
-            "New Team",
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
+        backgroundColor: const Color(0xFF09090B), // Themed Dark background
+        // --- NEW TEAM BUTTON (Hidden during search) ---
+        floatingActionButton: _isSearching
+            ? null // Hide the FAB completely when searching
+            : FloatingActionButton.extended(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CreateTeamScreen(),
+                    ),
+                  ).then((_) {
+                    // Refresh data when returning from create team screen
+                    _refreshData();
+                  });
+                },
+                backgroundColor:
+                    Colors.white, // Match other main action buttons
+                foregroundColor: Colors.black,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                icon: const Icon(Icons.add, size: 20),
+                label: Text(
+                  "New Team",
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
 
         body: SafeArea(
           bottom: false,
@@ -262,8 +322,8 @@ class _TeamScreenState extends State<TeamScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return _buildEmptyState("Please log in.");
 
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _getAllTeams(),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _getTeamsStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -376,33 +436,33 @@ class _TeamScreenState extends State<TeamScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF0A84FF) : const Color(0xFF141416),
+          color: isSelected ? Colors.white : const Color(0xFF141416),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFF0A84FF)
-                : Colors.white.withValues(alpha: 0.08),
+                ? Colors.white
+                : Colors.white.withValues(alpha: 0.04),
           ),
         ),
         child: Row(
           children: [
             Icon(
               icon,
-              color: isSelected ? Colors.white : Colors.white54,
+              color: isSelected ? Colors.black : Colors.white54,
               size: 16,
             ),
             const SizedBox(width: 8),
             Text(
               label,
               style: GoogleFonts.inter(
-                color: isSelected ? Colors.white : Colors.white70,
+                color: isSelected ? Colors.black : Colors.white70,
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
             if (isSelected) ...[
               const SizedBox(width: 6),
-              Icon(arrowIcon, color: Colors.white, size: 14),
+              Icon(arrowIcon, color: Colors.black, size: 14),
             ],
           ],
         ),
@@ -457,7 +517,7 @@ class _TeamScreenState extends State<TeamScreen> {
               width: 44,
               decoration: BoxDecoration(
                 color: const Color(0xFF141416),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
               ),
               child: const Icon(Icons.search, color: Colors.white, size: 20),
@@ -470,12 +530,12 @@ class _TeamScreenState extends State<TeamScreen> {
 
   Widget _buildActiveSearchBar() {
     return Container(
-      height: 50,
+      height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
       child: Row(
         children: [
@@ -485,10 +545,14 @@ class _TeamScreenState extends State<TeamScreen> {
             child: TextField(
               controller: _searchController,
               autofocus: true,
-              style: GoogleFonts.inter(color: Colors.white),
+              style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+              cursorColor: Colors.white,
               decoration: InputDecoration(
                 hintText: "Search teams...",
-                hintStyle: GoogleFonts.inter(color: Colors.white24),
+                hintStyle: GoogleFonts.inter(
+                  color: Colors.white24,
+                  fontSize: 15,
+                ),
                 border: InputBorder.none,
                 isDense: true,
               ),
@@ -533,7 +597,9 @@ class _TeamScreenState extends State<TeamScreen> {
 
     final name = teamData['teamName'] ?? 'Unnamed Team';
     final rawCost = teamData['monthlyBudget'] ?? 0.0;
-    final cost = "₹${rawCost.toStringAsFixed(2)}";
+    final cost = _isLoadingCountry
+        ? CurrencyFormatter.formatByCountry(rawCost, '+1')
+        : CurrencyFormatter.formatByCountry(rawCost, _userCountryCode);
     final color = _getColorFromName(teamData['color'] ?? 'blue');
     final icon = _getIconFromData(teamData);
     final teamId = teamData['id'] as String;
@@ -549,7 +615,10 @@ class _TeamScreenState extends State<TeamScreen> {
               builder: (context) =>
                   TeamDetailScreen(teamId: teamId, initialTeamData: teamData),
             ),
-          );
+          ).then((_) {
+            // Refresh data when returning from team detail screen
+            _refreshData();
+          });
         },
         child: Container(
           padding: const EdgeInsets.all(20),
@@ -713,53 +782,153 @@ class _TeamScreenState extends State<TeamScreen> {
 
         final List<String> avatars = [];
         final List<String> names = [];
+        final List<String> memberIds = [];
 
         for (var memberDoc in membersDocs) {
           final memberData = memberDoc.data() as Map<String, dynamic>;
           final String name = memberData['fullName'] ?? 'Unnamed';
           final String? avatarUrl = memberData['avatarUrl'];
+          final String? telegramFileId = memberData['telegramFileId'];
 
           names.add(name);
-          if (avatarUrl != null && avatarUrl.isNotEmpty) {
+          memberIds.add(memberDoc.id);
+
+          // Check for Telegram photo first, then regular avatar
+          if (telegramFileId != null && telegramFileId.isNotEmpty) {
+            avatars.add('telegram:$telegramFileId'); // Mark as Telegram photo
+          } else if (avatarUrl != null &&
+              avatarUrl.isNotEmpty &&
+              !avatarUrl.startsWith('http') &&
+              !avatarUrl.contains('ui-avatars.com')) {
+            // Backward compatibility: avatarUrl might contain Telegram file ID
+            avatars.add('telegram:$avatarUrl');
+          } else if (avatarUrl != null && avatarUrl.isNotEmpty) {
             avatars.add(avatarUrl);
           } else {
             avatars.add(''); // Empty string for generated avatar
           }
         }
 
-        return _buildAvatarWidget(names, avatars);
+        return _buildAvatarWidget(names, avatars, memberIds);
       },
     );
   }
 
-  Widget _buildAvatarWidget(List<String> names, List<String> avatars) {
+  Widget _buildAvatarWidget(
+    List<String> names,
+    List<String> avatars,
+    List<String> memberIds,
+  ) {
     if (names.isEmpty) {
       return Text(
-        "No members",
+        "No members yet",
         style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
       );
     }
 
     return SizedBox(
-      height: 24,
+      height: 28, // Adjusted height
       width: 100, // Fixed width to allow stacking
       child: Stack(
         children: List.generate((names.length > 3 ? 3 : names.length), (index) {
           return Positioned(
-            left: index * 18.0, // Overlap amount
-            child: AvatarWidget(
-              name: names[index],
-              size: 24,
-              imageUrl:
-                  avatars.length > index &&
-                      avatars[index].isNotEmpty &&
-                      !avatars[index].contains('ui-avatars.com')
-                  ? avatars[index]
-                  : null,
-              fontSize: 8.0,
+            left: index * 20.0, // Adjusted overlap amount
+            child: _buildMemberAvatar(
+              names[index],
+              avatars[index],
+              memberIds[index],
             ),
           );
         }),
+      ),
+    );
+  }
+
+  Widget _buildMemberAvatar(String name, String avatarUrl, String? memberId) {
+    // Make avatar clickable to show member profile
+    return GestureDetector(
+      onTap: () {
+        if (memberId != null) {
+          _showMemberProfile(memberId);
+        }
+      },
+      child: _buildMemberAvatarWithTelegram(name, 28, avatarUrl),
+    );
+  }
+
+  // Build member avatar with Telegram photo support
+  Widget _buildMemberAvatarWithTelegram(
+    String name,
+    double size,
+    String avatarUrl,
+  ) {
+    // Check if it's a Telegram photo
+    if (avatarUrl.startsWith('telegram:')) {
+      final telegramFileId = avatarUrl.substring(
+        9,
+      ); // Remove 'telegram:' prefix
+      return FutureBuilder<String>(
+        future: getTelegramImageUrl(telegramFileId),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            // Show loading indicator while fetching Telegram photo
+            return Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: const Color(0xFF141416),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: Center(
+                child: SizedBox(
+                  width: size * 0.3,
+                  height: size * 0.3,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white38,
+                  ),
+                ),
+              ),
+            );
+          } else if (snapshot.hasError || !snapshot.hasData) {
+            // Fallback to generated avatar on error
+            return AvatarWidget(
+              name: name,
+              size: size,
+              imageUrl: null,
+              fontSize: size * 0.4,
+            );
+          } else {
+            // Show Telegram photo
+            return AvatarWidget(
+              name: name,
+              size: size,
+              imageUrl: snapshot.data!,
+              fontSize: size * 0.4,
+            );
+          }
+        },
+      );
+    } else {
+      // Handle regular avatar URL
+      return AvatarWidget(
+        name: name,
+        size: size,
+        imageUrl: avatarUrl.isNotEmpty && !avatarUrl.contains('ui-avatars.com')
+            ? avatarUrl
+            : null,
+        fontSize: size * 0.4,
+      );
+    }
+  }
+
+  void _showMemberProfile(String memberId) {
+    // Navigate to member detail screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MemberDetailScreen(memberId: memberId),
       ),
     );
   }
@@ -770,7 +939,11 @@ class _TeamScreenState extends State<TeamScreen> {
         padding: const EdgeInsets.only(top: 40),
         child: Column(
           children: [
-            const Icon(Icons.search_off, color: Colors.white12, size: 48),
+            const Icon(
+              Icons.group_off_outlined,
+              color: Colors.white12,
+              size: 48,
+            ), // Updated Icon
             const SizedBox(height: 16),
             Text(
               message,
@@ -780,5 +953,71 @@ class _TeamScreenState extends State<TeamScreen> {
         ),
       ),
     );
+  }
+
+  // Telegram photo fetching methods with caching
+  Future<String> getTelegramImageUrl(String fileId) async {
+    // Check cache first
+    if (_telegramPhotoCache.containsKey(fileId)) {
+      return _telegramPhotoCache[fileId]!;
+    }
+
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      final res = await http.get(
+        Uri.parse(
+          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
+        ),
+      );
+
+      final data = jsonDecode(res.body);
+      final path = data['result']['file_path'];
+      final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
+
+      // Cache the result
+      _telegramPhotoCache[fileId] = imageUrl;
+
+      return imageUrl;
+    } catch (e) {
+      debugPrint('Error getting Telegram image URL: $e');
+      rethrow;
+    }
+  }
+
+  Future<String?> getTelegramFileId(String telegramFileId) async {
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      final uri = Uri.parse("https://api.telegram.org/bot$botToken/sendPhoto");
+
+      var request = http.MultipartRequest('POST', uri);
+      request.fields['chat_id'] = '-1003885930746';
+      request.files.add(
+        await http.MultipartFile.fromPath('photo', telegramFileId),
+      );
+
+      var response = await request.send();
+      var responseData = await response.stream.bytesToString();
+      var data = jsonDecode(responseData);
+
+      if (data['ok']) {
+        // Take highest quality image
+        return data['result']['photo'].last['file_id'];
+      } else {
+        throw Exception("Upload failed: ${response.statusCode}");
+      }
+    } catch (e) {
+      debugPrint('Error uploading to Telegram: $e');
+      return null;
+    }
   }
 }

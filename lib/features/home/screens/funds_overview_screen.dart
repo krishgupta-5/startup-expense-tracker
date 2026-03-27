@@ -7,6 +7,8 @@ import 'dart:developer';
 import 'add_bank_account_screen.dart';
 import '../../expenses/screens/expense_details_screen.dart';
 import '../../../services/financial_calculator.dart';
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
 
 class FundsOverviewScreen extends StatefulWidget {
   const FundsOverviewScreen({super.key});
@@ -29,10 +31,26 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   List<Map<String, dynamic>> bankAccounts = [];
   List<Map<String, dynamic>> cashFlowBreakdown = [];
 
+  String _userCountryCode = '+1'; // Default to USD
+  bool _isLoadingCountry = false; // Start as false since we use sync method
+
   @override
   void initState() {
     super.initState();
+    // Get country code synchronously for instant display
+    _userCountryCode = UserCountryService.getUserCountryCodeSync();
+    // Load in background for more accurate result
+    _loadUserCountryCode();
     _loadAllData();
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final countryCode = await UserCountryService.getUserCountryCode();
+    if (mounted && countryCode != _userCountryCode) {
+      setState(() {
+        _userCountryCode = countryCode;
+      });
+    }
   }
 
   Future<void> _loadAllData() async {
@@ -324,8 +342,12 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                 (match) => '${match[1]},',
               );
 
-          availableFunds = "₹ $formattedAvailable";
-          expense = "₹ $formattedExpense";
+          availableFunds = _isLoadingCountry
+              ? "₹ $formattedAvailable"
+              : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} $formattedAvailable";
+          expense = _isLoadingCountry
+              ? "₹ $formattedExpense"
+              : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} $formattedExpense";
           lastUpdated = "Today";
         } else {
           errorMessage = "No funding data found";
@@ -519,7 +541,12 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           const SizedBox(height: 32),
 
           Text(
-            isLoading ? "--" : (expense ?? "₹0"),
+            isLoading
+                ? "--"
+                : (expense ??
+                      (_isLoadingCountry
+                          ? "₹0"
+                          : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0")),
             style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 40,
@@ -554,7 +581,9 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                       ? "--"
                       : (availableFunds != null
                             ? "$availableFunds (${(fundingAmount! > 0 ? (available! / fundingAmount!) * 100 : 0).toStringAsFixed(0)}% of total)"
-                            : "₹0"),
+                            : (_isLoadingCountry
+                                  ? "₹0"
+                                  : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0")),
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 18,
@@ -625,8 +654,9 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     final isActive =
         item['status'] == 'active' || item['status'] == 'completed';
     // Format large numbers
-    String formattedAmount =
-        "+₹${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}";
+    String formattedAmount = _isLoadingCountry
+        ? "+₹${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+        : "+${CurrencyFormatter.formatByCountry(amount.toDouble(), _userCountryCode)}";
 
     return Row(
       children: [
@@ -791,10 +821,14 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     );
 
     if (isNegative) {
-      formattedAmount = '-₹$cleanAmount';
+      formattedAmount = _isLoadingCountry
+          ? '-₹$cleanAmount'
+          : '-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount';
       amountColor = const Color(0xFFFF453A);
     } else {
-      formattedAmount = '+₹$cleanAmount';
+      formattedAmount = _isLoadingCountry
+          ? '+₹$cleanAmount'
+          : '+${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount';
       amountColor = isActive ? const Color(0xFF30D158) : Colors.white;
     }
 
@@ -925,7 +959,9 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                           ),
                         ),
                         Text(
-                          "-₹$formattedOutflow",
+                          _isLoadingCountry
+                              ? "-₹$formattedOutflow"
+                              : "-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$formattedOutflow",
                           style: GoogleFonts.inter(
                             color: const Color(0xFFFF453A),
                             fontSize: 16,
@@ -949,7 +985,11 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (match) => '${match[1]},',
     );
-    final formattedAmount = isPositive ? "+₹$cleanAmount" : "-₹$cleanAmount";
+    final formattedAmount = _isLoadingCountry
+        ? (isPositive ? "+₹$cleanAmount" : "-₹$cleanAmount")
+        : (isPositive
+              ? "+${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount"
+              : "-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount");
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -1111,7 +1151,13 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
           (match) => '${match[1]},',
         );
-    final formattedAmount = totalSpent > 0 ? '-₹$cleanSpent' : '₹0';
+    final formattedAmount = totalSpent > 0
+        ? (_isLoadingCountry
+              ? '-₹$cleanSpent'
+              : '-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanSpent')
+        : (_isLoadingCountry
+              ? '₹0'
+              : '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0');
 
     return Row(
       children: [

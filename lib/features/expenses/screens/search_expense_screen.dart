@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'expense_details_screen.dart';
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
 
 class SearchExpenseScreen extends StatefulWidget {
   const SearchExpenseScreen({super.key});
@@ -17,6 +19,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
   // 1. CONTROLLERS
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
+  String _userCountryCode = '+1'; // Default to USD
+  bool _isLoadingCountry = true;
 
   // 2. FILTER STATE
   late String _selectedYear;
@@ -59,6 +63,17 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
   void initState() {
     super.initState();
     _selectedYear = DateTime.now().year.toString();
+    _loadUserCountryCode();
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final countryCode = await UserCountryService.getUserCountryCode();
+    if (mounted) {
+      setState(() {
+        _userCountryCode = countryCode;
+        _isLoadingCountry = false;
+      });
+    }
   }
 
   @override
@@ -579,7 +594,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               ),
             ),
             Text(
-              "-₹$amount",
+              "-${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$amount",
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 15,

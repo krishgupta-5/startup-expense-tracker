@@ -11,6 +11,8 @@ import 'package:permission_handler/permission_handler.dart';
 
 import 'add_expense_screen.dart';
 import '../../../services/api_service.dart';
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
 
 class ScanExpenseScreen extends StatefulWidget {
   const ScanExpenseScreen({super.key});
@@ -329,7 +331,9 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
       lines.add('🏪  ${data['merchant']}');
     }
     if (data['amount']?.isNotEmpty == true) {
-      lines.add('  ₹${data['amount']}');
+      lines.add(
+        '  ${CurrencyFormatter.getCurrencySymbol('+1')}${data['amount']}',
+      );
     }
     if (data['date']?.isNotEmpty == true) {
       lines.add('📅  ${data['date']}');

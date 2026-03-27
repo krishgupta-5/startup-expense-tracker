@@ -5,12 +5,17 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:startup_expense_tracker/features/auth/auth_wrapper.dart';
 import 'package:startup_expense_tracker/firebase_options.dart';
+import 'package:startup_expense_tracker/services/user_country_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
   await dotenv.load(fileName: ".env.local");
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Initialize country code cache early for instant currency display
+  UserCountryService.initializeCache();
+
   runApp(const FinancialDashboardApp());
 }
 

@@ -9,6 +9,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../utils/data_helpers.dart';
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
 
 class ReportExpenseScreen extends StatefulWidget {
   const ReportExpenseScreen({super.key});
@@ -38,7 +40,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
   }
 
   String _formatCurrency(double amount) {
-    return "₹${amount.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}";
+    return CurrencyFormatter.formatByCountry(amount, '+1');
   }
 
   String _formatDate(DateTime date) {
@@ -312,7 +314,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
         String displayCat = e.key.isEmpty ? "OTHER" : e.key.toUpperCase();
         return [
           displayCat,
-          "INR ${e.value.toStringAsFixed(2)}",
+          "${CurrencyFormatter.getCurrencySymbol('+1')} ${e.value.toStringAsFixed(2)}",
           "${(pct * 100).toStringAsFixed(1)}%",
         ];
       }).toList();
@@ -320,7 +322,12 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
       // Prepare Trend Table Data (Filter out 0 values to keep it clean)
       final List<List<String>> trendTableData = trendData.entries
           .where((e) => e.value > 0)
-          .map((e) => [e.key, "INR ${e.value.toStringAsFixed(2)}"])
+          .map(
+            (e) => [
+              e.key,
+              "${CurrencyFormatter.getCurrencySymbol('+1')} ${e.value.toStringAsFixed(2)}",
+            ],
+          )
           .toList();
 
       // Prepare Transactions Table Data
@@ -330,7 +337,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
           data['Title'].toString(),
           data['Category'].toString().toUpperCase(),
           // ✅ FIX: Use DataHelpers instead of manual casting
-          "INR ${DataHelpers.safeParseDouble(data['Amount']).toStringAsFixed(2)}",
+          "${CurrencyFormatter.getCurrencySymbol('+1')} ${DataHelpers.safeParseDouble(data['Amount']).toStringAsFixed(2)}",
         ];
       }).toList();
 
@@ -391,7 +398,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                         ),
                         pw.SizedBox(height: 4),
                         pw.Text(
-                          "INR ${totalAmount.toStringAsFixed(2)}",
+                          "${CurrencyFormatter.getCurrencySymbol('+1')} ${totalAmount.toStringAsFixed(2)}",
                           style: pw.TextStyle(
                             fontSize: 18,
                             fontWeight: pw.FontWeight.bold,

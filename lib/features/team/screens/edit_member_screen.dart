@@ -3,6 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'dart:io';
+import '../../../widgets/avatar_widget.dart';
 
 class EditMemberScreen extends StatefulWidget {
   final String memberId;
@@ -28,6 +35,13 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
 
   Map<String, String> _teams = {};
   String? _selectedTeamId;
+
+  // Telegram photo variables
+  String? _telegramFileId;
+  String? _fileName;
+
+  // Cache for Telegram photos to avoid repeated fetching
+  static final Map<String, String> _telegramPhotoCache = {};
 
   final Map<String, String> _statuses = {
     'Active': 'Active',
@@ -55,6 +69,10 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
 
     _status = widget.memberData['status'] ?? "Active";
     _selectedTeamId = widget.memberData['teamId'];
+
+    // Initialize Telegram file ID from member data
+    _telegramFileId =
+        widget.memberData['telegramFileId'] ?? widget.memberData['avatarUrl'];
 
     if (widget.memberData['joiningDate'] != null &&
         widget.memberData['joiningDate'] is Timestamp) {
@@ -144,17 +162,26 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
     setState(() => _isLoading = true);
 
     try {
+      final Map<String, dynamic> updateData = {
+        "fullName": _nameController.text.trim(),
+        "jobTitle": _roleController.text.trim(),
+        "email": _emailController.text.trim(),
+        "teamId": _selectedTeamId,
+        "status": _status,
+        "joiningDate": _joiningDate,
+      };
+
+      // Update Telegram file ID if image was changed
+      if (_telegramFileId != null &&
+          _telegramFileId != widget.memberData['telegramFileId']) {
+        updateData["avatarUrl"] = _telegramFileId;
+        updateData["telegramFileId"] = _telegramFileId;
+      }
+
       await FirebaseFirestore.instance
           .collection('members')
           .doc(widget.memberId)
-          .update({
-            "fullName": _nameController.text.trim(),
-            "jobTitle": _roleController.text.trim(),
-            "email": _emailController.text.trim(),
-            "teamId": _selectedTeamId,
-            "status": _status,
-            "joiningDate": _joiningDate,
-          });
+          .update(updateData);
 
       if (mounted) {
         Navigator.pop(context);
@@ -190,10 +217,18 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Generate dynamic avatar
-    final String avatarUrl =
-        widget.memberData['avatarUrl'] ??
-        "https://ui-avatars.com/api/?name=${Uri.encodeComponent(_nameController.text)}&background=random&color=fff";
+    // Check for Telegram photo first, then regular avatar
+    final String? telegramFileId = widget.memberData['telegramFileId'];
+    final String? avatarUrl = widget.memberData['avatarUrl'];
+
+    // Determine if avatarUrl contains a Telegram file ID (for backward compatibility)
+    final String? telegramFileIdFromAvatar =
+        (avatarUrl != null &&
+            avatarUrl.isNotEmpty &&
+            !avatarUrl.startsWith('http') &&
+            !avatarUrl.contains('ui-avatars.com'))
+        ? avatarUrl
+        : null;
 
     return Scaffold(
       backgroundColor: const Color(0xFF09090B),
@@ -241,30 +276,26 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            // Avatar Edit (Static for now)
+            // Avatar Edit with Telegram photo support
             Stack(
               alignment: Alignment.center,
               children: [
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    image: DecorationImage(
-                      image: NetworkImage(avatarUrl),
-                      fit: BoxFit.cover,
-                    ),
-                    border: Border.all(color: Colors.white12),
-                  ),
+                _buildMemberAvatar(
+                  _nameController.text,
+                  100,
+                  _telegramFileId ?? telegramFileId ?? telegramFileIdFromAvatar,
                 ),
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.black.withValues(alpha: 0.5),
+                GestureDetector(
+                  onTap: _showImagePicker,
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withValues(alpha: 0.5),
+                    ),
+                    child: const Icon(Icons.camera_alt, color: Colors.white),
                   ),
-                  child: const Icon(Icons.camera_alt, color: Colors.white),
                 ),
               ],
             ),
@@ -509,5 +540,307 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
         );
       },
     );
+  }
+
+  // Build member avatar with Telegram photo support
+  Widget _buildMemberAvatar(String name, double size, String? telegramFileId) {
+    // Check if it's a Telegram photo
+    if (telegramFileId != null && telegramFileId.isNotEmpty) {
+      return FutureBuilder<String>(
+        future: getTelegramImageUrl(telegramFileId),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            // Show loading indicator while fetching Telegram photo
+            return Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: const Color(0xFF141416),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: Center(
+                child: SizedBox(
+                  width: size * 0.3,
+                  height: size * 0.3,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white38,
+                  ),
+                ),
+              ),
+            );
+          } else if (snapshot.hasError || !snapshot.hasData) {
+            // Fallback to generated avatar on error
+            return AvatarWidget(
+              name: name,
+              size: size,
+              imageUrl: null,
+              fontSize: size * 0.4,
+            );
+          } else {
+            // Show Telegram photo
+            return AvatarWidget(
+              name: name,
+              size: size,
+              imageUrl: snapshot.data!,
+              fontSize: size * 0.4,
+            );
+          }
+        },
+      );
+    } else {
+      // Fallback to generated avatar
+      return AvatarWidget(
+        name: name,
+        size: size,
+        imageUrl: null,
+        fontSize: size * 0.4,
+      );
+    }
+  }
+
+  // Telegram photo fetching methods with caching
+  Future<String> getTelegramImageUrl(String fileId) async {
+    // Check cache first
+    if (_telegramPhotoCache.containsKey(fileId)) {
+      return _telegramPhotoCache[fileId]!;
+    }
+
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      final res = await http.get(
+        Uri.parse(
+          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
+        ),
+      );
+
+      final data = jsonDecode(res.body);
+      final path = data['result']['file_path'];
+      final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
+
+      // Cache the result
+      _telegramPhotoCache[fileId] = imageUrl;
+
+      return imageUrl;
+    } catch (e) {
+      debugPrint('Error getting Telegram image URL: $e');
+      rethrow;
+    }
+  }
+
+  // --- IMAGE UPLOAD METHODS ---
+  Future<void> _showImagePicker() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF141416),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => _buildImagePickerSheet(),
+    );
+  }
+
+  Widget _buildImagePickerSheet() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white12,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              "Update Photo",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildImagePickerOption(
+                  Icons.camera_alt,
+                  "Camera",
+                  () => _pickImage(ImageSource.camera),
+                ),
+                _buildImagePickerOption(
+                  Icons.photo_library,
+                  "Gallery",
+                  () => _pickImage(ImageSource.gallery),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImagePickerOption(
+    IconData icon,
+    String label,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pop(context);
+        onTap();
+      },
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: const Color(0xFF09090B),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Icon(icon, color: Colors.white, size: 28),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              color: Colors.white38,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        imageQuality: 90,
+        maxWidth: 800,
+        maxHeight: 800,
+      );
+
+      if (image != null) {
+        final File? croppedFile = await _cropImage(File(image.path));
+        if (croppedFile != null) {
+          await _uploadImageToTelegram(croppedFile);
+        }
+      }
+    } catch (e) {
+      debugPrint("Error picking image: $e");
+      _showErrorSnackBar("Failed to pick image");
+    }
+  }
+
+  Future<File?> _cropImage(File sourceFile) async {
+    try {
+      final CroppedFile? croppedFile = await ImageCropper().cropImage(
+        sourcePath: sourceFile.path,
+        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 80,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Crop Photo',
+            toolbarColor: const Color(0xFF141416),
+            toolbarWidgetColor: Colors.white,
+            backgroundColor: const Color(0xFF09090B),
+            activeControlsWidgetColor: Colors.white,
+            lockAspectRatio: true,
+          ),
+          IOSUiSettings(
+            title: 'Crop Photo',
+            aspectRatioLockEnabled: true,
+            minimumAspectRatio: 1.0,
+          ),
+        ],
+      );
+      return croppedFile != null ? File(croppedFile.path) : null;
+    } catch (e) {
+      debugPrint("Error cropping image: $e");
+      return sourceFile;
+    }
+  }
+
+  Future<void> _uploadImageToTelegram(File imageFile) async {
+    try {
+      setState(() => _isLoading = true);
+      _fileName = imageFile.path.split('/').last;
+
+      final fileId = await uploadToTelegram(imageFile.path);
+
+      if (fileId == null) {
+        throw Exception('Failed to upload image to Telegram');
+      }
+
+      if (mounted) {
+        setState(() {
+          _telegramFileId = fileId;
+          _isLoading = false;
+        });
+        debugPrint("Image uploaded to Telegram successfully: $fileId");
+      }
+    } catch (e) {
+      debugPrint("Error uploading image to Telegram: $e");
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _fileName = null;
+        _showErrorSnackBar("Failed to upload image to Telegram");
+      }
+    }
+  }
+
+  Future<String?> uploadToTelegram(String filePath) async {
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      final uri = Uri.parse("https://api.telegram.org/bot$botToken/sendPhoto");
+
+      var request = http.MultipartRequest('POST', uri);
+      request.fields['chat_id'] = '-1003885930746';
+
+      request.files.add(await http.MultipartFile.fromPath('photo', filePath));
+
+      final response = await request.send();
+
+      if (response.statusCode == 200) {
+        final res = await http.Response.fromStream(response);
+        final data = jsonDecode(res.body);
+
+        // Take highest quality image
+        return data['result']['photo'].last['file_id'];
+      } else {
+        throw Exception("Upload failed: ${response.statusCode}");
+      }
+    } catch (e) {
+      debugPrint('Error uploading to Telegram: $e');
+      return null;
+    }
   }
 }

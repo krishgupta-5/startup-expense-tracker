@@ -5,6 +5,8 @@ import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../services/financial_data_service.dart';
 import '../../../services/financial_calculator.dart';
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
 
 class MonthlyBurnScreen extends StatefulWidget {
   const MonthlyBurnScreen({super.key});
@@ -16,16 +18,31 @@ class MonthlyBurnScreen extends StatefulWidget {
 class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _shimmerController;
+  String _userCountryCode = '+1'; // Default to USD
+  bool _isLoadingCountry = false; // Start as false since we use sync method
 
   @override
   void initState() {
     super.initState();
+    // Get country code synchronously for instant display
+    _userCountryCode = UserCountryService.getUserCountryCodeSync();
     _shimmerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
     _shimmerController.repeat();
+    // Load in background for more accurate result
+    _loadUserCountryCode();
     _loadFinancialData();
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final countryCode = await UserCountryService.getUserCountryCode();
+    if (mounted && countryCode != _userCountryCode) {
+      setState(() {
+        _userCountryCode = countryCode;
+      });
+    }
   }
 
   @override
@@ -397,8 +414,15 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 children: [
                   Text(
                     grossBurn > 0
-                        ? "₹${grossBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                        : "₹0",
+                        ? (_isLoadingCountry
+                              ? "₹${grossBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+                              : CurrencyFormatter.formatByCountry(
+                                  grossBurn,
+                                  _userCountryCode,
+                                ))
+                        : (_isLoadingCountry
+                              ? "₹0"
+                              : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
                     style: GoogleFonts.inter(
                       color: Colors.white,
                       fontSize: 32,
@@ -446,8 +470,15 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                     const SizedBox(height: 8),
                     Text(
                       netBurn > 0
-                          ? "₹${netBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                          : "₹0",
+                          ? (_isLoadingCountry
+                                ? "₹${netBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+                                : CurrencyFormatter.formatByCountry(
+                                    netBurn,
+                                    _userCountryCode,
+                                  ))
+                          : (_isLoadingCountry
+                                ? "₹0"
+                                : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
                       style: GoogleFonts.inter(
                         color: const Color(0xFFFF453A),
                         fontSize: 20,
@@ -656,7 +687,12 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                           padding: const EdgeInsets.only(bottom: 24),
                           child: _buildCategoryRow(
                             _capitalizeFirstLetter(entry.key),
-                            "₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
+                            _isLoadingCountry
+                                ? "₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+                                : CurrencyFormatter.formatByCountry(
+                                    amount,
+                                    _userCountryCode,
+                                  ),
                             percentage,
                             color,
                           ),
@@ -873,8 +909,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
   }
 
   String _formatCurrencyForForecast(double amount) {
-    final intAmount = amount.round();
-    return '₹${intAmount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}';
+    return _isLoadingCountry
+        ? '₹${amount.round().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}'
+        : CurrencyFormatter.formatByCountry(amount, _userCountryCode);
   }
 
   Widget _buildForecastComparisonSection() {

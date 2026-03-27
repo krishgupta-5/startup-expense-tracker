@@ -2,12 +2,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'edit_team_screen.dart';
 import 'add_member_screen.dart';
 // NOTE: Make sure member_detail_screen exists or comment out the navigation to it
 import 'member_detail_screen.dart';
 import '../../../widgets/avatar_widget.dart';
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
 
 class TeamDetailScreen extends StatefulWidget {
   final String teamId;
@@ -24,10 +29,54 @@ class TeamDetailScreen extends StatefulWidget {
 }
 
 class _TeamDetailScreenState extends State<TeamDetailScreen> {
+  String _userCountryCode = '+1'; // Default to USD
+
+  // Cache for Telegram photos to avoid repeated fetching
+  static final Map<String, String> _telegramPhotoCache = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // Get country code synchronously for instant display
+    _userCountryCode = UserCountryService.getUserCountryCodeSync();
+    // Load in background for more accurate result
+    _loadUserCountryCode();
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final countryCode = await UserCountryService.getUserCountryCode();
+    if (mounted && countryCode != _userCountryCode) {
+      setState(() {
+        _userCountryCode = countryCode;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      // --- THEMED FAB ---
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AddMemberScreen()),
+          );
+        },
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16), // Matches the 'New Team' FAB
+        ),
+        icon: const Icon(Icons.add, size: 20),
+        label: Text(
+          "Add Member",
+          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
+        ),
+      ),
+
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: SafeArea(
@@ -39,10 +88,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 .snapshots(),
             builder: (context, teamSnapshot) {
               if (teamSnapshot.hasError) {
-                return const Center(
+                return Center(
                   child: Text(
                     "Error loading team",
-                    style: TextStyle(color: Colors.white54),
+                    style: GoogleFonts.inter(color: Colors.white54),
                   ),
                 );
               }
@@ -76,6 +125,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                           return const Center(
                             child: CircularProgressIndicator(
                               color: Colors.white38,
+                              strokeWidth: 2,
                             ),
                           );
                         }
@@ -121,7 +171,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const SizedBox(height: 24),
+                              const SizedBox(height: 16),
 
                               // --- HERO STATS ---
                               _buildHeroStats(totalCost, isWithinBudget),
@@ -133,41 +183,17 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
+                                  _buildSectionTitle(
                                     "TEAM MEMBERS ($memberCount)",
-                                    style: GoogleFonts.inter(
-                                      color: Colors.white24,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.5,
-                                    ),
                                   ),
-                                  Text(
-                                    "SORT BY COST",
-                                    style: GoogleFonts.inter(
-                                      color: Colors.white24,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1.0,
-                                    ),
-                                  ),
+                                  _buildSectionTitle("SORT BY COST"),
                                 ],
                               ),
                               const SizedBox(height: 16),
 
                               // --- MEMBERS LIST ---
                               if (sortedMembers.isEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 32),
-                                  child: Center(
-                                    child: Text(
-                                      "No members in this team yet.",
-                                      style: GoogleFonts.inter(
-                                        color: Colors.white38,
-                                      ),
-                                    ),
-                                  ),
-                                )
+                                _buildEmptyState("No members in this team yet.")
                               else
                                 ListView.builder(
                                   shrinkWrap: true,
@@ -180,7 +206,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                   },
                                 ),
 
-                              const SizedBox(height: 80),
+                              const SizedBox(height: 100), // Padding for FAB
                             ],
                           ),
                         );
@@ -193,22 +219,6 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const AddMemberScreen()),
-          );
-        },
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        icon: const Icon(Icons.person_add_alt_1_rounded),
-        label: Text(
-          "Add Member",
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-        ),
-      ),
     );
   }
 
@@ -216,7 +226,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
   Widget _buildHeader(BuildContext context, String teamName) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -237,12 +247,17 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             ),
           ),
 
-          Text(
-            teamName,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+          Expanded(
+            child: Text(
+              teamName,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
 
@@ -278,13 +293,25 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: GoogleFonts.inter(
+        color: Colors.white24,
+        fontSize: 10,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.5,
+      ),
+    );
+  }
+
   Widget _buildHeroStats(double totalCost, bool isWithinBudget) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20), // Matched to TeamCard radius
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
       child: Column(
@@ -292,7 +319,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           Text(
             "TOTAL MONTHLY COST",
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: Colors.white24,
               fontSize: 10,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.5,
@@ -300,7 +327,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            "₹${totalCost.toStringAsFixed(2)}",
+            CurrencyFormatter.formatByCountry(totalCost, _userCountryCode),
             style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 42,
@@ -308,14 +335,19 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               letterSpacing: -1,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
               color: isWithinBudget
-                  ? const Color(0xFF0A84FF).withValues(alpha: 0.15)
-                  : const Color(0xFFFF453A).withValues(alpha: 0.15),
+                  ? const Color(0xFF0A84FF).withValues(alpha: 0.1)
+                  : const Color(0xFFFF453A).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isWithinBudget
+                    ? const Color(0xFF0A84FF).withValues(alpha: 0.2)
+                    : const Color(0xFFFF453A).withValues(alpha: 0.2),
+              ),
             ),
             child: Text(
               isWithinBudget ? "Within Budget" : "Over Budget",
@@ -340,16 +372,25 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     final String name = member['fullName'] ?? 'Unnamed Member';
     final String role = member['jobTitle'] ?? 'No Role';
     final double rawCost = (member['monthlyCost'] ?? 0.0) as double;
-    final String salary = "₹${rawCost.toStringAsFixed(0)}/mo";
+    final String salary =
+        "${CurrencyFormatter.formatByCountry(rawCost, _userCountryCode)}/mo";
 
     // Default status to Active if it doesn't exist
     final String status = member['status'] ?? 'Active';
     final bool isPaused = status == 'Paused';
 
-    // Generate an automatic avatar from initials since we skipped image upload
-    final String avatarUrl =
-        member['avatarUrl'] ??
-        "https://ui-avatars.com/api/?name=${Uri.encodeComponent(name)}&background=random&color=fff";
+    // Check for Telegram photo first, then regular avatar
+    final String? telegramFileId = member['telegramFileId'];
+    final String? avatarUrl = member['avatarUrl'];
+
+    // Determine if avatarUrl contains a Telegram file ID (for backward compatibility)
+    final String? telegramFileIdFromAvatar =
+        (avatarUrl != null &&
+            avatarUrl.isNotEmpty &&
+            !avatarUrl.startsWith('http') &&
+            !avatarUrl.contains('ui-avatars.com'))
+        ? avatarUrl
+        : null;
 
     return GestureDetector(
       onTap: () {
@@ -364,7 +405,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       child: Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20), // Matched padding to TeamCard
           decoration: BoxDecoration(
             color: const Color(0xFF141416),
             borderRadius: BorderRadius.circular(20),
@@ -375,21 +416,18 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               // Avatar
               Stack(
                 children: [
-                  AvatarWidget(
-                    name: name,
-                    size: 48,
-                    imageUrl:
-                        avatarUrl.isNotEmpty &&
-                            avatarUrl.contains('ui-avatars.com')
-                        ? null
-                        : avatarUrl,
+                  _buildMemberAvatar(
+                    name,
+                    48,
+                    avatarUrl ?? "",
+                    telegramFileId ?? telegramFileIdFromAvatar,
                   ),
                   Positioned(
                     bottom: 0,
                     right: 0,
                     child: Container(
-                      width: 12,
-                      height: 12,
+                      width: 14,
+                      height: 14,
                       decoration: BoxDecoration(
                         color: isPaused
                             ? const Color(0xFFFF9F0A)
@@ -397,7 +435,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: const Color(0xFF141416),
-                          width: 2,
+                          width: 2.5,
                         ),
                       ),
                     ),
@@ -415,7 +453,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                       name,
                       style: GoogleFonts.inter(
                         color: Colors.white,
-                        fontSize: 15,
+                        fontSize: 16, // Matched size to TeamCard title
                         fontWeight: FontWeight.w600,
                         decoration: isPaused
                             ? TextDecoration.lineThrough
@@ -452,18 +490,40 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.more_vert,
-                      color: Colors.white24,
-                      size: 20,
-                    ),
-                    onPressed: () =>
+                  GestureDetector(
+                    onTap: () =>
                         _showMemberOptions(context, memberId, name, isPaused),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      color: Colors.transparent, // Expands hit area
+                      child: const Icon(
+                        Icons.more_vert,
+                        color: Colors.white24,
+                        size: 20,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- EMPTY STATE (UPDATED: No Icon, Perfectly Centered on Full Screen) ---
+  Widget _buildEmptyState(String message) {
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.6,
+      child: const Center(
+        child: Text(
+          "No members in the team yet",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white38,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ),
@@ -594,5 +654,104 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         ),
       ),
     );
+  }
+
+  // Build member avatar with Telegram photo support
+  Widget _buildMemberAvatar(
+    String name,
+    double size,
+    String avatarUrl,
+    String? telegramFileId,
+  ) {
+    // Check if it's a Telegram photo
+    if (telegramFileId != null && telegramFileId.isNotEmpty) {
+      return FutureBuilder<String>(
+        future: getTelegramImageUrl(telegramFileId),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            // Show loading indicator while fetching Telegram photo
+            return Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: const Color(0xFF141416),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: Center(
+                child: SizedBox(
+                  width: size * 0.3,
+                  height: size * 0.3,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white38,
+                  ),
+                ),
+              ),
+            );
+          } else if (snapshot.hasError || !snapshot.hasData) {
+            // Fallback to generated avatar on error
+            return AvatarWidget(
+              name: name,
+              size: size,
+              imageUrl: null,
+              fontSize: size * 0.4,
+            );
+          } else {
+            // Show Telegram photo
+            return AvatarWidget(
+              name: name,
+              size: size,
+              imageUrl: snapshot.data!,
+              fontSize: size * 0.4,
+            );
+          }
+        },
+      );
+    } else {
+      // Handle regular avatar URL
+      return AvatarWidget(
+        name: name,
+        size: size,
+        imageUrl: avatarUrl.isNotEmpty && !avatarUrl.contains('ui-avatars.com')
+            ? avatarUrl
+            : null,
+        fontSize: size * 0.4,
+      );
+    }
+  }
+
+  // Telegram photo fetching methods with caching
+  Future<String> getTelegramImageUrl(String fileId) async {
+    // Check cache first
+    if (_telegramPhotoCache.containsKey(fileId)) {
+      return _telegramPhotoCache[fileId]!;
+    }
+
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      final res = await http.get(
+        Uri.parse(
+          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
+        ),
+      );
+
+      final data = jsonDecode(res.body);
+      final path = data['result']['file_path'];
+      final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
+
+      // Cache the result
+      _telegramPhotoCache[fileId] = imageUrl;
+
+      return imageUrl;
+    } catch (e) {
+      debugPrint('Error getting Telegram image URL: $e');
+      rethrow;
+    }
   }
 }

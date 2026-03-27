@@ -12,6 +12,8 @@ import 'funds_overview_screen.dart';
 import 'monthly_burn_screen.dart';
 import '../../../services/financial_data_service.dart';
 import '../../../services/financial_calculator.dart';
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(int)? onNavigateToTab;
@@ -38,10 +40,26 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Map<String, dynamic>> _trendData = [];
   bool _isTrendLoading = true;
 
+  String _userCountryCode = '+1'; // Default to USD
+  bool _isLoadingCountry = false; // Start as false since we use sync method
+
   @override
   void initState() {
     super.initState();
+    // Get country code synchronously for instant display
+    _userCountryCode = UserCountryService.getUserCountryCodeSync();
+    // Load in background for more accurate result
+    _loadUserCountryCode();
     _loadAllData();
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final countryCode = await UserCountryService.getUserCountryCode();
+    if (mounted && countryCode != _userCountryCode) {
+      setState(() {
+        _userCountryCode = countryCode;
+      });
+    }
   }
 
   Future<void> _loadAllData() async {
@@ -305,7 +323,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
                     (match) => '${match[1]},',
                   );
-              totalFundsAvailable = "₹$formattedFunds";
+              totalFundsAvailable = _isLoadingCountry
+                  ? "₹$formattedFunds"
+                  : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$formattedFunds";
               _isFundsLoading = false;
             });
           }
@@ -330,7 +350,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           monthlyBurn = currentMonthBurnAmount > 0
-              ? "₹${currentMonthBurnAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+              ? (_isLoadingCountry
+                    ? "₹${currentMonthBurnAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+                    : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${currentMonthBurnAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}")
               : null;
           _isMonthlyBurnLoading = false;
         });
@@ -496,7 +518,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         icon: Icons.local_fire_department_outlined,
                         isBurn: true,
                         isLoading: _isMonthlyBurnLoading,
-                        emptyLabel: "₹0", // Clean empty label
+                        emptyLabel: _isLoadingCountry
+                            ? "₹0"
+                            : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0", // Clean empty label
                       ),
                     ),
                   ),
@@ -785,7 +809,11 @@ class _HomeScreenState extends State<HomeScreen> {
             )
           else
             Text(
-              value ?? emptyLabel ?? "₹0",
+              value ??
+                  emptyLabel ??
+                  (_isLoadingCountry
+                      ? "₹0"
+                      : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
               style: GoogleFonts.inter(
                 color: value != null ? Colors.white : Colors.white54,
                 fontSize: 22,
