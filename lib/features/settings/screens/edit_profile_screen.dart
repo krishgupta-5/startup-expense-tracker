@@ -20,6 +20,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final uid = FirebaseAuth.instance.currentUser!.uid;
   final String email = FirebaseAuth.instance.currentUser!.email!;
 
+  // Country Code State
+  String _selectedCountryCode = "+91";
+  String _selectedFlag = "🇮🇳";
+
+  final List<Map<String, String>> _countryCodes = [
+    {"code": "+1", "flag": "🇺🇸", "name": "United States"},
+    {"code": "+91", "flag": "🇮🇳", "name": "India"},
+    {"code": "+44", "flag": "🇬🇧", "name": "United Kingdom"},
+    {"code": "+61", "flag": "🇦🇺", "name": "Australia"},
+    {"code": "+81", "flag": "🇯🇵", "name": "Japan"},
+    {"code": "+49", "flag": "🇩🇪", "name": "Germany"},
+    {"code": "+33", "flag": "🇫🇷", "name": "France"},
+    {"code": "+971", "flag": "🇦🇪", "name": "United Arab Emirates"},
+    {"code": "+65", "flag": "🇸🇬", "name": "Singapore"},
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -60,7 +76,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         if (companySnapshot.exists) {
           final companyData = companySnapshot.data()!;
           _nameController.text = companyData["Owner Name"] ?? '';
-          _phoneController.text = companyData["Mobile Number"] ?? '';
+
+          // Parse mobile number to extract country code and phone number
+          String fullMobileNumber = companyData["Mobile Number"] ?? '';
+          if (fullMobileNumber.isNotEmpty) {
+            // Find the first space to separate country code from phone number
+            int spaceIndex = fullMobileNumber.indexOf(' ');
+            if (spaceIndex != -1) {
+              String countryCode = fullMobileNumber.substring(0, spaceIndex);
+              String phoneNumber = fullMobileNumber
+                  .substring(spaceIndex + 1)
+                  .trim();
+
+              // Set the country code if it matches one of our codes
+              for (var country in _countryCodes) {
+                if (country["code"] == countryCode) {
+                  _selectedCountryCode = countryCode;
+                  _selectedFlag = country["flag"]!;
+                  break;
+                }
+              }
+              _phoneController.text = phoneNumber;
+            } else {
+              // If no space found, treat entire string as phone number with default country code
+              _phoneController.text = fullMobileNumber;
+            }
+          }
+
           _locationController.text = companyData["Country Location"] ?? '';
         }
 
@@ -113,9 +155,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }, SetOptions(merge: true));
 
       // Update companies collection with the same field names as company setup
+      final String fullMobileNumber =
+          "$_selectedCountryCode ${_phoneController.text.trim()}";
       await FirebaseFirestore.instance.collection("companies").doc(uid).set({
         "Owner Name": _nameController.text.trim(),
-        "Mobile Number": _phoneController.text.trim(),
+        "Mobile Number": fullMobileNumber,
         "Country Location": _locationController.text.trim(),
         "Email": _emailController.text.trim(),
         "updatedAt": FieldValue.serverTimestamp(),
@@ -170,11 +214,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         Icons.email_outlined,
                       ),
                       const SizedBox(height: 24),
-                      _buildInputGroup(
-                        "PHONE NUMBER",
-                        _phoneController,
-                        Icons.phone_outlined,
-                      ),
+                      _buildPhoneInputGroup(),
                       const SizedBox(height: 24),
                       _buildInputGroup(
                         "LOCATION",
@@ -360,6 +400,187 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPhoneInputGroup() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "PHONE NUMBER",
+          style: GoogleFonts.inter(
+            color: Colors.white24,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          ),
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: _showCountryCodePicker,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  color: Colors.transparent,
+                  child: Row(
+                    children: [
+                      Text(
+                        "$_selectedFlag $_selectedCountryCode",
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.keyboard_arrow_down,
+                        color: Colors.white60,
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Container(
+                height: 24,
+                width: 1,
+                color: Colors.white.withValues(alpha: 0.1),
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  cursorColor: Colors.white,
+                  decoration: InputDecoration(
+                    hintText: "98765 43210",
+                    hintStyle: GoogleFonts.inter(
+                      color: Colors.white60,
+                      fontSize: 15,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showCountryCodePicker() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF141416),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Container(
+            constraints: const BoxConstraints(maxHeight: 400),
+            padding: const EdgeInsets.only(top: 16, bottom: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Select Country Code",
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white38,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+                Expanded(
+                  child: ListView.builder(
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: _countryCodes.length,
+                    itemBuilder: (context, index) {
+                      final country = _countryCodes[index];
+                      final isSelected =
+                          _selectedCountryCode == country["code"];
+
+                      return ListTile(
+                        onTap: () {
+                          setState(() {
+                            _selectedCountryCode = country["code"]!;
+                            _selectedFlag = country["flag"]!;
+                          });
+                          Navigator.pop(context);
+                        },
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 4,
+                        ),
+                        leading: Text(
+                          country["flag"]!,
+                          style: const TextStyle(fontSize: 22),
+                        ),
+                        title: Text(
+                          country["name"]!,
+                          style: GoogleFonts.inter(
+                            color: isSelected ? Colors.white : Colors.white70,
+                            fontSize: 14,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                        trailing: Text(
+                          country["code"]!,
+                          style: GoogleFonts.inter(
+                            color: isSelected ? Colors.white : Colors.white38,
+                            fontSize: 14,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

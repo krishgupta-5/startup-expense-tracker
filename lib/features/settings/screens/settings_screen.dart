@@ -6,10 +6,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'company_details_screen.dart';
 import 'edit_profile_screen.dart';
 import 'statements_screen.dart';
-import 'rate_us_screen.dart';
 import 'change_password.dart';
-import 'data_access_screen.dart';
 import 'privacy_assurances_screen.dart';
+import '../widgets/coming_soon_dialog.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -89,11 +88,9 @@ class SettingsScreen extends StatelessWidget {
                   title: "Data Access Control",
                   subtitle: "Manage team permissions",
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const DataAccessScreen(),
-                      ),
+                    showDialog(
+                      context: context,
+                      builder: (context) => const ComingSoonDialog(),
                     );
                   },
                 ),
@@ -122,11 +119,9 @@ class SettingsScreen extends StatelessWidget {
                   icon: Icons.star_outline,
                   title: "Rate us on Play Store",
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const RateUsScreen(),
-                      ),
+                    showDialog(
+                      context: context,
+                      builder: (context) => const ComingSoonDialog(),
                     );
                   },
                 ),
