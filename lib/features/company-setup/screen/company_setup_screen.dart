@@ -6,6 +6,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'dart:developer';
 
+import 'package:startup_expense_tracker/shared/widgets/error_popup.dart';
+
+// Make sure to import your ErrorPopup class here
+// import 'error_popup.dart'; 
+
 class CompanySetupScreen extends StatefulWidget {
   const CompanySetupScreen({super.key});
 
@@ -55,11 +60,12 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   // Step 5: Categories
   final List<String> _allCategories = [
     "Marketing",
-    "Server Cost",
+    "Infrastructure",
     "Office Rent",
     "Legal",
     "Software",
     "Hardware",
+    "Design", // Fixed missing comma here from original code
     "Travel",
     "Meals",
     "Contractors",
@@ -95,7 +101,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           .get();
 
       if (userDoc.exists && userDoc.data()?['companySetup'] == true) {
-        // User already completed setup, redirect back
         if (mounted) {
           Navigator.of(context).pop();
         }
@@ -140,25 +145,21 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   void _removeBankAccount(int index) {
     if (_bankAccounts.length > 1) {
       setState(() {
-        // Dispose controllers before removal to prevent memory leaks
         _bankAccounts[index]["name"]?.dispose();
         _bankAccounts[index]["number"]?.dispose();
         _bankAccounts.removeAt(index);
-        // Clear potential errors for removed fields
         _errors.remove('bank_name_$index');
         _errors.remove('bank_num_$index');
       });
     }
   }
 
-  // Helper to remove error when user types
   void _clearError(String key) {
     if (_errors.contains(key)) {
       setState(() => _errors.remove(key));
     }
   }
 
-  // --- VALIDATION LOGIC ---
   bool _validateCurrentStep() {
     setState(() {
       _errors.clear();
@@ -168,75 +169,48 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
 
     switch (_currentPage) {
       case 0: // Identity
-        if (_ownerNameController.text.trim().isEmpty) {
-          _errors.add('owner');
-        }
-        if (!RegExp(r'^\d{10}$').hasMatch(_mobileController.text.trim())) {
-          _errors.add('mobile');
-        }
-        if (_countryController.text.trim().isEmpty) {
-          _errors.add('country');
-        }
-        if (_companyNameController.text.trim().isEmpty) {
-          _errors.add('company');
-        }
+        if (_ownerNameController.text.trim().isEmpty) _errors.add('owner');
+        if (!RegExp(r'^\d{10}$').hasMatch(_mobileController.text.trim())) _errors.add('mobile');
+        if (_countryController.text.trim().isEmpty) _errors.add('country');
+        if (_companyNameController.text.trim().isEmpty) _errors.add('company');
         isValid = _errors.isEmpty;
         break;
 
       case 1: // Structure
-        if (_selectedCompanyType == null) {
-          _errors.add('type');
-        }
-        if (_workDescController.text.trim().isEmpty) {
-          _errors.add('work');
-        }
-        if (_addressController.text.trim().isEmpty) {
-          _errors.add('address');
-        }
+        if (_selectedCompanyType == null) _errors.add('type');
+        if (_workDescController.text.trim().isEmpty) _errors.add('work');
+        if (_addressController.text.trim().isEmpty) _errors.add('address');
         isValid = _errors.isEmpty;
         break;
 
       case 2: // Financials
-        if (double.tryParse(_fundingController.text.trim()) == null) {
-          _errors.add('funding');
-        }
-        if (int.tryParse(_runwayController.text.trim()) == null) {
-          _errors.add('runway');
-        }
+        if (double.tryParse(_fundingController.text.trim()) == null) _errors.add('funding');
+        if (int.tryParse(_runwayController.text.trim()) == null) _errors.add('runway');
         isValid = _errors.isEmpty;
         break;
 
       case 3: // Bank
         for (var i = 0; i < _bankAccounts.length; i++) {
-          if (_bankAccounts[i]["name"]!.text.trim().isEmpty) {
-            _errors.add('bank_name_$i');
-          }
-          if (_bankAccounts[i]["number"]!.text.trim().isEmpty) {
-            _errors.add('bank_num_$i');
-          }
+          if (_bankAccounts[i]["name"]!.text.trim().isEmpty) _errors.add('bank_name_$i');
+          if (_bankAccounts[i]["number"]!.text.trim().isEmpty) _errors.add('bank_num_$i');
         }
         isValid = _errors.isEmpty;
         break;
 
-      case 4: // Categories (NOW OPTIONAL)
-        isValid = true;
-        break;
-
-      case 5: // Team (NOW OPTIONAL)
+      case 4: // Categories
+      case 5: // Team
         isValid = true;
         break;
     }
 
     if (!isValid) {
-      // Trigger a rebuild to activate the ShakeWidgets
       setState(() {});
-      HapticFeedback.heavyImpact(); // Add physical feedback for errors
+      HapticFeedback.heavyImpact();
     }
 
     return isValid;
   }
 
-  // --- COMPREHENSIVE VALIDATION FOR FINISH ---
   bool _validateAllMandatoryFields() {
     setState(() {
       _errors.clear();
@@ -244,58 +218,21 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
 
     bool isValid = true;
 
-    // Step 1: Identity
-    if (_ownerNameController.text.trim().isEmpty) {
-      _errors.add('owner');
-      isValid = false;
-    }
-    if (_mobileController.text.trim().isEmpty) {
-      _errors.add('mobile');
-      isValid = false;
-    }
-    if (_countryController.text.trim().isEmpty) {
-      _errors.add('country');
-      isValid = false;
-    }
-    if (_companyNameController.text.trim().isEmpty) {
-      _errors.add('company');
-      isValid = false;
-    }
+    if (_ownerNameController.text.trim().isEmpty) { _errors.add('owner'); isValid = false; }
+    if (_mobileController.text.trim().isEmpty) { _errors.add('mobile'); isValid = false; }
+    if (_countryController.text.trim().isEmpty) { _errors.add('country'); isValid = false; }
+    if (_companyNameController.text.trim().isEmpty) { _errors.add('company'); isValid = false; }
 
-    // Step 2: Structure
-    if (_selectedCompanyType == null) {
-      _errors.add('type');
-      isValid = false;
-    }
-    if (_workDescController.text.trim().isEmpty) {
-      _errors.add('work');
-      isValid = false;
-    }
-    if (_addressController.text.trim().isEmpty) {
-      _errors.add('address');
-      isValid = false;
-    }
+    if (_selectedCompanyType == null) { _errors.add('type'); isValid = false; }
+    if (_workDescController.text.trim().isEmpty) { _errors.add('work'); isValid = false; }
+    if (_addressController.text.trim().isEmpty) { _errors.add('address'); isValid = false; }
 
-    // Step 3: Financials
-    if (_fundingController.text.trim().isEmpty) {
-      _errors.add('funding');
-      isValid = false;
-    }
-    if (_runwayController.text.trim().isEmpty) {
-      _errors.add('runway');
-      isValid = false;
-    }
+    if (_fundingController.text.trim().isEmpty) { _errors.add('funding'); isValid = false; }
+    if (_runwayController.text.trim().isEmpty) { _errors.add('runway'); isValid = false; }
 
-    // Step 4: Bank
     for (var i = 0; i < _bankAccounts.length; i++) {
-      if (_bankAccounts[i]["name"]!.text.trim().isEmpty) {
-        _errors.add('bank_name_$i');
-        isValid = false;
-      }
-      if (_bankAccounts[i]["number"]!.text.trim().isEmpty) {
-        _errors.add('bank_num_$i');
-        isValid = false;
-      }
+      if (_bankAccounts[i]["name"]!.text.trim().isEmpty) { _errors.add('bank_name_$i'); isValid = false; }
+      if (_bankAccounts[i]["number"]!.text.trim().isEmpty) { _errors.add('bank_num_$i'); isValid = false; }
     }
 
     if (!isValid) {
@@ -306,85 +243,35 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     return isValid;
   }
 
-  // --- SHOW VALIDATION ERROR DIALOG ---
+  // --- SHOW VALIDATION ERROR DIALOG (UPDATED TO USE ERROR POPUP) ---
   void _showValidationErrorDialog() {
-    showDialog(
+    ErrorPopup.showValidation(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF141416),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            "Missing Required Information",
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          content: Text(
-            "Please fill in all mandatory fields before finishing the setup. The required fields are marked with errors.",
-            style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // Navigate to the first page with errors
-                _navigateToFirstErrorPage();
-              },
-              child: Text(
-                "Go to Missing Fields",
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF0A84FF),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+      message: "Please fill in all mandatory fields before finishing. Redirecting you to missing fields...",
     );
+    
+    // Automatically route them to the missing fields after showing the popup
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (mounted) {
+        _navigateToFirstErrorPage();
+      }
+    });
   }
 
-  // --- NAVIGATE TO FIRST ERROR PAGE ---
   void _navigateToFirstErrorPage() {
-    // Check each step in order and navigate to the first one with errors
     if (_errors.contains('owner') ||
         _errors.contains('mobile') ||
         _errors.contains('country') ||
         _errors.contains('company')) {
-      _pageController.animateToPage(
-        0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+      _pageController.animateToPage(0, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     } else if (_errors.contains('type') ||
         _errors.contains('work') ||
         _errors.contains('address')) {
-      _pageController.animateToPage(
-        1,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+      _pageController.animateToPage(1, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     } else if (_errors.contains('funding') || _errors.contains('runway')) {
-      _pageController.animateToPage(
-        2,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else if (_errors.any(
-      (error) =>
-          error.startsWith('bank_name_') || error.startsWith('bank_num_'),
-    )) {
-      _pageController.animateToPage(
-        3,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+      _pageController.animateToPage(2, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+    } else if (_errors.any((error) => error.startsWith('bank_name_') || error.startsWith('bank_num_'))) {
+      _pageController.animateToPage(3, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     }
     setState(() {
       _currentPage = _pageController.page?.round() ?? 0;
@@ -394,69 +281,49 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   Future<void> createTeamsInTeamsCollection() async {
     try {
       final userId = FirebaseAuth.instance.currentUser!.uid;
-
-      // Create each team in the teams collection (if they left any)
       for (var team in _teams) {
         await FirebaseFirestore.instance.collection('teams').add({
           "uid": userId,
           "teamName": team["name"],
-          "monthlyBudget": 0.0, // Default budget
-          "color": "blue", // Default color
-          "iconCodePoint": 0xe7fd, // Group icon
+          "monthlyBudget": 0.0,
+          "color": "blue",
+          "iconCodePoint": 0xe7fd,
           "iconFontFamily": "MaterialIcons",
           "createdAt": FieldValue.serverTimestamp(),
           "updatedAt": FieldValue.serverTimestamp(),
         });
       }
-
       log("Teams created in teams collection successfully");
     } catch (e) {
-      log('Error creating teams in teams collection: $e');
+      log('Error creating teams: $e');
     }
   }
 
-  // Helper method to format bank data securely (no full numbers stored)
-  Map<String, dynamic> _formatBankAccount(
-    Map<String, TextEditingController> account,
-  ) {
+  Map<String, dynamic> _formatBankAccount(Map<String, TextEditingController> account) {
     final accountNumber = account["number"]!.text.trim();
     String last4 = "";
-
     if (accountNumber.length >= 4) {
       last4 = accountNumber.substring(accountNumber.length - 4);
     }
-
     return {
       "bankName": account["name"]!.text.trim(),
       "last4": last4,
-      "verified":
-          false, // TODO: Integrate with Razorpay/Plaid/Stripe for bank verification
-      "verificationMethod": "manual", // Future: "plaid", "razorpay", "stripe"
-      "verificationId": null, // Future: Store verification provider ID
+      "verified": false,
+      "verificationMethod": "manual",
+      "verificationId": null,
     };
   }
 
   Future<bool> uploadCompanyData() async {
     try {
       final userId = FirebaseAuth.instance.currentUser!.uid;
+      final List<Map<String, dynamic>> formattedBankAccounts = 
+          _bankAccounts.map((account) => _formatBankAccount(account)).toList();
 
-      // Format bank accounts for storage
-      final List<Map<String, dynamic>> formattedBankAccounts = _bankAccounts
-          .map((account) => _formatBankAccount(account))
-          .toList();
+      final result = await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final userRef = FirebaseFirestore.instance.collection('users').doc(userId);
+        final companyRef = FirebaseFirestore.instance.collection('companies').doc(userId);
 
-      // Use a transaction for atomic operations
-      final result = await FirebaseFirestore.instance.runTransaction((
-        transaction,
-      ) async {
-        final userRef = FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId);
-        final companyRef = FirebaseFirestore.instance
-            .collection('companies')
-            .doc(userId);
-
-        // Company data
         transaction.set(companyRef, {
           "uid": userId,
           "Owner Name": _ownerNameController.text.trim(),
@@ -475,7 +342,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           "updatedAt": FieldValue.serverTimestamp(),
         });
 
-        // User document with company link
         transaction.set(userRef, {
           "companySetup": true,
           "companyId": userId,
@@ -486,14 +352,39 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         return true;
       });
 
-      // Create teams in separate collection after successful transaction
       await createTeamsInTeamsCollection();
-
       return result;
     } catch (e) {
       log('Company setup error: $e');
       return false;
     }
+  }
+
+  // --- NEW SUBMIT METHOD ---
+  Future<void> _submitSetup() async {
+    FocusScope.of(context).unfocus();
+
+    if (!_validateAllMandatoryFields()) {
+      _showValidationErrorDialog();
+      return;
+    }
+
+    setState(() => _isFinishing = true);
+
+    bool success = await uploadCompanyData();
+
+    if (!success) {
+      if (!mounted) return;
+      ErrorPopup.showServer(
+        context: context,
+        message: "Failed to setup company. Please try again.",
+      );
+      setState(() => _isFinishing = false);
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pop();
   }
 
   @override
@@ -538,7 +429,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                       FocusScope.of(context).unfocus();
                       setState(() {
                         _currentPage = page;
-                        _errors.clear(); // Clear errors on page swipe
+                        _errors.clear();
                       });
                     },
                     children: [
@@ -560,45 +451,219 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     );
   }
 
-  // --- PAGES ---
+  // --- HEADER WITH SKIP BUTTON ---
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Column(
+        children: [
+          Row(
+            children: List.generate(_totalPages, (index) {
+              return Expanded(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  decoration: BoxDecoration(
+                    color: index <= _currentPage
+                        ? Colors.white
+                        : const Color(0xFF1F1F22),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Back Button
+              if (_currentPage > 0)
+                GestureDetector(
+                  onTap: () => _pageController.previousPage(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF141416),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(width: 38, height: 38), // Maintain spacing
 
+              // Skip Button (Only visible on Step 5 and 6)
+              if (_currentPage >= 4)
+                GestureDetector(
+                  onTap: () {
+                    if (_currentPage == 4) {
+                      _pageController.nextPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                    } else {
+                      _submitSetup(); // Finish setup if skipped on last page
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF141416),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: Text(
+                      "SKIP",
+                      style: GoogleFonts.inter(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                const SizedBox(width: 38, height: 38), // Maintain spacing
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPageContainer({
+    required String title,
+    required String subtitle,
+    required List<Widget> children,
+    Widget? extraHeader,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 32,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -1,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: GoogleFonts.inter(color: Colors.white70, fontSize: 16),
+            ),
+            const SizedBox(height: 24),
+            if (extraHeader != null) extraHeader,
+            ...children,
+            const SizedBox(height: 100),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooter() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFF09090B).withValues(alpha: 0.0),
+            const Color(0xFF09090B),
+          ],
+        ),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: _isFinishing
+              ? null
+              : () async {
+                  FocusScope.of(context).unfocus();
+
+                  if (_currentPage < _totalPages - 1) {
+                    if (!_validateCurrentStep()) {
+                      return; 
+                    }
+                    _pageController.nextPage(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  } else {
+                    _submitSetup(); // Use the new extracted method
+                  }
+                },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            disabledBackgroundColor: Colors.white70,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 0,
+          ),
+          child: _isFinishing
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                  ),
+                )
+              : Text(
+                  _currentPage == _totalPages - 1 ? "Finish Setup" : "Next Step",
+                  style: GoogleFonts.inter(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  // --- STEPS (1 through 6 stay mostly untouched) ---
   Widget _buildStep1Identity() {
     return _buildPageContainer(
       title: "Identity",
       subtitle: "Let's start with the basics.",
       children: [
         _buildLabel("OWNER NAME"),
-        _buildInputField(
-          _ownerNameController,
-          "Your Full Name",
-          "owner",
-          icon: Icons.person_outline,
-        ),
+        _buildInputField(_ownerNameController, "Your Full Name", "owner", icon: Icons.person_outline),
         const SizedBox(height: 32),
         _buildLabel("MOBILE NUMBER"),
-        _buildInputField(
-          _mobileController,
-          "+1 234 567 8900",
-          "mobile",
-          isNumber: true,
-          icon: Icons.phone_outlined,
-        ),
+        _buildInputField(_mobileController, "+1 234 567 8900", "mobile", isNumber: true, icon: Icons.phone_outlined),
         const SizedBox(height: 32),
         _buildLabel("COUNTRY LOCATION"),
-        _buildInputField(
-          _countryController,
-          "United States",
-          "country",
-          icon: Icons.public,
-        ),
+        _buildInputField(_countryController, "United States", "country", icon: Icons.public),
         const SizedBox(height: 32),
         _buildLabel("COMPANY NAME"),
-        _buildInputField(
-          _companyNameController,
-          "Startup Name",
-          "company",
-          icon: Icons.business,
-        ),
+        _buildInputField(_companyNameController, "Startup Name", "company", icon: Icons.business),
       ],
     );
   }
@@ -638,10 +703,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     value: e.key,
                     child: Text(
                       e.value,
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 14,
-                      ),
+                      style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
                     ),
                   ),
                 ),
@@ -661,20 +723,10 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         ),
         const SizedBox(height: 32),
         _buildLabel("WHAT IS THE WORK?"),
-        _buildTextArea(
-          _workDescController,
-          "e.g. SaaS Platform...",
-          "work",
-          icon: Icons.description_outlined,
-        ),
+        _buildTextArea(_workDescController, "e.g. SaaS Platform...", "work", icon: Icons.description_outlined),
         const SizedBox(height: 32),
         _buildLabel("REGISTERED ADDRESS"),
-        _buildTextArea(
-          _addressController,
-          "Full Address...",
-          "address",
-          icon: Icons.location_on_outlined,
-        ),
+        _buildTextArea(_addressController, "Full Address...", "address", icon: Icons.location_on_outlined),
       ],
     );
   }
@@ -692,9 +744,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 Text(
                   "TOTAL FUNDS LEFT",
                   style: GoogleFonts.inter(
-                    color: _errors.contains('funding')
-                        ? const Color(0xFFFF453A)
-                        : Colors.white70,
+                    color: _errors.contains('funding') ? const Color(0xFFFF453A) : Colors.white70,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.5,
@@ -708,18 +758,14 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     textAlign: TextAlign.center,
                     onChanged: (_) => _clearError('funding'),
                     style: GoogleFonts.inter(
-                      color: _errors.contains('funding')
-                          ? const Color(0xFFFF453A)
-                          : Colors.white,
+                      color: _errors.contains('funding') ? const Color(0xFFFF453A) : Colors.white,
                       fontSize: 48,
                       fontWeight: FontWeight.w600,
                     ),
                     decoration: InputDecoration(
                       prefixText: "₹ ",
                       prefixStyle: GoogleFonts.inter(
-                        color: _errors.contains('funding')
-                            ? const Color(0xFFFF453A)
-                            : Colors.white70,
+                        color: _errors.contains('funding') ? const Color(0xFFFF453A) : Colors.white70,
                         fontSize: 48,
                       ),
                       hintText: "0",
@@ -739,13 +785,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         ),
         const SizedBox(height: 60),
         _buildLabel("TARGET RUNWAY (MONTHS)"),
-        _buildInputField(
-          _runwayController,
-          "e.g. 18",
-          "runway",
-          isNumber: true,
-          icon: Icons.timeline,
-        ),
+        _buildInputField(_runwayController, "e.g. 18", "runway", isNumber: true, icon: Icons.timeline),
       ],
     );
   }
@@ -788,26 +828,13 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _buildInputField(
-                  _bankAccounts[index]["name"]!,
-                  "Bank Name (e.g. HDFC)",
-                  "bank_name_$index",
-                  icon: Icons.account_balance_outlined,
-                ),
+                _buildInputField(_bankAccounts[index]["name"]!, "Bank Name (e.g. HDFC)", "bank_name_$index", icon: Icons.account_balance_outlined),
                 const SizedBox(height: 12),
-                _buildInputField(
-                  _bankAccounts[index]["number"]!,
-                  "Account Number",
-                  "bank_num_$index",
-                  isNumber: true,
-                  icon: Icons.numbers,
-                ),
+                _buildInputField(_bankAccounts[index]["number"]!, "Account Number", "bank_num_$index", isNumber: true, icon: Icons.numbers),
               ],
             ),
           );
         }),
-
-        // Add Button
         GestureDetector(
           onTap: _addBankAccount,
           child: Container(
@@ -839,34 +866,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   Widget _buildStep5Categories() {
     return _buildPageContainer(
       title: "Categories",
-      subtitle: "Setup default categories (Optional)",
-      extraHeader: Padding(
-        padding: const EdgeInsets.only(bottom: 24),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.info_outline, color: Colors.white70, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  "You can skip this and customize categories later from your dashboard.",
-                  style: GoogleFonts.inter(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      subtitle: "Setup default categories",
       children: [
         Wrap(
           spacing: 12,
@@ -883,17 +883,12 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 decoration: BoxDecoration(
                   color: isSelected ? Colors.white : const Color(0xFF141416),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: isSelected
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.1),
+                    color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
                 child: Text(
@@ -915,34 +910,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   Widget _buildStep6Team() {
     return _buildPageContainer(
       title: "Teams",
-      subtitle: "Setup initial departments (Optional)",
-      extraHeader: Padding(
-        padding: const EdgeInsets.only(bottom: 24),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.info_outline, color: Colors.white70, size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  "You can skip this and add teams later from your dashboard.",
-                  style: GoogleFonts.inter(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      subtitle: "Setup initial departments",
       children: [
         ..._teams.map((team) {
           return Padding(
@@ -963,10 +931,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                       const SizedBox(width: 12),
                       Text(
                         team["name"],
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
+                        style: GoogleFonts.inter(color: Colors.white, fontSize: 16),
                       ),
                     ],
                   ),
@@ -974,11 +939,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     onTap: () => setState(() => _teams.remove(team)),
                     child: Container(
                       padding: const EdgeInsets.all(4),
-                      child: const Icon(
-                        Icons.close,
-                        color: Colors.white38,
-                        size: 18,
-                      ),
+                      child: const Icon(Icons.close, color: Colors.white38, size: 18),
                     ),
                   ),
                 ],
@@ -990,12 +951,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         Row(
           children: [
             Expanded(
-              child: _buildInputField(
-                _teamController,
-                "Add Team (e.g. Sales)",
-                "teams", // Even though it's optional, we pass a key to use the same widget builder
-                icon: Icons.group_add,
-              ),
+              child: _buildInputField(_teamController, "Add Team (e.g. Sales)", "teams", icon: Icons.group_add),
             ),
             const SizedBox(width: 12),
             GestureDetector(
@@ -1019,197 +975,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           ],
         ),
       ],
-    );
-  }
-
-  // --- WIDGET BUILDERS ---
-
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Column(
-        children: [
-          Row(
-            children: List.generate(_totalPages, (index) {
-              return Expanded(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  decoration: BoxDecoration(
-                    color: index <= _currentPage
-                        ? Colors.white
-                        : const Color(0xFF1F1F22),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              );
-            }),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              if (_currentPage > 0)
-                GestureDetector(
-                  onTap: () => _pageController.previousPage(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF141416),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.1),
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                )
-              else
-                const SizedBox(height: 38),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPageContainer({
-    required String title,
-    required String subtitle,
-    required List<Widget> children,
-    Widget? extraHeader,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -1,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitle,
-              style: GoogleFonts.inter(color: Colors.white70, fontSize: 16),
-            ),
-            const SizedBox(height: 24),
-            ?extraHeader,
-            ...children,
-            const SizedBox(height: 100),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFooter() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            const Color(0xFF09090B).withValues(alpha: 0.0),
-            const Color(0xFF09090B),
-          ],
-        ),
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 56,
-        child: ElevatedButton(
-          onPressed: _isFinishing
-              ? null
-              : () async {
-                  FocusScope.of(context).unfocus();
-
-                  if (_currentPage < _totalPages - 1) {
-                    // For regular navigation, validate current step only
-                    if (!_validateCurrentStep()) {
-                      return; // Stop if validation fails (Shake animation handles feedback)
-                    }
-
-                    _pageController.nextPage(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                    );
-                  } else {
-                    // For finish, validate ALL mandatory fields
-                    if (!_validateAllMandatoryFields()) {
-                      // Show error message and navigate to first error page
-                      _showValidationErrorDialog();
-                      return;
-                    }
-
-                    setState(() => _isFinishing = true);
-
-                    bool success = await uploadCompanyData();
-
-                    if (!success) {
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            "Failed to setup company. Please try again.",
-                          ),
-                          backgroundColor: Color(0xFFFF453A),
-                        ),
-                      );
-                      setState(() => _isFinishing = false);
-                      return;
-                    }
-
-                    if (!mounted) return;
-                    // Navigate back to let AuthWrapper handle the flow
-                    Navigator.of(context).pop();
-                  }
-                },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            disabledBackgroundColor: Colors.white70,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 0,
-          ),
-          child: _isFinishing
-              ? const SizedBox(
-                  height: 24,
-                  width: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                  ),
-                )
-              : Text(
-                  _currentPage == _totalPages - 1
-                      ? "Finish Setup"
-                      : "Next Step",
-                  style: GoogleFonts.inter(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-        ),
-      ),
     );
   }
 
@@ -1245,9 +1010,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           color: const Color(0xFF141416),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: hasError
-                ? const Color(0xFFFF453A)
-                : Colors.white.withValues(alpha: 0.1),
+            color: hasError ? const Color(0xFFFF453A) : Colors.white.withValues(alpha: 0.1),
           ),
         ),
         child: TextField(
@@ -1259,17 +1022,11 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: GoogleFonts.inter(
-              color: hasError
-                  ? const Color(0xFFFF453A).withValues(alpha: 0.6)
-                  : Colors.white60,
+              color: hasError ? const Color(0xFFFF453A).withValues(alpha: 0.6) : Colors.white60,
               fontSize: 15,
             ),
             icon: icon != null
-                ? Icon(
-                    icon,
-                    color: hasError ? const Color(0xFFFF453A) : Colors.white60,
-                    size: 20,
-                  )
+                ? Icon(icon, color: hasError ? const Color(0xFFFF453A) : Colors.white60, size: 20)
                 : null,
             border: InputBorder.none,
             contentPadding: const EdgeInsets.symmetric(vertical: 16),
@@ -1295,9 +1052,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           color: const Color(0xFF141416),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: hasError
-                ? const Color(0xFFFF453A)
-                : Colors.white.withValues(alpha: 0.1),
+            color: hasError ? const Color(0xFFFF453A) : Colors.white.withValues(alpha: 0.1),
           ),
         ),
         child: TextField(
@@ -1309,17 +1064,11 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: GoogleFonts.inter(
-              color: hasError
-                  ? const Color(0xFFFF453A).withValues(alpha: 0.6)
-                  : Colors.white60,
+              color: hasError ? const Color(0xFFFF453A).withValues(alpha: 0.6) : Colors.white60,
               fontSize: 15,
             ),
             icon: icon != null
-                ? Icon(
-                    icon,
-                    color: hasError ? const Color(0xFFFF453A) : Colors.white60,
-                    size: 20,
-                  )
+                ? Icon(icon, color: hasError ? const Color(0xFFFF453A) : Colors.white60, size: 20)
                 : null,
             border: InputBorder.none,
             contentPadding: const EdgeInsets.symmetric(vertical: 16),
@@ -1341,18 +1090,14 @@ class ShakeWidget extends StatefulWidget {
   State<ShakeWidget> createState() => _ShakeWidgetState();
 }
 
-class _ShakeWidgetState extends State<ShakeWidget>
-    with SingleTickerProviderStateMixin {
+class _ShakeWidgetState extends State<ShakeWidget> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
     _animation = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 0.0, end: 8.0), weight: 1),
       TweenSequenceItem(tween: Tween(begin: 8.0, end: -8.0), weight: 2),

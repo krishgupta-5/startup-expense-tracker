@@ -37,11 +37,16 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final categories = {
     'marketing': 'Marketing',
     'infrastructure': 'Infrastructure',
-    'office': 'Office',
+    'office': 'Office Rent',
     'software': 'Software',
+    'hardware': 'Hardware',
     'transport': 'Transport',
     'design': 'Design',
     'others': 'Others',
+    'travel': 'Travel',
+    'meals': 'Meals',
+    'contractors': 'Contractors',
+    'legal': 'Legal',
   };
 
   final types = {
