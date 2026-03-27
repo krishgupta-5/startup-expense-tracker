@@ -122,8 +122,9 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   }
 
   String _getHealthStatus() {
-    if (isLoading || available == null || fundingAmount == null)
+    if (isLoading || available == null || fundingAmount == null) {
       return "NO DATA";
+    }
 
     final runwayMonths = FinancialCalculator.runwayMonths(
       availableFunds: available!,

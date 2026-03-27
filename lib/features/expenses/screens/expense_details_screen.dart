@@ -654,8 +654,9 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                       );
 
                       final user = FirebaseAuth.instance.currentUser;
-                      if (user == null)
+                      if (user == null) {
                         throw Exception('User not authenticated');
+                      }
 
                       // Get companyId from user document
                       final userDoc = await FirebaseFirestore.instance
@@ -664,8 +665,9 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                           .get();
 
                       final companyId = userDoc.data()?['companyId'];
-                      if (companyId == null)
+                      if (companyId == null) {
                         throw Exception('Company not found');
+                      }
 
                       // Use batch for atomic operations
                       final batch = FirebaseFirestore.instance.batch();

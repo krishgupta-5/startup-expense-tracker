@@ -533,8 +533,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                             : 0.0;
                         double barWidth =
                             (constraints.maxWidth - totalGapSpace) / barCount;
-                        if (barWidth > 40.0)
+                        if (barWidth > 40.0) {
                           barWidth = 40.0; // Cap width at 40px
+                        }
 
                         return SizedBox(
                           height: 160,
