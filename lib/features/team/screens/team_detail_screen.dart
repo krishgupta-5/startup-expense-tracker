@@ -61,7 +61,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const AddMemberScreen()),
+            MaterialPageRoute(
+              builder: (context) => AddMemberScreen(teamId: widget.teamId),
+            ),
           );
         },
         backgroundColor: Colors.white,
