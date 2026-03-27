@@ -37,20 +37,47 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> loadUserProfile() async {
     try {
-      final snapshot = await FirebaseFirestore.instance
+      // First try to get data from companies collection (company setup data)
+      final companySnapshot = await FirebaseFirestore.instance
+          .collection("companies")
+          .doc(uid)
+          .get();
+
+      // Also get user data as fallback
+      final userSnapshot = await FirebaseFirestore.instance
           .collection("users")
           .doc(uid)
           .get();
 
-      if (snapshot.exists) {
-        final data = snapshot.data()!;
-        setState(() {
-          _nameController.text = data['name'] ?? '';
-          _emailController.text = email;
-          _phoneController.text = data['phone'] ?? '';
-          _locationController.text = data['location'] ?? '';
-        });
-      }
+      setState(() {
+        // Default values
+        _nameController.text = '';
+        _phoneController.text = '';
+        _locationController.text = '';
+        _emailController.text = email;
+
+        // Priority: Use company data if available (from company setup)
+        if (companySnapshot.exists) {
+          final companyData = companySnapshot.data()!;
+          _nameController.text = companyData["Owner Name"] ?? '';
+          _phoneController.text = companyData["Mobile Number"] ?? '';
+          _locationController.text = companyData["Country Location"] ?? '';
+        }
+
+        // Fallback: Use user data if company data not available
+        if (userSnapshot.exists && _nameController.text.isEmpty) {
+          final userData = userSnapshot.data()!;
+          _nameController.text = userData['name'] ?? '';
+          _phoneController.text = userData['phone'] ?? '';
+          _locationController.text = userData['location'] ?? '';
+        }
+
+        // Email always comes from Firebase Auth or user collection
+        if (userSnapshot.exists) {
+          final userData = userSnapshot.data()!;
+          _emailController.text = userData['email'] ?? email;
+        }
+      });
     } catch (e) {
       log('Profile data fetch error: $e');
     }
@@ -85,8 +112,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         "updatedAt": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // Sync name to companies collection
-      await _syncNameToCompanies();
+      // Update companies collection with the same field names as company setup
+      await FirebaseFirestore.instance.collection("companies").doc(uid).set({
+        "Owner Name": _nameController.text.trim(),
+        "Mobile Number": _phoneController.text.trim(),
+        "Country Location": _locationController.text.trim(),
+        "Email": _emailController.text.trim(),
+        "updatedAt": FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
       return true;
     } catch (e) {
       if (mounted) {
@@ -101,28 +135,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         );
       }
       return false;
-    }
-  }
-
-  Future<void> _syncNameToCompanies() async {
-    try {
-      final companySnapshot = await FirebaseFirestore.instance
-          .collection("companies")
-          .where("uid", isEqualTo: uid)
-          .limit(1)
-          .get();
-
-      if (companySnapshot.docs.isNotEmpty) {
-        await FirebaseFirestore.instance
-            .collection("companies")
-            .doc(companySnapshot.docs.first.id)
-            .set({
-              "Owner Name": _nameController.text.trim(),
-              "updatedAt": FieldValue.serverTimestamp(),
-            }, SetOptions(merge: true));
-      }
-    } catch (e) {
-      log('Profile update error: $e');
     }
   }
 

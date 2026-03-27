@@ -178,111 +178,129 @@ class SettingsScreen extends StatelessWidget {
       return const SizedBox();
     }
 
-    // StreamBuilder listens directly to the Firestore document for instant updates
+    // StreamBuilder listens to both user and company documents for complete profile data
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection("users")
           .doc(user.uid)
           .snapshots(),
-      builder: (context, snapshot) {
-        String name = user.displayName ?? 'User';
-        String email = user.email ?? 'No email';
+      builder: (context, userSnapshot) {
+        return StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection("companies")
+              .doc(user.uid)
+              .snapshots(),
+          builder: (context, companySnapshot) {
+            String name = user.displayName ?? 'User';
+            String email = user.email ?? 'No email';
 
-        // Override with Firestore data if available
-        if (snapshot.hasData && snapshot.data!.exists) {
-          final data = snapshot.data!.data() as Map<String, dynamic>;
-          name = data['name'] ?? name;
-          email = data['email'] ?? email;
-        }
+            // Override with user document data if available
+            if (userSnapshot.hasData && userSnapshot.data!.exists) {
+              final userData =
+                  userSnapshot.data!.data() as Map<String, dynamic>;
+              name = userData['name'] ?? name;
+              email = userData['email'] ?? email;
+            }
 
-        return Column(
-          children: [
-            Stack(
+            // Priority: Use owner name from company data if available
+            if (companySnapshot.hasData && companySnapshot.data!.exists) {
+              final companyData =
+                  companySnapshot.data!.data() as Map<String, dynamic>;
+              name = companyData['Owner Name'] ?? name;
+            }
+
+            return Column(
               children: [
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      width: 1,
-                    ),
-                    image: const DecorationImage(
-                      image: NetworkImage("https://i.pravatar.cc/150?img=12"),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color(0xFF09090B),
-                        width: 3,
+                Stack(
+                  children: [
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          width: 1,
+                        ),
+                        image: const DecorationImage(
+                          image: NetworkImage(
+                            "https://i.pravatar.cc/150?img=12",
+                          ),
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
-                    child: const Icon(
-                      Icons.edit,
-                      size: 14,
-                      color: Colors.black,
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF09090B),
+                            width: 3,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.edit,
+                          size: 14,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  name,
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  email,
+                  style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const EditProfileScreen(),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1),
+                      ),
+                    ),
+                    child: Text(
+                      "Edit Profile",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              name,
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              email,
-              style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const EditProfileScreen(),
-                  ),
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
-                  ),
-                ),
-                child: Text(
-                  "Edit Profile",
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
+            );
+          },
         );
       },
     );

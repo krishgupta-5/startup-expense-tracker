@@ -574,7 +574,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               style: GoogleFonts.inter(color: Colors.white70, fontSize: 16),
             ),
             const SizedBox(height: 24),
-            if (extraHeader != null) extraHeader,
+            ?extraHeader,
             ...children,
             const SizedBox(height: 100),
           ],
