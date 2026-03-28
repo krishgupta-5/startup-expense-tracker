@@ -412,11 +412,6 @@ class BankAccountService {
     }
   }
 
-  /// 🔥 PRODUCTION FIX: Normalize bank name to prevent duplicates
-  static String _normalizeBankName(String input) {
-    return input.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-  }
-
   /// Find account by legacy key for backward compatibility
   static Map<String, dynamic> _findAccountByLegacyKey(
     List<Map<String, dynamic>> accounts,
