@@ -41,7 +41,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
 
   // ✅ FIX: Loading locks and cost control
   bool _isProcessing = false;
-  static const int _maxImageSizeMB = 2; // Limit to 2MB for cost control
+  static const int _maxImageSizeMB =
+      1; // Reduced to 1MB for better API performance
 
   @override
   void initState() {
@@ -175,7 +176,9 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     try {
       final XFile? image = await _imagePicker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 90,
+        imageQuality: 85, // Slightly reduced quality for better performance
+        maxWidth: 1200, // Limit initial image width
+        maxHeight: 1200, // Limit initial image height
       );
       if (image != null) {
         setState(() {
@@ -219,9 +222,9 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
           IOSUiSettings(title: 'Crop Receipt'),
         ],
         compressFormat: ImageCompressFormat.jpg,
-        compressQuality: 85, // Add compression to reduce size
-        maxWidth: 1024,
-        maxHeight: 1024,
+        compressQuality: 80, // Increased compression for better API performance
+        maxWidth: 800, // Reduced max width for better mobile display
+        maxHeight: 800, // Reduced max height for better mobile display
       );
 
       if (croppedFile != null) {
@@ -383,7 +386,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
           children: [
             // 1. Background View (Camera, Static Image, or Idle)
             if (_capturedImagePath != null)
-              Image.file(File(_capturedImagePath!), fit: BoxFit.cover)
+              _buildImagePreview()
             else if (_isCameraInitialized)
               _buildCameraBackground()
             else
@@ -421,6 +424,18 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildImagePreview() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: Colors.black,
+      child: FittedBox(
+        fit: BoxFit.contain,
+        child: Image.file(File(_capturedImagePath!), fit: BoxFit.contain),
       ),
     );
   }
