@@ -100,9 +100,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         FinancialDataService.getMonthlyBurnData().catchError(
           (e) => <String, dynamic>{},
         ),
-        FinancialDataService.getTeamCostDistribution(
-          countryCode: _userCountryCode,
-        ).catchError((e) => <String, dynamic>{}),
+        FinancialDataService.getTeamCostDistribution().catchError(
+          (e) => <String, dynamic>{},
+        ),
         FinancialDataService.getRawTeamsData().catchError(
           (e) => <Map<String, dynamic>>[],
         ),
