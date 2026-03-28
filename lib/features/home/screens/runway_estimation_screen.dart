@@ -29,7 +29,8 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   List<Map<String, dynamic>> allExpenses = [];
 
   String _userCountryCode = '+1'; // Default to USD
-  final bool _isLoadingCountry = false; // Start as false since we use sync method
+  final bool _isLoadingCountry =
+      false; // Start as false since we use sync method
 
   @override
   void initState() {
