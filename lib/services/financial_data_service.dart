@@ -318,11 +318,13 @@ class FinancialDataService {
     return CurrencyFormatter.formatByCountry(amount, countryCode);
   }
 
-  static Future<Map<String, dynamic>> getTeamCostDistribution() async {
+  static Future<Map<String, dynamic>> getTeamCostDistribution({
+    String countryCode = '+1',
+  }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
 
-    final cacheKey = 'team_cost_${user.uid}';
+    final cacheKey = 'team_cost_${user.uid}_$countryCode';
     final cachedData = _getCachedData<Map<String, dynamic>>(cacheKey);
     if (cachedData != null) {
       return cachedData;
@@ -382,7 +384,7 @@ class FinancialDataService {
           .map(
             (entry) => {
               'name': entry.key,
-              'cost': _formatCurrency(entry.value),
+              'cost': _formatCurrency(entry.value, countryCode: countryCode),
               'pct': totalCost > 0 ? (entry.value / totalCost) : 0.0,
             },
           )

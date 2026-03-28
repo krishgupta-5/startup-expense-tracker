@@ -6,6 +6,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:developer';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
+
 class CompanyDetailsScreen extends StatefulWidget {
   const CompanyDetailsScreen({super.key});
 
@@ -22,9 +25,12 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   final TextEditingController _fundingController = TextEditingController();
   final TextEditingController _runwayController = TextEditingController();
 
+  String _userCountryCode = '+1'; // Default to USD
+
   @override
   void initState() {
     super.initState();
+    _userCountryCode = UserCountryService.getUserCountryCodeSync();
     loadCompanyData();
   }
 
@@ -229,7 +235,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                         children: [
                           Expanded(
                             child: _buildInputGroup(
-                              "FUNDS LEFT (₹)",
+                              "FUNDS LEFT (${CurrencyFormatter.getCurrencySymbol(_userCountryCode)})",
                               _fundingController,
                               isNumber: true,
                             ),

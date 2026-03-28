@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../../services/currency_formatter.dart';
+import '../../../../services/user_country_service.dart';
+
 class AdjustSalaryScreen extends StatefulWidget {
   final String memberId;
   final double currentSalary;
@@ -23,10 +26,12 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
 
   DateTime _effectiveDate = DateTime.now();
   bool _isLoading = false;
+  String _userCountryCode = '+1'; // Default to USD
 
   @override
   void initState() {
     super.initState();
+    _userCountryCode = UserCountryService.getUserCountryCodeSync();
     _salaryController = TextEditingController(
       text: widget.currentSalary.toStringAsFixed(0),
     );
@@ -178,7 +183,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                   decoration: InputDecoration(
-                    prefixText: "₹ ",
+                    prefixText:
+                        "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
                     prefixStyle: GoogleFonts.inter(
                       color: Colors.white38,
                       fontSize: 48,

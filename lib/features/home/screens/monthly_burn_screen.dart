@@ -19,7 +19,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _shimmerController;
   String _userCountryCode = '+1'; // Default to USD
-  final bool _isLoadingCountry = false; // Start as false since we use sync method
+  final bool _isLoadingCountry =
+      false; // Start as false since we use sync method
 
   @override
   void initState() {
@@ -99,9 +100,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         FinancialDataService.getMonthlyBurnData().catchError(
           (e) => <String, dynamic>{},
         ),
-        FinancialDataService.getTeamCostDistribution().catchError(
-          (e) => <String, dynamic>{},
-        ),
+        FinancialDataService.getTeamCostDistribution(
+          countryCode: _userCountryCode,
+        ).catchError((e) => <String, dynamic>{}),
         FinancialDataService.getRawTeamsData().catchError(
           (e) => <Map<String, dynamic>>[],
         ),

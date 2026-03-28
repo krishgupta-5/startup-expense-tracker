@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:flutter/material.dart';
+import 'currency_formatter.dart';
 
 /// Service for managing bank accounts with production-grade subcollection model
 ///
@@ -446,7 +447,7 @@ class BankAccountService {
   }
 
   /// Format currency consistently across the app
-  static String formatCurrency(double value) {
-    return "₹${value.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}";
+  static String formatCurrency(double value, {String countryCode = '+1'}) {
+    return CurrencyFormatter.formatByCountry(value, countryCode);
   }
 }

@@ -41,7 +41,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isTrendLoading = true;
 
   String _userCountryCode = '+1'; // Default to USD
-  final bool _isLoadingCountry = false; // Start as false since we use sync method
+  final bool _isLoadingCountry =
+      false; // Start as false since we use sync method
 
   @override
   void initState() {
@@ -1093,7 +1094,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 Text(
-                  '₹${totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}',
+                  _isLoadingCountry
+                      ? "₹${totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+                      : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 14,

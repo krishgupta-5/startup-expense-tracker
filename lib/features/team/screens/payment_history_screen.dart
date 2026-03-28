@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'transaction_details_screen.dart'; // Make sure to import the new screen
+import '../../../../services/currency_formatter.dart';
+import '../../../../services/user_country_service.dart';
 
 class PaymentHistoryScreen extends StatelessWidget {
   final DateTime joiningDate;
@@ -22,7 +24,8 @@ class PaymentHistoryScreen extends StatelessWidget {
 
   // Helper to format currency
   String _formatCurrency(double amount) {
-    return "₹${amount.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}";
+    final userCountryCode = UserCountryService.getUserCountryCodeSync();
+    return CurrencyFormatter.formatByCountry(amount, userCountryCode);
   }
 
   // Helper to format Firestore Timestamp
