@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'currency_formatter.dart';
+import 'user_country_service.dart';
 
 class FinancialDataService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -313,17 +314,17 @@ class FinancialDataService {
     return months[month - 1];
   }
 
-  // Helper method to format currency properly
-  static String _formatCurrency(double amount, {String countryCode = '+1'}) {
+  // Helper method to format currency with specific country code
+  static String _formatCurrencyWithCountry(double amount, String countryCode) {
     return CurrencyFormatter.formatByCountry(amount, countryCode);
   }
 
-  static Future<Map<String, dynamic>> getTeamCostDistribution({
-    String countryCode = '+1',
-  }) async {
+  static Future<Map<String, dynamic>> getTeamCostDistribution() async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
 
+    // Get user's main currency country code
+    final countryCode = await UserCountryService.getUserCountryCode();
     final cacheKey = 'team_cost_${user.uid}_$countryCode';
     final cachedData = _getCachedData<Map<String, dynamic>>(cacheKey);
     if (cachedData != null) {
@@ -380,15 +381,14 @@ class FinancialDataService {
       }
 
       // Convert to list format for display
-      final teamCostList = departmentCosts.entries
-          .map(
-            (entry) => {
-              'name': entry.key,
-              'cost': _formatCurrency(entry.value, countryCode: countryCode),
-              'pct': totalCost > 0 ? (entry.value / totalCost) : 0.0,
-            },
-          )
-          .toList();
+      final teamCostList = <Map<String, dynamic>>[];
+      for (var entry in departmentCosts.entries) {
+        teamCostList.add({
+          'name': entry.key,
+          'cost': _formatCurrencyWithCountry(entry.value, countryCode),
+          'pct': totalCost > 0 ? (entry.value / totalCost) : 0.0,
+        });
+      }
 
       // Ensure percentages add up to 1.0 by normalizing
       if (totalCost > 0 && teamCostList.isNotEmpty) {
