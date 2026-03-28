@@ -319,6 +319,99 @@ class FinancialDataService {
     return CurrencyFormatter.formatByCountry(amount, countryCode);
   }
 
+  static Future<Map<String, dynamic>> getUnifiedTeamCostData() async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('User not authenticated');
+
+    final cacheKey = 'unified_team_cost_${user.uid}';
+    final cachedData = _getCachedData<Map<String, dynamic>>(cacheKey);
+    if (cachedData != null) {
+      return cachedData;
+    }
+
+    try {
+      // Get all teams for the user
+      final teamsSnapshot = await _firestore
+          .collection('teams')
+          .where('uid', isEqualTo: user.uid)
+          .get();
+
+      if (teamsSnapshot.docs.isEmpty) {
+        final emptyResult = {'teamCosts': [], 'totalCost': 0};
+        _setCachedData(cacheKey, emptyResult);
+        return emptyResult;
+      }
+
+      // Get actual spending data and team names in parallel
+      final futures = await Future.wait([
+        getActualSpendingPerTeam(),
+        Future.wait(
+          teamsSnapshot.docs.map((doc) async {
+            final teamData = doc.data();
+            return {
+              'id': doc.id,
+              'name': teamData['teamName']?.toString() ?? 'Unknown Team',
+              'budget': teamData['monthlyBudget'] ?? 0.0,
+            };
+          }),
+        ),
+      ]);
+
+      final actualSpending = futures[0] as Map<String, double>;
+      final teamsData = futures[1] as List<Map<String, dynamic>>;
+
+      // Get user's currency for formatting
+      final countryCode = await UserCountryService.getUserCountryCode();
+
+      Map<String, double> teamCosts = {};
+      double totalCost = 0;
+
+      // Use actual spending for each team, fallback to 0 if no spending
+      for (var team in teamsData) {
+        final teamName = team['name'] as String;
+        final spending = actualSpending[teamName] ?? 0.0;
+        teamCosts[teamName] = spending;
+        totalCost += spending;
+      }
+
+      // Convert to list format for display
+      final teamCostList = <Map<String, dynamic>>[];
+      for (var entry in teamCosts.entries) {
+        teamCostList.add({
+          'name': entry.key,
+          'cost': _formatCurrencyWithCountry(entry.value, countryCode),
+          'pct': totalCost > 0 ? (entry.value / totalCost) : 0.0,
+        });
+      }
+
+      // Ensure percentages add up to 1.0 by normalizing
+      if (totalCost > 0 && teamCostList.isNotEmpty) {
+        final calculatedTotal = teamCostList.fold<double>(
+          0.0,
+          (sum, team) => sum + (team['pct'] as double),
+        );
+
+        // Normalize if there are floating point precision issues
+        if ((calculatedTotal - 1.0).abs() > 0.001) {
+          for (var team in teamCostList) {
+            team['pct'] = (team['pct'] as double) / calculatedTotal;
+          }
+        }
+      }
+
+      // Sort by cost (highest first)
+      teamCostList.sort(
+        (a, b) => (b['pct'] as double).compareTo(a['pct'] as double),
+      );
+
+      final result = {'teamCosts': teamCostList, 'totalCost': totalCost};
+      _setCachedData(cacheKey, result);
+      return result;
+    } catch (e) {
+      throw Exception('Failed to fetch unified team cost data: $e');
+    }
+  }
+
   static Future<Map<String, dynamic>> getTeamCostDistribution() async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');

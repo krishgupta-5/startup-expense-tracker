@@ -100,7 +100,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         FinancialDataService.getMonthlyBurnData().catchError(
           (e) => <String, dynamic>{},
         ),
-        FinancialDataService.getTeamCostDistribution().catchError(
+        FinancialDataService.getUnifiedTeamCostData().catchError(
           (e) => <String, dynamic>{},
         ),
         FinancialDataService.getRawTeamsData().catchError(
@@ -966,10 +966,36 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
 
     for (var team in rawTeamsData) {
       final teamName = team['teamName'] as String? ?? 'Unknown Team';
-      String budgetStr = (team['monthlyBudget']?.toString() ?? '0');
-      budgetStr = budgetStr.replaceAll(RegExp(r'[^\d.]'), '');
-      final budget = double.tryParse(budgetStr) ?? 0.0;
-      final actual = _toDouble(_actualSpendingPerTeam?[teamName]);
+
+      // Handle budget parsing for different data types and formats
+      dynamic budgetData = team['monthlyBudget'];
+      double budget = 0.0;
+
+      // Debug logging
+      print(
+        'DEBUG: Team $teamName budget data: $budgetData (type: ${budgetData.runtimeType})',
+      );
+
+      if (budgetData != null) {
+        if (budgetData is double) {
+          budget = budgetData;
+        } else if (budgetData is int) {
+          budget = budgetData.toDouble();
+        } else if (budgetData is String) {
+          // Remove currency symbols, commas, and other non-numeric characters except decimal point
+          String budgetStr = budgetData.replaceAll(RegExp(r'[^\d.]'), '');
+          budget = double.tryParse(budgetStr) ?? 0.0;
+          print('DEBUG: Parsed budget string "$budgetData" to $budget');
+        }
+      }
+
+      print('DEBUG: Final budget for $teamName: $budget');
+
+      // Use null-aware access with fallback to 0 for teams with no spending
+      final actual = _toDouble(
+        _actualSpendingPerTeam?[teamName],
+        fallback: 0.0,
+      );
       final variance = budget - actual;
 
       totalBudget += budget;
