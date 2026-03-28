@@ -29,7 +29,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   List<Map<String, dynamic>> allExpenses = [];
 
   String _userCountryCode = '+1'; // Default to USD
-  bool _isLoadingCountry = false; // Start as false since we use sync method
+  final bool _isLoadingCountry = false; // Start as false since we use sync method
 
   @override
   void initState() {
@@ -312,8 +312,9 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     final zeroSymbol = _isLoadingCountry
         ? "₹0"
         : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0";
-    if (monthlyBurn == zeroSymbol && currentBalance == zeroSymbol)
+    if (monthlyBurn == zeroSymbol && currentBalance == zeroSymbol) {
       return "NO DATA";
+    }
     if (monthlyBurn == zeroSymbol) return "NO EXPENSES";
     if (runwayMonths == null || runwayMonths! <= 0) return "DEPLETED";
 

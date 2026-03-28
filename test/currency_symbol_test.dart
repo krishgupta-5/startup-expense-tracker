@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/services/currency_formatter.dart';
+import 'package:startup_expense_tracker/services/currency_formatter.dart';
 
 void main() {
   group('Currency Symbol Tests', () {

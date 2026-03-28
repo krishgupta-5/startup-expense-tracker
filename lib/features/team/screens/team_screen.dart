@@ -33,7 +33,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   // Refresh state
   bool _needsRefresh = false;
   String _userCountryCode = '+1'; // Default to USD
-  bool _isLoadingCountry = false; // Start as false since we use sync method
+  final bool _isLoadingCountry = false; // Start as false since we use sync method
 
   // Cache for Telegram photos to avoid repeated fetching
   static final Map<String, String> _telegramPhotoCache = {};

@@ -195,19 +195,23 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         break;
 
       case 2:
-        if (double.tryParse(_fundingController.text.trim()) == null)
+        if (double.tryParse(_fundingController.text.trim()) == null) {
           _errors.add('funding');
-        if (int.tryParse(_runwayController.text.trim()) == null)
+        }
+        if (int.tryParse(_runwayController.text.trim()) == null) {
           _errors.add('runway');
+        }
         isValid = _errors.isEmpty;
         break;
 
       case 3:
         for (var i = 0; i < _bankAccounts.length; i++) {
-          if (_bankAccounts[i]["name"]!.text.trim().isEmpty)
+          if (_bankAccounts[i]["name"]!.text.trim().isEmpty) {
             _errors.add('bank_name_$i');
-          if (_bankAccounts[i]["number"]!.text.trim().isEmpty)
+          }
+          if (_bankAccounts[i]["number"]!.text.trim().isEmpty) {
             _errors.add('bank_num_$i');
+          }
         }
         isValid = _errors.isEmpty;
         break;
@@ -652,7 +656,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               style: GoogleFonts.inter(color: Colors.white70, fontSize: 16),
             ),
             const SizedBox(height: 24),
-            if (extraHeader != null) extraHeader,
+            ?extraHeader,
             ...children,
             const SizedBox(height: 100),
           ],

@@ -12,7 +12,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'add_expense_screen.dart';
 import '../../../services/api_service.dart';
 import '../../../services/currency_formatter.dart';
-import '../../../services/user_country_service.dart';
 
 class ScanExpenseScreen extends StatefulWidget {
   const ScanExpenseScreen({super.key});
