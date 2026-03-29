@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 // Required for FontFeature
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:developer';
 
 import 'runway_estimation_screen.dart';
@@ -25,6 +28,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  // Cache for Telegram photos to avoid repeated fetching
+  static final Map<String, String> _telegramPhotoCache = {};
+
   String? runwayValue;
   bool isLoading = true;
   String? errorMessage;
@@ -73,6 +79,42 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // Telegram photo fetching methods with caching
+  Future<String> getTelegramImageUrl(String fileId) async {
+    // Check cache first
+    if (_telegramPhotoCache.containsKey(fileId)) {
+      return _telegramPhotoCache[fileId]!;
+    }
+
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      final res = await http.get(
+        Uri.parse(
+          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
+        ),
+      );
+
+      final data = jsonDecode(res.body);
+      final path = data['result']['file_path'];
+
+      final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
+
+      // Cache the result
+      _telegramPhotoCache[fileId] = imageUrl;
+
+      return imageUrl;
+    } catch (e) {
+      debugPrint('Error getting Telegram image URL: $e');
+      rethrow;
+    }
+  }
+
   Future<void> _loadUserCountryCode() async {
     final currencyCode =
         await CurrencyPreferenceService.getCurrencyPreference();
@@ -100,6 +142,63 @@ class _HomeScreenState extends State<HomeScreen> {
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
       ),
+    );
+  }
+
+  // --- PROFILE AVATAR METHODS ---
+
+  // Build profile avatar with Telegram photo support
+  Widget _buildProfileAvatar(String? profileImageFileId) {
+    if (profileImageFileId != null && profileImageFileId.isNotEmpty) {
+      // Show uploaded profile image
+      return FutureBuilder<String>(
+        future: getTelegramImageUrl(profileImageFileId),
+        builder: (context, snapshot) {
+          return Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.1),
+                width: 1,
+              ),
+            ),
+            child: ClipOval(
+              child: snapshot.hasData
+                  ? Image.network(
+                      snapshot.data!,
+                      width: 44,
+                      height: 44,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return _buildDefaultAvatar();
+                      },
+                    )
+                  : _buildDefaultAvatar(),
+            ),
+          );
+        },
+      );
+    }
+
+    // Show default avatar
+    return _buildDefaultAvatar();
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+          width: 1,
+        ),
+        color: const Color(0xFF141416),
+      ),
+      child: const Icon(Icons.person, size: 20, color: Colors.white),
     );
   }
 
@@ -595,49 +694,91 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMinimalHeader(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Overview",
+                style: GoogleFonts.inter(
+                  color: Colors.white38,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                "Startup Health",
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -1,
+                ),
+              ),
+            ],
+          ),
+          GestureDetector(
+            onTap: () => widget.onNavigateToTab?.call(4),
+            child: _buildDefaultAvatar(),
+          ),
+        ],
+      );
+    }
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .snapshots(),
+      builder: (context, userSnapshot) {
+        // Load profile image FileId from user data
+        String? profileImageFileId;
+        if (userSnapshot.hasData && userSnapshot.data!.exists) {
+          final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+          profileImageFileId = userData['profileImageFileId'];
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              "Overview",
-              style: GoogleFonts.inter(
-                color: Colors.white38,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Overview",
+                  style: GoogleFonts.inter(
+                    color: Colors.white38,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  "Startup Health",
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -1,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              "Startup Health",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -1,
-              ),
+            GestureDetector(
+              onTap: () => widget.onNavigateToTab?.call(4),
+              child: _buildProfileAvatar(profileImageFileId),
             ),
           ],
-        ),
-        GestureDetector(
-          onTap: () => widget.onNavigateToTab?.call(4),
-          child: Container(
-            height: 44,
-            width: 44,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(
-                alpha: 0.05,
-              ), // Premium White Glass
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            child: const Icon(Icons.person, color: Colors.white, size: 20),
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
