@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../services/financial_data_service.dart';
 import '../../../services/financial_calculator.dart';
 import '../../../services/currency_formatter.dart';
-import '../../../services/user_country_service.dart';
+import '../../../services/currency_preference_service.dart';
 
 class MonthlyBurnScreen extends StatefulWidget {
   const MonthlyBurnScreen({super.key});
@@ -25,32 +25,45 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
   @override
   void initState() {
     super.initState();
-    // Get country code synchronously for instant display
-    _userCountryCode = UserCountryService.getUserCountryCodeSync();
+    // Get currency preference synchronously for instant display
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    // Listen for currency changes
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
     _shimmerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
     _shimmerController.repeat();
-    // Load in background for more accurate result
-    _loadUserCountryCode();
     _loadFinancialData();
-  }
-
-  Future<void> _loadUserCountryCode() async {
-    final countryCode = await UserCountryService.getUserCountryCode();
-    if (mounted && countryCode != _userCountryCode) {
-      setState(() {
-        _userCountryCode = countryCode;
-      });
-    }
   }
 
   @override
   void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
     _debounceTimer?.cancel();
     _shimmerController.dispose();
     super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final currencyCode =
+        await CurrencyPreferenceService.getCurrencyPreference();
+    if (mounted && currencyCode != _userCountryCode) {
+      setState(() {
+        _userCountryCode = currencyCode;
+      });
+    }
   }
 
   double _toDouble(dynamic value, {double fallback = 0.0}) {

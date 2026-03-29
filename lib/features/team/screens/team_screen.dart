@@ -8,7 +8,7 @@ import 'package:startup_expense_tracker/features/team/screens/member_detail_scre
 import 'team_detail_screen.dart';
 import '../../../widgets/avatar_widget.dart';
 import '../../../services/currency_formatter.dart';
-import '../../../services/user_country_service.dart';
+import '../../../services/currency_preference_service.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -33,7 +33,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   // Refresh state
   bool _needsRefresh = false;
   String _userCountryCode = '+1'; // Default to USD
-  final bool _isLoadingCountry = false; // Start as false since we use sync method
+  final bool _isLoadingCountry =
+      false; // Start as false since we use sync method
 
   // Cache for Telegram photos to avoid repeated fetching
   static final Map<String, String> _telegramPhotoCache = {};
@@ -43,26 +44,41 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     super.initState();
     // Listen for app lifecycle changes to refresh when returning to foreground
     WidgetsBinding.instance.addObserver(this);
-    // Get country code synchronously for instant display
-    _userCountryCode = UserCountryService.getUserCountryCodeSync();
+    // Get currency preference synchronously for instant display
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    // Listen for currency changes
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
     // Load in background for more accurate result
     _loadUserCountryCode();
-  }
-
-  Future<void> _loadUserCountryCode() async {
-    final countryCode = await UserCountryService.getUserCountryCode();
-    if (mounted && countryCode != _userCountryCode) {
-      setState(() {
-        _userCountryCode = countryCode;
-      });
-    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final currencyCode =
+        await CurrencyPreferenceService.getCurrencyPreference();
+    if (mounted && currencyCode != _userCountryCode) {
+      setState(() {
+        _userCountryCode = currencyCode;
+      });
+    }
   }
 
   @override

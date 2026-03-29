@@ -10,6 +10,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../utils/data_helpers.dart';
 import '../../../services/currency_formatter.dart';
+import '../../../services/currency_preference_service.dart';
 import '../../../services/bank_account_service.dart';
 
 class ReportExpenseScreen extends StatefulWidget {
@@ -26,21 +27,58 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
   DateTime? _customEndDate;
 
   bool _isDownloading = false;
+  String _userCountryCode = '+1'; // Default to USD
+  bool _isLoadingCountry = true;
 
   final ScrollController _scrollController = ScrollController();
   final ScrollController _categoryScrollController = ScrollController();
   final ValueNotifier<String> _categoryNotifier = ValueNotifier<String>("all");
 
   @override
+  void initState() {
+    super.initState();
+    // Get currency preference synchronously for instant display
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    // Listen for currency changes
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
+    _loadUserCountryCode();
+  }
+
+  @override
   void dispose() {
     _scrollController.dispose();
     _categoryScrollController.dispose();
     _categoryNotifier.dispose();
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
     super.dispose();
   }
 
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final currencyCode =
+        await CurrencyPreferenceService.getCurrencyPreference();
+    if (mounted) {
+      setState(() {
+        _userCountryCode = currencyCode;
+        _isLoadingCountry = false;
+      });
+    }
+  }
+
   String _formatCurrency(double amount) {
-    return CurrencyFormatter.formatByCountry(amount, '+1');
+    return _isLoadingCountry
+        ? CurrencyFormatter.formatByCountry(amount, '+1')
+        : CurrencyFormatter.formatByCountry(amount, _userCountryCode);
   }
 
   String _formatDate(DateTime date) {
@@ -332,7 +370,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
         String displayCat = e.key.isEmpty ? "OTHER" : e.key.toUpperCase();
         return [
           displayCat,
-          "${CurrencyFormatter.getCurrencySymbol('+1')} ${e.value.toStringAsFixed(2)}",
+          "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ${e.value.toStringAsFixed(2)}",
           "${(pct * 100).toStringAsFixed(1)}%",
         ];
       }).toList();
@@ -343,7 +381,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
           .map(
             (e) => [
               e.key,
-              "${CurrencyFormatter.getCurrencySymbol('+1')} ${e.value.toStringAsFixed(2)}",
+              "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ${e.value.toStringAsFixed(2)}",
             ],
           )
           .toList();
@@ -360,7 +398,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
           data['Category'].toString().toUpperCase(),
           bankAccountDisplay,
           // ✅ FIX: Use DataHelpers instead of manual casting
-          "${CurrencyFormatter.getCurrencySymbol('+1')} ${DataHelpers.safeParseDouble(data['Amount']).toStringAsFixed(2)}",
+          "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ${DataHelpers.safeParseDouble(data['Amount']).toStringAsFixed(2)}",
         ];
       }).toList();
 
@@ -421,7 +459,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                         ),
                         pw.SizedBox(height: 4),
                         pw.Text(
-                          "${CurrencyFormatter.getCurrencySymbol('+1')} ${totalAmount.toStringAsFixed(2)}",
+                          "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ${totalAmount.toStringAsFixed(2)}",
                           style: pw.TextStyle(
                             fontSize: 18,
                             fontWeight: pw.FontWeight.bold,
@@ -447,7 +485,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                         ),
                         pw.SizedBox(height: 4),
                         pw.Text(
-                          "INR ${averageDaily.toStringAsFixed(2)}",
+                          "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ${averageDaily.toStringAsFixed(2)}",
                           style: pw.TextStyle(
                             fontSize: 18,
                             fontWeight: pw.FontWeight.bold,
@@ -1238,8 +1276,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text(
                         data[index] >= 1000
-                            ? "₹${(data[index] / 1000).toStringAsFixed(1)}k"
-                            : "₹${data[index].toStringAsFixed(0)}",
+                            ? "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol(_userCountryCode) : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${(data[index] / 1000).toStringAsFixed(1)}k"
+                            : "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol(_userCountryCode) : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${data[index].toStringAsFixed(0)}",
                         style: GoogleFonts.inter(
                           color: Colors.white54,
                           fontSize: 9,

@@ -6,6 +6,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:startup_expense_tracker/features/auth/auth_wrapper.dart';
 import 'package:startup_expense_tracker/firebase_options.dart';
 import 'package:startup_expense_tracker/services/user_country_service.dart';
+import 'package:startup_expense_tracker/services/currency_preference_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -15,6 +16,9 @@ void main() async {
 
   // Initialize country code cache early for instant currency display
   await UserCountryService.initializeCache();
+
+  // Initialize currency preference service
+  CurrencyPreferenceService.initialize();
 
   runApp(const FinancialDashboardApp());
 }

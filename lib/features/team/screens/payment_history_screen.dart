@@ -9,6 +9,7 @@ import 'package:printing/printing.dart';
 
 import 'transaction_details_screen.dart'; // Make sure to import the new screen
 import '../../../../services/currency_formatter.dart';
+import '../../../../services/currency_preference_service.dart';
 import '../../../../services/user_country_service.dart';
 import '../../../../services/bank_account_service.dart';
 
@@ -35,8 +36,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
 
   // Helper to format currency
   String _formatCurrency(double amount) {
-    final userCountryCode = UserCountryService.getUserCountryCodeSync();
-    return CurrencyFormatter.formatByCountry(amount, userCountryCode);
+    final userCurrencyCode =
+        CurrencyPreferenceService.getCurrencyPreferenceSync();
+    return CurrencyFormatter.formatByCountry(amount, userCurrencyCode);
   }
 
   // Helper to format Firestore Timestamp

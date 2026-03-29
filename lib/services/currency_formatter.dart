@@ -2,6 +2,9 @@
 ///
 /// Ensures consistent currency formatting across all UI components
 /// and eliminates formatting inconsistencies that can cause confusion.
+library;
+import 'currency_preference_service.dart';
+
 class CurrencyFormatter {
   // Private constructor to prevent instantiation
   CurrencyFormatter._();
@@ -42,21 +45,36 @@ class CurrencyFormatter {
     return _currencyDecimals[countryCode] ?? 2; // Default to 2 decimal places
   }
 
+  /// Get the current user's preferred currency code
+  /// Uses the currency preference service to get user's selection
+  static Future<String> getCurrentCurrencyCode() async {
+    return await CurrencyPreferenceService.getCurrencyPreference();
+  }
+
+  /// Get the current user's preferred currency code synchronously
+  /// Uses cached value from currency preference service
+  static String getCurrentCurrencyCodeSync() {
+    return CurrencyPreferenceService.getCurrencyPreferenceSync();
+  }
+
   /// Format currency value with proper formatting based on country code
   ///
   /// [value] - The monetary value to format
-  /// [countryCode] - Country code for currency symbol and formatting (default: +91 for India)
+  /// [countryCode] - Country code for currency symbol and formatting (default: user's preferred currency)
   /// [includeSymbol] - Whether to include currency symbol (default: true)
   /// [decimalPlaces] - Number of decimal places (default: based on currency)
   /// Returns formatted currency string
   static String format(
     double value, {
-    String countryCode = '+1',
+    String? countryCode,
     bool includeSymbol = true,
     int? decimalPlaces,
   }) {
+    // Use user's preferred currency if no country code is provided
+    final effectiveCountryCode = countryCode ?? getCurrentCurrencyCodeSync();
+
     // Get decimal places for the currency if not specified
-    final places = decimalPlaces ?? getDecimalPlaces(countryCode);
+    final places = decimalPlaces ?? getDecimalPlaces(effectiveCountryCode);
 
     // Round to avoid floating point precision issues
     final roundedValue = double.parse(value.toStringAsFixed(places));
@@ -65,7 +83,7 @@ class CurrencyFormatter {
     String formatted = roundedValue.toStringAsFixed(places);
 
     // Format based on country
-    if (countryCode == '+91') {
+    if (effectiveCountryCode == '+91') {
       // Indian format: 1,00,000
       if (places == 0) {
         formatted = formatted.replaceAllMapped(
@@ -90,7 +108,7 @@ class CurrencyFormatter {
 
     // Add currency symbol if requested
     if (includeSymbol) {
-      return '${getCurrencySymbol(countryCode)}$formatted';
+      return '${getCurrencySymbol(effectiveCountryCode)}$formatted';
     }
 
     return formatted;
@@ -105,8 +123,52 @@ class CurrencyFormatter {
   }
 
   /// Format currency with symbol and no decimal places (most common use case)
-  static String formatRupees(double value) {
-    return format(value, includeSymbol: true, decimalPlaces: 0);
+  /// Uses user's preferred currency automatically
+  static Future<String> formatWithUserPreference(double value) async {
+    final currencyCode = await getCurrentCurrencyCode();
+    return format(
+      value,
+      countryCode: currencyCode,
+      includeSymbol: true,
+      decimalPlaces: 0,
+    );
+  }
+
+  /// Format currency with symbol and no decimal places (synchronous version)
+  /// Uses cached user's preferred currency
+  static String formatWithUserPreferenceSync(double value) {
+    return format(
+      value,
+      includeSymbol: true,
+      decimalPlaces: 0,
+    ); // Will use user preference by default
+  }
+
+  /// Format currency with symbol and appropriate decimal places
+  /// Uses user's preferred currency automatically
+  static Future<String> formatFinancialWithUserPreference(double value) async {
+    final currencyCode = await getCurrentCurrencyCode();
+    return format(
+      value,
+      countryCode: currencyCode,
+      includeSymbol: true,
+      decimalPlaces: 2,
+    );
+  }
+
+  /// Format currency with symbol and appropriate decimal places (synchronous version)
+  /// Uses cached user's preferred currency
+  static String formatFinancialWithUserPreferenceSync(double value) {
+    return format(
+      value,
+      includeSymbol: true,
+      decimalPlaces: 2,
+    ); // Will use user preference by default
+  }
+
+  /// Format currency for display in financial statements
+  static String formatFinancial(double value) {
+    return format(value, includeSymbol: true, decimalPlaces: 2);
   }
 
   /// Format currency based on country code with symbol and appropriate decimal places
@@ -119,16 +181,17 @@ class CurrencyFormatter {
     return format(value, includeSymbol: false, decimalPlaces: 0);
   }
 
-  /// Format currency for display in financial statements
-  static String formatFinancial(double value) {
-    return format(value, includeSymbol: true, decimalPlaces: 2);
+  /// Format currency with symbol and no decimal places (most common use case)
+  static String formatRupees(double value) {
+    return format(value, includeSymbol: true, decimalPlaces: 0);
   }
 
   /// Format currency for charts and graphs (abbreviated format)
-  static String formatAbbreviated(double value, {String countryCode = '+1'}) {
-    final symbol = getCurrencySymbol(countryCode);
+  static String formatAbbreviated(double value, {String? countryCode}) {
+    final effectiveCountryCode = countryCode ?? getCurrentCurrencyCodeSync();
+    final symbol = getCurrencySymbol(effectiveCountryCode);
 
-    if (countryCode == '+91') {
+    if (effectiveCountryCode == '+91') {
       // Indian abbreviations
       if (value >= 10000000) {
         // 1 crore
@@ -151,7 +214,7 @@ class CurrencyFormatter {
       }
     }
 
-    return formatByCountry(value, countryCode);
+    return formatByCountry(value, effectiveCountryCode);
   }
 
   /// Parse formatted currency string back to double

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -13,6 +14,7 @@ import 'statements_screen.dart';
 import 'change_password.dart';
 import 'privacy_assurances_screen.dart';
 import '../widgets/coming_soon_dialog.dart';
+import '../../../services/currency_preference_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -58,6 +60,259 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       debugPrint('Error getting Telegram image URL: $e');
       rethrow;
+    }
+  }
+
+  String _selectedCurrency = '+1';
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrencyPreference();
+
+    // Listen for currency changes
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
+  }
+
+  @override
+  void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
+    super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
+      if (kDebugMode) print('Currency changed listener triggered');
+      setState(() {
+        _selectedCurrency =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+        if (kDebugMode) {
+          print('Updated _selectedCurrency to: $_selectedCurrency');
+        }
+      });
+    }
+  }
+
+  Future<void> _loadCurrencyPreference() async {
+    if (kDebugMode) print('Settings: Loading currency preference');
+    setState(() => _isLoading = true);
+    try {
+      final currency = await CurrencyPreferenceService.getCurrencyPreference();
+      if (kDebugMode) print('Settings: Loaded currency: $currency');
+      if (mounted) {
+        setState(() {
+          _selectedCurrency = currency;
+          if (kDebugMode) {
+            print('Settings: Set _selectedCurrency to: $_selectedCurrency');
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) print('Settings: Error loading currency: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _showCurrencySelector() async {
+    final availableCurrencies =
+        CurrencyPreferenceService.getAvailableCurrencies();
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF09090B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true, // Allow proper height calculation
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom, // Handle keyboard
+        ),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight:
+                MediaQuery.of(context).size.height *
+                0.7, // Max 70% of screen height
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Select Currency',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: availableCurrencies.length,
+                  itemBuilder: (context, index) {
+                    final currency = availableCurrencies[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () async {
+                            Navigator.pop(context);
+                            await _updateCurrency(currency['code']!);
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: _selectedCurrency == currency['code']
+                                  ? Colors.white.withValues(alpha: 0.1)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _selectedCurrency == currency['code']
+                                    ? Colors.white.withValues(alpha: 0.2)
+                                    : Colors.white.withValues(alpha: 0.05),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(
+                                  currency['symbol']!,
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Text(
+                                    currency['name']!,
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                if (_selectedCurrency == currency['code'])
+                                  const Icon(
+                                    Icons.check,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateCurrency(String currencyCode) async {
+    if (kDebugMode) {
+      print('Settings: Starting currency update to: $currencyCode');
+    }
+    setState(() => _isLoading = true);
+
+    try {
+      final success = await CurrencyPreferenceService.updateCurrencyPreference(
+        currencyCode,
+      );
+
+      if (kDebugMode) print('Settings: Currency update result: $success');
+
+      if (success && mounted) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Currency updated to ${CurrencyPreferenceService.getCurrencyDisplayName(currencyCode)}',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            backgroundColor: const Color(0xFF00C851),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+
+        // Reload the app to apply currency changes everywhere
+        await _reloadApp();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to update currency',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            backgroundColor: const Color(0xFFFF453A),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) print('Settings: Exception during currency update: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error updating currency',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            backgroundColor: const Color(0xFFFF453A),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _reloadApp() async {
+    if (kDebugMode) print('Settings: Starting app reload');
+
+    // Force rebuild of the entire app by restarting the widget tree
+    if (mounted) {
+      // Go back to home screen first
+      Navigator.of(context).popUntil((route) => route.isFirst);
+
+      // Show a brief message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Applying currency changes...',
+            style: GoogleFonts.inter(color: Colors.white),
+          ),
+          backgroundColor: const Color(0xFF00C851),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+
+      // Force a complete rebuild by pushing a replacement route
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        if (kDebugMode) print('Settings: Navigating to home screen');
+        Navigator.of(context).pushReplacementNamed('/');
+      }
     }
   }
 
@@ -116,7 +371,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 32),
 
-              // 4. Security & Data
+              // 4. Preferences
+              _buildSectionLabel("PREFERENCES"),
+              _buildSettingsGroup([
+                _buildTile(
+                  icon: Icons.currency_exchange,
+                  title: "Currency",
+                  subtitle: CurrencyPreferenceService.getCurrencyDisplayName(
+                    _selectedCurrency,
+                  ),
+                  onTap: _showCurrencySelector,
+                  trailing: _isLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        )
+                      : Text(
+                          CurrencyPreferenceService.getCurrencySymbol(
+                            _selectedCurrency,
+                          ),
+                          style: GoogleFonts.inter(
+                            color: Colors.white54,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
+              ]),
+
+              const SizedBox(height: 32),
+
+              // 5. Security & Data
               _buildSectionLabel("SECURITY & PRIVACY"),
               _buildSettingsGroup([
                 _buildTile(
@@ -435,6 +726,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String title,
     String? subtitle,
     required VoidCallback onTap,
+    Widget? trailing,
   }) {
     return Material(
       color: Colors.transparent,
@@ -481,7 +773,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: Colors.white24, size: 20),
+              ?trailing,
+              if (trailing == null)
+                const Icon(
+                  Icons.chevron_right,
+                  color: Colors.white24,
+                  size: 20,
+                ),
             ],
           ),
         ),

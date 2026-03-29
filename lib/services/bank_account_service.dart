@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:flutter/material.dart';
 import 'currency_formatter.dart';
+import 'currency_preference_service.dart';
 
 /// Service for managing bank accounts with production-grade subcollection model
 ///
@@ -445,7 +446,10 @@ class BankAccountService {
   }
 
   /// Format currency consistently across the app
-  static String formatCurrency(double value, {String countryCode = '+1'}) {
-    return CurrencyFormatter.formatByCountry(value, countryCode);
+  static String formatCurrency(double value, {String? countryCode}) {
+    // Use user's preferred currency if no country code is provided
+    final effectiveCountryCode =
+        countryCode ?? CurrencyPreferenceService.getCurrencyPreferenceSync();
+    return CurrencyFormatter.formatByCountry(value, effectiveCountryCode);
   }
 }

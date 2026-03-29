@@ -1206,50 +1206,57 @@ PODS:
   - BoringSSL-GRPC/Interface (0.0.37)
   - camera_avfoundation (0.0.1):
     - Flutter
-  - cloud_firestore (6.1.2):
-    - Firebase/Firestore (= 12.8.0)
+  - cloud_firestore (6.2.0):
+    - Firebase/Firestore (= 12.9.0)
     - firebase_core
     - Flutter
-  - Firebase/Auth (12.8.0):
+  - Firebase/Auth (12.9.0):
     - Firebase/CoreOnly
-    - FirebaseAuth (~> 12.8.0)
-  - Firebase/CoreOnly (12.8.0):
-    - FirebaseCore (~> 12.8.0)
-  - Firebase/Firestore (12.8.0):
+    - FirebaseAuth (~> 12.9.0)
+  - Firebase/CoreOnly (12.9.0):
+    - FirebaseCore (~> 12.9.0)
+  - Firebase/Firestore (12.9.0):
     - Firebase/CoreOnly
-    - FirebaseFirestore (~> 12.8.0)
-  - firebase_auth (6.1.4):
-    - Firebase/Auth (= 12.8.0)
+    - FirebaseFirestore (~> 12.9.0)
+  - Firebase/Storage (12.9.0):
+    - Firebase/CoreOnly
+    - FirebaseStorage (~> 12.9.0)
+  - firebase_auth (6.3.0):
+    - Firebase/Auth (= 12.9.0)
     - firebase_core
     - Flutter
-  - firebase_core (4.4.0):
-    - Firebase/CoreOnly (= 12.8.0)
+  - firebase_core (4.6.0):
+    - Firebase/CoreOnly (= 12.9.0)
     - Flutter
-  - FirebaseAppCheckInterop (12.8.0)
-  - FirebaseAuth (12.8.0):
-    - FirebaseAppCheckInterop (~> 12.8.0)
-    - FirebaseAuthInterop (~> 12.8.0)
-    - FirebaseCore (~> 12.8.0)
-    - FirebaseCoreExtension (~> 12.8.0)
+  - firebase_storage (13.2.0):
+    - Firebase/Storage (= 12.9.0)
+    - firebase_core
+    - Flutter
+  - FirebaseAppCheckInterop (12.9.0)
+  - FirebaseAuth (12.9.0):
+    - FirebaseAppCheckInterop (~> 12.9.0)
+    - FirebaseAuthInterop (~> 12.9.0)
+    - FirebaseCore (~> 12.9.0)
+    - FirebaseCoreExtension (~> 12.9.0)
     - GoogleUtilities/AppDelegateSwizzler (~> 8.1)
     - GoogleUtilities/Environment (~> 8.1)
     - GTMSessionFetcher/Core (< 6.0, >= 3.4)
     - RecaptchaInterop (~> 101.0)
-  - FirebaseAuthInterop (12.8.0)
-  - FirebaseCore (12.8.0):
-    - FirebaseCoreInternal (~> 12.8.0)
+  - FirebaseAuthInterop (12.9.0)
+  - FirebaseCore (12.9.0):
+    - FirebaseCoreInternal (~> 12.9.0)
     - GoogleUtilities/Environment (~> 8.1)
     - GoogleUtilities/Logger (~> 8.1)
-  - FirebaseCoreExtension (12.8.0):
-    - FirebaseCore (~> 12.8.0)
-  - FirebaseCoreInternal (12.8.0):
+  - FirebaseCoreExtension (12.9.0):
+    - FirebaseCore (~> 12.9.0)
+  - FirebaseCoreInternal (12.9.0):
     - "GoogleUtilities/NSData+zlib (~> 8.1)"
-  - FirebaseFirestore (12.8.0):
-    - FirebaseCore (~> 12.8.0)
-    - FirebaseCoreExtension (~> 12.8.0)
-    - FirebaseFirestoreInternal (~> 12.8.0)
-    - FirebaseSharedSwift (~> 12.8.0)
-  - FirebaseFirestoreInternal (12.8.0):
+  - FirebaseFirestore (12.9.0):
+    - FirebaseCore (~> 12.9.0)
+    - FirebaseCoreExtension (~> 12.9.0)
+    - FirebaseFirestoreInternal (~> 12.9.0)
+    - FirebaseSharedSwift (~> 12.9.0)
+  - FirebaseFirestoreInternal (12.9.0):
     - abseil/algorithm (~> 1.20240722.0)
     - abseil/base (~> 1.20240722.0)
     - abseil/container/flat_hash_map (~> 1.20240722.0)
@@ -1258,44 +1265,31 @@ PODS:
     - abseil/strings/strings (~> 1.20240722.0)
     - abseil/time (~> 1.20240722.0)
     - abseil/types (~> 1.20240722.0)
-    - FirebaseAppCheckInterop (~> 12.8.0)
-    - FirebaseCore (~> 12.8.0)
+    - FirebaseAppCheckInterop (~> 12.9.0)
+    - FirebaseCore (~> 12.9.0)
     - "gRPC-C++ (~> 1.69.0)"
     - gRPC-Core (~> 1.69.0)
     - leveldb-library (~> 1.22)
     - nanopb (~> 3.30910.0)
-  - FirebaseSharedSwift (12.8.0)
+  - FirebaseSharedSwift (12.9.0)
+  - FirebaseStorage (12.9.0):
+    - FirebaseAppCheckInterop (~> 12.9.0)
+    - FirebaseAuthInterop (~> 12.9.0)
+    - FirebaseCore (~> 12.9.0)
+    - FirebaseCoreExtension (~> 12.9.0)
+    - GoogleUtilities/Environment (~> 8.1)
+    - GTMSessionFetcher/Core (< 6.0, >= 3.4)
   - Flutter (1.0.0)
-  - google_mlkit_commons (0.11.1):
-    - Flutter
-    - MLKitVision (~> 10.0.0)
-  - google_mlkit_text_recognition (0.15.1):
-    - Flutter
-    - google_mlkit_commons
-    - GoogleMLKit/TextRecognition (~> 9.0.0)
   - google_sign_in_ios (0.0.1):
     - Flutter
     - FlutterMacOS
     - GoogleSignIn (~> 9.0)
     - GTMSessionFetcher (>= 3.4.0)
-  - GoogleDataTransport (10.1.0):
-    - nanopb (~> 3.30910.0)
-    - PromisesObjC (~> 2.4)
-  - GoogleMLKit/MLKitCore (9.0.0):
-    - MLKitCommon (~> 14.0.0)
-  - GoogleMLKit/TextRecognition (9.0.0):
-    - GoogleMLKit/MLKitCore
-    - MLKitTextRecognition (~> 7.0.0)
   - GoogleSignIn (9.1.0):
     - AppAuth (~> 2.0)
     - AppCheckCore (~> 11.0)
     - GTMAppAuth (~> 5.0)
     - GTMSessionFetcher/Core (~> 3.3)
-  - GoogleToolboxForMac/Defines (4.2.1)
-  - GoogleToolboxForMac/Logger (4.2.1):
-    - GoogleToolboxForMac/Defines (= 4.2.1)
-  - "GoogleToolboxForMac/NSData+zlib (4.2.1)":
-    - GoogleToolboxForMac/Defines (= 4.2.1)
   - GoogleUtilities/AppDelegateSwizzler (8.1.0):
     - GoogleUtilities/Environment
     - GoogleUtilities/Logger
@@ -1420,30 +1414,12 @@ PODS:
   - GTMSessionFetcher/Core (3.5.0)
   - GTMSessionFetcher/Full (3.5.0):
     - GTMSessionFetcher/Core
+  - image_cropper (0.0.5):
+    - Flutter
+    - TOCropViewController (~> 3.1.1)
   - image_picker_ios (0.0.1):
     - Flutter
   - leveldb-library (1.22.6)
-  - MLImage (1.0.0-beta8)
-  - MLKitCommon (14.0.0):
-    - GoogleDataTransport (~> 10.0)
-    - GoogleToolboxForMac/Logger (< 5.0, >= 4.2.1)
-    - "GoogleToolboxForMac/NSData+zlib (< 5.0, >= 4.2.1)"
-    - GoogleUtilities/Logger (~> 8.0)
-    - GoogleUtilities/UserDefaults (~> 8.0)
-    - GTMSessionFetcher/Core (< 4.0, >= 3.3.2)
-  - MLKitTextRecognition (7.0.0):
-    - MLKitCommon (~> 14.0)
-    - MLKitTextRecognitionCommon (= 6.0.0)
-    - MLKitVision (~> 10.0)
-  - MLKitTextRecognitionCommon (6.0.0):
-    - MLKitCommon (~> 14.0)
-    - MLKitVision (~> 10.0)
-  - MLKitVision (10.0.0):
-    - GoogleToolboxForMac/Logger (< 5.0, >= 4.2.1)
-    - "GoogleToolboxForMac/NSData+zlib (< 5.0, >= 4.2.1)"
-    - GTMSessionFetcher/Core (< 4.0, >= 3.3.2)
-    - MLImage (= 1.0.0-beta8)
-    - MLKitCommon (~> 14.0)
   - nanopb (3.30910.0):
     - nanopb/decode (= 3.30910.0)
     - nanopb/encode (= 3.30910.0)
@@ -1455,6 +1431,7 @@ PODS:
     - Flutter
   - PromisesObjC (2.4.0)
   - RecaptchaInterop (101.0.0)
+  - TOCropViewController (3.1.1)
   - url_launcher_ios (0.0.1):
     - Flutter
 
@@ -1463,10 +1440,10 @@ DEPENDENCIES:
   - cloud_firestore (from `.symlinks/plugins/cloud_firestore/ios`)
   - firebase_auth (from `.symlinks/plugins/firebase_auth/ios`)
   - firebase_core (from `.symlinks/plugins/firebase_core/ios`)
+  - firebase_storage (from `.symlinks/plugins/firebase_storage/ios`)
   - Flutter (from `Flutter`)
-  - google_mlkit_commons (from `.symlinks/plugins/google_mlkit_commons/ios`)
-  - google_mlkit_text_recognition (from `.symlinks/plugins/google_mlkit_text_recognition/ios`)
   - google_sign_in_ios (from `.symlinks/plugins/google_sign_in_ios/darwin`)
+  - image_cropper (from `.symlinks/plugins/image_cropper/ios`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
   - printing (from `.symlinks/plugins/printing/ios`)
@@ -1488,24 +1465,18 @@ SPEC REPOS:
     - FirebaseFirestore
     - FirebaseFirestoreInternal
     - FirebaseSharedSwift
-    - GoogleDataTransport
-    - GoogleMLKit
+    - FirebaseStorage
     - GoogleSignIn
-    - GoogleToolboxForMac
     - GoogleUtilities
     - "gRPC-C++"
     - gRPC-Core
     - GTMAppAuth
     - GTMSessionFetcher
     - leveldb-library
-    - MLImage
-    - MLKitCommon
-    - MLKitTextRecognition
-    - MLKitTextRecognitionCommon
-    - MLKitVision
     - nanopb
     - PromisesObjC
     - RecaptchaInterop
+    - TOCropViewController
 
 EXTERNAL SOURCES:
   camera_avfoundation:
@@ -1516,14 +1487,14 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/firebase_auth/ios"
   firebase_core:
     :path: ".symlinks/plugins/firebase_core/ios"
+  firebase_storage:
+    :path: ".symlinks/plugins/firebase_storage/ios"
   Flutter:
     :path: Flutter
-  google_mlkit_commons:
-    :path: ".symlinks/plugins/google_mlkit_commons/ios"
-  google_mlkit_text_recognition:
-    :path: ".symlinks/plugins/google_mlkit_text_recognition/ios"
   google_sign_in_ios:
     :path: ".symlinks/plugins/google_sign_in_ios/darwin"
+  image_cropper:
+    :path: ".symlinks/plugins/image_cropper/ios"
   image_picker_ios:
     :path: ".symlinks/plugins/image_picker_ios/ios"
   permission_handler_apple:
@@ -1539,44 +1510,38 @@ SPEC CHECKSUMS:
   AppCheckCore: cc8fd0a3a230ddd401f326489c99990b013f0c4f
   BoringSSL-GRPC: dded2a44897e45f28f08ae87a55ee4bcd19bc508
   camera_avfoundation: 5675ca25298b6f81fa0a325188e7df62cc217741
-  cloud_firestore: 4bd00c3464706d9e09dabac0bb8e9610456109f5
-  Firebase: 9a58fdbc9d8655ed7b79a19cf9690bb007d3d46d
-  firebase_auth: e9031a1dbe04a90d98e8d11ff2302352a1c6d9e8
-  firebase_core: ee30637e6744af8e0c12a6a1e8a9718506ec2398
-  FirebaseAppCheckInterop: ba3dc604a89815379e61ec2365101608d365cf7d
-  FirebaseAuth: 4c289b1a43f5955283244a55cf6bd616de344be5
-  FirebaseAuthInterop: 95363fe96493cb4f106656666a0768b420cba090
-  FirebaseCore: 0dbad74bda10b8fb9ca34ad8f375fb9dd3ebef7c
-  FirebaseCoreExtension: 6605938d51f765d8b18bfcafd2085276a252bee2
-  FirebaseCoreInternal: fe5fa466aeb314787093a7dce9f0beeaad5a2a21
-  FirebaseFirestore: 67f23000ca238ccbab79127ed59636a9a2689e74
-  FirebaseFirestoreInternal: a0e7382af3d208898dcd1d4d52d8a7870632e881
-  FirebaseSharedSwift: f57ed48f4542b2d7eb4738f4f23ba443f78b3780
+  cloud_firestore: 698d4d849c58da2ef2b3b8b9db27d2cd56614e7e
+  Firebase: 065f2bb395062046623036d8e6dc857bc2521d56
+  firebase_auth: 323c64eedef33fc3fdf438d16c29d2624b2ce4f4
+  firebase_core: 8e6f58412ca227827c366b92e7cee047a2148c60
+  firebase_storage: 8d16922c017c49812f7bbe64a86f756f99a44c74
+  FirebaseAppCheckInterop: 4bade10286cc977e516f75d2d8312cbdfa534789
+  FirebaseAuth: 3a39f6436c21ebfd7919b698228b4f89ff94c23b
+  FirebaseAuthInterop: f8f6ff72dc24621906497fbe5cf3c42ee815e59c
+  FirebaseCore: 428912f751178b06bef0a1793effeb4a5e09a9b8
+  FirebaseCoreExtension: e911052d59cd0da237a45d706fc0f81654f035c1
+  FirebaseCoreInternal: b321eafae5362113bc182956fafc9922cfc77b72
+  FirebaseFirestore: d8b76ca1feb4ca0b0f078c45f7d1bd8014a49ef1
+  FirebaseFirestoreInternal: 02341a9ba87f6309227b04685022a5e16307bbf7
+  FirebaseSharedSwift: 9d2fa84a46676302b89dbd5e6e62bce2fe376909
+  FirebaseStorage: 3ba2348d876c295236cdd9f408a62d3f9ff8e6b5
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  google_mlkit_commons: a5e4ffae5bc59ea4c7b9025dc72cb6cb79dc1166
-  google_mlkit_text_recognition: b3de5adb786ad7a0fe8e13618387b8d2df0f3c70
   google_sign_in_ios: 000870aa06da9b28d1d0bf7ef70ff0213059dd28
-  GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
-  GoogleMLKit: b1eee21a41c57704fe72483b15c85cb2c0cd7444
   GoogleSignIn: fcee2257188d5eda57a5e2b6a715550ffff9206d
-  GoogleToolboxForMac: d1a2cbf009c453f4d6ded37c105e2f67a32206d8
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   "gRPC-C++": cc207623316fb041a7a3e774c252cf68a058b9e8
   gRPC-Core: 860978b7db482de8b4f5e10677216309b5ff6330
   GTMAppAuth: 217a876b249c3c585a54fd6f73e6b58c4f5c4238
   GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
+  image_cropper: e405d3e44183f8e8edbec2e49b01ff9c819c7ac8
   image_picker_ios: e0ece4aa2a75771a7de3fa735d26d90817041326
   leveldb-library: cc8b8f8e013647a295ad3f8cd2ddf49a6f19be19
-  MLImage: 0de5c6c2bf9e93b80ef752e2797f0836f03b58c0
-  MLKitCommon: 47d47b50a031d00db62f1b0efe5a1d8b09a3b2e6
-  MLKitTextRecognition: c0ad24510481dfc8893ad15dfcb8a5f05ed9e826
-  MLKitTextRecognitionCommon: 234ceb1cfdfb5fceb4fd664943046609a2961cc2
-  MLKitVision: 39a5a812db83c4a0794445088e567f3631c11961
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
   printing: 54ff03f28fe9ba3aa93358afb80a8595a071dd07
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
+  TOCropViewController: 9002a9b12d8104d7478cdc306d80f0efea7fe2c5
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
 
 PODFILE CHECKSUM: 925325d20e05a8bbfce919e0da669633c652835f

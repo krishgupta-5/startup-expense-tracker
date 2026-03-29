@@ -5,6 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../utils/data_helpers.dart';
+import '../../../services/currency_preference_service.dart';
+import '../../../services/currency_formatter.dart';
 
 class EditExpenseScreen extends StatefulWidget {
   final String expenseId;
@@ -27,6 +29,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   late TextEditingController _notesController;
 
   bool _isLoading = false;
+  String _userCountryCode = '+1'; // Default to USD
+  bool _isLoadingCountry = true;
 
   // Data Lists
   final categories = {
@@ -48,9 +52,16 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   late String _selectedType;
   late DateTime _selectedDate;
 
+  void _loadUserCountryCode() {
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    setState(() => _isLoadingCountry = false);
+  }
+
   @override
   void initState() {
     super.initState();
+    _loadUserCountryCode();
 
     // 2. PRE-FILL DATA FROM FIREBASE
     _amountController = TextEditingController(
@@ -85,20 +96,36 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
   @override
   void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
     _amountController.dispose();
     _titleController.dispose();
     _notesController.dispose();
     super.dispose();
   }
 
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   // 3. FIREBASE UPDATE LOGIC
   Future<void> _updateExpense() async {
-    if (_isLoading) return;
-    if (_amountController.text.trim().isEmpty) {
-      _showErrorSnackBar("Please enter an amount.");
-      return;
-    }
-
     final double? amount = double.tryParse(_amountController.text.trim());
     if (amount == null || amount <= 0) {
       _showErrorSnackBar("Please enter a valid amount greater than 0.");
@@ -211,16 +238,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         setState(() => _isLoading = false);
       }
     }
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   @override
@@ -400,6 +417,14 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           ),
           border: InputBorder.none,
           contentPadding: EdgeInsets.zero,
+          prefixText: _isLoadingCountry
+              ? '₹'
+              : CurrencyFormatter.getCurrencySymbol(_userCountryCode),
+          prefixStyle: GoogleFonts.inter(
+            color: Colors.white38,
+            fontSize: 32,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

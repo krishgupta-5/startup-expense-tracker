@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../../services/currency_formatter.dart';
-import '../../../../services/user_country_service.dart';
+import '../../../../services/currency_preference_service.dart';
 
 class AdjustSalaryScreen extends StatefulWidget {
   final String memberId;
@@ -32,7 +32,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
   @override
   void initState() {
     super.initState();
-    _userCountryCode = UserCountryService.getUserCountryCodeSync();
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
     _salaryController = TextEditingController(
       text: widget.currentSalary.toStringAsFixed(0),
     );
@@ -41,9 +42,21 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
 
   @override
   void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
     _salaryController.dispose();
     _reasonController.dispose();
     super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
   }
 
   // --- UNIFIED MINIMAL TOAST ---

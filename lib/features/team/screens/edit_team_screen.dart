@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../shared/widgets/error_popup.dart';
+import '../../../utils/data_helpers.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/user_country_service.dart';
 
@@ -133,24 +135,93 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     setState(() => _isDeleting = true);
 
     try {
-      // First, delete all members associated with this team
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get companyId from user document
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final companyId = userDoc.data()?['companyId'];
+      if (companyId == null) {
+        throw Exception('Company not found');
+      }
+
+      // Get all members in the team for financial calculations
       final membersSnapshot = await FirebaseFirestore.instance
           .collection('members')
           .where('teamId', isEqualTo: widget.teamId)
           .get();
 
-      // Delete all members in a batch
+      double totalMonthlySalaryImpact = 0;
+
+      // Use batch for atomic operations
       final batch = FirebaseFirestore.instance.batch();
+
+      // Archive payment history and calculate financial impact for all members
       for (var memberDoc in membersSnapshot.docs) {
+        final memberData = memberDoc.data();
+        final memberSalary = DataHelpers.safeParseDouble(
+          memberData['salary'] ?? 0,
+        );
+        final memberName = memberData['name'] ?? 'Unknown';
+        final memberId = memberDoc.id;
+
+        // Calculate monthly salary impact
+        totalMonthlySalaryImpact += memberSalary / 12;
+
+        // Archive payment history for this member
+        final paymentsSnapshot = await FirebaseFirestore.instance
+            .collection('payments')
+            .where('memberId', isEqualTo: memberId)
+            .get();
+
+        // Create archived payment records
+        final archiveCollection = FirebaseFirestore.instance.collection(
+          'archived_payments',
+        );
+
+        for (var paymentDoc in paymentsSnapshot.docs) {
+          final paymentData = paymentDoc.data();
+          paymentData['originalMemberId'] = memberId;
+          paymentData['originalMemberName'] = memberName;
+          paymentData['originalTeamId'] = widget.teamId;
+          paymentData['archivedAt'] = FieldValue.serverTimestamp();
+          paymentData['archiveReason'] = 'team_deleted';
+
+          final archiveRef = archiveCollection.doc();
+          batch.set(archiveRef, paymentData);
+
+          // Delete original payment
+          batch.delete(paymentDoc.reference);
+        }
+
+        // Delete member document
         batch.delete(memberDoc.reference);
       }
-      await batch.commit();
 
-      // Then delete the team document
-      await FirebaseFirestore.instance
+      // Delete the team document
+      final teamRef = FirebaseFirestore.instance
           .collection('teams')
-          .doc(widget.teamId)
-          .delete();
+          .doc(widget.teamId);
+      batch.delete(teamRef);
+
+      // Update company financial totals with total salary impact
+      if (totalMonthlySalaryImpact > 0) {
+        final companyRef = FirebaseFirestore.instance
+            .collection('companies')
+            .doc(companyId);
+        batch.update(companyRef, {
+          "totalExpenses": FieldValue.increment(-totalMonthlySalaryImpact),
+        });
+      }
+
+      // Commit all operations atomically
+      await batch.commit();
 
       if (mounted) {
         // Pop twice to go back to main Teams list
@@ -159,7 +230,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
 
         ErrorPopup.showSuccess(
           context: context,
-          message: "Team and all its members deleted.",
+          message: "Team and all members removed. Payment history archived.",
         );
       }
     } on FirebaseException catch (e) {

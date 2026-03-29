@@ -12,7 +12,7 @@ import 'add_member_screen.dart';
 import 'member_detail_screen.dart';
 import '../../../widgets/avatar_widget.dart';
 import '../../../services/currency_formatter.dart';
-import '../../../services/user_country_service.dart';
+import '../../../services/currency_preference_service.dart';
 
 class TeamDetailScreen extends StatefulWidget {
   final String teamId;
@@ -37,17 +37,37 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // Get country code synchronously for instant display
-    _userCountryCode = UserCountryService.getUserCountryCodeSync();
+    // Get currency preference synchronously for instant display
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    // Listen for currency changes
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
     // Load in background for more accurate result
     _loadUserCountryCode();
   }
 
-  Future<void> _loadUserCountryCode() async {
-    final countryCode = await UserCountryService.getUserCountryCode();
-    if (mounted && countryCode != _userCountryCode) {
+  @override
+  void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
+    super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
       setState(() {
-        _userCountryCode = countryCode;
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final currencyCode =
+        await CurrencyPreferenceService.getCurrencyPreference();
+    if (mounted && currencyCode != _userCountryCode) {
+      setState(() {
+        _userCountryCode = currencyCode;
       });
     }
   }

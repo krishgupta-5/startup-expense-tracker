@@ -8,6 +8,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../../widgets/telegram_image_picker.dart';
 import '../../../utils/data_helpers.dart';
+import '../../../services/currency_preference_service.dart';
+import '../../../services/currency_formatter.dart';
 import '../../../services/bank_account_service.dart';
 
 class AddExpenseScreen extends StatefulWidget {
@@ -31,6 +33,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   bool _isLoading = false;
   bool _isLoadingBanks = true;
+  String _userCountryCode = '+1'; // Default to USD
+  bool _isLoadingCountry = true;
 
   // ✅ Attachment file ID from Telegram
   String? _attachmentFileId;
@@ -66,8 +70,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   @override
   void initState() {
     super.initState();
-
-    // Initialize scroll controller
+    _loadUserCountryCode();
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
     _scrollController = ScrollController();
 
     final p = widget.prefillData;
@@ -119,8 +123,26 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
+  void _loadUserCountryCode() {
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    setState(() => _isLoadingCountry = false);
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
+  }
+
   @override
   void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
     _amountController.dispose();
     _titleController.dispose();
     _descriptionController.dispose();
@@ -134,9 +156,17 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final companyId = userDoc.data()?['companyId'];
+      if (companyId == null) return;
+
       final doc = await FirebaseFirestore.instance
           .collection('companies')
-          .doc(user.uid)
+          .doc(companyId)
           .get();
 
       if (doc.exists && doc.data()!.containsKey('Bank Accounts')) {
@@ -248,9 +278,17 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final companyId = userDoc.data()?['companyId'];
+      if (companyId == null) return;
+
       final companyDoc = await FirebaseFirestore.instance
           .collection('companies')
-          .doc(user.uid)
+          .doc(companyId)
           .get();
 
       if (companyDoc.exists && companyDoc.data() != null) {
@@ -481,6 +519,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           ),
           border: InputBorder.none,
           contentPadding: EdgeInsets.zero,
+          prefixText: _isLoadingCountry
+              ? '₹'
+              : CurrencyFormatter.getCurrencySymbol(_userCountryCode),
+          prefixStyle: GoogleFonts.inter(
+            color: Colors.white38,
+            fontSize: 32,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

@@ -12,6 +12,8 @@ import 'scan_expense_screen.dart';
 import 'report_expense_screen.dart';
 import '../../../utils/data_helpers.dart';
 import '../../../services/financial_calculator.dart';
+import '../../../services/currency_preference_service.dart';
+import '../../../services/currency_formatter.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -27,6 +29,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   double _totalExpenses = 0.0;
   double _avgDaily = 0.0;
   bool _isLoading = true;
+  String _userCountryCode = '+1'; // Default to USD
+  bool _isLoadingCountry = true;
 
   // OVERRIDE wantKeepAlive to return true
   @override
@@ -35,7 +39,40 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   @override
   void initState() {
     super.initState();
+    // Get currency preference synchronously for instant display
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    // Listen for currency changes
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
     _loadMetricsData();
+    _loadUserCountryCode();
+  }
+
+  @override
+  void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
+    super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final currencyCode =
+        await CurrencyPreferenceService.getCurrencyPreference();
+    if (mounted) {
+      setState(() {
+        _userCountryCode = currencyCode;
+        _isLoadingCountry = false;
+      });
+    }
   }
 
   Future<void> _loadMetricsData() async {
@@ -139,21 +176,21 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                         children: [
                           _buildFlatMetric(
                             "Budget Left",
-                            "₹${(_totalFunding - _totalExpenses).toStringAsFixed(0)}",
+                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${(_totalFunding - _totalExpenses).toStringAsFixed(0)}",
                             "${_totalFunding > 0 ? ((_totalFunding - _totalExpenses) / _totalFunding * 100).toStringAsFixed(0) : '0'}%",
                             const Color(0xFF30D158),
                           ),
                           const SizedBox(width: 16),
                           _buildFlatMetric(
                             "Spent",
-                            "₹${_totalExpenses.toStringAsFixed(0)}",
+                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${_totalExpenses.toStringAsFixed(0)}",
                             "+${(_totalExpenses > 0 ? '0' : '0')}%", // Placeholder logic
                             Colors.white,
                           ),
                           const SizedBox(width: 16),
                           _buildFlatMetric(
                             "Avg. Daily",
-                            "₹${_avgDaily.toStringAsFixed(0)}",
+                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${_avgDaily.toStringAsFixed(0)}",
                             "-${(_avgDaily > 0 ? '0' : '0')}%", // Placeholder logic
                             Colors.grey,
                           ),
@@ -478,7 +515,9 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   ) {
     final title = DataHelpers.safeParseString(tx['Title']);
     final amount = DataHelpers.safeParseDouble(tx['Amount']);
-    final formattedAmount = DataHelpers.formatCurrency(amount);
+    final formattedAmount = _isLoadingCountry
+        ? DataHelpers.formatCurrency(amount)
+        : CurrencyFormatter.formatByCountry(amount, _userCountryCode);
     // Format category to capitalize first letter or match your style
     final String rawCategory = DataHelpers.safeParseString(tx['Category']);
     final category = rawCategory.isNotEmpty

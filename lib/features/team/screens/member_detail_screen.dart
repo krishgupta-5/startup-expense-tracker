@@ -15,7 +15,8 @@ import 'process_payment_screen.dart';
 import 'transaction_details_screen.dart';
 import '../../../widgets/avatar_widget.dart';
 import '../../../services/currency_formatter.dart';
-import '../../../services/user_country_service.dart';
+import '../../../services/currency_preference_service.dart';
+import '../../../utils/data_helpers.dart';
 
 class MemberDetailScreen extends StatefulWidget {
   final String memberId;
@@ -37,17 +38,37 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // Get country code synchronously for instant display
-    _userCountryCode = UserCountryService.getUserCountryCodeSync();
+    // Get currency preference synchronously for instant display
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    // Listen for currency changes
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
     // Load in background for more accurate result
     _loadUserCountryCode();
   }
 
-  Future<void> _loadUserCountryCode() async {
-    final countryCode = await UserCountryService.getUserCountryCode();
-    if (mounted && countryCode != _userCountryCode) {
+  @override
+  void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
+    super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
       setState(() {
-        _userCountryCode = countryCode;
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final currencyCode =
+        await CurrencyPreferenceService.getCurrencyPreference();
+    if (mounted && currencyCode != _userCountryCode) {
+      setState(() {
+        _userCountryCode = currencyCode;
       });
     }
   }
@@ -1284,16 +1305,114 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                         onTap: () async {
                           Navigator.pop(dialogContext);
                           try {
-                            await FirebaseFirestore.instance
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user == null) {
+                              throw Exception('User not authenticated');
+                            }
+
+                            // Get companyId from user document
+                            final userDoc = await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(user.uid)
+                                .get();
+
+                            final companyId = userDoc.data()?['companyId'];
+                            if (companyId == null) {
+                              throw Exception('Company not found');
+                            }
+
+                            // Get member data before deletion for financial calculations
+                            final memberDoc = await FirebaseFirestore.instance
                                 .collection('members')
                                 .doc(widget.memberId)
-                                .delete();
+                                .get();
+
+                            if (!memberDoc.exists) {
+                              throw Exception('Member not found');
+                            }
+
+                            final memberData = memberDoc.data()!;
+                            final memberSalary = DataHelpers.safeParseDouble(
+                              memberData['salary'] ?? 0,
+                            );
+                            final memberName = memberData['name'] ?? 'Unknown';
+
+                            // Use batch for atomic operations
+                            final batch = FirebaseFirestore.instance.batch();
+
+                            // Archive payment history before deletion
+                            final paymentsSnapshot = await FirebaseFirestore
+                                .instance
+                                .collection('payments')
+                                .where('memberId', isEqualTo: widget.memberId)
+                                .get();
+
+                            // Create archived payment records
+                            final archiveCollection = FirebaseFirestore.instance
+                                .collection('archived_payments');
+
+                            for (var paymentDoc in paymentsSnapshot.docs) {
+                              final paymentData = paymentDoc.data();
+                              paymentData['originalMemberId'] = widget.memberId;
+                              paymentData['originalMemberName'] = memberName;
+                              paymentData['archivedAt'] =
+                                  FieldValue.serverTimestamp();
+                              paymentData['archiveReason'] = 'member_deleted';
+
+                              final archiveRef = archiveCollection.doc();
+                              batch.set(archiveRef, paymentData);
+
+                              // Delete original payment
+                              batch.delete(paymentDoc.reference);
+                            }
+
+                            // Delete member document
+                            final memberRef = FirebaseFirestore.instance
+                                .collection('members')
+                                .doc(widget.memberId);
+                            batch.delete(memberRef);
+
+                            // Update company financial totals
+                            final companyRef = FirebaseFirestore.instance
+                                .collection('companies')
+                                .doc(companyId);
+
+                            // Calculate annual salary impact on monthly expenses
+                            final monthlySalaryImpact = memberSalary / 12;
+                            batch.update(companyRef, {
+                              "totalExpenses": FieldValue.increment(
+                                -monthlySalaryImpact,
+                              ),
+                            });
+
+                            // Commit all operations atomically
+                            await batch.commit();
 
                             if (context.mounted) {
                               Navigator.pop(context); // Go back to team detail
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    "Member removed and payment history archived",
+                                    style: GoogleFonts.inter(),
+                                  ),
+                                  backgroundColor: Colors.black,
+                                ),
+                              );
                             }
                           } catch (e) {
                             debugPrint("Failed to delete member: $e");
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    "Failed to remove member",
+                                    style: GoogleFonts.inter(),
+                                  ),
+                                  backgroundColor: const Color(0xFFFF453A),
+                                ),
+                              );
+                            }
                           }
                         },
                         child: Container(

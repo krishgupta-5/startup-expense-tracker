@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 import 'edit_expense_screen.dart';
 import '../../../utils/data_helpers.dart';
+import '../../../services/currency_preference_service.dart';
+import '../../../services/currency_formatter.dart';
 
 class ExpenseDetailsScreen extends StatefulWidget {
   final String expenseId;
@@ -22,6 +24,47 @@ class ExpenseDetailsScreen extends StatefulWidget {
 }
 
 class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
+  String _userCountryCode = '+1'; // Default to USD
+  bool _isLoadingCountry = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Get currency preference synchronously for instant display
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    // Listen for currency changes
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
+    _loadUserCountryCode();
+  }
+
+  @override
+  void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
+    super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final currencyCode =
+        await CurrencyPreferenceService.getCurrencyPreference();
+    if (mounted) {
+      setState(() {
+        _userCountryCode = currencyCode;
+        _isLoadingCountry = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
@@ -127,7 +170,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                             _buildCategoryBadge(category),
                             const SizedBox(height: 24),
                             Text(
-                              "₹${DataHelpers.formatCurrency(amount)}",
+                              _isLoadingCountry
+                                  ? "₹${DataHelpers.formatCurrency(amount)}"
+                                  : CurrencyFormatter.formatByCountry(
+                                      amount,
+                                      _userCountryCode,
+                                    ),
                               style: GoogleFonts.inter(
                                 color: Colors.white,
                                 fontSize: 48,

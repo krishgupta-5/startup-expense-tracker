@@ -12,6 +12,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'add_expense_screen.dart';
 import '../../../services/api_service.dart';
 import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
 
 class ScanExpenseScreen extends StatefulWidget {
   const ScanExpenseScreen({super.key});
@@ -32,6 +33,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
   final ImagePicker _imagePicker = ImagePicker();
   late AnimationController _scanAnimController;
   Map<String, String> _parsedData = {};
+  String _userCountryCode = '+1'; // Default to USD
+  bool _isLoadingCountry = true;
 
   // NEW: Holds image path before processing so user can crop/retake
   String? _capturedImagePath;
@@ -47,11 +50,22 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
   @override
   void initState() {
     super.initState();
+    _loadUserCountryCode();
     _scanAnimController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
     _initializeCamera();
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final countryCode = await UserCountryService.getUserCountryCode();
+    if (mounted) {
+      setState(() {
+        _userCountryCode = countryCode;
+        _isLoadingCountry = false;
+      });
+    }
   }
 
   @override
@@ -334,7 +348,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     }
     if (data['amount']?.isNotEmpty == true) {
       lines.add(
-        '  ${CurrencyFormatter.getCurrencySymbol('+1')}${data['amount']}',
+        '  ${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${data['amount']}',
       );
     }
     if (data['date']?.isNotEmpty == true) {
