@@ -16,6 +16,7 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
   final TextEditingController _bankNameController = TextEditingController();
   final TextEditingController _accountNumberController =
       TextEditingController();
+
   bool _isLoading = false;
 
   @override
@@ -93,7 +94,15 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
 
       if (mounted) {
         _showMinimalToast("Bank account added successfully");
-        Navigator.pop(context, true);
+        // Return the bank account data for instant display in settings
+        Navigator.pop(context, {
+          "bankName": _bankNameController.text.trim(),
+          "last4": _accountNumberController.text.trim().length >= 4
+              ? _accountNumberController.text.trim().substring(
+                  _accountNumberController.text.trim().length - 4,
+                )
+              : _accountNumberController.text.trim(),
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -112,29 +121,31 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF09090B), // Deep Matte Black
-      body: GestureDetector(
-        onTap: () =>
-            FocusScope.of(context).unfocus(), // Tap to dismiss keyboard
-        child: AnnotatedRegion<SystemUiOverlayStyle>(
-          value: SystemUiOverlayStyle.light,
-          child: SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Matching Header
-                  _buildHeader(context),
+      resizeToAvoidBottomInset: true,
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: SafeArea(
+          child: Column(
+            children: [
+              // 1. Premium Header
+              _buildHeader(context),
 
-                  const SizedBox(height: 40),
-
-                  // Form Section (No outer card, sits flat on background like Setup screen)
-                  Form(
+              // 2. Scrollable Form
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  child: Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        const SizedBox(height: 16),
+
+                        // Badge
                         Row(
                           children: [
                             Container(
@@ -157,7 +168,7 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
                                 "NEW ACCOUNT",
                                 style: GoogleFonts.inter(
                                   color: const Color(0xFF30D158),
-                                  fontSize: 11,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 1.0,
                                 ),
@@ -165,13 +176,16 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
                             ),
                           ],
                         ),
+
                         const SizedBox(height: 32),
 
-                        _buildTextField(
+                        // Inputs
+                        _buildTextInput(
                           controller: _bankNameController,
                           label: "BANK NAME",
-                          hint: "e.g., HDFC Bank, SBI",
+                          hint: "e.g., HDFC Bank, Chase",
                           icon: Icons.account_balance_outlined,
+                          textInputAction: TextInputAction.next,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Bank name is required';
@@ -182,12 +196,13 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
 
                         const SizedBox(height: 24),
 
-                        _buildTextField(
+                        _buildTextInput(
                           controller: _accountNumberController,
                           label: "ACCOUNT NUMBER",
                           hint: "Enter account number",
                           icon: Icons.numbers,
                           keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.done,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Account number is required';
@@ -199,176 +214,160 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
                           },
                         ),
 
-                        const SizedBox(height: 48),
-
-                        SizedBox(
-                          width: double.infinity,
-                          height: 56,
-                          child: ElevatedButton(
-                            onPressed: _isLoading ? null : _saveBankAccount,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black,
-                              disabledBackgroundColor: Colors.white70,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            child: _isLoading
-                                ? const SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.black,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : Text(
-                                    "Link Bank Account",
-                                    style: GoogleFonts.inter(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                          ),
-                        ),
+                        const SizedBox(height: 40),
                       ],
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+
+              // 3. Bottom Sticky Action Button
+              _buildSubmitButton(),
+            ],
           ),
         ),
       ),
     );
   }
+
+  // --- WIDGET BUILDERS ---
 
   Widget _buildHeader(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFF141416),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.1),
-              ), // Matched alpha to 0.1
-            ),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-          ),
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              "Configuration",
-              style: GoogleFonts.inter(
-                color: Colors.white38,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              "Add Bank Account",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Text(
-        text,
-        style: GoogleFonts.inter(
-          color: Colors.white70, // Matches Login/Setup
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.2,
-        ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05), // Glassy white
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: const Icon(
+                Icons.arrow_back,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ),
+          Text(
+            "Add Bank Account",
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 44), // Balances header alignment
+        ],
       ),
     );
   }
 
-  Widget _buildTextField({
+  Widget _buildSectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: Colors.white54,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
+  Widget _buildTextInput({
     required TextEditingController controller,
     required String label,
     required String hint,
     required IconData icon,
-    TextInputType? keyboardType,
+    TextInputType keyboardType = TextInputType.text,
+    TextInputAction textInputAction = TextInputAction.done,
     String? Function(String?)? validator,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildLabel(label),
-        TextFormField(
-          controller: controller,
-          keyboardType: keyboardType,
-          style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-          cursorColor: Colors.white,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 15),
-            prefixIcon: Icon(icon, color: Colors.white60, size: 20),
-            filled: true,
-            fillColor: const Color(0xFF141416), // Matches Setup inputs
-            contentPadding: const EdgeInsets.symmetric(vertical: 16),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(
-                color: Colors.white.withValues(alpha: 0.1),
-              ),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(
-                color: Colors.white.withValues(alpha: 0.1),
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(
-                color: Colors.white.withValues(
-                  alpha: 0.3,
-                ), // Slightly brighter on focus
-              ),
-            ),
-            errorStyle: GoogleFonts.inter(
-              color: const Color(0xFFFF453A),
-              fontSize: 12,
-            ),
-            errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(
-                color: const Color(0xFFFF453A).withValues(alpha: 0.6),
-              ),
-            ),
-            focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFFFF453A)),
-            ),
+        _buildSectionLabel(label),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
           ),
-          validator: validator,
+          child: TextFormField(
+            controller: controller,
+            keyboardType: keyboardType,
+            textInputAction: textInputAction,
+            onTapOutside: (event) => FocusScope.of(context).unfocus(),
+            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+            cursorColor: Colors.white,
+            decoration: InputDecoration(
+              icon: Icon(icon, color: Colors.white38, size: 20),
+              hintText: hint,
+              hintStyle: GoogleFonts.inter(color: Colors.white24),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              errorStyle: GoogleFonts.inter(
+                color: const Color(0xFFFF453A),
+                fontSize: 12,
+                height: 0.8,
+              ),
+            ),
+            validator: validator,
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF09090B),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: _isLoading ? null : _saveBankAccount,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            disabledBackgroundColor: Colors.white54,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: _isLoading
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.black,
+                  ),
+                )
+              : Text(
+                  "Link Bank Account",
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+        ),
+      ),
     );
   }
 }

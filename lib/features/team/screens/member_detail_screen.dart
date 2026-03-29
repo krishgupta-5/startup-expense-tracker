@@ -28,7 +28,8 @@ class MemberDetailScreen extends StatefulWidget {
 
 class _MemberDetailScreenState extends State<MemberDetailScreen> {
   String _userCountryCode = '+1'; // Default to USD
-  final bool _isLoadingCountry = false; // Start as false since we use sync method
+  final bool _isLoadingCountry =
+      false; // Start as false since we use sync method
 
   // Cache for Telegram photos to avoid repeated fetching
   static final Map<String, String> _telegramPhotoCache = {};
@@ -226,9 +227,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
                               color: const Color(0xFF141416),
-                              borderRadius: BorderRadius.circular(
-                                20,
-                              ), // Matched
+                              borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color: Colors.white.withValues(alpha: 0.04),
                               ),
@@ -284,13 +283,31 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                     ),
                                   );
                                 },
-                                child: Text(
-                                  "VIEW ALL",
-                                  style: GoogleFonts.inter(
-                                    color: const Color(0xFF0A84FF),
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 1.0,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical:
+                                        8, // Slightly taller for touch area
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(
+                                      alpha: 0.08,
+                                    ), // Glassy white
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.15,
+                                      ), // Crisp border
+                                    ),
+                                  ),
+                                  child: Text(
+                                    "VIEW ALL",
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -332,9 +349,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: Colors.white.withValues(alpha: 0.05), // Glassy
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: const Icon(
                 Icons.arrow_back,
@@ -367,9 +384,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: Colors.white.withValues(alpha: 0.05), // Glassy
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: const Icon(
                 Icons.more_horiz,
@@ -463,7 +480,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(20), // Matched to 20
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
       child: Column(
@@ -471,10 +488,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           Text(
             "MONTHLY COST",
             style: GoogleFonts.inter(
-              color: Colors.white38,
-              fontSize: 10,
+              color: Colors.white54, // Upgraded visibility
+              fontSize: 11,
               fontWeight: FontWeight.bold,
-              letterSpacing: 1.5,
+              letterSpacing: 1.2,
             ),
           ),
           const SizedBox(height: 8),
@@ -484,7 +501,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 : salary,
             style: GoogleFonts.inter(
               color: isPaused ? Colors.white38 : Colors.white,
-              fontSize: 42, // Matched size to 42
+              fontSize: 42,
               fontWeight: FontWeight.w600,
               letterSpacing: -1,
               decoration: isPaused ? TextDecoration.lineThrough : null,
@@ -535,7 +552,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           .where('uid', isEqualTo: currentUser?.uid)
           .snapshots(),
       builder: (context, snapshot) {
-        // Show a small loader while checking payment status
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
           return const Center(
@@ -551,14 +567,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             final category = data['Category']?.toString().toLowerCase() ?? '';
             final title = data['Title']?.toString() ?? '';
 
-            // Count every salary payment linked to this member
             if (category == 'salary' && title.contains(memberName)) {
               totalPaymentsMade++;
             }
           }
         }
 
-        // Helper function to safely add months to a date
         DateTime addMonths(DateTime date, int months) {
           int newYear = date.year + (date.month + months - 1) ~/ 12;
           int newMonth = (date.month + months - 1) % 12 + 1;
@@ -571,15 +585,13 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           return DateTime(newYear, newMonth, newDay);
         }
 
-        // 2. Calculate Next Due Date mathematically
         DateTime nextDueDate = addMonths(joinedDate, totalPaymentsMade + 1);
         DateTime now = DateTime.now();
         DateTime today = DateTime(now.year, now.month, now.day);
 
-        // 3. Determine if it's an Advance
         bool isAdvance = today.isBefore(nextDueDate);
+        bool shouldHideAdvanceButton = totalPaymentsMade == 0;
 
-        // 4. Formatting for UI
         final List<String> monthsStr = [
           'Jan',
           'Feb',
@@ -596,6 +608,63 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         ];
         String formattedDueDate =
             "${monthsStr[nextDueDate.month - 1]} ${nextDueDate.day}, ${nextDueDate.year}";
+
+        if (isAdvance && shouldHideAdvanceButton) {
+          return Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    color: Colors.white38,
+                    size: 14,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    "Next Due: $formattedDueDate",
+                    style: GoogleFonts.inter(
+                      color: Colors.white54,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141416),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.04),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.lock_outline,
+                      color: Colors.white38,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Advance payment not available yet",
+                      style: GoogleFonts.inter(
+                        color: Colors.white54,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
 
         return Column(
           children: [
@@ -640,21 +709,26 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   );
                 },
                 style: ElevatedButton.styleFrom(
+                  // Premium "White Glass" for Advance Pay, Solid White for Pay Salary
                   backgroundColor: isAdvance
-                      ? const Color(0xFF5E5CE6) // Purple for Advance
-                      : const Color(0xFF0A84FF), // Blue for Pay Salary
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.white,
+                  foregroundColor: isAdvance ? Colors.white : Colors.black,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
+                    side: isAdvance
+                        ? BorderSide(
+                            color: Colors.white.withValues(alpha: 0.15),
+                          )
+                        : BorderSide.none,
                   ),
                   elevation: 0,
                 ),
                 child: Text(
-                  isAdvance ? "ADVANCE PAY" : "PAY SALARY",
+                  isAdvance ? "Advance Pay" : "Pay Salary",
                   style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.0,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
@@ -726,7 +800,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: const Color(0xFF141416),
-              borderRadius: BorderRadius.circular(20), // Matched
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
             ),
             child: const Center(
@@ -741,7 +815,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: const Color(0xFF141416),
-              borderRadius: BorderRadius.circular(20), // Matched
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
             ),
             child: Center(
@@ -769,7 +843,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 ? (data['Amount'] as int).toDouble()
                 : (data['Amount'] as double? ?? 0.0);
 
-            // Capture raw data and ID for the details screen
             memberPayments.add({
               "id": doc.id,
               "rawData": data,
@@ -801,7 +874,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: const Color(0xFF141416),
-              borderRadius: BorderRadius.circular(20), // Matched
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
             ),
             child: Center(
@@ -846,7 +919,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF141416),
-                    borderRadius: BorderRadius.circular(20), // Matched
+                    borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: Colors.white.withValues(alpha: 0.04),
                     ),
@@ -860,19 +933,17 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: Icon(
                               isAdvance
                                   ? Icons.fast_forward
                                   : Icons.arrow_outward,
-                              color: isAdvance
-                                  ? const Color(0xFF5E5CE6)
-                                  : Colors.white54,
+                              color: Colors.white,
                               size: 16,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 16),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -881,7 +952,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                 style: GoogleFonts.inter(
                                   color: Colors.white,
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w500,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -889,46 +960,20 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                 p['date']!,
                                 style: GoogleFonts.inter(
                                   color: Colors.white38,
-                                  fontSize: 11,
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
                           ),
                         ],
                       ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            p['amt']!,
-                            style: GoogleFonts.inter(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(
-                                0xFF30D158,
-                              ).withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              "Completed",
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFF30D158),
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        p['amt']!,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -945,12 +990,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     return Container(
       alignment: Alignment.centerLeft,
       child: Text(
-        title,
+        title.toUpperCase(),
         style: GoogleFonts.inter(
-          color: Colors.white24,
-          fontSize: 10,
+          color: Colors.white54, // Upgraded visibility
+          fontSize: 11, // Upgraded size
           fontWeight: FontWeight.bold,
-          letterSpacing: 1.5,
+          letterSpacing: 1.2,
         ),
       ),
     );
@@ -993,7 +1038,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 Text(
                   "Manage $memberName",
                   style: GoogleFonts.inter(
-                    color: Colors.white38,
+                    color: Colors.white54,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.0,
@@ -1015,7 +1060,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     ),
                   );
                 }),
-                const SizedBox(height: 16),
 
                 _buildActionOption(Icons.currency_rupee, "Adjust Salary", () {
                   Navigator.pop(bottomSheetContext);
@@ -1029,7 +1073,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     ),
                   );
                 }),
-                const SizedBox(height: 16),
 
                 _buildActionOption(
                   isPaused
@@ -1048,11 +1091,18 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             backgroundColor: const Color(0xFF141416),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            behavior: SnackBarBehavior.floating,
                             content: Text(
                               isPaused
                                   ? "Member resumed."
                                   : "Member paused. Payroll suspended.",
-                              style: GoogleFonts.inter(color: Colors.white),
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         );
@@ -1063,8 +1113,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   },
                 ),
 
-                const SizedBox(height: 24),
-                const Divider(color: Colors.white10),
+                const SizedBox(height: 16),
+                Divider(color: Colors.white.withValues(alpha: 0.04), height: 1),
                 const SizedBox(height: 16),
 
                 _buildActionOption(
@@ -1084,6 +1134,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     );
   }
 
+  // --- WHITE GLASS ACTION SHEET BUTTONS ---
   Widget _buildActionOption(
     IconData icon,
     String label,
@@ -1093,21 +1144,32 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        color: Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: isDestructive
+              ? const Color(0xFFFF453A).withValues(alpha: 0.1)
+              : Colors.white.withValues(alpha: 0.05), // White Glass fill
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDestructive
+                ? const Color(0xFFFF453A).withValues(alpha: 0.2)
+                : Colors.white.withValues(alpha: 0.08), // Glass Border
+          ),
+        ),
         child: Row(
           children: [
             Icon(
               icon,
               color: isDestructive ? const Color(0xFFFF453A) : Colors.white,
-              size: 22,
+              size: 20,
             ),
             const SizedBox(width: 16),
             Text(
               label,
               style: GoogleFonts.inter(
                 color: isDestructive ? const Color(0xFFFF453A) : Colors.white,
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1194,10 +1256,14 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
-                            color: Colors.transparent,
+                            color: Colors.white.withValues(
+                              alpha: 0.08,
+                            ), // White Glass effect
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1),
+                              color: Colors.white.withValues(
+                                alpha: 0.15,
+                              ), // Crisp border
                             ),
                           ),
                           alignment: Alignment.center,

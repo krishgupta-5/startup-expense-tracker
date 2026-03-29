@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:http/http.dart' as http;
@@ -189,10 +190,16 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
           SnackBar(
             content: Text(
               "Profile updated successfully",
-              style: GoogleFonts.inter(),
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             backgroundColor: const Color(0xFF30D158),
             behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -208,399 +215,54 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Check for Telegram photo first, then regular avatar
-    final String? telegramFileId = widget.memberData['telegramFileId'];
-    final String? avatarUrl = widget.memberData['avatarUrl'];
-
-    // Determine if avatarUrl contains a Telegram file ID (for backward compatibility)
-    final String? telegramFileIdFromAvatar =
-        (avatarUrl != null &&
-            avatarUrl.isNotEmpty &&
-            !avatarUrl.startsWith('http') &&
-            !avatarUrl.contains('ui-avatars.com'))
-        ? avatarUrl
-        : null;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF09090B),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          "Edit Profile",
+        content: Text(
+          message,
           style: GoogleFonts.inter(
             color: Colors.white,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
           ),
         ),
-        centerTitle: true,
-        actions: [
-          _isLoading
-              ? const Padding(
-                  padding: EdgeInsets.only(right: 20.0),
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF0A84FF),
-                      strokeWidth: 2,
-                    ),
-                  ),
-                )
-              : TextButton(
-                  onPressed: _updateMember,
-                  child: Text(
-                    "SAVE",
-                    style: GoogleFonts.inter(
-                      color: const Color(0xFF0A84FF),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            // Avatar Edit with Telegram photo support
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                _buildMemberAvatar(
-                  _nameController.text,
-                  100,
-                  _telegramFileId ?? telegramFileId ?? telegramFileIdFromAvatar,
-                ),
-                GestureDetector(
-                  onTap: _showImagePicker,
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.black.withValues(alpha: 0.5),
-                    ),
-                    child: const Icon(Icons.camera_alt, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-
-            _buildInput("FULL NAME", _nameController),
-            const SizedBox(height: 24),
-            _buildInput("JOB TITLE", _roleController),
-            const SizedBox(height: 24),
-            _buildInput("EMAIL", _emailController),
-            const SizedBox(height: 24),
-
-            // Joining Date
-            _buildSectionLabel("JOINING DATE"),
-            const SizedBox(height: 16),
-            _buildDateSelector(),
-            const SizedBox(height: 24),
-
-            // Team Select
-            _isLoadingTeams
-                ? const CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white38,
-                  )
-                : _teams.isEmpty
-                ? Text(
-                    "No teams found.",
-                    style: GoogleFonts.inter(color: Colors.redAccent),
-                  )
-                : _buildSelect(
-                    "TEAM",
-                    _selectedTeamId,
-                    _teams,
-                    (val) => setState(() => _selectedTeamId = val),
-                  ),
-            const SizedBox(height: 24),
-
-            // Status Select
-            _buildSelect(
-              "STATUS",
-              _status,
-              _statuses,
-              (val) => setState(() => _status = val!),
-            ),
-          ],
-        ),
+        backgroundColor: const Color(0xFFFF453A),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
-  Widget _buildInput(String label, TextEditingController controller) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            color: Colors.white38,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: TextField(
-            controller: controller,
-            style: GoogleFonts.inter(color: Colors.white),
-            decoration: const InputDecoration(border: InputBorder.none),
-          ),
-        ),
-      ],
-    );
-  }
+  // --- TELEGRAM IMAGE UPLOAD METHODS ---
+  Future<String?> uploadToTelegram(String filePath) async {
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
 
-  Widget _buildSelect(
-    String label,
-    String? value,
-    Map<String, String> items,
-    Function(String?) onChanged,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            color: Colors.white38,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: double.infinity),
-          child: ShadSelect<String>(
-            placeholder: Text(
-              'Select $label',
-              style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
-            ),
-            initialValue: value,
-            options: [
-              ...items.entries.map(
-                (e) => ShadOption(value: e.key, child: Text(e.value)),
-              ),
-            ],
-            selectedOptionBuilder: (context, selectedValue) => Text(
-              items[selectedValue] ?? "Select",
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
-            onChanged: onChanged,
-          ),
-        ),
-      ],
-    );
-  }
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
 
-  Widget _buildSectionLabel(String text) {
-    return Container(
-      alignment: Alignment.centerLeft,
-      child: Text(
-        text,
-        style: GoogleFonts.inter(
-          color: Colors.white38,
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.5,
-        ),
-      ),
-    );
-  }
+      final uri = Uri.parse("https://api.telegram.org/bot$botToken/sendPhoto");
 
-  Widget _buildDateSelector() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: TextField(
-        readOnly: true,
-        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-        decoration: InputDecoration(
-          icon: const Icon(
-            Icons.calendar_today,
-            color: Colors.white38,
-            size: 20,
-          ),
-          hintText: "Select joining date",
-          hintStyle: GoogleFonts.inter(color: Colors.white12),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
-        ),
-        controller: TextEditingController(
-          text:
-              "${_joiningDate.day}/${_joiningDate.month}/${_joiningDate.year}",
-        ),
-        onTap: () {
-          _showShadCalendar();
-        },
-      ),
-    );
-  }
+      var request = http.MultipartRequest('POST', uri);
+      request.fields['chat_id'] = '-1003885930746';
 
-  void _showShadCalendar() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: const Color(0xFF09090B),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "Select Joining Date",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white38),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                ShadCalendar(
-                  selected: _joiningDate,
-                  fromMonth: DateTime(_joiningDate.year - 5),
-                  toMonth: DateTime(_joiningDate.year + 2, 12),
-                  onChanged: (DateTime? date) {
-                    if (date != null) {
-                      setState(() {
-                        _joiningDate = date;
-                      });
-                      Navigator.pop(context);
-                    }
-                  },
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      "Done",
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+      request.files.add(await http.MultipartFile.fromPath('photo', filePath));
 
-  // Build member avatar with Telegram photo support
-  Widget _buildMemberAvatar(String name, double size, String? telegramFileId) {
-    // Check if it's a Telegram photo
-    if (telegramFileId != null && telegramFileId.isNotEmpty) {
-      return FutureBuilder<String>(
-        future: getTelegramImageUrl(telegramFileId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            // Show loading indicator while fetching Telegram photo
-            return Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                color: const Color(0xFF141416),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-              ),
-              child: Center(
-                child: SizedBox(
-                  width: size * 0.3,
-                  height: size * 0.3,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white38,
-                  ),
-                ),
-              ),
-            );
-          } else if (snapshot.hasError || !snapshot.hasData) {
-            // Fallback to generated avatar on error
-            return AvatarWidget(
-              name: name,
-              size: size,
-              imageUrl: null,
-              fontSize: size * 0.4,
-            );
-          } else {
-            // Show Telegram photo
-            return AvatarWidget(
-              name: name,
-              size: size,
-              imageUrl: snapshot.data!,
-              fontSize: size * 0.4,
-            );
-          }
-        },
-      );
-    } else {
-      // Fallback to generated avatar
-      return AvatarWidget(
-        name: name,
-        size: size,
-        imageUrl: null,
-        fontSize: size * 0.4,
-      );
+      final response = await request.send();
+
+      if (response.statusCode == 200) {
+        final res = await http.Response.fromStream(response);
+        final data = jsonDecode(res.body);
+
+        // Take highest quality image
+        return data['result']['photo'].last['file_id'];
+      } else {
+        throw Exception("Upload failed: ${response.statusCode}");
+      }
+    } catch (e) {
+      debugPrint('Error uploading to Telegram: $e');
+      return null;
     }
   }
 
-  // Telegram photo fetching methods with caching
   Future<String> getTelegramImageUrl(String fileId) async {
     // Check cache first
     if (_telegramPhotoCache.containsKey(fileId)) {
@@ -634,8 +296,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
     }
   }
 
-  // --- IMAGE UPLOAD METHODS ---
   Future<void> _showImagePicker() async {
+    FocusScope.of(context).unfocus();
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF141416),
@@ -811,36 +473,544 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
     }
   }
 
-  Future<String?> uploadToTelegram(String filePath) async {
-    try {
-      await dotenv.load(fileName: ".env.local");
-      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+  // --- UI BUILDING ---
 
-      if (botToken == null) {
-        throw Exception('Telegram bot token not found in environment');
-      }
+  @override
+  Widget build(BuildContext context) {
+    // Check for Telegram photo first, then regular avatar
+    final String? avatarUrl = widget.memberData['avatarUrl'];
 
-      final uri = Uri.parse("https://api.telegram.org/bot$botToken/sendPhoto");
+    final String? telegramFileIdFromAvatar =
+        (avatarUrl != null &&
+            avatarUrl.isNotEmpty &&
+            !avatarUrl.startsWith('http') &&
+            !avatarUrl.contains('ui-avatars.com'))
+        ? avatarUrl
+        : null;
 
-      var request = http.MultipartRequest('POST', uri);
-      request.fields['chat_id'] = '-1003885930746';
+    return Scaffold(
+      backgroundColor: const Color(0xFF09090B),
+      resizeToAvoidBottomInset: true,
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: SafeArea(
+          child: Column(
+            children: [
+              // 1. Premium Header
+              _buildHeader(context),
 
-      request.files.add(await http.MultipartFile.fromPath('photo', filePath));
+              // 2. Scrollable Content
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 24),
 
-      final response = await request.send();
+                      // Avatar Edit
+                      Center(
+                        child: _buildAvatarUploader(
+                          _nameController.text,
+                          _telegramFileId ?? telegramFileIdFromAvatar,
+                        ),
+                      ),
+                      const SizedBox(height: 40),
 
-      if (response.statusCode == 200) {
-        final res = await http.Response.fromStream(response);
-        final data = jsonDecode(res.body);
+                      // Personal Details
+                      _buildSectionLabel("PERSONAL DETAILS"),
+                      const SizedBox(height: 16),
+                      _buildTextInput(
+                        "Full Name",
+                        "e.g. Sarah Miller",
+                        Icons.person_outline,
+                        _nameController,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextInput(
+                        "Email Address",
+                        "sarah@company.com",
+                        Icons.email_outlined,
+                        _emailController,
+                        textInputAction: TextInputAction.next,
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextInput(
+                        "Job Title",
+                        "e.g. Senior Product Designer",
+                        Icons.badge_outlined,
+                        _roleController,
+                        textInputAction: TextInputAction.done,
+                      ),
 
-        // Take highest quality image
-        return data['result']['photo'].last['file_id'];
-      } else {
-        throw Exception("Upload failed: ${response.statusCode}");
-      }
-    } catch (e) {
-      debugPrint('Error uploading to Telegram: $e');
-      return null;
+                      const SizedBox(height: 32),
+
+                      // Joining Date
+                      _buildSectionLabel("JOINING DATE"),
+                      const SizedBox(height: 16),
+                      _buildDateSelector(),
+
+                      const SizedBox(height: 32),
+
+                      // Team & Status Selectors
+                      _buildSectionLabel("ASSIGNMENT & STATUS"),
+                      const SizedBox(height: 16),
+
+                      _isLoadingTeams
+                          ? Container(
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF141416),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.04),
+                                ),
+                              ),
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white38,
+                                ),
+                              ),
+                            )
+                          : _teams.isEmpty
+                          ? Text(
+                              "No teams found.",
+                              style: GoogleFonts.inter(color: Colors.redAccent),
+                            )
+                          : _buildSelectField(
+                              label: "Team",
+                              currentValue: _selectedTeamId,
+                              items: _teams,
+                              onChanged: (val) {
+                                FocusScope.of(context).unfocus();
+                                setState(() => _selectedTeamId = val);
+                              },
+                            ),
+
+                      const SizedBox(height: 16),
+
+                      _buildSelectField(
+                        label: "Status",
+                        currentValue: _status,
+                        items: _statuses,
+                        onChanged: (val) {
+                          FocusScope.of(context).unfocus();
+                          setState(() => _status = val!);
+                        },
+                      ),
+
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 3. Bottom Save Button
+              _buildSaveButton(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- WIDGET BUILDERS ---
+
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF141416),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              ),
+              child: const Icon(Icons.close, color: Colors.white, size: 20),
+            ),
+          ),
+          Text(
+            "Edit Profile",
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 44), // Balances header
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: Colors.white54,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
+  Widget _buildAvatarUploader(String name, String? telegramId) {
+    return GestureDetector(
+      onTap: _showImagePicker,
+      child: Column(
+        children: [
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: const Color(0xFF141416),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.08),
+                width: 1,
+              ),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                _buildMemberAvatar(name, 100, telegramId),
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.black,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.camera_alt,
+                            color: Colors.black,
+                            size: 16,
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            "Update Photo",
+            style: GoogleFonts.inter(
+              color: Colors.white38,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMemberAvatar(String name, double size, String? telegramFileId) {
+    if (telegramFileId != null && telegramFileId.isNotEmpty) {
+      return FutureBuilder<String>(
+        future: getTelegramImageUrl(telegramFileId),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return SizedBox(
+              width: size * 0.3,
+              height: size * 0.3,
+              child: const CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white38,
+              ),
+            );
+          } else if (snapshot.hasError || !snapshot.hasData) {
+            return AvatarWidget(
+              name: name,
+              size: size,
+              imageUrl: null,
+              fontSize: size * 0.4,
+            );
+          } else {
+            return ClipOval(
+              child: Image.network(
+                snapshot.data!,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return AvatarWidget(
+                    name: name,
+                    size: size,
+                    imageUrl: null,
+                    fontSize: size * 0.4,
+                  );
+                },
+              ),
+            );
+          }
+        },
+      );
+    } else {
+      return AvatarWidget(
+        name: name.isNotEmpty ? name : "Member",
+        size: size,
+        imageUrl: null,
+        fontSize: size * 0.4,
+      );
     }
+  }
+
+  Widget _buildTextInput(
+    String hint,
+    String placeholder,
+    IconData icon,
+    TextEditingController controller, {
+    TextInputAction textInputAction = TextInputAction.done,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
+      child: TextField(
+        controller: controller,
+        textInputAction: textInputAction,
+        keyboardType: keyboardType,
+        onTapOutside: (event) => FocusScope.of(context).unfocus(),
+        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+        decoration: InputDecoration(
+          icon: Icon(icon, color: Colors.white38, size: 20),
+          hintText: placeholder,
+          labelText: hint,
+          labelStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
+          hintStyle: GoogleFonts.inter(color: Colors.white24),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          floatingLabelBehavior: FloatingLabelBehavior.auto,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateSelector() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
+      child: TextField(
+        readOnly: true,
+        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+        decoration: InputDecoration(
+          icon: const Icon(
+            Icons.calendar_today,
+            color: Colors.white38,
+            size: 20,
+          ),
+          hintText: "Select joining date",
+          labelText: "Joining Date",
+          labelStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
+          hintStyle: GoogleFonts.inter(color: Colors.white24),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          floatingLabelBehavior: FloatingLabelBehavior.auto,
+          suffixIcon: const Icon(Icons.calendar_month, color: Colors.white38),
+        ),
+        controller: TextEditingController(
+          text:
+              "${_joiningDate.day}/${_joiningDate.month}/${_joiningDate.year}",
+        ),
+        onTap: () {
+          FocusScope.of(context).unfocus();
+          _showShadCalendar();
+        },
+      ),
+    );
+  }
+
+  void _showShadCalendar() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF09090B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            child: SingleChildScrollView(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Select Joining Date",
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close, color: Colors.white38),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    ShadCalendar(
+                      selected: _joiningDate,
+                      fromMonth: DateTime(_joiningDate.year - 5),
+                      toMonth: DateTime(_joiningDate.year + 2, 12),
+                      onChanged: (DateTime? date) {
+                        if (date != null) {
+                          setState(() {
+                            _joiningDate = date;
+                          });
+                          Navigator.pop(context);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          "Done",
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSelectField({
+    required String label,
+    required String? currentValue,
+    required Map<String, String> items,
+    required Function(String?) onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: double.infinity),
+          child: ShadSelect<String>(
+            placeholder: Text(
+              'Select $label',
+              style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
+            ),
+            initialValue: currentValue,
+            options: [
+              ...items.entries.map(
+                (e) => ShadOption(value: e.key, child: Text(e.value)),
+              ),
+            ],
+            selectedOptionBuilder: (context, value) => Text(
+              items[value]!,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            onChanged: onChanged,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSaveButton() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF09090B),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: _isLoading ? null : _updateMember,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            disabledBackgroundColor: Colors.white54,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: _isLoading
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.black,
+                  ),
+                )
+              : Text(
+                  "Save Changes",
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+        ),
+      ),
+    );
   }
 }

@@ -36,6 +36,46 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
     return months[month - 1];
   }
 
+  // --- UNIFIED MINIMAL TOAST ---
+  void _showMinimalToast(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: isError
+                  ? const Color(0xFFFF453A)
+                  : const Color(0xFF30D158),
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF141416),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        duration: const Duration(seconds: 3),
+        elevation: 0,
+      ),
+    );
+  }
+
   // --- REPORT GENERATION LOGIC ---
   Future<void> _downloadReport(String reportType) async {
     setState(() => _isDownloading = true);
@@ -87,7 +127,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
       final expenses = querySnapshot.docs;
 
       if (expenses.isEmpty) {
-        _showMessage("No expenses found for this period.");
+        _showMinimalToast("No expenses found for this period.", isError: true);
         setState(() => _isDownloading = false);
         return;
       }
@@ -199,20 +239,10 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
         name: '${reportTitle.replaceAll(' ', '_')}.pdf',
       );
     } catch (e) {
-      _showMessage("Error generating report: $e");
+      _showMinimalToast("Error generating report.", isError: true);
     } finally {
       setState(() => _isDownloading = false);
     }
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
-        backgroundColor: const Color(0xFF141416),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   @override
@@ -251,13 +281,14 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                               color: Colors.white,
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
+                              letterSpacing: -0.5,
                             ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             "Download and manage your expense reports",
                             style: GoogleFonts.inter(
-                              color: Colors.white38,
+                              color: Colors.white54,
                               fontSize: 14,
                             ),
                           ),
@@ -324,15 +355,18 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           GestureDetector(
             onTap: () => Navigator.pop(context),
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: Colors.white.withValues(
+                  alpha: 0.05,
+                ), // White Glass Style
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: const Icon(
                 Icons.arrow_back,
@@ -341,7 +375,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
               ),
             ),
           ),
-          const Expanded(child: SizedBox()),
           Text(
             "Downloads",
             style: GoogleFonts.inter(
@@ -350,7 +383,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const Expanded(child: SizedBox()),
           const SizedBox(width: 44), // Balance the back button
         ],
       ),
@@ -361,12 +393,12 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Text(
-        text,
+        text.toUpperCase(),
         style: GoogleFonts.inter(
-          color: Colors.white24,
-          fontSize: 10,
+          color: Colors.white54,
+          fontSize: 11,
           fontWeight: FontWeight.bold,
-          letterSpacing: 1.5,
+          letterSpacing: 1.2,
         ),
       ),
     );
@@ -396,10 +428,13 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: Colors.white.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.05),
+                    ),
                   ),
-                  child: Icon(icon, color: Colors.white, size: 20),
+                  child: Icon(icon, color: Colors.white70, size: 20),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -410,15 +445,17 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                         title,
                         style: GoogleFonts.inter(
                           color: Colors.white,
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         period,
                         style: GoogleFonts.inter(
                           color: Colors.white38,
                           fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -429,16 +466,19 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
                   ),
                   child: const Icon(
                     Icons.download,
                     color: Colors.white,
-                    size: 18,
+                    size: 16,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Text(
               description,
               style: GoogleFonts.inter(color: Colors.white54, fontSize: 13),

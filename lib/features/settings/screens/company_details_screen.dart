@@ -8,6 +8,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../services/currency_formatter.dart';
 import '../../../services/user_country_service.dart';
+import '../../../services/bank_account_service.dart';
+import '../../home/screens/add_bank_account_screen.dart';
 
 class CompanyDetailsScreen extends StatefulWidget {
   const CompanyDetailsScreen({super.key});
@@ -26,12 +28,15 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   final TextEditingController _runwayController = TextEditingController();
 
   String _userCountryCode = '+1'; // Default to USD
+  bool _isLoading = false;
+  List<Map<String, dynamic>> _bankAccounts = [];
+  List<Map<String, dynamic>> _allExpenses = [];
 
   @override
   void initState() {
     super.initState();
     _userCountryCode = UserCountryService.getUserCountryCodeSync();
-    loadCompanyData();
+    _loadAllData();
   }
 
   final companyTypes = {
@@ -43,21 +48,309 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
 
   String _selectedType = "sole_proprietorship";
 
-  final List<Map<String, TextEditingController>> _bankAccounts = [];
-
-  void _addBankAccount([String name = "", String number = ""]) {
+  Future<void> _loadAllData() async {
     setState(() {
-      _bankAccounts.add({
-        "name": TextEditingController(text: name),
-        "number": TextEditingController(text: number),
-      });
+      _isLoading = true;
     });
+
+    try {
+      await Future.wait([
+        loadCompanyData(),
+        _fetchExpenses(),
+        _fetchBankAccounts(),
+      ]);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
-  void _removeBankAccount(int index) {
-    setState(() {
-      _bankAccounts.removeAt(index);
-    });
+  Future<void> _fetchExpenses() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final expensesSnapshot = await FirebaseFirestore.instance
+          .collection('expenses')
+          .where('uid', isEqualTo: user.uid)
+          .orderBy('Date', descending: true)
+          .get();
+
+      _allExpenses = expensesSnapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'amount': (data['Amount'] as num).toDouble(),
+          'bankAccount':
+              data['BankAccount'] ??
+              data['Bank Account'] ??
+              data['bankAccount'] ??
+              'N/A',
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('❌ DEBUG: Error fetching expenses: $e');
+      _allExpenses = [];
+    }
+  }
+
+  Future<void> _fetchBankAccounts() async {
+    try {
+      debugPrint('🔍 DEBUG: Fetching bank accounts using BankAccountService');
+
+      // Use BankAccountService to get bank accounts with spending data
+      final accountsWithSpending =
+          await BankAccountService.getBankAccountsWithSpending(_allExpenses);
+
+      if (mounted) {
+        setState(() {
+          _bankAccounts = accountsWithSpending;
+        });
+      }
+
+      debugPrint(
+        '🔍 DEBUG: Fetched ${_bankAccounts.length} bank accounts with spending data',
+      );
+
+      // Debug: Print each account to see the structure
+      for (var account in _bankAccounts) {
+        debugPrint('🔍 DEBUG: Account structure: $account');
+        debugPrint('🔍 DEBUG: Account name: "${account['name']}"');
+        debugPrint('🔍 DEBUG: Account bankName: "${account['bankName']}"');
+        debugPrint('🔍 DEBUG: Available fields: ${account.keys.toList()}');
+      }
+    } catch (e) {
+      debugPrint('❌ DEBUG: Error fetching bank accounts: $e');
+      if (mounted) {
+        setState(() {
+          _bankAccounts = [];
+        });
+      }
+    }
+  }
+
+  void _showSuccessMessage(String message) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(
+              Icons.check_circle_outline,
+              color: Color(0xFF30D158),
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF141416),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        duration: const Duration(seconds: 3),
+        elevation: 0,
+      ),
+    );
+  }
+
+  void _showDeleteAccountDialog(Map<String, dynamic> account) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF141416),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          title: Text(
+            'Delete Bank Account',
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          content: Text(
+            'Are you sure you want to delete "${account['name']?.toString() ?? account['bankName']?.toString() ?? account['bank_name']?.toString() ?? 'Unknown Bank'}"? This action cannot be undone.',
+            style: GoogleFonts.inter(
+              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(
+                  color: Colors.white54,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _deleteBankAccount(account);
+              },
+              child: Text(
+                'Delete',
+                style: GoogleFonts.inter(
+                  color: const Color(0xFFFF453A),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteBankAccount(Map<String, dynamic> account) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final accountId = account['id'] as String?;
+      if (accountId == null) {
+        _showErrorMessage('Cannot delete account: Missing account ID');
+        return;
+      }
+
+      debugPrint(
+        '🔍 DEBUG: Attempting to delete bank account with ID: $accountId',
+      );
+
+      // Try to delete from subcollection first (new model)
+      try {
+        await FirebaseFirestore.instance
+            .collection('companies')
+            .doc(user.uid)
+            .collection('bankAccounts')
+            .doc(accountId)
+            .delete();
+
+        debugPrint('🔍 DEBUG: Successfully deleted from subcollection');
+        _showSuccessMessage('Bank account deleted successfully');
+        await _loadAllData();
+        return;
+      } catch (e) {
+        debugPrint('🔍 DEBUG: Failed to delete from subcollection: $e');
+
+        // Fallback: try to remove from company array (old model)
+        try {
+          final companyDoc = await FirebaseFirestore.instance
+              .collection('companies')
+              .doc(user.uid)
+              .get();
+
+          if (companyDoc.exists && companyDoc.data() != null) {
+            final data = companyDoc.data()!;
+            final bankAccounts = data["Bank Accounts"] as List<dynamic>? ?? [];
+
+            // Find and remove the account by matching name and last4
+            final updatedAccounts = bankAccounts.where((accountData) {
+              if (accountData is Map<String, dynamic>) {
+                final bankName =
+                    accountData['name']?.toString() ??
+                    accountData['bankName']?.toString() ??
+                    accountData['bank_name']?.toString() ??
+                    '';
+                final last4 =
+                    accountData['last4']?.toString() ??
+                    accountData['number']?.toString() ??
+                    '';
+
+                final currentBankName =
+                    account['name']?.toString() ??
+                    account['bankName']?.toString() ??
+                    account['bank_name']?.toString() ??
+                    '';
+                final currentLast4 =
+                    account['last4']?.toString() ??
+                    account['number']?.toString() ??
+                    '';
+
+                return !((bankName == currentBankName) &&
+                    (last4 == currentLast4));
+              }
+              return true;
+            }).toList();
+
+            await FirebaseFirestore.instance
+                .collection('companies')
+                .doc(user.uid)
+                .update({'Bank Accounts': updatedAccounts});
+
+            debugPrint('🔍 DEBUG: Successfully deleted from company array');
+            _showSuccessMessage('Bank account deleted successfully');
+            await _loadAllData();
+          }
+        } catch (fallbackError) {
+          debugPrint(
+            '❌ DEBUG: Failed to delete from company array: $fallbackError',
+          );
+          _showErrorMessage('Failed to delete bank account');
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ DEBUG: Error deleting bank account: $e');
+      _showErrorMessage('Failed to delete bank account');
+    }
+  }
+
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Color(0xFFFF453A), size: 18),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF141416),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        duration: const Duration(seconds: 3),
+        elevation: 0,
+      ),
+    );
   }
 
   @override
@@ -69,11 +362,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
     _descController.dispose();
     _fundingController.dispose();
     _runwayController.dispose();
-
-    for (var account in _bankAccounts) {
-      account["name"]?.dispose();
-      account["number"]?.dispose();
-    }
     super.dispose();
   }
 
@@ -116,16 +404,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
           _fundingController.text = data["Funding"]?.toString() ?? "";
           _runwayController.text = data["Runway"]?.toString() ?? "";
           _selectedType = data["Company Type"] ?? "sole_proprietorship";
-
-          final bankAccountsData =
-              data["Bank Accounts"] as List<dynamic>? ?? [];
-          _bankAccounts.clear();
-          for (var account in bankAccountsData) {
-            _addBankAccount(
-              account["bankName"]?.toString() ?? "", // Fixed field name
-              account["last4"]?.toString() ?? "", // Fixed field name
-            );
-          }
         });
       }
     } catch (e) {
@@ -151,15 +429,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
             "Funding": _fundingController.text.trim(),
             "Runway": _runwayController.text.trim(),
             "Company Type": _selectedType,
-            "Bank Accounts": _bankAccounts.map((account) {
-              return {
-                "bankName": account["name"]!.text, // Fixed field name
-                "last4": account["number"]!.text, // Fixed field name
-                "verified": false,
-                "verificationMethod": "manual",
-                "verificationId": null,
-              };
-            }).toList(),
           }, SetOptions(merge: true));
 
       await _syncOwnerNameToUsers();
@@ -429,7 +698,19 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
               ),
             ),
             GestureDetector(
-              onTap: () => _addBankAccount(),
+              onTap: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AddBankAccountScreen(),
+                  ),
+                );
+                if (result != null) {
+                  // Bank account was added successfully, reload data
+                  await _loadAllData();
+                  _showSuccessMessage('Bank account added successfully');
+                }
+              },
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -442,7 +723,17 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        if (_bankAccounts.isEmpty)
+        if (_isLoading)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: CircularProgressIndicator(
+                color: Colors.white38,
+                strokeWidth: 2,
+              ),
+            ),
+          )
+        else if (_bankAccounts.isEmpty)
           Center(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -451,89 +742,111 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                 style: GoogleFonts.inter(color: Colors.white24, fontSize: 13),
               ),
             ),
-          ),
-        ...List.generate(_bankAccounts.length, (index) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF141416),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.account_balance,
-                    color: Colors.white38,
-                    size: 20,
+          )
+        else
+          ...List.generate(_bankAccounts.length, (index) {
+            final account = _bankAccounts[index];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141416),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.04),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        TextField(
-                          controller: _bankAccounts[index]["name"],
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: "Bank Name",
-                            hintStyle: GoogleFonts.inter(color: Colors.white24),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ),
-                        Divider(
-                          color: Colors.white.withValues(alpha: 0.05),
-                          height: 16,
-                        ),
-                        TextField(
-                          controller: _bankAccounts[index]["number"],
-                          enabled: false, // Make read-only for security
-                          style: GoogleFonts.inter(
-                            color: Colors.white70,
-                            fontSize: 13,
-                          ),
-                          decoration: InputDecoration(
-                            hintText:
-                                "****", // Show placeholder for last 4 digits
-                            hintStyle: GoogleFonts.inter(color: Colors.white24),
-                            border: InputBorder.none,
-                            isDense: true,
-                            contentPadding: EdgeInsets.zero,
-                            prefixText:
-                                "**** ", // Visual indicator for masked number
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: () => _removeBankAccount(index),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFF453A).withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
+                        color: const Color(0xFF30D158).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFF30D158).withValues(alpha: 0.3),
+                        ),
                       ),
                       child: const Icon(
-                        Icons.delete_outline,
-                        color: Color(0xFFFF453A),
-                        size: 18,
+                        Icons.account_balance,
+                        color: Color(0xFF30D158),
+                        size: 20,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'DEBUG: ${account.toString()}',
+                            style: GoogleFonts.inter(
+                              color: Colors.yellow,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            account['name']?.toString() ??
+                                account['bankName']?.toString() ??
+                                account['bank_name']?.toString() ??
+                                'Unknown Bank',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            account['maskedNumber'] ?? '****',
+                            style: GoogleFonts.inter(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
+                          ),
+                          if (account['totalSpent'] != null &&
+                              (account['totalSpent'] as num) > 0) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Spent: ${CurrencyFormatter.formatByCountry((account['totalSpent'] as num).toDouble(), _userCountryCode)}',
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFFFF453A),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    if (account['id'] != null)
+                      GestureDetector(
+                        onTap: () => _showDeleteAccountDialog(account),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFFFF453A,
+                            ).withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.delete_outline,
+                            color: Color(0xFFFF453A),
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          );
-        }),
+            );
+          }),
       ],
     );
   }

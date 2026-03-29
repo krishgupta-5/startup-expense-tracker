@@ -257,10 +257,13 @@ class BankAccountService {
 
     debugPrint('🔍 DEBUG: Account number: "$accountNumber"');
 
-    // Handle last4 digits properly
+    // Handle last4 digits properly - always extract only last 4 digits
     String last4 = data['last4']?.toString() ?? '';
     if (last4.isEmpty && accountNumber.isNotEmpty) {
-      last4 = _extractLast4(accountNumber);
+      last4 = extractLast4(accountNumber);
+    } else if (last4.isNotEmpty) {
+      // Even if last4 exists, ensure it's only 4 digits
+      last4 = extractLast4(last4);
     }
 
     // If still no last4, use a default
@@ -306,7 +309,8 @@ class BankAccountService {
           .join(' ');
     }
 
-    final String last4 = accountData['last4'] ?? '****';
+    final String rawLast4 = accountData['last4']?.toString() ?? '';
+    final String last4 = rawLast4.isNotEmpty ? extractLast4(rawLast4) : '****';
     final String accountNumber = ''; // Not stored in company setup format
 
     debugPrint(
@@ -315,7 +319,7 @@ class BankAccountService {
 
     return {
       'id':
-          'company_array_${DateTime.now().millisecondsSinceEpoch}', // Generate unique ID
+          'company_array_${accountData['bankName']}_${accountData['last4']}', // More stable ID using bank name and last4
       'name': bankName,
       'number': accountNumber,
       'last4': last4,
@@ -428,17 +432,16 @@ class BankAccountService {
   }
 
   /// Extract last 4 digits from account number
-  static String _extractLast4(String accountNumber) {
+  static String extractLast4(String accountNumber) {
     if (accountNumber.length <= 4) return accountNumber;
     return accountNumber.substring(accountNumber.length - 4);
   }
 
-  /// Mask account number for display
+  /// Mask account number for display - show only last 4 digits
   static String _maskAccountNumber(String accountNumber) {
     if (accountNumber.length <= 4) return accountNumber;
-    return accountNumber.substring(0, 2) +
-        '*' * (accountNumber.length - 4) +
-        accountNumber.substring(accountNumber.length - 2);
+    final last4 = accountNumber.substring(accountNumber.length - 4);
+    return '****$last4';
   }
 
   /// Format currency consistently across the app

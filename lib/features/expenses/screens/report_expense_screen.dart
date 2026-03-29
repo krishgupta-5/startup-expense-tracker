@@ -10,6 +10,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../utils/data_helpers.dart';
 import '../../../services/currency_formatter.dart';
+import '../../../services/bank_account_service.dart';
 
 class ReportExpenseScreen extends StatefulWidget {
   const ReportExpenseScreen({super.key});
@@ -236,6 +237,16 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
       bool isDailyChart = daysInPeriod <= 31;
       Map<String, double> trendData = {};
 
+      // Fetch bank accounts for reference
+      final bankAccounts = await BankAccountService.getBankAccounts();
+      final Map<String, String> bankAccountNames = {};
+      for (var account in bankAccounts) {
+        final id = account['id']?.toString() ?? '';
+        final name = account['name']?.toString() ?? 'Unknown Bank';
+        final last4 = account['last4']?.toString() ?? '****';
+        bankAccountNames[id] = '$name ****$last4';
+      }
+
       // Initialize trend data timeline
       if (isDailyChart) {
         for (int i = 0; i <= daysInPeriod; i++) {
@@ -282,11 +293,19 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
         }
 
         // Add to List
+        final bankAccountId =
+            data['bankAccount']?.toString() ??
+            data['BankAccount']?.toString() ??
+            '';
+        final bankAccountName =
+            bankAccountNames[bankAccountId] ?? 'Not specified';
+
         filteredData.add({
           'Date': docDate,
           'Title': data['Title'] ?? 'Unknown',
           'Category': category,
           'Amount': amount,
+          'BankAccount': bankAccountName,
         });
       }
 
@@ -331,10 +350,15 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
 
       // Prepare Transactions Table Data
       final List<List<String>> transactionsTableData = filteredData.map((data) {
+        final bankAccountId = data['BankAccount']?.toString() ?? '';
+        final bankAccountDisplay =
+            bankAccountNames[bankAccountId] ?? bankAccountId;
+
         return [
           _formatDate(data['Date']),
           data['Title'].toString(),
           data['Category'].toString().toUpperCase(),
+          bankAccountDisplay,
           // ✅ FIX: Use DataHelpers instead of manual casting
           "${CurrencyFormatter.getCurrencySymbol('+1')} ${DataHelpers.safeParseDouble(data['Amount']).toStringAsFixed(2)}",
         ];
@@ -507,7 +531,13 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
               ),
               pw.SizedBox(height: 10),
               pw.TableHelper.fromTextArray(
-                headers: ['Date', 'Title', 'Category', 'Amount'],
+                headers: [
+                  'Date',
+                  'Title',
+                  'Category',
+                  'Bank Account',
+                  'Amount',
+                ],
                 data: transactionsTableData,
                 headerStyle: pw.TextStyle(
                   fontWeight: pw.FontWeight.bold,
@@ -521,7 +551,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                   0: pw.Alignment.centerLeft,
                   1: pw.Alignment.centerLeft,
                   2: pw.Alignment.centerLeft,
-                  3: pw.Alignment.centerRight,
+                  3: pw.Alignment.centerLeft,
+                  4: pw.Alignment.centerRight,
                 },
               ),
             ];

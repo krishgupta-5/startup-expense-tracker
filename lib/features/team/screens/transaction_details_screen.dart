@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../services/bank_account_service.dart';
 
-class TransactionDetailsScreen extends StatelessWidget {
+class TransactionDetailsScreen extends StatefulWidget {
   final String transactionId;
   final Map<String, dynamic> transactionData;
   final String formattedDate;
@@ -19,9 +20,95 @@ class TransactionDetailsScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    bool isAdvance = displayTitle == "Advance Payout";
+  State<TransactionDetailsScreen> createState() =>
+      _TransactionDetailsScreenState();
+}
 
+class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
+  Map<String, dynamic>? bankAccount;
+  bool isLoadingBankAccount = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBankAccount();
+  }
+
+  Future<void> _fetchBankAccount() async {
+    try {
+      // Check both possible field names for bank account
+      final bankAccountId =
+          widget.transactionData['bankAccount'] as String? ??
+          widget.transactionData['BankAccount'] as String?;
+
+      if (bankAccountId != null && bankAccountId.isNotEmpty) {
+        final bankAccounts = await BankAccountService.getBankAccounts();
+
+        final account = bankAccounts.firstWhere(
+          (account) => account['id']?.toString() == bankAccountId,
+          orElse: () {
+            // Try to match by bank name and last4 for company array accounts
+            if (bankAccountId.startsWith('company_array_')) {
+              // Extract bank name and last4 from the available accounts
+              for (var acc in bankAccounts) {
+                if (acc['id']?.toString().startsWith('company_array_') ==
+                    true) {
+                  return acc; // Return the first company array account as fallback
+                }
+              }
+            }
+            return <String, dynamic>{};
+          },
+        );
+
+        if (account.isNotEmpty) {
+          setState(() {
+            bankAccount = account;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ DEBUG: Error fetching bank account: $e');
+    } finally {
+      setState(() {
+        isLoadingBankAccount = false;
+      });
+    }
+  }
+
+  String _getBankAccountDisplay() {
+    if (isLoadingBankAccount) {
+      return 'Loading...';
+    }
+    if (bankAccount != null && bankAccount!.isNotEmpty) {
+      final name = bankAccount!['name'] as String? ?? 'Unknown Bank';
+      final last4 = bankAccount!['last4'] as String? ?? '****';
+      return '$name ****$last4';
+    }
+
+    final bankAccountId =
+        widget.transactionData['bankAccount'] as String? ??
+        widget.transactionData['BankAccount'] as String?;
+
+    if (bankAccountId != null) {
+      // Check if it's a cash transaction (either "Cash-" or "Cash")
+      if (bankAccountId == 'Cash-' || bankAccountId == 'Cash') {
+        return 'Cash';
+      }
+      return 'Bank Account ID: $bankAccountId (Not Found)';
+    }
+
+    // Check if it's a cash payment
+    final paymentMethod = widget.transactionData['PaymentMethod'] as String?;
+    if (paymentMethod == 'cash') {
+      return 'Cash';
+    }
+
+    return 'Not specified';
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF09090B), // Deep Matte Black
       body: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -38,48 +125,26 @@ class TransactionDetailsScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
                     children: [
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 48),
 
-                      // Icon Avatar
-                      Container(
-                        height: 80,
-                        width: 80,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.05),
-                          ),
-                        ),
-                        child: Icon(
-                          isAdvance ? Icons.fast_forward : Icons.check_circle,
-                          color: isAdvance
-                              ? const Color(0xFF5E5CE6)
-                              : const Color(0xFF30D158),
-                          size: 32,
-                        ),
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // Big Amount
+                      // Clean Big Amount
                       Text(
-                        formattedAmount,
+                        widget.formattedAmount,
                         style: GoogleFonts.inter(
                           color: Colors.white,
-                          fontSize: 40,
+                          fontSize: 48,
                           fontWeight: FontWeight.w600,
-                          letterSpacing: -1,
+                          letterSpacing: -1.5,
                         ),
                       ),
 
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
 
                       // Status Badge
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
+                          horizontal: 12,
+                          vertical: 6,
                         ),
                         decoration: BoxDecoration(
                           color: const Color(0xFF30D158).withValues(alpha: 0.1),
@@ -111,20 +176,31 @@ class TransactionDetailsScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildDetailRow("Transaction Type", displayTitle),
+                            _buildDetailRow(
+                              "Transaction Type",
+                              widget.displayTitle,
+                            ),
                             _buildDivider(),
-                            _buildDetailRow("Date & Time", formattedDate),
+                            _buildDetailRow(
+                              "Date & Time",
+                              widget.formattedDate,
+                            ),
                             _buildDivider(),
                             _buildDetailRow("Category", "Salary"),
                             _buildDivider(),
                             _buildDetailRow(
                               "Description",
-                              transactionData['Title'] ?? 'N/A',
+                              widget.transactionData['Title'] ?? 'N/A',
+                            ),
+                            _buildDivider(),
+                            _buildDetailRow(
+                              "Payment Method",
+                              _getBankAccountDisplay(),
                             ),
                             _buildDivider(),
                             _buildDetailRow(
                               "Transaction ID",
-                              transactionId,
+                              widget.transactionId,
                               isId: true,
                             ),
                           ],
@@ -154,9 +230,9 @@ class TransactionDetailsScreen extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: Colors.white.withValues(alpha: 0.05), // Glassy white
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: const Icon(
                 Icons.arrow_back,
@@ -191,7 +267,7 @@ class TransactionDetailsScreen extends StatelessWidget {
           Text(
             label,
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: Colors.white54, // Better contrast for label
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -210,7 +286,7 @@ class TransactionDetailsScreen extends StatelessWidget {
                   : GoogleFonts.inter(
                       color: Colors.white,
                       fontSize: 13,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                     ),
             ),
           ),

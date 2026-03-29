@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../shared/widgets/error_popup.dart';
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
 
 class EditTeamScreen extends StatefulWidget {
   final String teamId;
@@ -28,6 +30,7 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
   bool _isDeleting = false;
 
   late String _selectedColor;
+  String _userCountryCode = '+1'; // Default
 
   // Data Options
   final List<Map<String, dynamic>> _colors = [
@@ -42,6 +45,10 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
   void initState() {
     super.initState();
 
+    // Load country code for currency formatting
+    _userCountryCode = UserCountryService.getUserCountryCodeSync();
+    _loadUserCountryCode();
+
     // Pre-fill controllers with data from Firebase
     _nameController = TextEditingController(
       text: widget.teamData['teamName'] ?? "",
@@ -54,6 +61,15 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     );
 
     _selectedColor = widget.teamData['color'] ?? "Blue";
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final countryCode = await UserCountryService.getUserCountryCode();
+    if (mounted && countryCode != _userCountryCode) {
+      setState(() {
+        _userCountryCode = countryCode;
+      });
+    }
   }
 
   @override
@@ -315,31 +331,27 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
                       const SizedBox(height: 24),
 
                       // --- HERO TEAM NAME INPUT ---
-                      Text(
-                        "TEAM NAME",
-                        style: GoogleFonts.inter(
-                          color: Colors.white24,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
+                      _buildSectionLabel("TEAM NAME"),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _nameController,
+                        textInputAction: TextInputAction.next,
+                        onTapOutside: (event) =>
+                            FocusScope.of(context).unfocus(),
                         style: GoogleFonts.inter(
                           color: Colors.white,
                           fontSize: 32,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -1,
                         ),
-                        cursorColor: const Color(0xFF0A84FF), // Match primary
+                        cursorColor: const Color(0xFF0A84FF),
                         decoration: InputDecoration(
                           hintText: "Team Name",
                           hintStyle: GoogleFonts.inter(
-                            color: Colors.white12,
+                            color: Colors.white24, // Upgraded hint visibility
                             fontSize: 32,
                             fontWeight: FontWeight.w600,
+                            letterSpacing: -1,
                           ),
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.zero,
@@ -446,6 +458,8 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
       ),
       child: TextField(
         controller: _budgetController,
+        textInputAction: TextInputAction.next,
+        onTapOutside: (event) => FocusScope.of(context).unfocus(),
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         cursorColor: Colors.white,
         style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
@@ -453,6 +467,27 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
           hintText: "0.00",
           hintStyle: GoogleFonts.inter(color: Colors.white24),
           border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          prefixIcon: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text(
+                  CurrencyFormatter.getCurrencySymbol(_userCountryCode),
+                  style: GoogleFonts.inter(
+                    color: Colors.white38,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 44,
+            minHeight: 0,
+          ),
         ),
       ),
     );
@@ -473,6 +508,8 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
           ),
           child: TextField(
             controller: controller,
+            textInputAction: TextInputAction.done,
+            onTapOutside: (event) => FocusScope.of(context).unfocus(),
             style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
             cursorColor: Colors.white,
             maxLines: 3,
@@ -493,12 +530,17 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     final Color color = colorData['color'];
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedColor = colorData['name']),
-      child: Container(
+      onTap: () {
+        FocusScope.of(context).unfocus(); // Dismiss keyboard when picking color
+        setState(() => _selectedColor = colorData['name']);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.2),
+          color: color.withValues(alpha: isSelected ? 0.3 : 0.1),
           shape: BoxShape.circle,
           border: isSelected
               ? Border.all(color: color, width: 2)
@@ -582,7 +624,10 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
                       ),
                     )
                   : TextButton(
-                      onPressed: _showDeleteConfirmation,
+                      onPressed: () {
+                        FocusScope.of(context).unfocus(); // Dismiss keyboard
+                        _showDeleteConfirmation();
+                      },
                       child: Text(
                         "DELETE",
                         style: GoogleFonts.inter(
@@ -601,12 +646,12 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
 
   Widget _buildSectionLabel(String text) {
     return Text(
-      text,
+      text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white24,
-        fontSize: 10,
+        color: Colors.white54, // Upgraded contrast
+        fontSize: 11, // Upgraded size
         fontWeight: FontWeight.bold,
-        letterSpacing: 1.5,
+        letterSpacing: 1.2, // Tuned spacing
       ),
     );
   }

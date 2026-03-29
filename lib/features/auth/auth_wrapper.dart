@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../auth/screen/login.dart';
 import '../company-setup/screen/company_setup_screen.dart';
 import '../navigation/screens/main_navigation_wrapper.dart';
+import '../../../services/user_country_service.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -24,6 +25,18 @@ class AuthWrapper extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Initialize user currency after successful login
+  void _initializeUserCurrency() {
+    // Initialize the currency cache asynchronously
+    UserCountryService.initializeCache()
+        .then((_) {
+          debugPrint('💰 DEBUG: User currency initialized successfully');
+        })
+        .catchError((error) {
+          debugPrint('❌ DEBUG: Failed to initialize user currency: $error');
+        });
   }
 
   @override
@@ -147,6 +160,8 @@ class AuthWrapper extends StatelessWidget {
               debugPrint(
                 '🔍 DEBUG: User document does not exist, going to company setup',
               );
+              // Initialize user currency for new users
+              _initializeUserCurrency();
               return const CompanySetupScreen();
             }
 
@@ -160,6 +175,8 @@ class AuthWrapper extends StatelessWidget {
               debugPrint(
                 '🔍 DEBUG: Company setup not completed, going to company setup screen',
               );
+              // Initialize user currency for users in setup process
+              _initializeUserCurrency();
               return const CompanySetupScreen();
             }
 
@@ -167,6 +184,10 @@ class AuthWrapper extends StatelessWidget {
             debugPrint(
               '🔍 DEBUG: Company setup completed, going to main navigation',
             );
+
+            // Initialize user currency after successful login
+            _initializeUserCurrency();
+
             return const MainNavigationWrapper();
           },
         );

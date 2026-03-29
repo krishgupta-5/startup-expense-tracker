@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../widgets/telegram_image_picker.dart';
 import '../../../utils/data_helpers.dart';
+import '../../../services/bank_account_service.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   // ✅ Accept prefill data from scan screen
@@ -144,7 +145,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
         for (var acc in accounts) {
           final String name = acc['name'] ?? acc['bankName'] ?? 'Unknown Bank';
-          final String last4 = acc['last4'] ?? acc['number'] ?? '';
+          final String rawLast4 =
+              acc['last4']?.toString() ?? acc['number']?.toString() ?? '';
+          final String last4 = rawLast4.isNotEmpty
+              ? BankAccountService.extractLast4(rawLast4)
+              : '';
           final String key = "$name-$last4";
           final String label = last4.isNotEmpty ? "$name (****$last4)" : name;
           loadedBanks[key] = label;

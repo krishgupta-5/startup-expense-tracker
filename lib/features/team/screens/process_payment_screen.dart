@@ -7,6 +7,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../services/bank_account_service.dart';
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
 
 class ProcessPaymentScreen extends StatefulWidget {
   final String memberId;
@@ -33,21 +35,33 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
   late final TextEditingController _reasonController;
 
   bool _isLoading = false;
-  bool _isLoadingBanks = true;
+  String _userCountryCode = '+1'; // Default
 
   Map<String, String> _bankAccounts = {};
   String? _selectedBankAccount;
-  String? _selectedPaymentMethod; // 'bank' or 'cash'
+  String? _selectedPaymentMethod = 'cash'; // Default to cash for instant load
 
   @override
   void initState() {
     super.initState();
+    _userCountryCode = UserCountryService.getUserCountryCodeSync();
     _amountController = TextEditingController(
       text: widget.defaultAmount.toStringAsFixed(2),
     );
     _reasonController = TextEditingController();
-    _selectedPaymentMethod = 'bank'; // Default to bank payment
+
+    // Load country and banks silently in background
+    _loadUserCountryCode();
     _fetchBankAccounts();
+  }
+
+  Future<void> _loadUserCountryCode() async {
+    final countryCode = await UserCountryService.getUserCountryCode();
+    if (mounted && countryCode != _userCountryCode) {
+      setState(() {
+        _userCountryCode = countryCode;
+      });
+    }
   }
 
   @override
@@ -58,57 +72,50 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
   }
 
   Future<void> _fetchBankAccounts() async {
-    debugPrint('🔍 DEBUG: Starting to fetch bank accounts...');
     try {
-      final accounts = await BankAccountService.getBankAccounts();
-      debugPrint(
-        '🔍 DEBUG: BankAccountService returned ${accounts.length} accounts',
-      );
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-      Map<String, String> loadedBanks = {};
-      for (var acc in accounts) {
-        final String name = acc['name'] ?? 'Unknown Bank';
-        final String last4 = acc['last4'] ?? '';
+      final doc = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(user.uid)
+          .get();
 
-        final String key = acc['id'];
-        final String displayLabel = "$name (****$last4)";
-        loadedBanks[key] = displayLabel;
+      if (doc.exists && doc.data()!.containsKey('Bank Accounts')) {
+        final accounts = doc.data()!['Bank Accounts'] as List<dynamic>;
+        Map<String, String> loadedBanks = {};
 
-        debugPrint('🔍 DEBUG: Processed account - Name: $name, Last4: $last4,');
-        debugPrint('🔍 DEBUG: Account key: $key, Display label: $displayLabel');
-      }
-
-      debugPrint('🔍 DEBUG: Final bank accounts map: $loadedBanks');
-
-      setState(() {
-        _bankAccounts = loadedBanks;
-        if (_bankAccounts.isNotEmpty) {
-          _selectedBankAccount = _bankAccounts.keys.first;
-          debugPrint('🔍 DEBUG: Selected bank account: $_selectedBankAccount');
-        } else {
-          // If no bank accounts, default to cash payment
-          _selectedPaymentMethod = 'cash';
-          debugPrint(
-            '🔍 DEBUG: No bank accounts found, defaulting to cash payment',
-          );
+        for (var acc in accounts) {
+          final String name = acc['name'] ?? acc['bankName'] ?? 'Unknown Bank';
+          final String rawLast4 =
+              acc['last4']?.toString() ?? acc['number']?.toString() ?? '';
+          final String last4 = rawLast4.isNotEmpty
+              ? BankAccountService.extractLast4(rawLast4)
+              : '';
+          final String key = "$name-$last4";
+          final String label = last4.isNotEmpty ? "$name (****$last4)" : name;
+          loadedBanks[key] = label;
         }
-      });
+
+        if (mounted) {
+          setState(() {
+            _bankAccounts = loadedBanks;
+            if (_bankAccounts.isNotEmpty) {
+              _selectedBankAccount = _bankAccounts.keys.first;
+              _selectedPaymentMethod =
+                  'bank'; // Auto-switch to bank if available
+            }
+          });
+        }
+      }
     } catch (e) {
-      debugPrint("❌ DEBUG: Failed to load bank accounts: $e");
-      debugPrint("❌ DEBUG: Error stack trace: ${StackTrace.current}");
-      // On error, default to cash payment
-      setState(() {
-        _selectedPaymentMethod = 'cash';
-      });
-    } finally {
-      if (mounted) setState(() => _isLoadingBanks = false);
-      debugPrint(
-        '🔍 DEBUG: Bank account fetching completed. Loading state set to false.',
-      );
+      debugPrint("Failed to load bank accounts: $e");
     }
   }
 
   Future<void> _processPayment() async {
+    FocusScope.of(context).unfocus();
+
     final double? amount = double.tryParse(_amountController.text.trim());
 
     if (amount == null || amount <= 0) {
@@ -137,7 +144,6 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
           ? "Advance Salary - ${widget.memberName}"
           : "Salary - ${widget.memberName}";
 
-      // Removed Team name from description
       final String expenseDesc = widget.isAdvance
           ? "Advance reason: ${_reasonController.text.trim()}"
           : "Regular monthly salary payout for ${widget.memberName}";
@@ -148,15 +154,15 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
         "Amount": amount,
         "Title": expenseTitle,
         "Description": expenseDesc,
-        "TeamName": widget.teamName, // <-- ADDED AS A NEW SEPARATE FIELD HERE
+        "TeamName": widget.teamName,
         "Date": DateTime.now(),
         "Category": "salary",
         "Type": "recurring",
         "BankAccount": _selectedPaymentMethod == 'bank'
             ? _selectedBankAccount
-            : 'cash',
-        "PaymentMethod": _selectedPaymentMethod, // Add payment method field
-        "memberId": widget.memberId, // Add memberId for proper filtering
+            : 'Cash-',
+        "PaymentMethod": _selectedPaymentMethod,
+        "memberId": widget.memberId,
         "Time": FieldValue.serverTimestamp(),
       });
 
@@ -182,6 +188,10 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: const Color(0xFF30D158),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            behavior: SnackBarBehavior.floating,
             content: Text(
               widget.isAdvance
                   ? "Advance recorded!"
@@ -207,9 +217,16 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
-        backgroundColor: Colors.redAccent,
+        content: Text(
+          message,
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        backgroundColor: const Color(0xFFFF453A),
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -217,7 +234,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
@@ -226,70 +243,60 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
             children: [
               _buildHeader(context),
               Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 32),
+                child: GestureDetector(
+                  onTap: () => FocusScope.of(context).unfocus(),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 32),
 
-                      // Hero Amount
-                      Center(
-                        child: Column(
-                          children: [
-                            Text(
-                              "AMOUNT",
-                              style: GoogleFonts.inter(
-                                color: Colors.white24,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            _buildAmountInput(),
-                          ],
+                        // --- HERO AMOUNT ---
+                        Center(
+                          child: Column(
+                            children: [
+                              _buildSectionLabel("AMOUNT"),
+                              const SizedBox(height: 8),
+                              _buildAmountInput(),
+                            ],
+                          ),
                         ),
-                      ),
 
-                      const SizedBox(height: 40),
+                        const SizedBox(height: 40),
 
-                      // Payment Method Selector
-                      if (!_isLoadingBanks) _buildPaymentMethodSelector(),
+                        // --- PAYMENT METHOD ---
+                        _buildPaymentMethodSelector(),
 
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
-                      // Debug button (only in development)
-                      if (widget
-                          .isAdvance) // Only show for advances to avoid clutter
-                        _buildDebugButton(),
-
-                      const SizedBox(height: 24),
-
-                      // Bank Account Selector (only show if bank is selected)
-                      if (_selectedPaymentMethod == 'bank') ...[
-                        if (_bankAccounts.isEmpty)
-                          _buildNoBankAccountsMessage()
-                        else
+                        // --- BANK ACCOUNT SELECTOR ---
+                        if (_selectedPaymentMethod == 'bank' &&
+                            _bankAccounts.isNotEmpty) ...[
+                          const SizedBox(height: 8),
                           _buildSelectField(
                             label: "Pay From Bank Account",
                             currentValue: _selectedBankAccount ?? "",
                             items: _bankAccounts,
                             icon: Icons.account_balance,
                             onChanged: (val) {
+                              FocusScope.of(context).unfocus();
                               setState(() => _selectedBankAccount = val!);
                             },
                           ),
-                        const SizedBox(height: 24),
+                          const SizedBox(height: 24),
+                        ],
+
+                        // --- REASON FIELD (ADVANCE ONLY) ---
+                        if (widget.isAdvance) ...[
+                          const SizedBox(height: 8),
+                          _buildTextArea("Reason for Advance"),
+                        ],
+
+                        const SizedBox(height: 40),
                       ],
-
-                      // Reason Field (ONLY FOR ADVANCE)
-                      if (widget.isAdvance)
-                        _buildTextArea("Reason for Advance"),
-
-                      const SizedBox(height: 40),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -312,9 +319,9 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: Colors.white.withValues(alpha: 0.05), // Glassy white
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: const Icon(Icons.close, color: Colors.white, size: 20),
             ),
@@ -327,8 +334,20 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(width: 44),
+          const SizedBox(width: 44), // Balances the header
         ],
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: Colors.white54,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
       ),
     );
   }
@@ -338,17 +357,26 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
       width: double.infinity,
       child: TextField(
         controller: _amountController,
-        readOnly: !widget.isAdvance,
+        readOnly: !widget.isAdvance, // Only editable if Advance
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         textAlign: TextAlign.center,
+        onTapOutside: (event) => FocusScope.of(context).unfocus(),
         style: GoogleFonts.inter(
           color: widget.isAdvance ? Colors.white : Colors.white70,
           fontSize: 56,
           fontWeight: FontWeight.w600,
           letterSpacing: -2,
         ),
-        cursorColor: const Color(0xFF0A84FF),
+        cursorColor: const Color(0xFF5E5CE6), // Match purple for advance
         decoration: InputDecoration(
+          prefixText:
+              "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
+          prefixStyle: GoogleFonts.inter(
+            color: Colors.white38,
+            fontSize: 56,
+            fontWeight: FontWeight.w500,
+            letterSpacing: -2,
+          ),
           hintText: "0.00",
           hintStyle: GoogleFonts.inter(
             color: Colors.white12,
@@ -362,81 +390,12 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
     );
   }
 
-  Widget _buildSelectField({
-    required String label,
-    required String currentValue,
-    required Map<String, String> items,
-    required IconData icon,
-    required Function(String?) onChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionLabel(label),
-        const SizedBox(height: 8),
-        ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: double.infinity),
-          child: ShadSelect<String>(
-            placeholder: Text(
-              'Select $label',
-              style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
-            ),
-            initialValue: currentValue.isNotEmpty ? currentValue : null,
-            options: [
-              ...items.entries.map(
-                (e) => ShadOption(value: e.key, child: Text(e.value)),
-              ),
-            ],
-            selectedOptionBuilder: (context, value) => Text(
-              items[value] ?? "Select",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            onChanged: onChanged,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTextArea(String label) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionLabel(label),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-          ),
-          child: TextField(
-            controller: _reasonController,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-            maxLines: 4,
-            minLines: 3,
-            decoration: InputDecoration(
-              hintText: "Enter reason for advance payout...",
-              hintStyle: GoogleFonts.inter(color: Colors.white24),
-              border: InputBorder.none,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildPaymentMethodSelector() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel("Payment Method"),
-        const SizedBox(height: 8),
+        _buildSectionLabel("PAYMENT METHOD"),
+        const SizedBox(height: 12),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(4),
@@ -457,7 +416,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
               if (_bankAccounts.isNotEmpty) const SizedBox(height: 4),
               _buildPaymentOption(
                 value: 'cash',
-                title: 'Cash Payment',
+                title: 'Cash / Manual',
                 subtitle: 'Pay with cash or manual transfer',
                 icon: Icons.money,
                 isAvailable: true,
@@ -481,10 +440,12 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
     return GestureDetector(
       onTap: isAvailable
           ? () {
+              FocusScope.of(context).unfocus();
               setState(() => _selectedPaymentMethod = value);
             }
           : null,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -494,7 +455,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
-                ? Colors.white.withValues(alpha: 0.2)
+                ? Colors.white.withValues(alpha: 0.15)
                 : Colors.transparent,
           ),
         ),
@@ -563,175 +524,74 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
     );
   }
 
-  Widget _buildNoBankAccountsMessage() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFF9F0A).withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFFF9F0A).withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.info_outline,
-                color: const Color(0xFFFF9F0A),
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                "No Bank Accounts",
-                style: GoogleFonts.inter(
-                  color: const Color(0xFFFF9F0A),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+  Widget _buildSelectField({
+    required String label,
+    required String currentValue,
+    required Map<String, String> items,
+    required IconData icon,
+    required Function(String?) onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel(label),
+        const SizedBox(height: 8),
+        ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: double.infinity),
+          child: ShadSelect<String>(
+            placeholder: Text(
+              'Select $label',
+              style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
+            ),
+            initialValue: currentValue.isNotEmpty ? currentValue : null,
+            options: [
+              ...items.entries.map(
+                (e) => ShadOption(value: e.key, child: Text(e.value)),
               ),
             ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "No bank accounts found. Please add a bank account in your company profile, or select cash payment.",
-            style: GoogleFonts.inter(
-              color: Colors.white.withValues(alpha: 0.7),
-              fontSize: 12,
+            selectedOptionBuilder: (context, value) => Text(
+              items[value] ?? "Select",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
             ),
+            onChanged: onChanged,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  Widget _buildDebugButton() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF5E5CE6).withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(0xFF5E5CE6).withValues(alpha: 0.3),
+  Widget _buildTextArea(String label) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel(label),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          ),
+          child: TextField(
+            controller: _reasonController,
+            onTapOutside: (event) => FocusScope.of(context).unfocus(),
+            textInputAction: TextInputAction.done,
+            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+            maxLines: 3,
+            minLines: 3,
+            decoration: InputDecoration(
+              hintText: "Enter reason for advance payout...",
+              hintStyle: GoogleFonts.inter(color: Colors.white24),
+              border: InputBorder.none,
+            ),
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Debug Info",
-            style: GoogleFonts.inter(
-              color: const Color(0xFF5E5CE6),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  "Bank Accounts: ${_bankAccounts.length}",
-                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 11),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  "Payment Method: ${_selectedPaymentMethod ?? 'none'}",
-                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 11),
-                ),
-              ),
-            ],
-          ),
-          if (_bankAccounts.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              "Available Banks: ${_bankAccounts.keys.join(', ')}",
-              style: GoogleFonts.inter(color: Colors.white60, fontSize: 10),
-            ),
-          ],
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    debugPrint('🔍 DEBUG: Manual refresh triggered');
-                    _fetchBankAccounts();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF5E5CE6),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      "Refresh Bank Accounts",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    debugPrint(
-                      '🔍 DEBUG: Clearing bank account cache and forcing refresh',
-                    );
-                    setState(() {
-                      _bankAccounts.clear();
-                      _selectedBankAccount = null;
-                    });
-                    _fetchBankAccounts();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF9F0A),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      "Clear & Refresh",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionLabel(String text) {
-    return Text(
-      text.toUpperCase(),
-      style: GoogleFonts.inter(
-        color: Colors.white24,
-        fontSize: 10,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.5,
-      ),
+      ],
     );
   }
 
@@ -751,13 +611,11 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
           onPressed: _isLoading ? null : _processPayment,
           style: ElevatedButton.styleFrom(
             backgroundColor: widget.isAdvance
-                ? const Color(0xFF5E5CE6)
-                : const Color(0xFF0A84FF),
-            foregroundColor: Colors.white,
+                ? const Color(0xFF5E5CE6) // Purple for Advance
+                : Colors.white, // Solid White for Salary
+            foregroundColor: widget.isAdvance ? Colors.white : Colors.black,
             disabledBackgroundColor:
-                (widget.isAdvance
-                        ? const Color(0xFF5E5CE6)
-                        : const Color(0xFF0A84FF))
+                (widget.isAdvance ? const Color(0xFF5E5CE6) : Colors.white)
                     .withValues(alpha: 0.5),
             elevation: 0,
             shape: RoundedRectangleBorder(
@@ -765,12 +623,12 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
             ),
           ),
           child: _isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   height: 24,
                   width: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    color: widget.isAdvance ? Colors.white : Colors.black,
                   ),
                 )
               : Text(

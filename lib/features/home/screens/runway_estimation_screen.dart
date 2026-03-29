@@ -1,10 +1,9 @@
-// Required for FontFeature
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:async';
 import '../../../services/financial_calculator.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/user_country_service.dart';
@@ -339,6 +338,39 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     }
   }
 
+  // --- PREMIUM SECTION LABEL HELPER ---
+  Widget _buildSectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: Colors.white54,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
+  // --- MINIMAL EMPTY STATE COMPONENT ---
+  Widget _buildEmptyState(String text) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Text(
+          text,
+          style: GoogleFonts.inter(
+            color: Colors.white38,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+
   // --- MINIMAL HINT TOAST INSTEAD OF DIALOG ---
   void _showProjectionHint() {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -414,7 +446,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: Colors.white.withValues(alpha: 0.05), // White Glass Style
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
             ),
@@ -464,7 +496,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
+                  horizontal: 12,
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
@@ -479,7 +511,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                     _getHealthStatus(),
                     style: GoogleFonts.inter(
                       color: _getHealthStatusColor(),
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.0,
                     ),
@@ -529,20 +561,25 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Flexible(
-                child: Text(
-                  isLoading
-                      ? "--"
-                      : (runwayMonths?.toStringAsFixed(1) ?? "0.0"),
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 60,
-                    fontWeight: FontWeight.w300,
-                    height: 1.0,
-                    letterSpacing: -3,
+                // FIXED: FITTED BOX FOR LARGE NUMBERS
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    isLoading
+                        ? "--"
+                        : (runwayMonths?.toStringAsFixed(1) ?? "0.0"),
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 60, // Huge Hero text
+                      fontWeight: FontWeight.w600, // Thickened slightly
+                      height: 1.0,
+                      letterSpacing: -3,
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
@@ -597,16 +634,8 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Financial Health",
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 20),
+        _buildSectionLabel("FINANCIAL HEALTH"),
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
@@ -678,13 +707,18 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
         children: [
           Icon(icon, color: color.withValues(alpha: 0.8), size: 20),
           const SizedBox(height: 16),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.5,
+          // FIXED: FITTED BOX FOR LARGE NUMBERS
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.5,
+              ),
             ),
           ),
           const SizedBox(height: 4),
@@ -707,15 +741,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
       children: [
         Row(
           children: [
-            Text(
-              "Monthly Projection",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-              ),
-            ),
+            _buildSectionLabel("MONTHLY PROJECTION"),
             const SizedBox(width: 8),
             GestureDetector(
               onTap: _showProjectionHint, // Triggers the sleek toast
@@ -723,22 +749,22 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                 width: 20,
                 height: 20,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
+                  color: Colors.white.withValues(alpha: 0.05),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
                 child: const Icon(
                   Icons.info_outline,
                   color: Colors.white60,
-                  size: 14,
+                  size: 12,
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -777,26 +803,6 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     );
   }
 
-  // --- UPDATED EMPTY STATE (Minimal Padding, One Line) ---
-  Widget _buildEmptyState(String text) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-        child: Text(
-          text,
-          style: GoogleFonts.inter(
-            color: Colors.white38,
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-    );
-  }
-
   Widget _buildProjectionRow(String month, String balance, String monthsLeft) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -816,14 +822,19 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
           ),
           Expanded(
             flex: 3,
-            child: Text(
-              balance,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                fontFeatures: [const FontFeature.tabularFigures()],
+            // FIXED: FITTED BOX FOR LARGE NUMBERS
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.center,
+              child: Text(
+                balance,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: [const FontFeature.tabularFigures()],
+                ),
               ),
             ),
           ),
@@ -863,19 +874,11 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Risk Factors",
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 20),
+        _buildSectionLabel("RISK FACTORS"),
+        const SizedBox(height: 16),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: const Color(0xFF141416),
             borderRadius: BorderRadius.circular(20),
@@ -884,7 +887,6 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
           child: isLoading
               ? _buildEmptyState("Analyzing data...")
               : riskFactors.isEmpty
-              // Single line text for missing data
               ? _buildEmptyState("Not enough data to analyze risk factors")
               : Column(
                   children: riskFactors.map((risk) {

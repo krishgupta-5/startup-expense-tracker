@@ -32,7 +32,6 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   bool _isLoading = false;
 
   String _userCountryCode = '+1'; // Default to USD
-  final bool _isLoadingCountry = false; // Start as false since we use sync method
 
   // Cache for Telegram photos to avoid repeated fetching
   static final Map<String, String> _telegramPhotoCache = {};
@@ -50,7 +49,6 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   String _employmentType = "full_time";
   DateTime _joiningDate = DateTime.now();
   String? _telegramFileId;
-  String? _fileName;
 
   @override
   void initState() {
@@ -87,8 +85,6 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
 
   // --- FIREBASE LOGIC ---
 
-  // Removed _fetchTeams since team assignment is now automatic
-
   Future<void> _saveMember() async {
     // Basic Validation
     if (_nameController.text.trim().isEmpty) {
@@ -120,8 +116,6 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       _showErrorSnackBar("Job title must not exceed 100 characters.");
       return;
     }
-
-    // Team assignment validation removed since teamId is now required
 
     // Monthly cost is now mandatory
     if (_costController.text.trim().isEmpty) {
@@ -157,7 +151,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
 
       await FirebaseFirestore.instance.collection('members').add({
         "uid": FirebaseAuth.instance.currentUser!.uid,
-        "teamId": _selectedTeamId, // Links this member to the specific team
+        "teamId": _selectedTeamId,
         "fullName": _nameController.text.trim(),
         "email": _emailController.text.trim(),
         "jobTitle": _jobTitleController.text.trim(),
@@ -177,10 +171,16 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
           SnackBar(
             content: Text(
               "Member added successfully!",
-              style: GoogleFonts.inter(),
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             backgroundColor: const Color(0xFF30D158),
             behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -198,9 +198,16 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
-        backgroundColor: Colors.redAccent,
+        content: Text(
+          message,
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        backgroundColor: const Color(0xFFFF453A),
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -273,6 +280,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   }
 
   Future<void> _showImagePicker() async {
+    FocusScope.of(context).unfocus(); // Dismiss keyboard if open
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF141416),
@@ -423,7 +431,6 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   Future<void> _uploadImageToTelegram(File imageFile) async {
     try {
       setState(() => _isLoading = true);
-      _fileName = imageFile.path.split('/').last;
 
       final fileId = await uploadToTelegram(imageFile.path);
 
@@ -442,7 +449,6 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       debugPrint("Error uploading image to Telegram: $e");
       if (mounted) {
         setState(() => _isLoading = false);
-        _fileName = null;
         _showErrorSnackBar("Failed to upload image to Telegram");
       }
     }
@@ -472,7 +478,6 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                       const SizedBox(height: 24),
 
                       // --- AVATAR UPLOADER ---
-                      // Left in the UI as a placeholder, no functionality yet
                       Center(child: _buildAvatarUploader()),
                       const SizedBox(height: 40),
 
@@ -484,6 +489,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                         "e.g. Sarah Miller",
                         Icons.person_outline,
                         _nameController,
+                        textInputAction: TextInputAction.next,
                       ),
                       const SizedBox(height: 16),
                       _buildTextInput(
@@ -491,6 +497,8 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                         "sarah@company.com",
                         Icons.email_outlined,
                         _emailController,
+                        textInputAction: TextInputAction.next,
+                        keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 16),
                       _buildTextInput(
@@ -498,6 +506,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                         "e.g. Senior Product Designer",
                         Icons.badge_outlined,
                         _jobTitleController,
+                        textInputAction: TextInputAction.done,
                       ),
 
                       const SizedBox(height: 32),
@@ -523,7 +532,11 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.group, color: Colors.white38, size: 20),
+                            const Icon(
+                              Icons.group,
+                              color: Colors.white38,
+                              size: 20,
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -555,14 +568,14 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                       const SizedBox(height: 32),
 
                       // --- EMPLOYMENT TYPE ---
-                      _buildSectionLabel("EMPLOYMENT TYPE"),
-                      const SizedBox(height: 16),
                       _buildSelectField(
-                        label: "Type",
+                        label: "Employment Type",
                         currentValue: _employmentType,
                         items: types,
-                        onChanged: (val) =>
-                            setState(() => _employmentType = val!),
+                        onChanged: (val) {
+                          FocusScope.of(context).unfocus();
+                          setState(() => _employmentType = val!);
+                        },
                       ),
 
                       const SizedBox(height: 32),
@@ -625,6 +638,18 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
           ),
           const SizedBox(width: 44),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: Colors.white54,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
       ),
     );
   }
@@ -735,8 +760,10 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
     String hint,
     String placeholder,
     IconData icon,
-    TextEditingController controller,
-  ) {
+    TextEditingController controller, {
+    TextInputAction textInputAction = TextInputAction.done,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
@@ -746,13 +773,16 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
       ),
       child: TextField(
         controller: controller,
+        textInputAction: textInputAction,
+        keyboardType: keyboardType,
+        onTapOutside: (event) => FocusScope.of(context).unfocus(),
         style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
         decoration: InputDecoration(
           icon: Icon(icon, color: Colors.white38, size: 20),
           hintText: placeholder,
           labelText: hint,
           labelStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
-          hintStyle: GoogleFonts.inter(color: Colors.white12),
+          hintStyle: GoogleFonts.inter(color: Colors.white24),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
@@ -780,7 +810,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
             child: Text(
               CurrencyFormatter.getCurrencySymbol(_userCountryCode),
               style: GoogleFonts.inter(
-                color: Color(0xFF30D158),
+                color: const Color(0xFF30D158),
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
@@ -794,13 +824,16 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                 Text(
                   "MONTHLY COST",
                   style: GoogleFonts.inter(
-                    color: Colors.white24,
-                    fontSize: 10,
+                    color: Colors.white54,
+                    fontSize: 11,
                     fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
                   ),
                 ),
                 TextField(
                   controller: _costController,
+                  textInputAction: TextInputAction.done,
+                  onTapOutside: (event) => FocusScope.of(context).unfocus(),
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
@@ -811,7 +844,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                   ),
                   decoration: InputDecoration(
                     hintText: "0.00",
-                    hintStyle: GoogleFonts.inter(color: Colors.white12),
+                    hintStyle: GoogleFonts.inter(color: Colors.white24),
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 4),
@@ -834,15 +867,7 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label.toUpperCase(),
-          style: GoogleFonts.inter(
-            color: Colors.white24,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.5,
-          ),
-        ),
+        _buildSectionLabel(label),
         const SizedBox(height: 8),
         ConstrainedBox(
           constraints: const BoxConstraints(minWidth: double.infinity),
@@ -873,63 +898,41 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
     );
   }
 
-  Widget _buildSectionLabel(String text) {
-    return Text(
-      text,
-      style: GoogleFonts.inter(
-        color: Colors.white24,
-        fontSize: 10,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.5,
-      ),
-    );
-  }
-
   Widget _buildDateSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
+      child: TextField(
+        readOnly: true,
+        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+        decoration: InputDecoration(
+          icon: const Icon(
+            Icons.calendar_today,
+            color: Colors.white38,
+            size: 20,
           ),
-          child: TextField(
-            readOnly: true,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-            decoration: InputDecoration(
-              icon: const Icon(
-                Icons.calendar_today,
-                color: Colors.white38,
-                size: 20,
-              ),
-              hintText: "Select joining date",
-              labelText: "Joining Date",
-              labelStyle: GoogleFonts.inter(
-                color: Colors.white38,
-                fontSize: 13,
-              ),
-              hintStyle: GoogleFonts.inter(color: Colors.white12),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-              floatingLabelBehavior: FloatingLabelBehavior.auto,
-              suffixIcon: const Icon(
-                Icons.calendar_month,
-                color: Colors.white38,
-              ),
-            ),
-            controller: TextEditingController(
-              text:
-                  "${_joiningDate.day}/${_joiningDate.month}/${_joiningDate.year}",
-            ),
-            onTap: () {
-              _showShadCalendar();
-            },
-          ),
+          hintText: "Select joining date",
+          labelText: "Joining Date",
+          labelStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
+          hintStyle: GoogleFonts.inter(color: Colors.white24),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          floatingLabelBehavior: FloatingLabelBehavior.auto,
+          suffixIcon: const Icon(Icons.calendar_month, color: Colors.white38),
         ),
-      ],
+        controller: TextEditingController(
+          text:
+              "${_joiningDate.day}/${_joiningDate.month}/${_joiningDate.year}",
+        ),
+        onTap: () {
+          FocusScope.of(context).unfocus();
+          _showShadCalendar();
+        },
+      ),
     );
   }
 
@@ -943,64 +946,71 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
           child: Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            child: SingleChildScrollView(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      "Select Joining Date",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Select Joining Date",
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close, color: Colors.white38),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white38),
+                    const SizedBox(height: 20),
+                    ShadCalendar(
+                      selected: _joiningDate,
+                      fromMonth: DateTime(_joiningDate.year - 5),
+                      toMonth: DateTime(_joiningDate.year + 2, 12),
+                      onChanged: (DateTime? date) {
+                        if (date != null) {
+                          setState(() {
+                            _joiningDate = date;
+                          });
+                          Navigator.pop(context);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          "Done",
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
-                ShadCalendar(
-                  selected: _joiningDate,
-                  fromMonth: DateTime(_joiningDate.year - 5),
-                  toMonth: DateTime(_joiningDate.year + 2, 12),
-                  onChanged: (DateTime? date) {
-                    if (date != null) {
-                      setState(() {
-                        _joiningDate = date;
-                      });
-                      Navigator.pop(context);
-                    }
-                  },
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      "Done",
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         );

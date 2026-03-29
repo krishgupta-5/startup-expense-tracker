@@ -164,6 +164,19 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
     }
   }
 
+  // --- PREMIUM SECTION LABEL HELPER ---
+  Widget _buildSectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: Colors.white54,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -235,9 +248,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: Colors.white.withValues(alpha: 0.05), // White Glass Style
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
             ),
             child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
           ),
@@ -351,7 +364,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         curve: Curves.easeOutCubic,
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.all(24), // Tighter padding
           decoration: BoxDecoration(
             color: const Color(0xFF141416),
             borderRadius: BorderRadius.circular(24),
@@ -378,7 +391,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                       "PRIMARY INSIGHT",
                       style: GoogleFonts.inter(
                         color: const Color(0xFFFF9F0A),
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.0,
                       ),
@@ -401,7 +414,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                       "HIGH IMPACT",
                       style: GoogleFonts.inter(
                         color: const Color(0xFF30D158),
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.0,
                       ),
@@ -413,27 +426,37 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    grossBurn > 0
-                        ? (_isLoadingCountry
-                              ? "₹${grossBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                              : CurrencyFormatter.formatByCountry(
-                                  grossBurn,
-                                  _userCountryCode,
-                                ))
-                        : (_isLoadingCountry
-                              ? "₹0"
-                              : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w300,
-                      height: 1.0,
-                      letterSpacing: -2,
+                  Expanded(
+                    // FIXED: FITTED BOX FOR LARGE NUMBERS
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        grossBurn > 0
+                            ? (_isLoadingCountry
+                                  ? "₹${grossBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+                                  : CurrencyFormatter.formatByCountry(
+                                      grossBurn,
+                                      _userCountryCode,
+                                    ))
+                            : (_isLoadingCountry
+                                  ? "₹0"
+                                  : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 48, // Bumped size for hero impact
+                          fontWeight: FontWeight.w600, // Thicker weight
+                          height: 1.0,
+                          letterSpacing: -1.5,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      bottom: 6,
+                    ), // align to baseline
                     child: Text(
                       "/month",
                       style: GoogleFonts.inter(
@@ -463,27 +486,32 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                     Text(
                       "Net Burn",
                       style: GoogleFonts.inter(
-                        color: Colors.white38,
+                        color: Colors.white54,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      netBurn > 0
-                          ? (_isLoadingCountry
-                                ? "₹${netBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                                : CurrencyFormatter.formatByCountry(
-                                    netBurn,
-                                    _userCountryCode,
-                                  ))
-                          : (_isLoadingCountry
-                                ? "₹0"
-                                : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
-                      style: GoogleFonts.inter(
-                        color: const Color(0xFFFF453A),
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
+                    // FIXED: FITTED BOX FOR LARGE NUMBERS
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        netBurn > 0
+                            ? (_isLoadingCountry
+                                  ? "₹${netBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+                                  : CurrencyFormatter.formatByCountry(
+                                      netBurn,
+                                      _userCountryCode,
+                                    ))
+                            : (_isLoadingCountry
+                                  ? "₹0"
+                                  : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFFFF453A),
+                          fontSize: 24, // Bumped size slightly
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -536,16 +564,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 20),
+            _buildSectionLabel(title),
+            const SizedBox(height: 16),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(24),
@@ -654,16 +674,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Expense Categories",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 20),
+            _buildSectionLabel("EXPENSE CATEGORIES"),
+            const SizedBox(height: 16),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(24),
@@ -746,16 +758,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Team Cost Distribution",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 20),
+            _buildSectionLabel("TEAM COST DISTRIBUTION"),
+            const SizedBox(height: 16),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(24),
@@ -785,15 +789,20 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                               ),
                               Expanded(
                                 flex: 4,
-                                child: Text(
-                                  team['cost'] as String,
-                                  style: GoogleFonts.inter(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    fontFeatures: [
-                                      const FontFeature.tabularFigures(),
-                                    ],
+                                // FIXED: FITTED BOX FOR LARGE NUMBERS
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    team['cost'] as String,
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      fontFeatures: [
+                                        const FontFeature.tabularFigures(),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
@@ -863,15 +872,20 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         const SizedBox(width: 16),
         SizedBox(
           width: 80,
-          child: Text(
-            value,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              fontFeatures: [const FontFeature.tabularFigures()],
+          // FIXED: FITTED BOX FOR LARGE NUMBERS
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(
+              value,
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                fontFeatures: [const FontFeature.tabularFigures()],
+              ),
+              textAlign: TextAlign.right,
             ),
-            textAlign: TextAlign.right,
           ),
         ),
         const SizedBox(width: 16),
@@ -931,16 +945,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Budget vs Actual",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 20),
+            _buildSectionLabel("BUDGET VS ACTUAL"),
+            const SizedBox(height: 16),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(24),
@@ -971,11 +977,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
       dynamic budgetData = team['monthlyBudget'];
       double budget = 0.0;
 
-      // Debug logging
-      print(
-        'DEBUG: Team $teamName budget data: $budgetData (type: ${budgetData.runtimeType})',
-      );
-
       if (budgetData != null) {
         if (budgetData is double) {
           budget = budgetData;
@@ -985,11 +986,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
           // Remove currency symbols, commas, and other non-numeric characters except decimal point
           String budgetStr = budgetData.replaceAll(RegExp(r'[^\d.]'), '');
           budget = double.tryParse(budgetStr) ?? 0.0;
-          print('DEBUG: Parsed budget string "$budgetData" to $budget');
         }
       }
-
-      print('DEBUG: Final budget for $teamName: $budget');
 
       // Use null-aware access with fallback to 0 for teams with no spending
       final actual = _toDouble(
@@ -1038,13 +1036,20 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 fontWeight: FontWeight.w500,
               ),
             ),
-            Text(
-              _formatCurrencyForForecast(totalBudget),
-              style: GoogleFonts.inter(
-                color: Colors.white38,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                fontFeatures: [const FontFeature.tabularFigures()],
+            // FIXED: FITTED BOX FOR LARGE NUMBERS
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  _formatCurrencyForForecast(totalBudget),
+                  style: GoogleFonts.inter(
+                    color: Colors.white38,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    fontFeatures: [const FontFeature.tabularFigures()],
+                  ),
+                ),
               ),
             ),
           ],
@@ -1061,13 +1066,20 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 fontWeight: FontWeight.w500,
               ),
             ),
-            Text(
-              _formatCurrencyForForecast(totalActual),
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                fontFeatures: [const FontFeature.tabularFigures()],
+            // FIXED: FITTED BOX FOR LARGE NUMBERS
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  _formatCurrencyForForecast(totalActual),
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    fontFeatures: [const FontFeature.tabularFigures()],
+                  ),
+                ),
               ),
             ),
           ],
@@ -1084,17 +1096,24 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 fontWeight: FontWeight.w500,
               ),
             ),
-            Text(
-              totalBudget >= totalActual
-                  ? "${_formatCurrencyForForecast(totalBudget - totalActual)} under budget"
-                  : "${_formatCurrencyForForecast(totalActual - totalBudget)} over budget",
-              style: GoogleFonts.inter(
-                color: totalBudget >= totalActual
-                    ? const Color(0xFF30D158)
-                    : const Color(0xFFFF453A),
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                fontFeatures: [const FontFeature.tabularFigures()],
+            // FIXED: FITTED BOX FOR LARGE NUMBERS
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  totalBudget >= totalActual
+                      ? "${_formatCurrencyForForecast(totalBudget - totalActual)} under budget"
+                      : "${_formatCurrencyForForecast(totalActual - totalBudget)} over budget",
+                  style: GoogleFonts.inter(
+                    color: totalBudget >= totalActual
+                        ? const Color(0xFF30D158)
+                        : const Color(0xFFFF453A),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: [const FontFeature.tabularFigures()],
+                  ),
+                ),
               ),
             ),
           ],
@@ -1128,43 +1147,58 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
           ),
           Expanded(
             flex: 4,
-            child: Text(
-              budget,
-              textAlign: TextAlign.end,
-              style: GoogleFonts.inter(
-                color: isHeader ? Colors.white : Colors.white38,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+            // FIXED: FITTED BOX FOR LARGE NUMBERS
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                budget,
+                textAlign: TextAlign.end,
+                style: GoogleFonts.inter(
+                  color: isHeader ? Colors.white : Colors.white38,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ),
           Expanded(
             flex: 4,
-            child: Text(
-              actual,
-              textAlign: TextAlign.end,
-              style: GoogleFonts.inter(
-                color: isHeader ? Colors.white : Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+            // FIXED: FITTED BOX FOR LARGE NUMBERS
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                actual,
+                textAlign: TextAlign.end,
+                style: GoogleFonts.inter(
+                  color: isHeader ? Colors.white : Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
           Expanded(
             flex: 4,
-            child: Text(
-              isHeader
-                  ? variance
-                  : variance.replaceAll(" under", "").replaceAll(" over", ""),
-              textAlign: TextAlign.end,
-              style: GoogleFonts.inter(
-                color: isHeader
-                    ? Colors.white
-                    : isOver
-                    ? const Color(0xFFFF453A)
-                    : const Color(0xFF30D158),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+            // FIXED: FITTED BOX FOR LARGE NUMBERS
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                isHeader
+                    ? variance
+                    : variance.replaceAll(" under", "").replaceAll(" over", ""),
+                textAlign: TextAlign.end,
+                style: GoogleFonts.inter(
+                  color: isHeader
+                      ? Colors.white
+                      : isOver
+                      ? const Color(0xFFFF453A)
+                      : const Color(0xFF30D158),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
@@ -1214,16 +1248,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 20),
+        _buildSectionLabel(title),
+        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
@@ -1416,8 +1442,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildShimmerEffect(150, 24),
-        const SizedBox(height: 20),
+        _buildSectionLabel(title),
+        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(24),

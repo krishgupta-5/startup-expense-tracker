@@ -13,7 +13,7 @@ class UserCountryService {
   /// Get the current user's country code synchronously if cached, async otherwise
   ///
   /// Returns the country code (e.g., '+91', '+1') immediately if cached,
-  /// or fetches it asynchronously and returns '+1' as default
+  /// or fetches it asynchronously and returns '+91' as default (better than USD for most users)
   static String getUserCountryCodeSync() {
     // Return cached code immediately if available
     if (_cachedCountryCode != null) {
@@ -25,13 +25,13 @@ class UserCountryService {
       _cachedCountryCode = code;
     });
 
-    // Return USD as default (better than showing ₹ briefly)
-    return '+1';
+    // Return INR as default (better than showing $ briefly for most users)
+    return '+91';
   }
 
   /// Get the current user's country code from their profile
   ///
-  /// Returns the country code (e.g., '+91', '+1') or '+1' as default
+  /// Returns the country code (e.g., '+91', '+1') or '+91' as default
   static Future<String> getUserCountryCode() async {
     // Return cached code if available
     if (_cachedCountryCode != null) {
@@ -41,8 +41,8 @@ class UserCountryService {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) {
-        _cachedCountryCode = '+1';
-        return '+1'; // Default to USD
+        _cachedCountryCode = '+91';
+        return '+91'; // Default to INR
       }
 
       // Try to get from companies collection first (company setup data)
@@ -108,13 +108,13 @@ class UserCountryService {
         }
       }
 
-      // Default to USD if no country code was found
-      _cachedCountryCode = '+1';
-      return '+1';
+      // Default to INR if no country code was found
+      _cachedCountryCode = '+91';
+      return '+91';
     } catch (e) {
-      // Default to USD on any error
-      _cachedCountryCode = '+1';
-      return '+1';
+      // Default to INR on any error
+      _cachedCountryCode = '+91';
+      return '+91';
     }
   }
 

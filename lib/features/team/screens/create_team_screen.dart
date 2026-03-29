@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
+import '../../../services/currency_formatter.dart';
+import '../../../services/user_country_service.dart';
 
 class CreateTeamScreen extends StatefulWidget {
   const CreateTeamScreen({super.key});
@@ -23,9 +25,6 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
   String _selectedColor = "Blue";
   IconData _selectedIcon = Icons.code;
 
-  // Manage selected team lead avatar
-  String _selectedLead = "https://i.pravatar.cc/150?img=11";
-
   // 2. DATA OPTIONS
   final List<Map<String, dynamic>> _colors = [
     {"name": "Blue", "color": const Color(0xFF0A84FF)},
@@ -42,13 +41,6 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
     Icons.attach_money,
     Icons.security,
     Icons.support_agent,
-  ];
-
-  final List<String> _teamLeads = [
-    "https://i.pravatar.cc/150?img=11",
-    "https://i.pravatar.cc/150?img=33",
-    "https://i.pravatar.cc/150?img=5",
-    "https://i.pravatar.cc/150?img=9",
   ];
 
   @override
@@ -121,7 +113,6 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
         // Save icon data safely so we can rebuild it later
         "iconCodePoint": _selectedIcon.codePoint,
         "iconFontFamily": _selectedIcon.fontFamily,
-        "teamLeadAvatar": _selectedLead,
         "createdAt": FieldValue.serverTimestamp(),
       });
 
@@ -131,10 +122,16 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
           SnackBar(
             content: Text(
               "Team created successfully!",
-              style: GoogleFonts.inter(),
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             backgroundColor: const Color(0xFF30D158),
             behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -152,9 +149,16 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
-        backgroundColor: Colors.redAccent,
+        content: Text(
+          message,
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        backgroundColor: const Color(0xFFFF453A), // System Red for consistency
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -183,37 +187,34 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                       const SizedBox(height: 24),
 
                       // --- TEAM NAME INPUT ---
-                      Text(
-                        "TEAM NAME",
-                        style: GoogleFonts.inter(
-                          color: Colors.white24,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
+                      _buildSectionLabel("Team Name"),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _nameController,
+                        textInputAction: TextInputAction.next,
+                        onTapOutside: (event) =>
+                            FocusScope.of(context).unfocus(),
                         style: GoogleFonts.inter(
                           color: Colors.white,
                           fontSize: 32,
                           fontWeight: FontWeight.w600,
+                          letterSpacing: -1,
                         ),
                         cursorColor: const Color(0xFF30D158),
                         decoration: InputDecoration(
                           hintText: "e.g. Engineering",
                           hintStyle: GoogleFonts.inter(
-                            color: Colors.white12,
+                            color: Colors
+                                .white24, // Improved contrast from white12
                             fontSize: 32,
                             fontWeight: FontWeight.w600,
+                            letterSpacing: -1,
                           ),
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
 
-                      // -----------------------
                       const SizedBox(height: 40),
 
                       // --- VISUAL IDENTITY ---
@@ -254,7 +255,6 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                         ),
                       ),
 
-                      // -----------------------
                       const SizedBox(height: 32),
 
                       // Description
@@ -263,6 +263,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                         "What does this team do?",
                         _descController,
                         maxLines: 3,
+                        textInputAction: TextInputAction.next,
                       ),
 
                       const SizedBox(height: 32),
@@ -274,14 +275,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                         _budgetController,
                         maxLines: 1,
                         isNumber: true,
+                        textInputAction: TextInputAction.done,
                       ),
-
-                      const SizedBox(height: 32),
-
-                      // Team Lead
-                      _buildSectionLabel("ASSIGN TEAM LEAD"),
-                      const SizedBox(height: 16),
-                      _buildTeamSelector(),
 
                       const SizedBox(height: 40),
                     ],
@@ -326,7 +321,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(width: 44),
+          const SizedBox(width: 44), // Balances the header alignment
         ],
       ),
     );
@@ -338,6 +333,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
     TextEditingController controller, {
     int maxLines = 1,
     bool isNumber = false,
+    TextInputAction textInputAction = TextInputAction.done,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,6 +349,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
           ),
           child: TextField(
             controller: controller,
+            textInputAction: textInputAction,
+            onTapOutside: (event) => FocusScope.of(context).unfocus(),
             keyboardType: isNumber
                 ? const TextInputType.numberWithOptions(decimal: true)
                 : TextInputType.text,
@@ -365,14 +363,27 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
               prefixIcon: isNumber
-                  ? const Icon(
-                      Icons.currency_rupee,
-                      color: Colors.white38,
-                      size: 18,
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Text(
+                            CurrencyFormatter.getCurrencySymbol(
+                              UserCountryService.getUserCountryCodeSync(),
+                            ),
+                            style: GoogleFonts.inter(
+                              color: Colors.white38,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
                     )
                   : null,
               prefixIconConstraints: isNumber
-                  ? const BoxConstraints(minWidth: 32, minHeight: 0)
+                  ? const BoxConstraints(minWidth: 44, minHeight: 0)
                   : null,
             ),
           ),
@@ -386,12 +397,17 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
     final Color color = colorData['color'];
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedColor = colorData['name']),
-      child: Container(
+      onTap: () {
+        FocusScope.of(context).unfocus(); // Dismiss keyboard on tap
+        setState(() => _selectedColor = colorData['name']);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.2),
+          color: color.withValues(alpha: isSelected ? 0.3 : 0.1),
           shape: BoxShape.circle,
           border: isSelected
               ? Border.all(color: color, width: 2)
@@ -412,15 +428,20 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
     final bool isSelected = _selectedIcon == icon;
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedIcon = icon),
-      child: Container(
+      onTap: () {
+        FocusScope.of(context).unfocus(); // Dismiss keyboard on tap
+        setState(() => _selectedIcon = icon);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
         width: 44,
         height: 44,
         decoration: BoxDecoration(
           color: isSelected ? Colors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: isSelected
-              ? null
+              ? Border.all(color: Colors.white)
               : Border.all(color: Colors.white.withValues(alpha: 0.1)),
         ),
         child: Icon(
@@ -432,70 +453,15 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
     );
   }
 
-  Widget _buildTeamSelector() {
-    return SizedBox(
-      height: 48,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          ..._teamLeads.map(
-            (url) => Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedLead = url),
-                child: _buildAvatar(url, isSelected: _selectedLead == url),
-              ),
-            ),
-          ),
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            child: const Icon(Icons.search, color: Colors.white, size: 20),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAvatar(String url, {bool isSelected = false}) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: isSelected
-            ? Border.all(color: const Color(0xFF30D158), width: 2)
-            : Border.all(color: Colors.transparent),
-        image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
-      ),
-      child: isSelected
-          ? Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.5),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.check,
-                color: Color(0xFF30D158),
-                size: 18,
-              ),
-            )
-          : null,
-    );
-  }
-
   Widget _buildSectionLabel(String text) {
     return Text(
-      text,
+      text.toUpperCase(), // Forcing uppercase just in case
       style: GoogleFonts.inter(
-        color: Colors.white24,
-        fontSize: 10,
+        color: Colors
+            .white54, // Changed from white24 to white54 for perfect visibility
+        fontSize: 11, // Bumped from 10 to 11 for better readability
         fontWeight: FontWeight.bold,
-        letterSpacing: 1.5,
+        letterSpacing: 1.2, // Slightly tightened so it doesn't spread too much
       ),
     );
   }

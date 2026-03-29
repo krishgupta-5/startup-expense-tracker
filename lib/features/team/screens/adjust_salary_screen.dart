@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -45,9 +46,51 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
     super.dispose();
   }
 
+  // --- UNIFIED MINIMAL TOAST ---
+  void _showMinimalToast(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: isError
+                  ? const Color(0xFFFF453A)
+                  : const Color(0xFF30D158),
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF141416),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        duration: const Duration(seconds: 3),
+        elevation: 0,
+      ),
+    );
+  }
+
   Future<void> _updateSalary() async {
+    FocusScope.of(context).unfocus();
+
     if (_salaryController.text.trim().isEmpty) {
-      _showErrorSnackBar("Please enter a salary amount.");
+      _showMinimalToast("Please enter a salary amount.", isError: true);
       return;
     }
 
@@ -55,17 +98,17 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
     final double? newSalary = double.tryParse(cleanInput);
 
     if (newSalary == null) {
-      _showErrorSnackBar("Please enter a valid salary amount.");
+      _showMinimalToast("Please enter a valid salary amount.", isError: true);
       return;
     }
 
     if (newSalary < 0) {
-      _showErrorSnackBar("Salary cannot be negative.");
+      _showMinimalToast("Salary cannot be negative.", isError: true);
       return;
     }
 
     if (newSalary > 999999.99) {
-      _showErrorSnackBar("Salary amount is too high.");
+      _showMinimalToast("Salary amount is too high.", isError: true);
       return;
     }
 
@@ -83,45 +126,17 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Salary updated successfully",
-              style: GoogleFonts.inter(),
-            ),
-            backgroundColor: const Color(0xFF30D158),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        _showMinimalToast("Salary updated successfully");
       }
     } on FirebaseException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e.message ?? "Failed to update",
-              style: GoogleFonts.inter(color: Colors.white),
-            ),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        _showMinimalToast(e.message ?? "Failed to update", isError: true);
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
     }
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   @override
@@ -133,120 +148,180 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF09090B),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF09090B),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          "Adjust Salary",
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle.light,
+          child: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(context),
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 60),
+                        Center(
+                          child: Text(
+                            "NEW MONTHLY COST",
+                            style: GoogleFonts.inter(
+                              color: Colors.white54,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // HERO INPUT
+                        Center(
+                          child: IntrinsicWidth(
+                            child: TextField(
+                              controller: _salaryController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              textAlign: TextAlign.center,
+                              cursorColor: Colors.white,
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontSize: 56,
+                                fontWeight: FontWeight.w600, // Upgraded weight
+                                height: 1.0,
+                                letterSpacing: -2,
+                              ),
+                              decoration: InputDecoration(
+                                prefixText:
+                                    "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
+                                prefixStyle: GoogleFonts.inter(
+                                  color:
+                                      Colors.white38, // Slightly dimmer prefix
+                                  fontSize: 56,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                border: InputBorder.none,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 60),
+
+                        _buildDetailRow(
+                          "Effective Date",
+                          dateStr,
+                          Icons.calendar_today_outlined,
+                          onTap: _showDatePicker,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildDetailRow(
+                          "Reason",
+                          _reasonController.text.isEmpty
+                              ? "None"
+                              : _reasonController.text,
+                          Icons.edit_note_outlined,
+                          onTap: _showReasonEditor,
+                        ),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
+                  ),
+                ),
+                _buildFooter(),
+              ],
+            ),
           ),
         ),
-        centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 40),
-            Center(
-              child: Text(
-                "NEW MONTHLY COST",
-                style: GoogleFonts.inter(
-                  color: Colors.white38,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05), // Glassy Match
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: const Icon(
+                Icons.arrow_back,
+                color: Colors.white,
+                size: 20,
               ),
             ),
-            const SizedBox(height: 16),
-
-            // HERO INPUT
-            Center(
-              child: IntrinsicWidth(
-                child: TextField(
-                  controller: _salaryController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 48,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  decoration: InputDecoration(
-                    prefixText:
-                        "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
-                    prefixStyle: GoogleFonts.inter(
-                      color: Colors.white38,
-                      fontSize: 48,
-                    ),
-                    border: InputBorder.none,
-                  ),
-                ),
-              ),
+          ),
+          Text(
+            "Adjust Salary",
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
             ),
+          ),
+          const SizedBox(width: 44), // Balance the row
+        ],
+      ),
+    );
+  }
 
-            const SizedBox(height: 40),
-
-            _buildDetailRow(
-              "Effective Date",
-              dateStr,
-              Icons.calendar_today,
-              onTap: _showDatePicker,
-            ),
-            const SizedBox(height: 16),
-            Divider(color: Colors.white.withValues(alpha: 0.04)),
-            const SizedBox(height: 16),
-            _buildDetailRow(
-              "Reason",
-              _reasonController.text.isEmpty ? "None" : _reasonController.text,
-              Icons.edit_note,
-              onTap: _showReasonEditor,
-            ),
-
-            const Spacer(),
-
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _updateSalary,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.white54,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.black,
-                        ),
-                      )
-                    : Text(
-                        "Update Salary",
-                        style: GoogleFonts.inter(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-              ),
-            ),
+  Widget _buildFooter() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFF09090B).withValues(alpha: 0.0),
+            const Color(0xFF09090B),
           ],
+        ),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: _isLoading ? null : _updateSalary,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            disabledBackgroundColor: Colors.white70,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 0,
+          ),
+          child: _isLoading
+              ? const SizedBox(
+                  height: 24,
+                  width: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                  ),
+                )
+              : Text(
+                  "Update Salary",
+                  style: GoogleFonts.inter(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
         ),
       ),
     );
@@ -261,10 +336,10 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: const Color(0xFF141416),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
         ),
         child: Row(
@@ -274,7 +349,14 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
               children: [
                 Icon(icon, color: Colors.white38, size: 20),
                 const SizedBox(width: 12),
-                Text(label, style: GoogleFonts.inter(color: Colors.white54)),
+                Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    color: Colors.white54,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
             ),
             Expanded(
@@ -283,6 +365,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                 textAlign: TextAlign.right,
                 style: GoogleFonts.inter(
                   color: Colors.white,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
                 maxLines: 1,
@@ -300,77 +383,86 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF09090B),
+          backgroundColor: const Color(0xFF09090B), // Deep Black
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
           ),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "Effective Date",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Effective Date",
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.5,
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white38),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                ShadCalendar(
-                  selected: _effectiveDate,
-                  fromMonth: DateTime(DateTime.now().year - 1),
-                  toMonth: DateTime(DateTime.now().year + 2, 12),
-                  onChanged: (DateTime? date) {
-                    if (date != null) {
-                      setState(() {
-                        _effectiveDate = date;
-                      });
-                      Navigator.pop(context);
-                    }
-                  },
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _effectiveDate = DateTime.now(); // Reset to immediately
-                      });
-                      Navigator.pop(context);
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white38,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  ShadCalendar(
+                    selected: _effectiveDate,
+                    fromMonth: DateTime(DateTime.now().year - 1),
+                    toMonth: DateTime(DateTime.now().year + 2, 12),
+                    onChanged: (DateTime? date) {
+                      if (date != null) {
+                        setState(() {
+                          _effectiveDate = date;
+                        });
+                        Navigator.pop(context);
+                      }
                     },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF141416),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.1),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _effectiveDate = DateTime.now();
+                        });
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white.withValues(alpha: 0.08),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.15),
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        "Set to Immediately",
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                    child: Text(
-                      "Set to Immediately",
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -383,84 +475,95 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF09090B),
+          backgroundColor: const Color(0xFF141416),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
           ),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "Update Reason",
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Update Reason",
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white38,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF09090B),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: TextField(
+                      controller: _reasonController,
+                      autofocus: true,
                       style: GoogleFonts.inter(
                         color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
                       ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white38),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF141416),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
-                    ),
-                  ),
-                  child: TextField(
-                    controller: _reasonController,
-                    autofocus: true,
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-                    decoration: InputDecoration(
-                      hintText: "e.g. Annual Review, Promotion...",
-                      hintStyle: GoogleFonts.inter(color: Colors.white24),
-                      border: InputBorder.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      setState(
-                        () {},
-                      ); // Trigger rebuild to show updated reason text
-                      Navigator.pop(context);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      "Done",
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                      cursorColor: Colors.white,
+                      decoration: InputDecoration(
+                        hintText: "e.g. Annual Review, Promotion...",
+                        hintStyle: GoogleFonts.inter(color: Colors.white38),
+                        border: InputBorder.none,
                       ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {});
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        "Save Reason",
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );

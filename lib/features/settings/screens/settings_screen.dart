@@ -3,6 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 import 'company_details_screen.dart';
 import 'edit_profile_screen.dart';
 import 'statements_screen.dart';
@@ -10,8 +14,52 @@ import 'change_password.dart';
 import 'privacy_assurances_screen.dart';
 import '../widgets/coming_soon_dialog.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  // Cache for Telegram photos to avoid repeated fetching
+  static final Map<String, String> _telegramPhotoCache = {};
+
+  // Telegram photo fetching methods with caching
+  Future<String> getTelegramImageUrl(String fileId) async {
+    // Check cache first
+    if (_telegramPhotoCache.containsKey(fileId)) {
+      return _telegramPhotoCache[fileId]!;
+    }
+
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      final res = await http.get(
+        Uri.parse(
+          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
+        ),
+      );
+
+      final data = jsonDecode(res.body);
+      final path = data['result']['file_path'];
+
+      final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
+
+      // Cache the result
+      _telegramPhotoCache[fileId] = imageUrl;
+
+      return imageUrl;
+    } catch (e) {
+      debugPrint('Error getting Telegram image URL: $e');
+      rethrow;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,16 +70,17 @@ class SettingsScreen extends StatelessWidget {
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Header (Back & Title)
+              // 1. Premium Header
               _buildHeader(context),
 
               const SizedBox(height: 32),
 
-              // 2. Profile Section (Now fully reactive!)
-              _buildProfileSection(context),
+              // 2. Profile Section (Fully reactive)
+              Center(child: _buildProfileSection(context)),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 48),
 
               // 3. Company & Statements
               _buildSectionLabel("ORGANIZATION"),
@@ -127,23 +176,25 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ]),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 48),
 
               // 6. Logout
               _buildLogoutButton(),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
 
               // 7. Version
-              Text(
-                "Version 1.0.2 (Build 402)",
-                style: GoogleFonts.inter(
-                  color: Colors.white24,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+              Center(
+                child: Text(
+                  "Version 1.0.2 (Build 402)",
+                  style: GoogleFonts.inter(
+                    color: Colors.white24,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -154,15 +205,84 @@ class SettingsScreen extends StatelessWidget {
   // --- WIDGET BUILDERS ---
 
   Widget _buildHeader(BuildContext context) {
-    return Center(
+    return Text(
+      "Settings",
+      style: GoogleFonts.inter(
+        color: Colors.white,
+        fontSize: 28, // Scaled up to match Home/Overview screens
+        fontWeight: FontWeight.w600,
+        letterSpacing: -1,
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, left: 4),
       child: Text(
-        "Settings",
+        text.toUpperCase(),
         style: GoogleFonts.inter(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
+          color: Colors.white54,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.2,
         ),
       ),
+    );
+  }
+
+  // Build profile avatar with Telegram photo support
+  Widget _buildProfileAvatar(String? profileImageFileId) {
+    if (profileImageFileId != null && profileImageFileId.isNotEmpty) {
+      // Show uploaded profile image
+      return FutureBuilder<String>(
+        future: getTelegramImageUrl(profileImageFileId),
+        builder: (context, snapshot) {
+          return Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.1),
+                width: 1,
+              ),
+            ),
+            child: ClipOval(
+              child: snapshot.hasData
+                  ? Image.network(
+                      snapshot.data!,
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return _buildDefaultAvatar();
+                      },
+                    )
+                  : _buildDefaultAvatar(),
+            ),
+          );
+        },
+      );
+    }
+
+    // Show default avatar
+    return _buildDefaultAvatar();
+  }
+
+  Widget _buildDefaultAvatar() {
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+          width: 1,
+        ),
+        color: const Color(0xFF141416),
+      ),
+      child: const Icon(Icons.person, size: 40, color: Colors.white38),
     );
   }
 
@@ -204,27 +324,19 @@ class SettingsScreen extends StatelessWidget {
               name = companyData['Owner Name'] ?? name;
             }
 
+            // Load profile image FileId from user data
+            String? profileImageFileId;
+            if (userSnapshot.hasData && userSnapshot.data!.exists) {
+              final userData =
+                  userSnapshot.data!.data() as Map<String, dynamic>;
+              profileImageFileId = userData['profileImageFileId'];
+            }
+
             return Column(
               children: [
                 Stack(
                   children: [
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          width: 1,
-                        ),
-                        image: const DecorationImage(
-                          image: NetworkImage(
-                            "https://i.pravatar.cc/150?img=12",
-                          ),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
+                    _buildProfileAvatar(profileImageFileId),
                     Positioned(
                       bottom: 0,
                       right: 0,
@@ -259,7 +371,7 @@ class SettingsScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   email,
-                  style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
+                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 14),
                 ),
                 const SizedBox(height: 16),
                 GestureDetector(
@@ -277,10 +389,14 @@ class SettingsScreen extends StatelessWidget {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
+                      color: Colors.white.withValues(
+                        alpha: 0.05,
+                      ), // Glassy white
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.1),
+                        color: Colors.white.withValues(
+                          alpha: 0.15,
+                        ), // Crisp border
                       ),
                     ),
                     child: Text(
@@ -301,29 +417,13 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12, left: 4),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          text,
-          style: GoogleFonts.inter(
-            color: Colors.white24,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.5,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildSettingsGroup(List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(
+          24,
+        ), // Updated to 24 for larger cards
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
       child: Column(children: children),
@@ -340,12 +440,21 @@ class SettingsScreen extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          padding: const EdgeInsets.all(20),
           child: Row(
             children: [
-              Icon(icon, color: Colors.white54, size: 22),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(
+                    alpha: 0.05,
+                  ), // White Glass Icon background
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: Colors.white70, size: 20),
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -356,7 +465,7 @@ class SettingsScreen extends StatelessWidget {
                       style: GoogleFonts.inter(
                         color: Colors.white,
                         fontSize: 15,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     if (subtitle != null) ...[
@@ -385,7 +494,7 @@ class SettingsScreen extends StatelessWidget {
       height: 1,
       thickness: 1,
       color: Colors.white.withValues(alpha: 0.04),
-      indent: 58,
+      indent: 76, // 20 padding + 40 icon width + 16 gap
     );
   }
 
@@ -397,23 +506,25 @@ class SettingsScreen extends StatelessWidget {
         child: ElevatedButton(
           onPressed: () async {
             await FirebaseAuth.instance.signOut();
-            // AuthWrapper / NavigationWrapper will handle redirect automatically
-            // via its auth stream listener. No manual navigation needed.
           },
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF1F1F22),
+            backgroundColor: const Color(
+              0xFFFF453A,
+            ).withValues(alpha: 0.1), // Soft Red fill
             foregroundColor: const Color(0xFFFF453A),
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(
-                color: const Color(0xFFFF453A).withValues(alpha: 0.1),
+                color: const Color(
+                  0xFFFF453A,
+                ).withValues(alpha: 0.2), // Red border
               ),
             ),
           ),
           child: Text(
             "Log Out",
-            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold),
+            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
           ),
         ),
       ),

@@ -9,6 +9,7 @@ import '../../expenses/screens/expense_details_screen.dart';
 import '../../../services/financial_calculator.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/user_country_service.dart';
+import '../../../services/bank_account_service.dart';
 
 class FundsOverviewScreen extends StatefulWidget {
   const FundsOverviewScreen({super.key});
@@ -32,7 +33,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   List<Map<String, dynamic>> cashFlowBreakdown = [];
 
   String _userCountryCode = '+1'; // Default to USD
-  final bool _isLoadingCountry = false; // Start as false since we use sync method
+  final bool _isLoadingCountry =
+      false; // Start as false since we use sync method
 
   @override
   void initState() {
@@ -239,49 +241,148 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         final data = docSnapshot.data()!;
         final bankAccountsData = data["Bank Accounts"] as List<dynamic>? ?? [];
 
-        final Map<String, double> bankSpending = {};
-        for (var account in bankAccountsData) {
-          final bankName =
-              account["name"] ?? account["bankName"] ?? 'Unknown Bank';
-          final last4 = account["last4"] ?? account["number"] ?? '';
-          bankSpending["$bankName-$last4"] = 0.0;
-        }
+        // Calculate total transactions for each bank account (expenses + salary + advance salary)
+        debugPrint('🔍 DEBUG: Processing ${allExpenses.length} transactions');
+        final Map<String, double> transactionTotals = {};
 
-        for (var expense in allExpenses) {
-          final amount = (expense['amount'] as num).toDouble();
-          final expenseBankAccount = expense['bankAccount'] as String?;
-          if (expenseBankAccount != null &&
-              bankSpending.containsKey(expenseBankAccount)) {
-            bankSpending[expenseBankAccount] =
-                bankSpending[expenseBankAccount]! + amount;
+        // Sum all transactions by their bankAccount field
+        for (var transaction in allExpenses) {
+          final amount = (transaction['amount'] as num).toDouble();
+          final transactionBankAccount = transaction['bankAccount'] as String?;
+
+          if (transactionBankAccount != null &&
+              transactionBankAccount != 'N/A') {
+            String matchedAccountKey = '';
+
+            // Try to find an exact match first
+            for (var account in bankAccountsData) {
+              final bankName =
+                  account["name"] ?? account["bankName"] ?? 'Unknown Bank';
+              final rawLast4 =
+                  account["last4"]?.toString() ??
+                  account["number"]?.toString() ??
+                  '';
+              final last4 = rawLast4.isNotEmpty
+                  ? BankAccountService.extractLast4(rawLast4)
+                  : '';
+              final accountKey = "$bankName-$last4";
+
+              if (transactionBankAccount == accountKey) {
+                matchedAccountKey = accountKey;
+                break;
+              }
+            }
+
+            // If no exact match, try partial matching or special cases
+            if (matchedAccountKey.isEmpty) {
+              if (transactionBankAccount.toLowerCase() == 'cash') {
+                matchedAccountKey = 'Cash-'; // Special key for cash
+              } else {
+                // Try to match by bank name or last 4 digits
+                for (var account in bankAccountsData) {
+                  final bankName =
+                      account["name"] ?? account["bankName"] ?? 'Unknown Bank';
+                  final rawLast4 =
+                      account["last4"]?.toString() ??
+                      account["number"]?.toString() ??
+                      '';
+                  final last4 = rawLast4.isNotEmpty
+                      ? BankAccountService.extractLast4(rawLast4)
+                      : '';
+
+                  // Check if transaction contains bank name or last 4 digits
+                  if (transactionBankAccount.toLowerCase().contains(
+                        bankName.toLowerCase(),
+                      ) ||
+                      (last4.isNotEmpty &&
+                          transactionBankAccount.contains(last4))) {
+                    matchedAccountKey = "$bankName-$last4";
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (matchedAccountKey.isNotEmpty) {
+              transactionTotals[matchedAccountKey] =
+                  (transactionTotals[matchedAccountKey] ?? 0.0) + amount;
+            } else {
+              // If still no match, use the transactionBankAccount as key
+              transactionTotals[transactionBankAccount] =
+                  (transactionTotals[transactionBankAccount] ?? 0.0) + amount;
+            }
           }
         }
 
-        bankAccounts = bankAccountsData.asMap().entries.map((entry) {
-          final account = entry.value;
+        // Create bank accounts list from both original accounts and transaction accounts
+        final List<Map<String, dynamic>> allBankAccounts = [];
+
+        // Add original bank accounts with their totals
+        for (var account in bankAccountsData) {
           final bankName =
               account["name"] ?? account["bankName"] ?? 'Unknown Bank';
-          final last4 = account["last4"] ?? account["number"] ?? '';
-          final totalSpent = bankSpending["$bankName-$last4"] ?? 0.0;
-          return {
+          final rawLast4 =
+              account["last4"]?.toString() ??
+              account["number"]?.toString() ??
+              '';
+          final last4 = rawLast4.isNotEmpty
+              ? BankAccountService.extractLast4(rawLast4)
+              : '';
+          final accountKey = "$bankName-$last4";
+          final totalSpent = transactionTotals[accountKey] ?? 0.0;
+
+          allBankAccounts.add({
             'name': bankName,
             'number': last4,
-            'maskedNumber': _maskAccountNumber(last4),
+            'maskedNumber': last4.isNotEmpty ? '****$last4' : '****',
             'totalSpent': totalSpent,
-          };
-        }).toList();
+          });
+        }
+
+        // Add any additional accounts from transactions that weren't in original list
+        for (var entry in transactionTotals.entries) {
+          final accountKey = entry.key;
+          final totalSpent = entry.value;
+
+          // Skip if this account is already in the list
+          bool alreadyExists = allBankAccounts.any(
+            (account) =>
+                "${account['name']}-${account['number']}" == accountKey,
+          );
+
+          if (!alreadyExists) {
+            // Try to extract bank name and number from the account key
+            String bankName = 'Unknown Bank';
+            String last4 = '';
+
+            if (accountKey.contains('-')) {
+              final parts = accountKey.split('-');
+              if (parts.length >= 2) {
+                bankName = parts[0];
+                last4 = parts.length > 1
+                    ? BankAccountService.extractLast4(parts[1])
+                    : '';
+              }
+            } else {
+              bankName = accountKey;
+              last4 = '';
+            }
+
+            allBankAccounts.add({
+              'name': bankName,
+              'number': last4,
+              'maskedNumber': last4.isNotEmpty ? '****$last4' : '****',
+              'totalSpent': totalSpent,
+            });
+          }
+        }
+
+        bankAccounts = allBankAccounts;
       }
     } catch (e) {
       log("Error fetching bank accounts: $e");
       bankAccounts = [];
     }
-  }
-
-  String _maskAccountNumber(String accountNumber) {
-    if (accountNumber.length <= 4) return accountNumber;
-    return accountNumber.substring(0, 2) +
-        '*' * (accountNumber.length - 4) +
-        accountNumber.substring(accountNumber.length - 2);
   }
 
   String _formatDate(Timestamp timestamp) {
@@ -360,6 +461,19 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     }
   }
 
+  // --- PREMIUM SECTION LABEL HELPER ---
+  Widget _buildSectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: Colors.white54,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
   // --- MINIMAL EMPTY STATE COMPONENT ---
   Widget _buildEmptyState(String text) {
     return Center(
@@ -401,6 +515,38 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                 children: [
                   _buildHeader(context),
                   const SizedBox(height: 32),
+
+                  // Total Expenses Display
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      isLoading
+                          ? "--"
+                          : (expense ??
+                                (_isLoadingCountry
+                                    ? "₹0"
+                                    : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0")),
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 48, // Bumped size for hero impact
+                        fontWeight: FontWeight.w600,
+                        height: 1.0,
+                        letterSpacing: -1.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Total Outflow",
+                    style: GoogleFonts.inter(
+                      color: Colors.white38,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
                   _buildMainFundsCard(),
                   const SizedBox(height: 32),
                   _buildFundingHistorySection(),
@@ -430,11 +576,11 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: Colors.white.withValues(
+                alpha: 0.05,
+              ), // White Glass matched
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.1),
-              ), // Matched Alpha
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
             ),
             child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
           ),
@@ -469,7 +615,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   Widget _buildMainFundsCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(24), // Tighter padding
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
         borderRadius: BorderRadius.circular(24),
@@ -496,7 +642,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                   _getHealthStatus(),
                   style: GoogleFonts.inter(
                     color: _getHealthStatusColor(),
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.0,
                   ),
@@ -506,10 +652,10 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               Row(
                 children: [
                   Text(
-                    "Last updated: ${lastUpdated ?? '--'}",
+                    "Updated: ${lastUpdated ?? '--'}",
                     style: GoogleFonts.inter(
                       color: Colors.white38,
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -538,61 +684,47 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 32),
-
+          const SizedBox(height: 24),
           Text(
-            isLoading
-                ? "--"
-                : (expense ??
-                      (_isLoadingCountry
-                          ? "₹0"
-                          : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0")),
+            "AVAILABLE FOR OPERATIONS",
             style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 40,
-              fontWeight: FontWeight.w300,
-              height: 1.0,
-              letterSpacing: -2,
+              color: Colors.white54,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
             ),
           ),
-          const SizedBox(height: 32),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.03),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Available for Operations",
-                  style: GoogleFonts.inter(
-                    color: Colors.white38,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  isLoading
-                      ? "--"
-                      : (availableFunds != null
-                            ? "$availableFunds (${(fundingAmount! > 0 ? (available! / fundingAmount!) * 100 : 0).toStringAsFixed(0)}% of total)"
-                            : (_isLoadingCountry
-                                  ? "₹0"
-                                  : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0")),
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              isLoading
+                  ? "--"
+                  : (availableFunds != null
+                        ? "$availableFunds"
+                        : (_isLoadingCountry
+                              ? "₹0"
+                              : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0")),
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 32, // Large enough, but fitted
+                fontWeight: FontWeight.w600,
+                letterSpacing: -1,
+              ),
             ),
           ),
+          if (!isLoading &&
+              availableFunds != null &&
+              fundingAmount != null &&
+              fundingAmount! > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                "${((available! / fundingAmount!) * 100).toStringAsFixed(1)}% of total capital remaining",
+                style: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
+              ),
+            ),
         ],
       ),
     );
@@ -602,16 +734,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Funding History",
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 20),
+        _buildSectionLabel("FUNDING HISTORY"),
+        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(24),
@@ -633,12 +757,12 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                       children: [
                         _buildFundingItem(item),
                         if (!isLast) ...[
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 16),
                           Divider(
-                            color: Colors.white.withValues(alpha: 0.06),
+                            color: Colors.white.withValues(alpha: 0.04),
                             height: 1,
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 16),
                         ],
                       ],
                     );
@@ -653,7 +777,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     final amount = (item['amount'] as num).toInt();
     final isActive =
         item['status'] == 'active' || item['status'] == 'completed';
-    // Format large numbers
+
     String formattedAmount = _isLoadingCountry
         ? "+₹${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
         : "+${CurrencyFormatter.formatByCountry(amount.toDouble(), _userCountryCode)}";
@@ -701,27 +825,32 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             ],
           ),
         ),
+        const SizedBox(width: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              formattedAmount,
-              style: GoogleFonts.inter(
-                color: const Color(0xFF30D158),
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                formattedAmount,
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF30D158),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             if (isActive)
               Container(
                 margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: const Color(0xFF30D158).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(100),
+                  borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  "ACTIVE",
+                  "COMPLETED",
                   style: GoogleFonts.inter(
                     color: const Color(0xFF30D158),
                     fontSize: 9,
@@ -756,16 +885,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Recent Expenses",
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 20),
+        _buildSectionLabel("RECENT EXPENSES"),
+        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(24),
@@ -789,12 +910,12 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                         children: [
                           _buildTransactionItem(transaction),
                           if (!isLast) ...[
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 16),
                             Divider(
-                              color: Colors.white.withValues(alpha: 0.06),
+                              color: Colors.white.withValues(alpha: 0.04),
                               height: 1,
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 16),
                           ],
                         ],
                       ),
@@ -874,6 +995,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
               Text(
@@ -885,16 +1008,25 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
         ),
-        Text(
-          formattedAmount,
-          style: GoogleFonts.inter(
-            color: amountColor,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+        const SizedBox(width: 12),
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Text(
+              formattedAmount,
+              style: GoogleFonts.inter(
+                color: amountColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
       ],
@@ -914,16 +1046,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Cash Flow Breakdown",
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 20),
+        _buildSectionLabel("CASH FLOW BREAKDOWN"),
+        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(24),
@@ -941,9 +1065,9 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                     ...cashFlowBreakdown.map(
                       (item) => _buildCashFlowItem(item),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     Divider(
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: Colors.white.withValues(alpha: 0.04),
                       height: 1,
                     ),
                     const SizedBox(height: 16),
@@ -958,14 +1082,20 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        Text(
-                          _isLoadingCountry
-                              ? "-₹$formattedOutflow"
-                              : "-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$formattedOutflow",
-                          style: GoogleFonts.inter(
-                            color: const Color(0xFFFF453A),
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        Expanded(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              _isLoadingCountry
+                                  ? "-₹$formattedOutflow"
+                                  : "-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$formattedOutflow",
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFFFF453A),
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -1014,16 +1144,25 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          Text(
-            formattedAmount,
-            style: GoogleFonts.inter(
-              color: isPositive
-                  ? const Color(0xFF30D158)
-                  : const Color(0xFFFF453A),
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 12),
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                formattedAmount,
+                style: GoogleFonts.inter(
+                  color: isPositive
+                      ? const Color(0xFF30D158)
+                      : const Color(0xFFFF453A),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ],
@@ -1045,20 +1184,222 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     }
   }
 
+  void _showSuccessMessage(String message) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(
+              Icons.check_circle_outline,
+              color: Color(0xFF30D158),
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF141416),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        duration: const Duration(seconds: 3),
+        elevation: 0,
+      ),
+    );
+  }
+
+  void _showDeleteAccountDialog(Map<String, dynamic> account) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF141416),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          title: Text(
+            'Delete Bank Account',
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          content: Text(
+            'Are you sure you want to delete "${account['name']}"? This action cannot be undone.',
+            style: GoogleFonts.inter(
+              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.inter(
+                  color: Colors.white54,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _deleteBankAccount(account);
+              },
+              child: Text(
+                'Delete',
+                style: GoogleFonts.inter(
+                  color: const Color(0xFFFF453A),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteBankAccount(Map<String, dynamic> account) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final accountId = account['id'] as String?;
+      if (accountId == null) {
+        _showErrorMessage('Cannot delete account: Missing account ID');
+        return;
+      }
+
+      debugPrint(
+        '🔍 DEBUG: Attempting to delete bank account with ID: $accountId',
+      );
+
+      // Try to delete from subcollection first (new model)
+      try {
+        await FirebaseFirestore.instance
+            .collection('companies')
+            .doc(user.uid)
+            .collection('bankAccounts')
+            .doc(accountId)
+            .delete();
+
+        debugPrint('🔍 DEBUG: Successfully deleted from subcollection');
+        _showSuccessMessage('Bank account deleted successfully');
+        await _loadAllData();
+        return;
+      } catch (e) {
+        debugPrint('🔍 DEBUG: Failed to delete from subcollection: $e');
+
+        // Fallback: try to remove from company array (old model)
+        try {
+          final companyDoc = await FirebaseFirestore.instance
+              .collection('companies')
+              .doc(user.uid)
+              .get();
+
+          if (companyDoc.exists && companyDoc.data() != null) {
+            final data = companyDoc.data()!;
+            final bankAccounts = data["Bank Accounts"] as List<dynamic>? ?? [];
+
+            // Find and remove the account by matching name and last4
+            final updatedAccounts = bankAccounts.where((accountData) {
+              if (accountData is Map<String, dynamic>) {
+                final bankName =
+                    accountData['name']?.toString() ??
+                    accountData['bankName']?.toString() ??
+                    '';
+                final last4 =
+                    accountData['last4']?.toString() ??
+                    accountData['number']?.toString() ??
+                    '';
+
+                return !((bankName == account['name']?.toString()) &&
+                    (last4 == account['last4']?.toString()));
+              }
+              return true;
+            }).toList();
+
+            await FirebaseFirestore.instance
+                .collection('companies')
+                .doc(user.uid)
+                .update({'Bank Accounts': updatedAccounts});
+
+            debugPrint('🔍 DEBUG: Successfully deleted from company array');
+            _showSuccessMessage('Bank account deleted successfully');
+            await _loadAllData();
+          }
+        } catch (fallbackError) {
+          debugPrint(
+            '❌ DEBUG: Failed to delete from company array: $fallbackError',
+          );
+          _showErrorMessage('Failed to delete bank account');
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ DEBUG: Error deleting bank account: $e');
+      _showErrorMessage('Failed to delete bank account');
+    }
+  }
+
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Color(0xFFFF453A), size: 18),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF141416),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        duration: const Duration(seconds: 3),
+        elevation: 0,
+      ),
+    );
+  }
+
   Widget _buildBankAccountsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Bank Accounts",
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 20),
+        _buildSectionLabel("BANK ACCOUNTS"),
+        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(24),
@@ -1089,7 +1430,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                           if (!isLast) ...[
                             const SizedBox(height: 16),
                             Divider(
-                              color: Colors.white.withValues(alpha: 0.06),
+                              color: Colors.white.withValues(alpha: 0.04),
                               height: 1,
                             ),
                             const SizedBox(height: 16),
@@ -1106,7 +1447,6 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     );
   }
 
-  // Standardized minimal button for adding accounts
   Widget _buildAddAccountButton() {
     return GestureDetector(
       onTap: () async {
@@ -1119,10 +1459,11 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         }
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05), // White glass style
           border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1133,6 +1474,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               "Add Bank Account",
               style: GoogleFonts.inter(
                 color: Colors.white,
+                fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1144,6 +1486,13 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
 
   Widget _buildBankAccountItem(Map<String, dynamic> account) {
     final totalSpent = (account['totalSpent'] as num).toDouble();
+
+    // Handle multiple possible field names for bank name
+    final bankName =
+        account['name']?.toString() ??
+        account['bankName']?.toString() ??
+        account['bank_name']?.toString() ??
+        'Unknown Bank';
 
     final cleanSpent = totalSpent
         .toStringAsFixed(0)
@@ -1183,16 +1532,18 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                account['name'],
+                bankName,
                 style: GoogleFonts.inter(
                   color: Colors.white,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
               Text(
-                account['maskedNumber'],
+                account['maskedNumber']?.toString() ?? '****',
                 style: GoogleFonts.inter(
                   color: Colors.white38,
                   fontSize: 12,
@@ -1202,22 +1553,27 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             ],
           ),
         ),
+        const SizedBox(width: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              formattedAmount,
-              style: GoogleFonts.inter(
-                color: totalSpent > 0
-                    ? const Color(0xFFFF453A)
-                    : Colors.white38,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                formattedAmount,
+                style: GoogleFonts.inter(
+                  color: totalSpent > 0
+                      ? const Color(0xFFFF453A)
+                      : Colors.white38,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             const SizedBox(height: 2),
             Text(
-              "total spent",
+              "total transactions",
               style: GoogleFonts.inter(
                 color: Colors.white38,
                 fontSize: 10,

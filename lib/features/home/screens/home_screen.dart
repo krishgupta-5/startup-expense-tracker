@@ -70,6 +70,19 @@ class _HomeScreenState extends State<HomeScreen> {
     await _loadFinancialDataForPieChart();
   }
 
+  // --- PREMIUM SECTION LABEL HELPER ---
+  Widget _buildSectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: Colors.white54,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
   // --- MINIMAL EMPTY STATE COMPONENT ---
   Widget _buildEmptyState(String text) {
     return Center(
@@ -100,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
         style: GoogleFonts.inter(
           color: Colors.white,
           fontSize: 56,
-          fontWeight: FontWeight.w400,
+          fontWeight: FontWeight.w600, // Upgraded weight
           height: 1.0,
           letterSpacing: -2,
         ),
@@ -119,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 56,
-                fontWeight: FontWeight.w400,
+                fontWeight: FontWeight.w600, // Upgraded weight
                 height: 1.0,
                 letterSpacing: -2,
               ),
@@ -129,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 32,
-                fontWeight: FontWeight.w400,
+                fontWeight: FontWeight.w600, // Upgraded weight
                 height: 1.0,
                 letterSpacing: -1,
               ),
@@ -146,7 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 56,
-                fontWeight: FontWeight.w400,
+                fontWeight: FontWeight.w600, // Upgraded weight
                 height: 1.0,
                 letterSpacing: -2,
               ),
@@ -156,7 +169,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 32,
-                fontWeight: FontWeight.w400,
+                fontWeight: FontWeight.w600, // Upgraded weight
                 height: 1.0,
                 letterSpacing: -1,
               ),
@@ -166,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 56,
-                fontWeight: FontWeight.w400,
+                fontWeight: FontWeight.w600, // Upgraded weight
                 height: 1.0,
                 letterSpacing: -2,
               ),
@@ -176,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 32,
-                fontWeight: FontWeight.w400,
+                fontWeight: FontWeight.w600, // Upgraded weight
                 height: 1.0,
                 letterSpacing: -1,
               ),
@@ -521,7 +534,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         isLoading: _isMonthlyBurnLoading,
                         emptyLabel: _isLoadingCountry
                             ? "₹0"
-                            : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0", // Clean empty label
+                            : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0",
                       ),
                     ),
                   ),
@@ -531,7 +544,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildSectionTitle("Burn Trend"),
+                  _buildSectionLabel("BURN TREND"),
                   _buildViewAllButton(context),
                 ],
               ),
@@ -544,7 +557,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _buildTrendChart(),
               ),
               const SizedBox(height: 40),
-              _buildSectionTitle("Expense Breakdown"),
+              _buildSectionLabel("EXPENSE BREAKDOWN"),
               const SizedBox(height: 20),
               GestureDetector(
                 onTap: () => Navigator.push(
@@ -595,11 +608,13 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 44,
             width: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: Colors.white.withValues(
+                alpha: 0.05,
+              ), // Premium White Glass
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
             ),
-            child: const Icon(Icons.person, color: Colors.white38),
+            child: const Icon(Icons.person, color: Colors.white, size: 20),
           ),
         ),
       ],
@@ -642,14 +657,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                "Est. Runway",
-                style: GoogleFonts.inter(
-                  color: Colors.white38,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              _buildSectionLabel("EST. RUNWAY"),
               Row(
                 children: [
                   GestureDetector(
@@ -731,7 +739,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 56,
-                    fontWeight: FontWeight.w400,
+                    fontWeight: FontWeight.w600,
                     height: 1.0,
                     letterSpacing: -2,
                   ),
@@ -741,6 +749,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // FIXED: FITTED BOX FOR LARGE NUMBERS
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
@@ -784,17 +793,17 @@ class _HomeScreenState extends State<HomeScreen> {
     String? emptyLabel,
   }) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: Colors.white38, size: 20),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           if (isLoading)
             AnimatedOpacity(
               opacity: 0.3,
@@ -809,41 +818,35 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             )
           else
-            Text(
-              value ??
-                  emptyLabel ??
-                  (_isLoadingCountry
-                      ? "₹0"
-                      : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
-              style: GoogleFonts.inter(
-                color: value != null ? Colors.white : Colors.white54,
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
+            // FIXED: FITTED BOX FOR LARGE NUMBERS
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value ??
+                    emptyLabel ??
+                    (_isLoadingCountry
+                        ? "₹0"
+                        : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
+                style: GoogleFonts.inter(
+                  color: value != null ? Colors.white : Colors.white54,
+                  fontSize: 24, // Slight bump in size to match aesthetics
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.5,
+                ),
               ),
             ),
           const SizedBox(height: 4),
           Text(
             label,
             style: GoogleFonts.inter(
-              color: Colors.white38,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
+              color: Colors.white54, // Changed from white38 to white54
+              fontSize: 11, // Changed from 12 to 11
+              fontWeight: FontWeight.bold, // Changed from w500 to bold
+              letterSpacing: 1.2, // Added spacing to match section labels
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: GoogleFonts.inter(
-        color: Colors.white,
-        fontSize: 18,
-        fontWeight: FontWeight.w600,
-        letterSpacing: -0.5,
       ),
     );
   }
@@ -951,7 +954,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _financialData?['categoryBreakdown'] as Map<String, double>? ?? {};
     final totalExpenses = _financialData?['totalExpenses'] as double? ?? 0;
 
-    // REMOVED DUMMY DATA. If empty, show sleek empty state.
     if (categoryBreakdown.isEmpty || totalExpenses == 0) {
       return Container(
         width: double.infinity,
@@ -1093,15 +1095,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                Text(
-                  _isLoadingCountry
-                      ? "₹${totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                      : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    fontFeatures: [const FontFeature.tabularFigures()],
+                // FIXED: FITTED BOX FOR LARGE NUMBERS
+                Expanded(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      _isLoadingCountry
+                          ? "₹${totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+                          : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        fontFeatures: [const FontFeature.tabularFigures()],
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -1119,21 +1128,24 @@ class _HomeScreenState extends State<HomeScreen> {
         MaterialPageRoute(builder: (_) => const MonthlyBurnScreen()),
       ),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 8,
+        ), // Standardized padding
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          color: Colors.white.withValues(alpha: 0.08), // White Glass effect
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
         ),
         child: Row(
           children: [
             Text(
-              "FULL ANALYSIS",
+              "VIEW ALL",
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
+                letterSpacing: 1.0, // Standardized tracking
               ),
             ),
             const SizedBox(width: 4),

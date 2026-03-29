@@ -14,7 +14,7 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Initialize country code cache early for instant currency display
-  UserCountryService.initializeCache();
+  await UserCountryService.initializeCache();
 
   runApp(const FinancialDashboardApp());
 }
