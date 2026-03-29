@@ -6,7 +6,11 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../widgets/telegram_image_picker.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/bank_account_service.dart';
@@ -37,6 +41,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   // ✅ Attachment file ID from Telegram
   String? _attachmentFileId;
+
+  // ✅ File picker state
+  String? _fileName;
+  String? _filePath;
+  bool _isUploading = false;
 
   final categories = {
     'marketing': 'Marketing',
@@ -870,16 +879,306 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   Widget _buildAttachmentZone() {
-    return TelegramImagePicker(
-      existingFileId: _attachmentFileId,
-      initialImagePath: widget.imagePath, // Pass initial image path
-      onUploaded: (fileId) {
-        setState(() => _attachmentFileId = fileId);
-      },
-      onRemoved: () {
-        setState(() => _attachmentFileId = null);
-      },
+    return GestureDetector(
+      onTap: _isUploading ? null : _pickFile,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _isUploading
+                ? const Color(0xFF0A84FF).withValues(alpha: 0.3)
+                : Colors.white.withValues(alpha: 0.1),
+          ),
+        ),
+        child: Row(
+          children: [
+            if (_isUploading)
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: const Color(0xFF0A84FF),
+                  strokeWidth: 2,
+                ),
+              )
+            else
+              Icon(
+                _fileName != null
+                    ? _getFileIcon(_fileName!)
+                    : Icons.attach_file,
+                color: Colors.white38,
+              ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _isUploading
+                    ? "Uploading to Telegram..."
+                    : _fileName ?? "Upload attachment (any file)",
+                style: TextStyle(
+                  color: _isUploading
+                      ? const Color(0xFF0A84FF)
+                      : Colors.white70,
+                  fontSize: _isUploading ? 12 : 14,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (_fileName != null && !_isUploading)
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.redAccent),
+                onPressed: () {
+                  setState(() {
+                    _fileName = null;
+                    _filePath = null;
+                    _attachmentFileId = null;
+                  });
+                },
+              ),
+          ],
+        ),
+      ),
     );
+  }
+
+  // ✅ Mobile file picking using image_picker and file_picker
+  Future<void> _pickFile() async {
+    try {
+      await showModalBottomSheet(
+        context: context,
+        backgroundColor: const Color(0xFF141416),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (context) => Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Select Attachment",
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Colors.white),
+                title: Text(
+                  "Take Photo",
+                  style: GoogleFonts.inter(color: Colors.white),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final picker = ImagePicker();
+                  final XFile? image = await picker.pickImage(
+                    source: ImageSource.camera,
+                    imageQuality: 80,
+                  );
+                  if (image != null) {
+                    await _uploadFile(image.path, image.name);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.white),
+                title: Text(
+                  "Choose Photo / Video",
+                  style: GoogleFonts.inter(color: Colors.white),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final picker = ImagePicker();
+                  final XFile? media = await picker.pickMedia();
+                  if (media != null) {
+                    await _uploadFile(media.path, media.name);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.insert_drive_file,
+                  color: Colors.white,
+                ),
+                title: Text(
+                  "Choose PDF / Document",
+                  style: GoogleFonts.inter(color: Colors.white),
+                ),
+                subtitle: Text(
+                  "PDF, Word, Excel, and more",
+                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final result = await FilePicker.platform.pickFiles(
+                    type: FileType.custom,
+                    allowedExtensions: [
+                      'pdf',
+                      'doc',
+                      'docx',
+                      'xls',
+                      'xlsx',
+                      'txt',
+                      'csv',
+                    ],
+                    allowMultiple: false,
+                  );
+                  if (result != null && result.files.single.path != null) {
+                    await _uploadFile(
+                      result.files.single.path!,
+                      result.files.single.name,
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.folder_open, color: Colors.white),
+                title: Text(
+                  "Any File",
+                  style: GoogleFonts.inter(color: Colors.white),
+                ),
+                subtitle: Text(
+                  "Browse all file types",
+                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final result = await FilePicker.platform.pickFiles(
+                    type: FileType.any,
+                    allowMultiple: false,
+                  );
+                  if (result != null && result.files.single.path != null) {
+                    await _uploadFile(
+                      result.files.single.path!,
+                      result.files.single.name,
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint("File pick error: $e");
+      if (mounted) {
+        _showMinimalToast("Could not open file picker.", isError: true);
+      }
+    }
+  }
+
+  // ✅ Get file icon based on file type
+  IconData _getFileIcon(String name) {
+    if (name.endsWith('.pdf')) return Icons.picture_as_pdf;
+    if (name.endsWith('.doc') || name.endsWith('.docx'))
+      return Icons.description;
+    if (name.endsWith('.xls') || name.endsWith('.xlsx'))
+      return Icons.table_chart;
+    if (name.endsWith('.jpg') ||
+        name.endsWith('.jpeg') ||
+        name.endsWith('.png') ||
+        name.endsWith('.gif'))
+      return Icons.image;
+    if (name.endsWith('.mp4') || name.endsWith('.avi') || name.endsWith('.mov'))
+      return Icons.video_file;
+    if (name.endsWith('.mp3') ||
+        name.endsWith('.wav') ||
+        name.endsWith('.flac'))
+      return Icons.audio_file;
+    if (name.endsWith('.zip') || name.endsWith('.rar') || name.endsWith('.tar'))
+      return Icons.archive;
+    return Icons.insert_drive_file;
+  }
+
+  // ✅ Upload file to Telegram
+  Future<String?> uploadToTelegram(String filePath) async {
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      // Check if it's an image or document
+      final isImage =
+          filePath.toLowerCase().endsWith('.jpg') ||
+          filePath.toLowerCase().endsWith('.jpeg') ||
+          filePath.toLowerCase().endsWith('.png') ||
+          filePath.toLowerCase().endsWith('.gif');
+
+      final uri = Uri.parse(
+        "https://api.telegram.org/bot$botToken/${isImage ? 'sendPhoto' : 'sendDocument'}",
+      );
+
+      var request = http.MultipartRequest('POST', uri);
+      request.fields['chat_id'] = '-1003885930746';
+
+      if (isImage) {
+        request.files.add(await http.MultipartFile.fromPath('photo', filePath));
+      } else {
+        request.files.add(
+          await http.MultipartFile.fromPath('document', filePath),
+        );
+      }
+
+      final response = await request.send();
+
+      if (response.statusCode == 200) {
+        final res = await http.Response.fromStream(response);
+        final data = jsonDecode(res.body);
+
+        if (isImage) {
+          // 🔥 IMPORTANT: take highest quality image
+          return data['result']['photo'].last['file_id'];
+        } else {
+          return data['result']['document']['file_id'];
+        }
+      } else {
+        throw Exception("Upload failed: ${response.statusCode}");
+      }
+    } catch (e) {
+      debugPrint('Error uploading to Telegram: $e');
+      return null;
+    }
+  }
+
+  // ✅ Upload file and update state
+  Future<void> _uploadFile(String filePath, String fileName) async {
+    try {
+      setState(() {
+        _isUploading = true;
+        _fileName = fileName;
+        _filePath = filePath;
+      });
+
+      final fileId = await uploadToTelegram(filePath);
+
+      if (fileId == null) {
+        throw Exception('Failed to upload file to Telegram');
+      }
+
+      setState(() {
+        _isUploading = false;
+        _attachmentFileId = fileId;
+      });
+
+      _showMinimalToast("File uploaded successfully!");
+    } catch (e) {
+      debugPrint('Error uploading file: $e');
+      setState(() {
+        _isUploading = false;
+        _fileName = null;
+        _filePath = null;
+      });
+
+      if (mounted) {
+        _showMinimalToast("Failed to upload file: $e", isError: true);
+      }
+    }
   }
 
   // ✅ Auto-upload image from scan and scroll to attachment section

@@ -4,6 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../../utils/data_helpers.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
@@ -29,8 +34,12 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   late TextEditingController _notesController;
 
   bool _isLoading = false;
-  String _userCountryCode = '+1'; // Default to USD
+  String _userCountryCode = '+1';
   bool _isLoadingCountry = true;
+
+  // Attachment state
+  String? _attachmentFileId;
+  bool _isUploading = false;
 
   // Data Lists
   final categories = {
@@ -51,6 +60,255 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   late String _selectedCategory;
   late String _selectedType;
   late DateTime _selectedDate;
+
+  // ✅ Upload file to Telegram
+  Future<String?> uploadToTelegram(String filePath) async {
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      final isImage =
+          filePath.toLowerCase().endsWith('.jpg') ||
+          filePath.toLowerCase().endsWith('.jpeg') ||
+          filePath.toLowerCase().endsWith('.png') ||
+          filePath.toLowerCase().endsWith('.gif');
+
+      final uri = Uri.parse(
+        "https://api.telegram.org/bot$botToken/${isImage ? 'sendPhoto' : 'sendDocument'}",
+      );
+
+      var request = http.MultipartRequest('POST', uri);
+      request.fields['chat_id'] = '-1003885930746';
+
+      if (isImage) {
+        request.files.add(await http.MultipartFile.fromPath('photo', filePath));
+      } else {
+        request.files.add(
+          await http.MultipartFile.fromPath('document', filePath),
+        );
+      }
+
+      final response = await request.send();
+
+      if (response.statusCode == 200) {
+        final res = await http.Response.fromStream(response);
+        final data = jsonDecode(res.body);
+
+        if (isImage) {
+          return data['result']['photo'].last['file_id'];
+        } else {
+          return data['result']['document']['file_id'];
+        }
+      } else {
+        throw Exception("Upload failed: ${response.statusCode}");
+      }
+    } catch (e) {
+      debugPrint('Error uploading to Telegram: $e');
+      return null;
+    }
+  }
+
+  // ✅ Upload file and update state
+  Future<void> _uploadFile(String filePath, String fileName) async {
+    try {
+      setState(() => _isUploading = true);
+
+      final fileId = await uploadToTelegram(filePath);
+
+      if (fileId == null) {
+        throw Exception('Failed to upload file to Telegram');
+      }
+
+      setState(() {
+        _isUploading = false;
+        _attachmentFileId = fileId;
+      });
+
+      _showMinimalToast("File uploaded successfully!");
+    } catch (e) {
+      debugPrint('Error uploading file: $e');
+      setState(() => _isUploading = false);
+
+      if (mounted) {
+        _showMinimalToast("Failed to upload file: $e", isError: true);
+      }
+    }
+  }
+
+  // ✅ Check if file is an image by extension
+  bool _isImageFile(String filePath) {
+    final extension = filePath.toLowerCase().split('.').last;
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(extension);
+  }
+
+  // ✅ Get file icon based on file path
+  IconData _getFileIcon(String? filePath) {
+    if (filePath == null) return Icons.insert_drive_file;
+
+    final extension = filePath.toLowerCase().split('.').last;
+    switch (extension) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+        return Icons.image;
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+        return Icons.video_file;
+      case 'mp3':
+      case 'wav':
+      case 'flac':
+        return Icons.audio_file;
+      case 'zip':
+      case 'rar':
+      case 'tar':
+        return Icons.archive;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  // ✅ Show file picker for adding attachments
+  Future<void> _showFilePicker() async {
+    try {
+      await showModalBottomSheet(
+        context: context,
+        backgroundColor: const Color(0xFF141416),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (context) => Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Select Attachment",
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Colors.white),
+                title: Text(
+                  "Take Photo",
+                  style: GoogleFonts.inter(color: Colors.white),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final picker = ImagePicker();
+                  final XFile? image = await picker.pickImage(
+                    source: ImageSource.camera,
+                    imageQuality: 80,
+                  );
+                  if (image != null) {
+                    await _uploadFile(image.path, image.name);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.white),
+                title: Text(
+                  "Choose Photo / Video",
+                  style: GoogleFonts.inter(color: Colors.white),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final picker = ImagePicker();
+                  final XFile? media = await picker.pickMedia();
+                  if (media != null) {
+                    await _uploadFile(media.path, media.name);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.insert_drive_file,
+                  color: Colors.white,
+                ),
+                title: Text(
+                  "Choose PDF / Document",
+                  style: GoogleFonts.inter(color: Colors.white),
+                ),
+                subtitle: Text(
+                  "PDF, Word, Excel, and more",
+                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final result = await FilePicker.platform.pickFiles(
+                    type: FileType.custom,
+                    allowedExtensions: [
+                      'pdf',
+                      'doc',
+                      'docx',
+                      'xls',
+                      'xlsx',
+                      'txt',
+                      'csv',
+                    ],
+                    allowMultiple: false,
+                  );
+                  if (result != null && result.files.single.path != null) {
+                    await _uploadFile(
+                      result.files.single.path!,
+                      result.files.single.name,
+                    );
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.folder_open, color: Colors.white),
+                title: Text(
+                  "Any File",
+                  style: GoogleFonts.inter(color: Colors.white),
+                ),
+                subtitle: Text(
+                  "Browse all file types",
+                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final result = await FilePicker.platform.pickFiles(
+                    type: FileType.any,
+                    allowMultiple: false,
+                  );
+                  if (result != null && result.files.single.path != null) {
+                    await _uploadFile(
+                      result.files.single.path!,
+                      result.files.single.name,
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint("File pick error: $e");
+      if (mounted) {
+        _showMinimalToast("Could not open file picker.", isError: true);
+      }
+    }
+  }
 
   void _loadUserCountryCode() {
     CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
@@ -74,19 +332,18 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       text: widget.expenseData['Description'] ?? "",
     );
 
-    // Safely assign Category (fallback to marketing if not found)
+    _attachmentFileId = widget.expenseData['AttachmentFileId'] as String?;
+
     String fetchedCategory =
         widget.expenseData['Category']?.toString().toLowerCase() ?? 'marketing';
     _selectedCategory = categories.containsKey(fetchedCategory)
         ? fetchedCategory
         : 'marketing';
 
-    // Safely assign Type (fallback to one_time if not found)
     String fetchedType =
         widget.expenseData['Type']?.toString().toLowerCase() ?? 'one_time';
     _selectedType = types.containsKey(fetchedType) ? fetchedType : 'one_time';
 
-    // Parse Date
     if (widget.expenseData['Date'] is Timestamp) {
       _selectedDate = (widget.expenseData['Date'] as Timestamp).toDate();
     } else {
@@ -156,7 +413,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
   // 3. FIREBASE UPDATE LOGIC
   Future<void> _updateExpense() async {
-    FocusScope.of(context).unfocus(); // Dismiss keyboard
+    FocusScope.of(context).unfocus();
 
     final double? amount = double.tryParse(_amountController.text.trim());
     if (amount == null || amount <= 0) {
@@ -221,7 +478,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
       final batch = FirebaseFirestore.instance.batch();
 
-      // Update expense document
       final expenseRef = FirebaseFirestore.instance
           .collection('expenses')
           .doc(widget.expenseId);
@@ -233,9 +489,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         "Category": _selectedCategory,
         "Type": _selectedType,
         "Time": FieldValue.serverTimestamp(),
+        "AttachmentFileId": _attachmentFileId ?? '',
       });
 
-      // Update totalExpenses if amount changed
       if (diff != 0) {
         final companyRef = FirebaseFirestore.instance
             .collection('companies')
@@ -243,12 +499,10 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         batch.update(companyRef, {"totalExpenses": FieldValue.increment(diff)});
       }
 
-      // Commit batch atomically
       await batch.commit();
 
       if (mounted) {
         _showMinimalToast("Expense updated successfully");
-        // Small delay to ensure Firestore update propagates before popping
         await Future.delayed(const Duration(milliseconds: 300));
         if (mounted) Navigator.pop(context);
       }
@@ -269,17 +523,14 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: const Color(0xFF09090B),
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: SafeArea(
           child: Column(
             children: [
-              // 1. Premium Header
               _buildHeader(context),
-
-              // 2. Scrollable Form
               Expanded(
                 child: GestureDetector(
                   onTap: () => FocusScope.of(context).unfocus(),
@@ -291,7 +542,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                       children: [
                         const SizedBox(height: 24),
 
-                        // --- HERO AMOUNT INPUT ---
                         Center(
                           child: Column(
                             children: [
@@ -304,7 +554,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
                         const SizedBox(height: 40),
 
-                        // --- EXPENSE TITLE ---
                         _buildSectionLabel("EXPENSE DETAILS"),
                         const SizedBox(height: 8),
                         _buildTextInput(
@@ -315,7 +564,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
                         const SizedBox(height: 24),
 
-                        // --- CATEGORY & TYPE SELECTORS ---
                         Row(
                           children: [
                             Expanded(
@@ -348,24 +596,20 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
                         const SizedBox(height: 24),
 
-                        // --- DATE SELECTOR ---
                         _buildDateSelector(),
 
                         const SizedBox(height: 24),
 
-                        // --- DESCRIPTION ---
                         _buildTextArea("Description / Notes", _notesController),
 
                         const SizedBox(height: 32),
 
-                        // --- TEAM MEMBER ---
                         _buildSectionLabel("LINKED MEMBER (OPTIONAL)"),
                         const SizedBox(height: 16),
                         _buildTeamSelector(),
 
                         const SizedBox(height: 32),
 
-                        // --- EXISTING ATTACHMENT ---
                         _buildSectionLabel("ATTACHMENT"),
                         const SizedBox(height: 16),
                         _buildExistingAttachment(),
@@ -377,7 +621,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 ),
               ),
 
-              // 3. Update Button
               _buildUpdateButton(),
             ],
           ),
@@ -399,9 +642,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(
-                  alpha: 0.05,
-                ), // White Glass Style
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
@@ -416,7 +657,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
               fontWeight: FontWeight.w600,
             ),
           ),
-          // Clean Layout spacer
           const SizedBox(width: 44),
         ],
       ),
@@ -437,7 +677,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
   Widget _buildAmountInput() {
     return Center(
-      // The IntrinsicWidth forces the TextField to hug the text exactly, keeping the prefix and text perfectly centered together.
       child: IntrinsicWidth(
         child: TextField(
           controller: _amountController,
@@ -469,7 +708,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
             prefixStyle: GoogleFonts.inter(
               color: Colors.white38,
-              fontSize: 56, // Match text size so they sit perfectly together
+              fontSize: 56,
               fontWeight: FontWeight.w500,
               height: 1.0,
               letterSpacing: -2,
@@ -766,11 +1005,142 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   }
 
   Widget _buildExistingAttachment() {
-    final attachmentFileId = widget.expenseData['AttachmentFileId'] as String?;
-
-    if (attachmentFileId == null || attachmentFileId.isEmpty) {
-      // No attachment
+    if (_attachmentFileId != null && _attachmentFileId!.isNotEmpty) {
       return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF30D158).withValues(alpha: 0.3),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF30D158).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.receipt,
+                    color: Color(0xFF30D158),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Receipt attached",
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFF30D158),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        "Stored in Telegram",
+                        style: GoogleFonts.inter(
+                          color: Colors.white38,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    _isUploading ? Icons.hourglass_empty : Icons.close,
+                    color: Colors.white38,
+                    size: 20,
+                  ),
+                  onPressed: _isUploading
+                      ? null
+                      : () async {
+                          try {
+                            setState(() => _isUploading = true);
+
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user == null) {
+                              throw Exception('User not authenticated');
+                            }
+
+                            final userDoc = await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(user.uid)
+                                .get();
+
+                            final companyId = userDoc.data()?['companyId'];
+                            if (companyId == null) {
+                              throw Exception('Company not found');
+                            }
+
+                            final batch = FirebaseFirestore.instance.batch();
+
+                            final expenseRef = FirebaseFirestore.instance
+                                .collection('expenses')
+                                .doc(widget.expenseId);
+                            batch.update(expenseRef, {
+                              "AttachmentFileId": FieldValue.delete(),
+                              "AttachmentFileName": FieldValue.delete(),
+                              "AttachmentFilePath": FieldValue.delete(),
+                            });
+
+                            await batch.commit();
+
+                            if (mounted) {
+                              _showMinimalToast(
+                                "Attachment removed successfully",
+                              );
+                              setState(() {
+                                _isUploading = false;
+                                _attachmentFileId = null;
+                              });
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              _showMinimalToast(
+                                "Failed to remove attachment",
+                                isError: true,
+                              );
+                              setState(() => _isUploading = false);
+                            }
+                          }
+                        },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              height: 150,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child: Text(
+                  "Receipt preview",
+                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // No attachment - show add attachment button
+    return GestureDetector(
+      onTap: _isUploading ? null : _showFilePicker,
+      child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
         decoration: BoxDecoration(
@@ -806,7 +1176,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                     ),
                   ),
                   Text(
-                    "0 KB",
+                    "Tap to upload",
                     style: GoogleFonts.inter(
                       color: Colors.white38,
                       fontSize: 12,
@@ -815,96 +1185,15 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 ],
               ),
             ),
-            IconButton(
-              icon: const Icon(
-                Icons.add_photo_alternate_outlined,
-                color: Colors.white54,
-                size: 20,
-              ),
-              onPressed: () {
-                // Future: Open picker logic here
-              },
+            Icon(
+              _isUploading
+                  ? Icons.hourglass_empty
+                  : Icons.add_photo_alternate_outlined,
+              color: Colors.white54,
+              size: 20,
             ),
           ],
         ),
-      );
-    }
-
-    // Has attachment - show placeholder for now
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFF30D158).withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF30D158).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.receipt,
-                  color: Color(0xFF30D158),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Receipt attached",
-                      style: GoogleFonts.inter(
-                        color: const Color(0xFF30D158),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      "Stored in Telegram",
-                      style: GoogleFonts.inter(
-                        color: Colors.white38,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.close, color: Colors.white38, size: 20),
-                onPressed: () {
-                  // TODO: Remove attachment functionality
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Placeholder for image preview
-          Container(
-            height: 150,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Center(
-              child: Text(
-                "Receipt preview",
-                style: TextStyle(color: Colors.white38, fontSize: 12),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

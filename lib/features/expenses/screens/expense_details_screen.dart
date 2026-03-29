@@ -4,7 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'edit_expense_screen.dart';
+import 'file_viewer_screen.dart';
 import '../../../utils/data_helpers.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
@@ -26,6 +30,102 @@ class ExpenseDetailsScreen extends StatefulWidget {
 class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   String _userCountryCode = '+1'; // Default to USD
   bool _isLoadingCountry = true;
+
+  // ✅ Get Telegram file URL
+  Future<String> getTelegramImageUrl(String fileId) async {
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      final res = await http.get(
+        Uri.parse(
+          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
+        ),
+      );
+
+      final data = jsonDecode(res.body);
+      final path = data['result']['file_path'];
+
+      return "https://api.telegram.org/file/bot$botToken/$path";
+    } catch (e) {
+      debugPrint('Error getting Telegram image URL: $e');
+      rethrow;
+    }
+  }
+
+  // ✅ Get Telegram file info
+  Future<Map<String, dynamic>?> getTelegramFileInfo(String fileId) async {
+    try {
+      await dotenv.load(fileName: ".env.local");
+      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+
+      if (botToken == null) {
+        throw Exception('Telegram bot token not found in environment');
+      }
+
+      final res = await http.get(
+        Uri.parse(
+          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
+        ),
+      );
+
+      final data = jsonDecode(res.body);
+      return data['result'];
+    } catch (e) {
+      debugPrint('Error getting Telegram file info: $e');
+      return null;
+    }
+  }
+
+  // ✅ Check if file is likely an image based on file path
+  bool isImageFile(String? filePath) {
+    if (filePath == null) return false;
+    final extension = filePath.toLowerCase().split('.').last;
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(extension);
+  }
+
+  // ✅ Get file icon based on file path
+  IconData getFileIcon(String? filePath) {
+    if (filePath == null) return Icons.insert_drive_file;
+
+    final extension = filePath.toLowerCase().split('.').last;
+    switch (extension) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+        return Icons.image;
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+      case 'mkv':
+        return Icons.video_file;
+      case 'mp3':
+      case 'wav':
+      case 'flac':
+        return Icons.audio_file;
+      case 'zip':
+      case 'rar':
+      case '7z':
+      case 'tar':
+        return Icons.archive;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
 
   @override
   void initState() {
@@ -867,76 +967,351 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       );
     }
 
-    // Has attachment - show placeholder for now
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: const Color(0xFF30D158).withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF30D158).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.receipt,
-                  color: Color(0xFF30D158),
-                  size: 20,
-                ),
+    // Has attachment - show actual file preview
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: getTelegramFileInfo(attachmentFileId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141416),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: const Color(0xFF30D158).withValues(alpha: 0.3),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      "Receipt attached",
-                      style: GoogleFonts.inter(
-                        color: const Color(0xFF30D158),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF30D158).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.receipt,
+                        color: Color(0xFF30D158),
+                        size: 20,
                       ),
                     ),
-                    Text(
-                      "Stored in Telegram",
-                      style: GoogleFonts.inter(
-                        color: Colors.white38,
-                        fontSize: 11,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Loading receipt...",
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFF30D158),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            "Fetching from Telegram",
+                            style: GoogleFonts.inter(
+                              color: Colors.white38,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                Container(
+                  height: 150,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF30D158),
+                      strokeWidth: 2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        if (snapshot.hasError || !snapshot.hasData) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141416),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: const Color(0xFFFF453A).withValues(alpha: 0.3),
               ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF453A).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.error_outline,
+                        color: Color(0xFFFF453A),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Failed to load receipt",
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFFFF453A),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            "Could not fetch from Telegram",
+                            style: GoogleFonts.inter(
+                              color: Colors.white38,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  height: 150,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      "Preview unavailable",
+                      style: TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final fileInfo = snapshot.data!;
+        final filePath = fileInfo['file_path'] as String?;
+        final fileName = filePath?.split('/').last ?? 'receipt';
+        final fileSize = fileInfo['file_size'] as int? ?? 0;
+        final isImage = isImageFile(filePath);
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: const Color(0xFF30D158).withValues(alpha: 0.3),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF30D158).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      getFileIcon(filePath),
+                      color: const Color(0xFF30D158),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Receipt attached",
+                          style: GoogleFonts.inter(
+                            color: const Color(0xFF30D158),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          "${(fileSize / 1024).toStringAsFixed(1)} KB • Stored in Telegram",
+                          style: GoogleFonts.inter(
+                            color: Colors.white38,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Download button
+                  GestureDetector(
+                    onTap: () async {
+                      try {
+                        final fileInfo = await getTelegramFileInfo(
+                          attachmentFileId,
+                        );
+                        if (fileInfo != null && mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => FileViewerScreen(
+                                fileId: attachmentFileId,
+                                fileName:
+                                    fileInfo['file_path']?.split('/').last ??
+                                    'receipt',
+                                filePath: fileInfo['file_path'],
+                              ),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        debugPrint("Error opening file viewer: $e");
+                        if (mounted) {
+                          _showMinimalToast(
+                            "Failed to open file",
+                            isError: true,
+                          );
+                        }
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.visibility,
+                        color: Colors.white54,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // File preview
+              if (isImage && filePath != null)
+                Container(
+                  height: 200,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(
+                      "https://api.telegram.org/file/bot${dotenv.env['TELEGRAM_BOT_TOKEN']}/$filePath",
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          height: 200,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              "Failed to load image preview",
+                              style: TextStyle(
+                                color: Colors.white38,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          height: 200,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF30D158),
+                              strokeWidth: 2,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  height: 150,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          getFileIcon(filePath),
+                          color: Colors.white38,
+                          size: 48,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          fileName,
+                          style: GoogleFonts.inter(
+                            color: Colors.white70,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Tap the download icon to view",
+                          style: GoogleFonts.inter(
+                            color: Colors.white38,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
-          const SizedBox(height: 12),
-          // Placeholder for image preview
-          Container(
-            height: 150,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(16), // Softer corners
-            ),
-            child: const Center(
-              child: Text(
-                "Receipt preview",
-                style: TextStyle(color: Colors.white38, fontSize: 12),
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
