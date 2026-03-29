@@ -114,47 +114,88 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     }
   }
 
-  void _showErrorSnackBar(String message) {
+  // --- UNIFIED MINIMAL TOAST ---
+  void _showMinimalToast(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
-        backgroundColor: Colors.redAccent,
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: isError
+                  ? const Color(0xFFFF453A)
+                  : const Color(0xFF30D158),
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF141416),
         behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        duration: const Duration(seconds: 3),
+        elevation: 0,
       ),
     );
   }
 
   // 3. FIREBASE UPDATE LOGIC
   Future<void> _updateExpense() async {
+    FocusScope.of(context).unfocus(); // Dismiss keyboard
+
     final double? amount = double.tryParse(_amountController.text.trim());
     if (amount == null || amount <= 0) {
-      _showErrorSnackBar("Please enter a valid amount greater than 0.");
+      _showMinimalToast(
+        "Please enter a valid amount greater than 0.",
+        isError: true,
+      );
       return;
     }
 
     if (_titleController.text.trim().isEmpty) {
-      _showErrorSnackBar("Please enter a title.");
+      _showMinimalToast("Please enter a title.", isError: true);
       return;
     }
 
     if (_titleController.text.trim().length < 3) {
-      _showErrorSnackBar("Title must be at least 3 characters long.");
+      _showMinimalToast(
+        "Title must be at least 3 characters long.",
+        isError: true,
+      );
       return;
     }
 
     if (_titleController.text.trim().length > 50) {
-      _showErrorSnackBar("Title must not exceed 50 characters.");
+      _showMinimalToast("Title must not exceed 50 characters.", isError: true);
       return;
     }
 
     if (_notesController.text.trim().isNotEmpty &&
         _notesController.text.trim().length > 500) {
-      _showErrorSnackBar("Description must not exceed 500 characters.");
+      _showMinimalToast(
+        "Description must not exceed 500 characters.",
+        isError: true,
+      );
       return;
     }
 
     if (_selectedDate.isAfter(DateTime.now())) {
-      _showErrorSnackBar("Date cannot be in the future.");
+      _showMinimalToast("Date cannot be in the future.", isError: true);
       return;
     }
 
@@ -164,7 +205,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      // ✅ FIX: Get companyId from user document
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -174,13 +214,11 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       if (companyId == null) throw Exception('Company not found');
 
       final double newAmount = double.tryParse(_amountController.text.trim())!;
-      // ✅ FIX: Use DataHelpers.safeParseDouble for safe parsing
       final double oldAmount = DataHelpers.safeParseDouble(
         widget.expenseData['Amount'],
       );
       final double diff = newAmount - oldAmount;
 
-      // ✅ FIX: Use batch for atomic operations
       final batch = FirebaseFirestore.instance.batch();
 
       // Update expense document
@@ -197,7 +235,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         "Time": FieldValue.serverTimestamp(),
       });
 
-      // ✅ FIX: Update totalExpenses if amount changed
+      // Update totalExpenses if amount changed
       if (diff != 0) {
         final companyRef = FirebaseFirestore.instance
             .collection('companies')
@@ -209,29 +247,17 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       await batch.commit();
 
       if (mounted) {
-        // Show success message first
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Expense updated successfully",
-              style: GoogleFonts.inter(),
-            ),
-            backgroundColor: const Color(0xFF30D158),
-            duration: const Duration(seconds: 1),
-          ),
-        );
-
-        // Small delay to ensure Firestore update propagates
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        // Pop the Edit Screen to go back to details
-        if (mounted) {
-          Navigator.pop(context);
-        }
+        _showMinimalToast("Expense updated successfully");
+        // Small delay to ensure Firestore update propagates before popping
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (mounted) Navigator.pop(context);
       }
     } on FirebaseException catch (e) {
       if (mounted) {
-        _showErrorSnackBar(e.message ?? 'Failed to update expense');
+        _showMinimalToast(
+          e.message ?? 'Failed to update expense',
+          isError: true,
+        );
       }
     } finally {
       if (mounted) {
@@ -250,102 +276,103 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // 1. Header
+              // 1. Premium Header
               _buildHeader(context),
 
               // 2. Scrollable Form
               Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 24),
+                child: GestureDetector(
+                  onTap: () => FocusScope.of(context).unfocus(),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 24),
 
-                      // --- HERO AMOUNT INPUT (Editable) ---
-                      Center(
-                        child: Column(
+                        // --- HERO AMOUNT INPUT ---
+                        Center(
+                          child: Column(
+                            children: [
+                              _buildSectionLabel("AMOUNT"),
+                              const SizedBox(height: 8),
+                              _buildAmountInput(),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 40),
+
+                        // --- EXPENSE TITLE ---
+                        _buildSectionLabel("EXPENSE DETAILS"),
+                        const SizedBox(height: 8),
+                        _buildTextInput(
+                          "Expense Title",
+                          "e.g. Client Lunch",
+                          _titleController,
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // --- CATEGORY & TYPE SELECTORS ---
+                        Row(
                           children: [
-                            Text(
-                              "AMOUNT",
-                              style: GoogleFonts.inter(
-                                color: Colors.white24,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.5,
+                            Expanded(
+                              child: _buildSelectField(
+                                label: "Category",
+                                currentValue: _selectedCategory,
+                                items: categories,
+                                icon: Icons.pie_chart_outline,
+                                onChanged: (val) {
+                                  FocusScope.of(context).unfocus();
+                                  setState(() => _selectedCategory = val!);
+                                },
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            _buildAmountInput(),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildSelectField(
+                                label: "Type",
+                                currentValue: _selectedType,
+                                items: types,
+                                icon: Icons.repeat,
+                                onChanged: (val) {
+                                  FocusScope.of(context).unfocus();
+                                  setState(() => _selectedType = val!);
+                                },
+                              ),
+                            ),
                           ],
                         ),
-                      ),
 
-                      const SizedBox(height: 40),
+                        const SizedBox(height: 24),
 
-                      // Expense Title
-                      _buildTextInput(
-                        "Expense Title",
-                        "e.g. Client Lunch",
-                        _titleController,
-                      ),
+                        // --- DATE SELECTOR ---
+                        _buildDateSelector(),
 
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
-                      // Selects Row
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildSelectField(
-                              label: "Category",
-                              currentValue: _selectedCategory,
-                              items: categories,
-                              icon: Icons.pie_chart_outline,
-                              onChanged: (val) =>
-                                  setState(() => _selectedCategory = val!),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildSelectField(
-                              label: "Type",
-                              currentValue: _selectedType,
-                              items: types,
-                              icon: Icons.repeat,
-                              onChanged: (val) =>
-                                  setState(() => _selectedType = val!),
-                            ),
-                          ),
-                        ],
-                      ),
+                        // --- DESCRIPTION ---
+                        _buildTextArea("Description / Notes", _notesController),
 
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 32),
 
-                      // Date (Simulated Edit)
-                      _buildDateSelector(),
+                        // --- TEAM MEMBER ---
+                        _buildSectionLabel("LINKED MEMBER (OPTIONAL)"),
+                        const SizedBox(height: 16),
+                        _buildTeamSelector(),
 
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 32),
 
-                      // Description
-                      _buildTextArea("Description / Notes", _notesController),
+                        // --- EXISTING ATTACHMENT ---
+                        _buildSectionLabel("ATTACHMENT"),
+                        const SizedBox(height: 16),
+                        _buildExistingAttachment(),
 
-                      const SizedBox(height: 32),
-
-                      // Team Member
-                      _buildSectionLabel("LINKED MEMBER"),
-                      const SizedBox(height: 16),
-                      _buildTeamSelector(),
-
-                      const SizedBox(height: 32),
-
-                      // Attachment (Existing File)
-                      _buildSectionLabel("ATTACHMENT"),
-                      const SizedBox(height: 16),
-                      _buildExistingAttachment(),
-
-                      const SizedBox(height: 40),
-                    ],
+                        const SizedBox(height: 40),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -372,9 +399,11 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: Colors.white.withValues(
+                  alpha: 0.05,
+                ), // White Glass Style
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: const Icon(Icons.close, color: Colors.white, size: 20),
             ),
@@ -394,36 +423,57 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     );
   }
 
+  Widget _buildSectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: Colors.white54,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
   Widget _buildAmountInput() {
-    return SizedBox(
-      width: double.infinity,
-      child: TextField(
-        controller: _amountController,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        textAlign: TextAlign.center,
-        style: GoogleFonts.inter(
-          color: Colors.white,
-          fontSize: 56,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -2,
-        ),
-        cursorColor: const Color(0xFF30D158),
-        decoration: InputDecoration(
-          hintText: "0.00",
-          hintStyle: GoogleFonts.inter(
-            color: Colors.white12,
+    return Center(
+      // The IntrinsicWidth forces the TextField to hug the text exactly, keeping the prefix and text perfectly centered together.
+      child: IntrinsicWidth(
+        child: TextField(
+          controller: _amountController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          textAlign: TextAlign.center,
+          onTapOutside: (event) => FocusScope.of(context).unfocus(),
+          textInputAction: TextInputAction.next,
+          style: GoogleFonts.inter(
+            color: Colors.white,
             fontSize: 56,
             fontWeight: FontWeight.w600,
+            height: 1.0,
+            letterSpacing: -2,
           ),
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.zero,
-          prefixText: _isLoadingCountry
-              ? '₹'
-              : CurrencyFormatter.getCurrencySymbol(_userCountryCode),
-          prefixStyle: GoogleFonts.inter(
-            color: Colors.white38,
-            fontSize: 32,
-            fontWeight: FontWeight.w600,
+          cursorColor: const Color(0xFF30D158),
+          decoration: InputDecoration(
+            hintText: "0.00",
+            hintStyle: GoogleFonts.inter(
+              color: Colors.white12,
+              fontSize: 56,
+              fontWeight: FontWeight.w600,
+              height: 1.0,
+              letterSpacing: -2,
+            ),
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+            prefixText: _isLoadingCountry
+                ? '₹ '
+                : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
+            prefixStyle: GoogleFonts.inter(
+              color: Colors.white38,
+              fontSize: 56, // Match text size so they sit perfectly together
+              fontWeight: FontWeight.w500,
+              height: 1.0,
+              letterSpacing: -2,
+            ),
           ),
         ),
       ),
@@ -435,30 +485,28 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     String placeholder,
     TextEditingController controller,
   ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionLabel(label),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-          ),
-          child: TextField(
-            controller: controller,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-            decoration: InputDecoration(
-              hintText: placeholder,
-              hintStyle: GoogleFonts.inter(color: Colors.white24),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
+      child: TextField(
+        controller: controller,
+        onTapOutside: (event) => FocusScope.of(context).unfocus(),
+        textInputAction: TextInputAction.done,
+        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
+          hintText: placeholder,
+          hintStyle: GoogleFonts.inter(color: Colors.white24),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          floatingLabelBehavior: FloatingLabelBehavior.auto,
         ),
-      ],
+      ),
     );
   }
 
@@ -481,24 +529,159 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
               'Select $label',
               style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
             ),
-            initialValue: currentValue,
+            initialValue: currentValue.isNotEmpty ? currentValue : null,
             options: [
               ...items.entries.map(
                 (e) => ShadOption(value: e.key, child: Text(e.value)),
               ),
             ],
             selectedOptionBuilder: (context, value) => Text(
-              items[value]!,
+              items[value] ?? "Select",
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             onChanged: onChanged,
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDateSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel("DATE"),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          ),
+          child: TextField(
+            readOnly: true,
+            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+            decoration: InputDecoration(
+              icon: const Icon(
+                Icons.calendar_today,
+                color: Colors.white38,
+                size: 20,
+              ),
+              hintText: "Select date",
+              labelText: "Date",
+              labelStyle: GoogleFonts.inter(
+                color: Colors.white38,
+                fontSize: 13,
+              ),
+              hintStyle: GoogleFonts.inter(color: Colors.white12),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              floatingLabelBehavior: FloatingLabelBehavior.auto,
+              suffixIcon: const Icon(
+                Icons.calendar_month,
+                color: Colors.white38,
+              ),
+            ),
+            controller: TextEditingController(
+              text:
+                  "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
+            ),
+            onTap: () {
+              FocusScope.of(context).unfocus();
+              _showShadCalendar();
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showShadCalendar() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF09090B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            child: SingleChildScrollView(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Select Date",
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close, color: Colors.white38),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    ShadCalendar(
+                      selected: _selectedDate,
+                      fromMonth: DateTime(_selectedDate.year - 1, 1),
+                      toMonth: DateTime(_selectedDate.year + 1, 12),
+                      onChanged: (DateTime? date) {
+                        if (date != null) {
+                          setState(() {
+                            _selectedDate = date;
+                          });
+                          Navigator.pop(context);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          "Done",
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -517,6 +700,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           ),
           child: TextField(
             controller: controller,
+            onTapOutside: (event) => FocusScope.of(context).unfocus(),
+            textInputAction: TextInputAction.done,
             style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
             maxLines: 4,
             minLines: 3,
@@ -631,8 +816,14 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.close, color: Colors.white38, size: 20),
-              onPressed: () {},
+              icon: const Icon(
+                Icons.add_photo_alternate_outlined,
+                color: Colors.white54,
+                size: 20,
+              ),
+              onPressed: () {
+                // Future: Open picker logic here
+              },
             ),
           ],
         ),
@@ -715,141 +906,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildSectionLabel(String text) {
-    return Text(
-      text.toUpperCase(),
-      style: GoogleFonts.inter(
-        color: Colors.white24,
-        fontSize: 10,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.5,
-      ),
-    );
-  }
-
-  Widget _buildDateSelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-          ),
-          child: TextField(
-            readOnly: true,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-            decoration: InputDecoration(
-              icon: const Icon(
-                Icons.calendar_today,
-                color: Colors.white38,
-                size: 20,
-              ),
-              hintText: "Select date",
-              labelText: "Date",
-              labelStyle: GoogleFonts.inter(
-                color: Colors.white38,
-                fontSize: 13,
-              ),
-              hintStyle: GoogleFonts.inter(color: Colors.white12),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-              floatingLabelBehavior: FloatingLabelBehavior.auto,
-              suffixIcon: const Icon(
-                Icons.calendar_month,
-                color: Colors.white38,
-              ),
-            ),
-            controller: TextEditingController(
-              text:
-                  "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
-            ),
-            onTap: () {
-              _showShadCalendar();
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showShadCalendar() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: const Color(0xFF09090B),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "Select Date",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white38),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                ShadCalendar(
-                  selected: _selectedDate,
-                  fromMonth: DateTime(_selectedDate.year - 1, 1),
-                  toMonth: DateTime(_selectedDate.year + 1, 12),
-                  onChanged: (DateTime? date) {
-                    if (date != null) {
-                      setState(() {
-                        _selectedDate = date;
-                      });
-                      Navigator.pop(context);
-                    }
-                  },
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      "Done",
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 

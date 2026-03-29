@@ -23,7 +23,7 @@ class ExpensesScreen extends StatefulWidget {
 }
 
 class _ExpensesScreenState extends State<ExpensesScreen>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, SingleTickerProviderStateMixin {
   // State variables for metrics
   double _totalFunding = 0.0;
   double _totalExpenses = 0.0;
@@ -32,6 +32,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   String _userCountryCode = '+1'; // Default to USD
   bool _isLoadingCountry = true;
 
+  late AnimationController _shimmerController;
+
   // OVERRIDE wantKeepAlive to return true
   @override
   bool get wantKeepAlive => true;
@@ -39,6 +41,13 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   @override
   void initState() {
     super.initState();
+    // Initialize Shimmer Controller
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _shimmerController.repeat();
+
     // Get currency preference synchronously for instant display
     _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
     // Listen for currency changes
@@ -52,6 +61,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     CurrencyPreferenceService.currencyNotifier.removeListener(
       _onCurrencyChanged,
     );
+    _shimmerController.dispose();
     super.dispose();
   }
 
@@ -139,9 +149,21 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     }
   }
 
+  // --- PREMIUM SECTION LABEL HELPER ---
+  Widget _buildSectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: Colors.white54,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // CALL super.build(context)
     super.build(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -163,11 +185,17 @@ class _ExpensesScreenState extends State<ExpensesScreen>
               SizedBox(
                 height: 130,
                 child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white38,
-                        ),
+                    ? ListView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const NeverScrollableScrollPhysics(),
+                        clipBehavior: Clip.none,
+                        children: [
+                          _buildSkeletonMetricCard(),
+                          const SizedBox(width: 16),
+                          _buildSkeletonMetricCard(),
+                          const SizedBox(width: 16),
+                          _buildSkeletonMetricCard(),
+                        ],
                       )
                     : ListView(
                         scrollDirection: Axis.horizontal,
@@ -176,23 +204,23 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                         children: [
                           _buildFlatMetric(
                             "Budget Left",
-                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${(_totalFunding - _totalExpenses).toStringAsFixed(0)}",
+                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${(_totalFunding - _totalExpenses).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
                             "${_totalFunding > 0 ? ((_totalFunding - _totalExpenses) / _totalFunding * 100).toStringAsFixed(0) : '0'}%",
                             const Color(0xFF30D158),
                           ),
                           const SizedBox(width: 16),
                           _buildFlatMetric(
                             "Spent",
-                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${_totalExpenses.toStringAsFixed(0)}",
+                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${_totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
                             "+${(_totalExpenses > 0 ? '0' : '0')}%", // Placeholder logic
                             Colors.white,
                           ),
                           const SizedBox(width: 16),
                           _buildFlatMetric(
                             "Avg. Daily",
-                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${_avgDaily.toStringAsFixed(0)}",
+                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${_avgDaily.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
                             "-${(_avgDaily > 0 ? '0' : '0')}%", // Placeholder logic
-                            Colors.grey,
+                            Colors.white54, // Muted grey
                           ),
                         ],
                       ),
@@ -201,33 +229,17 @@ class _ExpensesScreenState extends State<ExpensesScreen>
               const SizedBox(height: 40),
 
               // 3. Actions (Outline Style)
-              Text(
-                "QUICK ACTIONS",
-                style: GoogleFonts.inter(
-                  color: Colors.white24,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                ),
-              ),
+              _buildSectionLabel("QUICK ACTIONS"),
               const SizedBox(height: 16),
               _buildFlatActionGrid(context),
 
               const SizedBox(height: 40),
 
-              // 5. Transactions (Clean List)
+              // 4. Transactions (Clean List)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    "TRANSACTIONS",
-                    style: GoogleFonts.inter(
-                      color: Colors.white24,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
+                  _buildSectionLabel("TRANSACTIONS"),
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
@@ -237,19 +249,44 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                         ),
                       );
                     },
-                    child: Text(
-                      "VIEW ALL",
-                      style: GoogleFonts.inter(
-                        color: Colors.white38,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(
+                          alpha: 0.05,
+                        ), // Glassy white
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.15),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            "VIEW ALL",
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.arrow_forward,
+                            color: Colors.white,
+                            size: 12,
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
               // Firebase Transactions Stream
               _buildFlatTransactionList(),
@@ -269,7 +306,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          DataHelpers.formatDate(DateTime.now(), format: 'MMMM'),
+          DataHelpers.formatDate(DateTime.now(), format: 'MMMM yyyy'),
           style: GoogleFonts.inter(
             color: Colors.white38,
             fontSize: 14,
@@ -301,8 +338,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF141416), // Solid Matte Grey
-        borderRadius: BorderRadius.circular(16),
-        // No Shadow, just a barely visible border for definition
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
       child: Column(
@@ -334,13 +370,18 @@ class _ExpensesScreenState extends State<ExpensesScreen>
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                value,
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.5,
+              // FIXED: FITTED BOX FOR LARGE NUMBERS
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 24, // Bumped for hero impact
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -1.0,
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
@@ -365,7 +406,6 @@ class _ExpensesScreenState extends State<ExpensesScreen>
       children: [
         GestureDetector(
           onTap: () {
-            // Update data silently when returning from Add
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const AddExpenseScreen()),
@@ -386,7 +426,6 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         ),
         GestureDetector(
           onTap: () {
-            // Update data silently when returning from Scan too
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -418,12 +457,12 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     return Column(
       children: [
         Container(
-          height: 64,
-          width: 64,
+          height: 60,
+          width: 60,
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            color: Colors.white.withValues(alpha: 0.05), // Premium Glassy style
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
           ),
           child: Icon(icon, color: Colors.white, size: 24),
         ),
@@ -431,8 +470,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         Text(
           label,
           style: GoogleFonts.inter(
-            color: Colors.white38,
-            fontSize: 11,
+            color: Colors.white54,
+            fontSize: 12,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -463,14 +502,13 @@ class _ExpensesScreenState extends State<ExpensesScreen>
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 40),
-            child: Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white38,
-              ),
-            ),
+          return Column(
+            children: [
+              _buildSkeletonTransaction(),
+              _buildSkeletonTransaction(),
+              _buildSkeletonTransaction(),
+              _buildSkeletonTransaction(),
+            ],
           );
         }
 
@@ -491,7 +529,11 @@ class _ExpensesScreenState extends State<ExpensesScreen>
             child: Center(
               child: Text(
                 "No recent transactions found.",
-                style: GoogleFonts.inter(color: Colors.white54),
+                style: GoogleFonts.inter(
+                  color: Colors.white38,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           );
@@ -528,7 +570,6 @@ class _ExpensesScreenState extends State<ExpensesScreen>
       padding: const EdgeInsets.only(bottom: 20),
       child: GestureDetector(
         onTap: () {
-          // Listen for returns here as well if you can edit/delete expenses
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -541,18 +582,21 @@ class _ExpensesScreenState extends State<ExpensesScreen>
           color: Colors.transparent,
           child: Row(
             children: [
-              // Minimal Icon Placeholder (No container)
+              // Premium Icon Container
               Container(
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF141416),
-                  borderRadius: BorderRadius.circular(10),
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
                 ),
                 child: const Icon(
-                  Icons.receipt,
-                  color: Colors.white38,
-                  size: 18,
+                  Icons.receipt_long_outlined,
+                  color: Colors.white54,
+                  size: 20,
                 ),
               ),
               const SizedBox(width: 16),
@@ -567,7 +611,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                       style: GoogleFonts.inter(
                         color: Colors.white,
                         fontSize: 15,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -584,22 +628,117 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                   ],
                 ),
               ),
+              const SizedBox(width: 12),
 
-              // Amount - Not clickable
-              Text(
-                formattedAmount,
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  fontFeatures: [
-                    const FontFeature.tabularFigures(),
-                  ], // Aligns numbers
+              // Amount
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  formattedAmount,
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: [
+                      const FontFeature.tabularFigures(),
+                    ], // Aligns numbers
+                  ),
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // --- SHIMMER LOADING WIDGETS ---
+
+  Widget _buildShimmerEffect(
+    double width,
+    double height, {
+    double borderRadius = 8,
+  }) {
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (context, child) {
+        final value = _shimmerController.value;
+        return Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(borderRadius),
+            gradient: LinearGradient(
+              begin: Alignment(value - 1, 0),
+              end: Alignment(value, 0),
+              colors: [
+                Colors.white.withValues(alpha: 0.03),
+                Colors.white.withValues(alpha: 0.06),
+                Colors.white.withValues(alpha: 0.10),
+                Colors.white.withValues(alpha: 0.06),
+                Colors.white.withValues(alpha: 0.03),
+              ],
+              stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSkeletonMetricCard() {
+    return Container(
+      width: 140,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildShimmerEffect(70, 12, borderRadius: 4),
+              _buildShimmerEffect(8, 8, borderRadius: 4),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildShimmerEffect(90, 24, borderRadius: 6),
+              const SizedBox(height: 8),
+              _buildShimmerEffect(40, 12, borderRadius: 4),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonTransaction() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Row(
+        children: [
+          _buildShimmerEffect(44, 44, borderRadius: 12),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildShimmerEffect(140, 16, borderRadius: 4),
+                const SizedBox(height: 8),
+                _buildShimmerEffect(80, 12, borderRadius: 4),
+              ],
+            ),
+          ),
+          _buildShimmerEffect(60, 16, borderRadius: 4),
+        ],
       ),
     );
   }

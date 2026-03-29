@@ -10,6 +10,7 @@ import 'package:printing/printing.dart';
 // Ensure these paths match your project structure
 import '../../../../services/currency_formatter.dart';
 import '../../../../services/currency_preference_service.dart';
+import '../../../../services/bank_account_service.dart';
 
 class ExpensesExportScreen extends StatefulWidget {
   const ExpensesExportScreen({super.key});
@@ -38,6 +39,45 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
       'December',
     ];
     return months[month - 1];
+  }
+
+  // Helper to format bank account display
+  String _getBankAccountDisplay(Map<String, dynamic> transactionData) {
+    // Check for bank account ID
+    final bankAccountId =
+        transactionData['bankAccount'] as String? ??
+        transactionData['BankAccount'] as String?;
+
+    if (bankAccountId != null) {
+      // Check if it's a cash transaction (either "Cash-" or "Cash")
+      if (bankAccountId == 'Cash-' || bankAccountId == 'Cash') {
+        return 'Cash';
+      }
+
+      // For bank accounts, try to format them properly
+      if (bankAccountId.contains('-')) {
+        final parts = bankAccountId.split('-');
+        if (parts.length >= 2) {
+          final bankName = parts[0];
+          final rawLast4 = parts[1];
+          final last4 = rawLast4.isNotEmpty
+              ? BankAccountService.extractLast4(rawLast4)
+              : '';
+          return last4.isNotEmpty ? '$bankName ****$last4' : bankName;
+        }
+      }
+
+      // Ensure PDF-safe text by removing any problematic characters
+      return bankAccountId.replaceAll(RegExp(r'[^\w\s\-\.\*]'), '');
+    }
+
+    // Check if it's a cash payment
+    final paymentMethod = transactionData['PaymentMethod'] as String?;
+    if (paymentMethod == 'cash') {
+      return 'Cash';
+    }
+
+    return 'N/A';
   }
 
   // --- UNIFIED MINIMAL TOAST ---
@@ -171,7 +211,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
       // Map Firestore data to PDF table rows
       final List<List<String>> tableData = expenses
           .map((doc) {
-            final data = doc.data();
+            final data = doc.data(); // Standard dynamic map
             final amount = double.tryParse(data['Amount'].toString()) ?? 0.0;
             totalAmount += amount;
 
@@ -182,9 +222,8 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
               dateStr,
               data['Title']?.toString() ?? 'Unknown',
               data['Category']?.toString().toUpperCase() ?? 'N/A',
-              data['BankAccount']?.toString().split('-').first ??
-                  'N/A', // Just the bank name
-              getPdfCurrencySymbol(amount), // Replaced hardcoded '$'
+              _getBankAccountDisplay(data), // Using the new helper!
+              getPdfCurrencySymbol(amount),
             ];
           })
           .cast<List<String>>()
@@ -253,7 +292,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
               pw.Container(
                 alignment: pw.Alignment.centerRight,
                 child: pw.Text(
-                  "Total: ${getPdfCurrencySymbol(totalAmount)}", // Replaced hardcoded '$'
+                  "Total: ${getPdfCurrencySymbol(totalAmount)}",
                   style: pw.TextStyle(
                     fontSize: 18,
                     fontWeight: pw.FontWeight.bold,

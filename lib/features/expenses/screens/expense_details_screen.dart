@@ -65,6 +65,46 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     }
   }
 
+  // --- UNIFIED MINIMAL TOAST ---
+  void _showMinimalToast(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: isError
+                  ? const Color(0xFFFF453A)
+                  : const Color(0xFF30D158),
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF141416),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        duration: const Duration(seconds: 3),
+        elevation: 0,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
@@ -74,11 +114,11 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            backgroundColor: const Color(0xFF09090B),
+          return const Scaffold(
+            backgroundColor: Color(0xFF09090B),
             body: Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white38),
               ),
             ),
           );
@@ -90,7 +130,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             body: Center(
               child: Text(
                 'Error loading expense details',
-                style: GoogleFonts.inter(color: Colors.white),
+                style: GoogleFonts.inter(color: Colors.redAccent),
               ),
             ),
           );
@@ -102,7 +142,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             body: Center(
               child: Text(
                 'Expense not found',
-                style: GoogleFonts.inter(color: Colors.white),
+                style: GoogleFonts.inter(color: Colors.white54),
               ),
             ),
           );
@@ -121,7 +161,6 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   ) {
     // Safely extract data from Firebase
     final title = expenseData['Title'] ?? 'Unnamed Expense';
-    // ✅ FIX: Use DataHelpers instead of manual parsing
     final amount = DataHelpers.safeParseDouble(expenseData['Amount']);
     final rawCategory = expenseData['Category']?.toString() ?? 'General';
     final category = rawCategory.toUpperCase();
@@ -169,18 +208,22 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                           children: [
                             _buildCategoryBadge(category),
                             const SizedBox(height: 24),
-                            Text(
-                              _isLoadingCountry
-                                  ? "₹${DataHelpers.formatCurrency(amount)}"
-                                  : CurrencyFormatter.formatByCountry(
-                                      amount,
-                                      _userCountryCode,
-                                    ),
-                              style: GoogleFonts.inter(
-                                color: Colors.white,
-                                fontSize: 48,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: -2,
+                            // FIXED: FITTED BOX FOR LARGE NUMBERS
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                _isLoadingCountry
+                                    ? "₹${DataHelpers.formatCurrency(amount)}"
+                                    : CurrencyFormatter.formatByCountry(
+                                        amount,
+                                        _userCountryCode,
+                                      ),
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontSize: 48,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -1.5,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -196,10 +239,10 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 48),
 
                       // --- DETAILS SECTION ---
-                      _buildSectionTitle("DETAILS"),
+                      _buildSectionLabel("DETAILS"),
                       const SizedBox(height: 16),
                       Container(
                         padding: const EdgeInsets.all(24),
@@ -229,23 +272,34 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
                       const SizedBox(height: 32),
 
-                      // Notes
-                      _buildSectionTitle("NOTES"),
-                      const SizedBox(height: 12),
-                      Text(
-                        notes,
-                        style: GoogleFonts.inter(
-                          color: Colors.white70,
-                          fontSize: 15,
-                          height: 1.5,
+                      // --- NOTES SECTION ---
+                      _buildSectionLabel("NOTES"),
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141416),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.04),
+                          ),
+                        ),
+                        child: Text(
+                          notes,
+                          style: GoogleFonts.inter(
+                            color: Colors.white70,
+                            fontSize: 15,
+                            height: 1.5,
+                          ),
                         ),
                       ),
 
                       const SizedBox(height: 32),
 
-                      // Attachment (Placeholder for now)
-                      _buildSectionTitle("ATTACHMENT"),
-                      const SizedBox(height: 12),
+                      // --- ATTACHMENT SECTION ---
+                      _buildSectionLabel("ATTACHMENT"),
+                      const SizedBox(height: 16),
                       _buildAttachmentPreview(expenseData),
 
                       const SizedBox(height: 40),
@@ -280,17 +334,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("User not logged in", style: GoogleFonts.inter()),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
+          _showMinimalToast("User not logged in", isError: true);
         }
         return;
       }
 
-      // ✅ FIX: Get companyId from user document
+      // Get companyId from user document
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -302,7 +351,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       final id = const Uuid().v4();
       final amount = DataHelpers.safeParseDouble(expenseData['Amount']);
 
-      // ✅ FIX: Use batch for atomic operations
+      // Use batch for atomic operations
       final batch = FirebaseFirestore.instance.batch();
 
       // Set new expense document
@@ -321,7 +370,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         "Time": FieldValue.serverTimestamp(),
       });
 
-      // ✅ FIX: Update totalExpenses atomically
+      // Update totalExpenses atomically
       final companyRef = FirebaseFirestore.instance
           .collection('companies')
           .doc(companyId);
@@ -332,30 +381,279 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
       if (context.mounted) {
         Navigator.pop(context); // Close bottom sheet
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Expense duplicated successfully",
-              style: GoogleFonts.inter(),
-            ),
-            backgroundColor: const Color(0xFF30D158),
-          ),
-        );
+        _showMinimalToast("Expense duplicated successfully");
       }
     } catch (e) {
       if (context.mounted) {
         Navigator.pop(context); // Close bottom sheet
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Failed to duplicate expense",
-              style: GoogleFonts.inter(),
-            ),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
+        _showMinimalToast("Failed to duplicate expense", isError: true);
       }
     }
+  }
+
+  Future<void> _deleteExpense() async {
+    try {
+      final expenseAmount = DataHelpers.safeParseDouble(
+        widget.expenseData['Amount'],
+      );
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get companyId from user document
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final companyId = userDoc.data()?['companyId'];
+      if (companyId == null) {
+        throw Exception('Company not found');
+      }
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      // Delete expense document
+      final expenseRef = FirebaseFirestore.instance
+          .collection('expenses')
+          .doc(widget.expenseId);
+      batch.delete(expenseRef);
+
+      // Update totalExpenses atomically
+      final companyRef = FirebaseFirestore.instance
+          .collection('companies')
+          .doc(companyId);
+      batch.update(companyRef, {
+        "totalExpenses": FieldValue.increment(-expenseAmount),
+      });
+
+      await batch.commit();
+
+      if (mounted) {
+        Navigator.pop(context); // Go back to the list screen
+        _showMinimalToast("Expense deleted");
+      }
+    } catch (e) {
+      debugPrint("Failed to delete expense: $e");
+      if (mounted) {
+        _showMinimalToast("Failed to delete expense", isError: true);
+      }
+    }
+  }
+
+  // --- GORGEOUS CUSTOM DELETE DIALOG ---
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.8), // Darken backdrop
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141416), // Match theme
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icon & Title
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF453A).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Color(0xFFFF453A),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        "Delete Expense?",
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // Warning Text
+                Text(
+                  "This will permanently delete this expense record and reverse it from your total company expenses. This action cannot be undone.",
+                  style: GoogleFonts.inter(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                // Action Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(dialogContext),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.15),
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "Cancel",
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () async {
+                          Navigator.pop(dialogContext); // Close dialog
+                          await _deleteExpense(); // Execute deletion
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF453A),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            "Delete",
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // --- ACTIONS BOTTOM SHEET ---
+  void _showOptionsBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF141416),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (bottomSheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white12,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  "Manage Expense",
+                  style: GoogleFonts.inter(
+                    color: Colors.white54,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 24),
+                _buildActionOption(
+                  icon: Icons.edit_outlined,
+                  label: "Edit Expense",
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => EditExpenseScreen(
+                          expenseId: widget.expenseId,
+                          expenseData: widget.expenseData,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _buildActionOption(
+                  icon: Icons.copy_rounded,
+                  label: "Duplicate",
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext); // Close sheet
+                    _duplicateExpense(context, widget.expenseData);
+                  },
+                ),
+                const SizedBox(height: 16),
+                Divider(color: Colors.white.withValues(alpha: 0.04), height: 1),
+                const SizedBox(height: 16),
+                _buildActionOption(
+                  icon: Icons.delete_outline_rounded,
+                  label: "Delete Expense",
+                  isDestructive: true,
+                  onTap: () {
+                    Navigator.pop(bottomSheetContext); // Close sheet
+                    _showDeleteConfirmation(context); // Open delete dialog
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // --- WIDGET BUILDERS ---
@@ -371,9 +669,11 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: Colors.white.withValues(
+                  alpha: 0.05,
+                ), // White Glass Style
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: const Icon(
                 Icons.arrow_back,
@@ -396,9 +696,11 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: Colors.white.withValues(
+                  alpha: 0.05,
+                ), // White Glass Style
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: const Icon(
                 Icons.more_horiz,
@@ -439,14 +741,17 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: GoogleFonts.inter(
-        color: Colors.white24,
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.5,
+  Widget _buildSectionLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        text.toUpperCase(),
+        style: GoogleFonts.inter(
+          color: Colors.white54,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.2,
+        ),
       ),
     );
   }
@@ -458,7 +763,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         Text(
           label,
           style: GoogleFonts.inter(
-            color: Colors.white38,
+            color: Colors.white54,
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
@@ -482,7 +787,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         Text(
           label,
           style: GoogleFonts.inter(
-            color: Colors.white38,
+            color: Colors.white54,
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
@@ -520,7 +825,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: const Color(0xFF141416),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
         ),
         child: Row(
@@ -568,7 +873,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: const Color(0xFF30D158).withValues(alpha: 0.3),
         ),
@@ -621,7 +926,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             height: 150,
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(16), // Softer corners
             ),
             child: const Center(
               child: Text(
@@ -635,133 +940,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     );
   }
 
-  // --- ACTIONS BOTTOM SHEET ---
-  void _showOptionsBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF141416),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (bottomSheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white12,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                _buildActionOption(
-                  icon: Icons.edit_outlined,
-                  label: "Edit Expense",
-                  onTap: () {
-                    Navigator.pop(bottomSheetContext);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => EditExpenseScreen(
-                          expenseId: widget.expenseId,
-                          expenseData: widget.expenseData,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-                _buildActionOption(
-                  icon: Icons.copy_rounded,
-                  label: "Duplicate",
-                  onTap: () {
-                    _duplicateExpense(context, widget.expenseData);
-                  },
-                ),
-                const SizedBox(height: 8),
-                const Divider(color: Colors.white10, height: 32),
-                _buildActionOption(
-                  icon: Icons.delete_outline_rounded,
-                  label: "Delete Expense",
-                  isDestructive: true,
-                  onTap: () async {
-                    Navigator.pop(
-                      bottomSheetContext,
-                    ); // Close sheet immediately
-
-                    // --- FIREBASE DELETE LOGIC ---
-                    try {
-                      // Get expense amount before deleting
-                      final expenseAmount = DataHelpers.safeParseDouble(
-                        widget.expenseData['Amount'],
-                      );
-
-                      final user = FirebaseAuth.instance.currentUser;
-                      if (user == null) {
-                        throw Exception('User not authenticated');
-                      }
-
-                      // Get companyId from user document
-                      final userDoc = await FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(user.uid)
-                          .get();
-
-                      final companyId = userDoc.data()?['companyId'];
-                      if (companyId == null) {
-                        throw Exception('Company not found');
-                      }
-
-                      // Use batch for atomic operations
-                      final batch = FirebaseFirestore.instance.batch();
-
-                      // Delete expense document
-                      final expenseRef = FirebaseFirestore.instance
-                          .collection('expenses')
-                          .doc(widget.expenseId);
-                      batch.delete(expenseRef);
-
-                      // Update totalExpenses atomically
-                      final companyRef = FirebaseFirestore.instance
-                          .collection('companies')
-                          .doc(companyId);
-                      batch.update(companyRef, {
-                        "totalExpenses": FieldValue.increment(-expenseAmount),
-                      });
-
-                      // Commit batch atomically
-                      await batch.commit();
-
-                      if (context.mounted) {
-                        Navigator.pop(context); // Go back to the list screen
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              "Expense deleted",
-                              style: GoogleFonts.inter(),
-                            ),
-                            backgroundColor: Colors.black,
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      debugPrint("Failed to delete expense: $e");
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
+  // --- WHITE GLASS ACTION SHEET BUTTONS ---
   Widget _buildActionOption({
     required IconData icon,
     required String label,
@@ -772,24 +951,32 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: Colors.transparent,
+          color: isDestructive
+              ? const Color(0xFFFF453A).withValues(alpha: 0.1)
+              : Colors.white.withValues(alpha: 0.05), // White Glass fill
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDestructive
+                ? const Color(0xFFFF453A).withValues(alpha: 0.2)
+                : Colors.white.withValues(alpha: 0.08), // Glass Border
+          ),
         ),
         child: Row(
           children: [
             Icon(
               icon,
               color: isDestructive ? const Color(0xFFFF453A) : Colors.white,
-              size: 22,
+              size: 20,
             ),
             const SizedBox(width: 16),
             Text(
               label,
               style: GoogleFonts.inter(
                 color: isDestructive ? const Color(0xFFFF453A) : Colors.white,
-                fontSize: 16,
+                fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
             ),

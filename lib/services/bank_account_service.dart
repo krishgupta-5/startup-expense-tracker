@@ -286,7 +286,7 @@ class BankAccountService {
       'createdAt': data['createdAt'],
       'isActive': data['isActive'] ?? true,
       'legacyKey':
-          '${bankName.toUpperCase()}-${last4}', // Add legacyKey for matching with expenses
+          '${bankName.toUpperCase()}-$last4', // Add legacyKey for matching with expenses
     };
   }
 
@@ -336,7 +336,7 @@ class BankAccountService {
 
     return {
       'id':
-          'company_array_${bankName}_${last4}', // More stable ID using bank name and last4
+          'company_array_${bankName}_$last4', // More stable ID using bank name and last4
       'name': bankName,
       'number': accountNumber,
       'last4': last4,
@@ -346,7 +346,7 @@ class BankAccountService {
       'createdAt': DateTime.now(), // Use current time as fallback
       'isActive': true,
       'legacyKey':
-          '${bankName.toUpperCase()}-${last4}', // Add legacyKey for matching with expenses
+          '${bankName.toUpperCase()}-$last4', // Add legacyKey for matching with expenses
     };
   }
 
@@ -460,8 +460,9 @@ class BankAccountService {
 
   /// Mask account number for display - show only last 4 digits
   static String _maskAccountNumber(String accountNumber) {
-    if (accountNumber.length <= 4)
+    if (accountNumber.length <= 4) {
       return '****$accountNumber'; // Always mask even short numbers
+    }
     final last4 = accountNumber.substring(accountNumber.length - 4);
     return '****$last4';
   }

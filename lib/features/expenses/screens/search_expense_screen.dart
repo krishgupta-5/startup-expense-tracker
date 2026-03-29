@@ -1,12 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'expense_details_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:startup_expense_tracker/services/user_country_service.dart';
+import '../../../utils/data_helpers.dart';
 import '../../../services/currency_formatter.dart';
-import '../../../services/user_country_service.dart';
+import 'expense_details_screen.dart';
 
 class SearchExpenseScreen extends StatefulWidget {
   const SearchExpenseScreen({super.key});
@@ -87,7 +88,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
   static const int _pageSize = 20;
   bool _hasMore = true;
 
-  // ✅ FIX: Build Firestore query with filters instead of local filtering
   Query _buildExpensesQuery() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('User not authenticated');
@@ -139,6 +139,18 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
             .where('Date', isGreaterThanOrEqualTo: startOfMonth)
             .where('Date', isLessThan: endOfMonth);
       }
+    } else {
+      // When "all" months is selected, still apply year filter
+      final year = int.tryParse(_selectedYear) ?? DateTime.now().year;
+      final startOfYear = DateTime(year, 1, 1);
+      final endOfYear = DateTime(
+        year + 1,
+        1,
+        1,
+      ).subtract(const Duration(milliseconds: 1));
+      query = query
+          .where('Date', isGreaterThanOrEqualTo: startOfYear)
+          .where('Date', isLessThan: endOfYear);
     }
 
     // Apply category filter
@@ -188,26 +200,28 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                     ),
                     const SizedBox(width: 8),
 
-                    // Date Picker Button (Highlights Green if active)
+                    // Date Picker Button
                     GestureDetector(
                       onTap: () => _showDatePicker(),
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           color: _exactDate != null
-                              ? const Color(0xFF30D158).withValues(alpha: 0.15)
-                              : const Color(0xFF141416),
+                              ? Colors.white
+                              : Colors.white.withValues(
+                                  alpha: 0.05,
+                                ), // White Glass Style
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _exactDate != null
-                                ? const Color(0xFF30D158)
+                                ? Colors.white
                                 : Colors.white.withValues(alpha: 0.1),
                           ),
                         ),
                         child: Icon(
                           Icons.calendar_month,
                           color: _exactDate != null
-                              ? const Color(0xFF30D158)
+                              ? Colors.black
                               : Colors.white54,
                           size: 20,
                         ),
@@ -233,6 +247,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                 height: 36,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   itemCount: _months.length,
                   separatorBuilder: (context, index) =>
@@ -255,30 +270,31 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                           _hasMore = true;
                         });
                       },
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? const Color(0xFF30D158).withValues(alpha: 0.15)
+                              ? Colors.white
                               : const Color(0xFF141416),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isSelected
-                                ? const Color(0xFF30D158)
-                                : Colors.white.withValues(alpha: 0.04),
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.08),
                           ),
                         ),
                         child: Text(
                           label,
                           style: GoogleFonts.inter(
-                            color: isSelected
-                                ? const Color(0xFF30D158)
-                                : Colors.white54,
+                            color: isSelected ? Colors.black : Colors.white70,
                             fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
                           ),
                         ),
                       ),
@@ -293,6 +309,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                 height: 36,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   itemCount: _categories.length,
                   separatorBuilder: (context, index) =>
@@ -306,12 +323,12 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                       onTap: () {
                         setState(() {
                           _selectedCategoryKey = key;
-                          // Reset pagination when filter changes
-                          _lastDocument = null;
+                          _lastDocument = null; // Reset pagination
                           _hasMore = true;
                         });
                       },
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 8,
@@ -320,19 +337,21 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                           color: isSelected
                               ? Colors.white
                               : const Color(0xFF141416),
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isSelected
                                 ? Colors.white
-                                : Colors.white.withValues(alpha: 0.04),
+                                : Colors.white.withValues(alpha: 0.08),
                           ),
                         ),
                         child: Text(
                           label,
                           style: GoogleFonts.inter(
-                            color: isSelected ? Colors.black : Colors.white54,
+                            color: isSelected ? Colors.black : Colors.white70,
                             fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
                           ),
                         ),
                       ),
@@ -345,7 +364,12 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               const Divider(color: Color(0xFF1F1F22), height: 1),
 
               // --- RESULTS LIST (FIREBASE STREAM) ---
-              Expanded(child: _buildFirebaseResults()),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => FocusScope.of(context).unfocus(),
+                  child: _buildFirebaseResults(),
+                ),
+              ),
             ],
           ),
         ),
@@ -357,7 +381,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return _buildEmptyState("User not logged in");
 
-    // ✅ FIX: Use Firestore query with filters instead of local filtering
     final query = _buildExpensesQuery();
 
     return FutureBuilder<QuerySnapshot>(
@@ -377,11 +400,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          if (_lastDocument == null) {
-            return _buildEmptyState("No expenses found");
-          } else {
-            return _buildEmptyState("No more expenses found");
-          }
+          String notFoundMessage = _getNotFoundMessage();
+          return _buildEmptyState(notFoundMessage);
         }
 
         final docs = snapshot.data!.docs;
@@ -418,17 +438,18 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                   color: Colors.white,
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
+                  letterSpacing: -0.5, // Premium tracking
                 ),
               ),
               GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF141416),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white.withValues(alpha: 0.05), // White Glass
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.04),
+                      color: Colors.white.withValues(alpha: 0.1),
                     ),
                   ),
                   child: const Icon(Icons.close, color: Colors.white, size: 20),
@@ -446,8 +467,9 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
             ),
             child: TextField(
               controller: _searchController,
+              onTapOutside: (event) => FocusScope.of(context).unfocus(),
               style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-              cursorColor: const Color(0xFF30D158),
+              cursorColor: Colors.white,
               decoration: InputDecoration(
                 hintText: "Search title...",
                 hintStyle: GoogleFonts.inter(color: Colors.white24),
@@ -461,7 +483,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                   minWidth: 40,
                   minHeight: 40,
                 ),
-                // Add a clear button when typing
                 suffixIcon: _searchQuery.isNotEmpty
                     ? GestureDetector(
                         onTap: () {
@@ -500,7 +521,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
+          color: Colors.white.withValues(alpha: 0.05), // White Glass
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
         ),
@@ -527,7 +548,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     final id = doc.id;
 
     final title = data['Title'] ?? 'Unnamed Expense';
-    final amount = data['Amount']?.toString() ?? '0.00';
+    final amount = DataHelpers.safeParseDouble(data['Amount']);
 
     final rawCategory = data['Category']?.toString() ?? 'General';
     final category = rawCategory.isNotEmpty
@@ -550,7 +571,12 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
             builder: (context) =>
                 ExpenseDetailsScreen(expenseId: id, expenseData: data),
           ),
-        );
+        ).then((_) {
+          // Trigger rebuild to refresh data if it was edited
+          setState(() {
+            _lastDocument = null;
+          });
+        });
       },
       child: Padding(
         padding: const EdgeInsets.only(bottom: 20),
@@ -560,11 +586,17 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: Colors.white.withValues(
+                  alpha: 0.05,
+                ), // White Glass Style
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
-              child: const Icon(Icons.receipt, color: Colors.white38, size: 20),
+              child: const Icon(
+                Icons.receipt_long_outlined,
+                color: Colors.white54,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -593,13 +625,19 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                 ],
               ),
             ),
-            Text(
-              "-${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$amount",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-                fontFeatures: [const FontFeature.tabularFigures()],
+            const SizedBox(width: 12),
+            // FIXED: FITTED BOX FOR LARGE NUMBERS
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerRight,
+              child: Text(
+                "-${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${amount.toStringAsFixed(2)}",
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: [const FontFeature.tabularFigures()],
+                ),
               ),
             ),
           ],
@@ -608,18 +646,48 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     );
   }
 
+  String _getNotFoundMessage() {
+    // Check if any filters are active
+    bool hasSearchFilter = _searchQuery.isNotEmpty;
+    bool hasDateFilter = _exactDate != null || _selectedMonthKey != 'all';
+    bool hasCategoryFilter = _selectedCategoryKey != 'all';
+
+    if (hasSearchFilter && hasDateFilter && hasCategoryFilter) {
+      return "No expenses found matching \"$_searchQuery\" for ${_selectedMonthKey == 'all' ? _selectedYear : _selectedMonthKey} in ${_getCategoryDisplayName()}";
+    } else if (hasSearchFilter && hasDateFilter) {
+      return "No expenses found matching \"$_searchQuery\" for ${_selectedMonthKey == 'all' ? _selectedYear : _selectedMonthKey}";
+    } else if (hasSearchFilter && hasCategoryFilter) {
+      return "No expenses found matching \"$_searchQuery\" in ${_getCategoryDisplayName()}";
+    } else if (hasDateFilter && hasCategoryFilter) {
+      return "No expenses found for ${_selectedMonthKey == 'all' ? _selectedYear : _selectedMonthKey} in ${_getCategoryDisplayName()}";
+    } else if (hasSearchFilter) {
+      return "No expenses found matching \"$_searchQuery\"";
+    } else if (hasDateFilter) {
+      return "No expenses found for ${_selectedMonthKey == 'all' ? _selectedYear : _selectedMonthKey}";
+    } else if (hasCategoryFilter) {
+      return "No expenses found in ${_getCategoryDisplayName()}";
+    } else {
+      return "No expenses found";
+    }
+  }
+
+  String _getCategoryDisplayName() {
+    return _categories[_selectedCategoryKey] ?? 'Unknown';
+  }
+
   Widget _buildEmptyState(String message) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.filter_list_off, color: Colors.white12, size: 48),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Text(
+          message,
+          style: GoogleFonts.inter(
+            color: Colors.white38,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
           ),
-        ],
+          textAlign: TextAlign.center,
+        ),
       ),
     );
   }
@@ -632,6 +700,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
           backgroundColor: const Color(0xFF09090B),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
           ),
           child: Container(
             padding: const EdgeInsets.all(20),
@@ -656,8 +725,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-
-                // ShadCN Calendar
                 ShadCalendar(
                   selected: _exactDate ?? DateTime.now(),
                   fromMonth: DateTime(int.parse(_selectedYear) - 2, 1),
@@ -670,27 +737,31 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                         _selectedMonthKey = _months.keys.elementAt(
                           date.month,
                         ); // 1 = Jan, etc.
-                        _lastDocument =
-                            null; // Reset pagination when filter changes
+                        _lastDocument = null;
                         _hasMore = true;
                       });
                       Navigator.pop(context);
                     }
                   },
                 ),
-
-                // Option to Clear Date Filter
                 if (_exactDate != null) ...[
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
+                    height: 48,
                     child: TextButton(
                       onPressed: () {
                         setState(() => _exactDate = null);
                         Navigator.pop(context);
                       },
                       style: TextButton.styleFrom(
-                        foregroundColor: Colors.redAccent,
+                        foregroundColor: const Color(0xFFFF453A),
+                        backgroundColor: const Color(
+                          0xFFFF453A,
+                        ).withValues(alpha: 0.1),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       child: Text(
                         "Clear Exact Date",
@@ -724,6 +795,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
           backgroundColor: const Color(0xFF09090B),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
           ),
           child: Container(
             padding: const EdgeInsets.all(20),
@@ -755,10 +827,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                       onTap: () {
                         setState(() {
                           _selectedYear = year;
-                          _exactDate =
-                              null; // Clear exact date if changing year manually
-                          _lastDocument =
-                              null; // Reset pagination when filter changes
+                          _exactDate = null;
+                          _lastDocument = null;
                           _hasMore = true;
                         });
                         Navigator.pop(context);
@@ -766,28 +836,30 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(
-                          vertical: 12,
+                          vertical: 14,
                           horizontal: 16,
                         ),
                         decoration: BoxDecoration(
                           color: _selectedYear == year
-                              ? const Color(0xFF30D158).withValues(alpha: 0.15)
+                              ? Colors.white
                               : const Color(0xFF141416),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _selectedYear == year
-                                ? const Color(0xFF30D158)
-                                : Colors.white.withValues(alpha: 0.04),
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.08),
                           ),
                         ),
                         child: Text(
                           year,
                           style: GoogleFonts.inter(
                             color: _selectedYear == year
-                                ? const Color(0xFF30D158)
-                                : Colors.white,
+                                ? Colors.black
+                                : Colors.white70,
                             fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: _selectedYear == year
+                                ? FontWeight.w600
+                                : FontWeight.w500,
                           ),
                         ),
                       ),
@@ -811,6 +883,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
           backgroundColor: const Color(0xFF09090B),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
           ),
           child: Container(
             padding: const EdgeInsets.all(20),
@@ -842,7 +915,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                       onTap: () {
                         setState(() {
                           _sortOrder = option.toLowerCase();
-                          // Reset pagination when sort changes
                           _lastDocument = null;
                           _hasMore = true;
                         });
@@ -851,28 +923,30 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(
-                          vertical: 12,
+                          vertical: 14,
                           horizontal: 16,
                         ),
                         decoration: BoxDecoration(
                           color: _sortOrder == option.toLowerCase()
-                              ? const Color(0xFF30D158).withValues(alpha: 0.15)
+                              ? Colors.white
                               : const Color(0xFF141416),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _sortOrder == option.toLowerCase()
-                                ? const Color(0xFF30D158)
-                                : Colors.white.withValues(alpha: 0.04),
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.08),
                           ),
                         ),
                         child: Text(
                           option,
                           style: GoogleFonts.inter(
                             color: _sortOrder == option.toLowerCase()
-                                ? const Color(0xFF30D158)
-                                : Colors.white,
+                                ? Colors.black
+                                : Colors.white70,
                             fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: _sortOrder == option.toLowerCase()
+                                ? FontWeight.w600
+                                : FontWeight.w500,
                           ),
                         ),
                       ),

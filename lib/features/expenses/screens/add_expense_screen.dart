@@ -7,7 +7,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../widgets/telegram_image_picker.dart';
-import '../../../utils/data_helpers.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/bank_account_service.dart';
@@ -151,6 +150,46 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     super.dispose();
   }
 
+  // --- UNIFIED MINIMAL TOAST ---
+  void _showMinimalToast(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: isError
+                  ? const Color(0xFFFF453A)
+                  : const Color(0xFF30D158),
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF141416),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        duration: const Duration(seconds: 3),
+        elevation: 0,
+      ),
+    );
+  }
+
   Future<void> _fetchBankAccounts() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -208,38 +247,49 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   Future<void> _uploadExpense() async {
+    FocusScope.of(context).unfocus(); // Dismiss keyboard
+
     if (_amountController.text.trim().isEmpty) {
-      _showErrorSnackBar("Please enter an amount.");
+      _showMinimalToast("Please enter an amount.", isError: true);
       return;
     }
     final double? amount = double.tryParse(_amountController.text.trim());
     if (amount == null || amount <= 0) {
-      _showErrorSnackBar("Please enter a valid amount greater than 0.");
+      _showMinimalToast(
+        "Please enter a valid amount greater than 0.",
+        isError: true,
+      );
       return;
     }
     if (_titleController.text.trim().isEmpty) {
-      _showErrorSnackBar("Please enter a title.");
+      _showMinimalToast("Please enter a title.", isError: true);
       return;
     }
     if (_titleController.text.trim().length < 3) {
-      _showErrorSnackBar("Title must be at least 3 characters long.");
+      _showMinimalToast(
+        "Title must be at least 3 characters long.",
+        isError: true,
+      );
       return;
     }
     if (_titleController.text.trim().length > 50) {
-      _showErrorSnackBar("Title must not exceed 50 characters.");
+      _showMinimalToast("Title must not exceed 50 characters.", isError: true);
       return;
     }
     if (_descriptionController.text.trim().isNotEmpty &&
         _descriptionController.text.trim().length > 500) {
-      _showErrorSnackBar("Description must not exceed 500 characters.");
+      _showMinimalToast(
+        "Description must not exceed 500 characters.",
+        isError: true,
+      );
       return;
     }
     if (_selectedDate.isAfter(DateTime.now())) {
-      _showErrorSnackBar("Date cannot be in the future.");
+      _showMinimalToast("Date cannot be in the future.", isError: true);
       return;
     }
     if (_selectedBankAccount == null) {
-      _showErrorSnackBar("Please select a bank account or cash.");
+      _showMinimalToast("Please select a bank account or cash.", isError: true);
       return;
     }
 
@@ -256,10 +306,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         "Category": _selectedCategory,
         "Type": _selectedType,
         "BankAccount": _selectedBankAccount,
-
-        // ✅ ADD THIS LINE
         "AttachmentFileId": _attachmentFileId ?? '',
-
         "Time": FieldValue.serverTimestamp(),
       });
 
@@ -267,7 +314,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
       if (mounted) Navigator.pop(context);
     } on FirebaseException catch (e) {
-      if (mounted) _showErrorSnackBar(e.message ?? 'Failed to upload expense');
+      if (mounted) {
+        _showMinimalToast(
+          e.message ?? 'Failed to upload expense',
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -293,29 +345,20 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
       if (companyDoc.exists && companyDoc.data() != null) {
         final data = companyDoc.data()!;
-        final currentTotalExpenses = DataHelpers.safeParseDouble(
-          data["totalExpenses"],
-        );
+
+        final currentTotalExpenses =
+            double.tryParse(data["totalExpenses"]?.toString() ?? "0") ?? 0.0;
+
         final newTotalExpenses = currentTotalExpenses + expenseAmount;
 
         await FirebaseFirestore.instance
             .collection('companies')
-            .doc(user.uid)
+            .doc(companyId) // Fixed: update companyId doc, not user.uid doc
             .update({"totalExpenses": newTotalExpenses});
       }
     } catch (e) {
       debugPrint("Error updating totalExpenses: $e");
     }
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   @override
@@ -330,98 +373,102 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             children: [
               _buildHeader(context),
               Expanded(
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 24),
+                child: GestureDetector(
+                  onTap: () => FocusScope.of(context).unfocus(),
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 24),
 
-                      // ✅ Show "Pre-filled from scan" banner if data came from scan
-                      if (widget.prefillData != null &&
-                          widget.prefillData!.isNotEmpty)
-                        _buildPrefillBanner(),
+                        // ✅ Show "Pre-filled from scan" banner if data came from scan
+                        if (widget.prefillData != null &&
+                            widget.prefillData!.isNotEmpty)
+                          _buildPrefillBanner(),
 
-                      Center(
-                        child: Column(
-                          children: [
-                            Text(
-                              "AMOUNT",
-                              style: GoogleFonts.inter(
-                                color: Colors.white24,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            _buildAmountInput(),
-                          ],
+                        Center(
+                          child: Column(
+                            children: [
+                              _buildSectionLabel("AMOUNT"),
+                              const SizedBox(height: 8),
+                              _buildAmountInput(),
+                            ],
+                          ),
                         ),
-                      ),
 
-                      const SizedBox(height: 40),
-                      _buildTextInput(
-                        "Expense Title",
-                        "e.g. Client Lunch / AWS Bill",
-                      ),
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 40),
 
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildSelectField(
-                              label: "Category",
-                              currentValue: _selectedCategory,
-                              items: categories,
-                              icon: Icons.pie_chart_outline,
-                              onChanged: (val) =>
-                                  setState(() => _selectedCategory = val!),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildSelectField(
-                              label: "Type",
-                              currentValue: _selectedType,
-                              items: types,
-                              icon: Icons.repeat,
-                              onChanged: (val) =>
-                                  setState(() => _selectedType = val!),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      if (!_isLoadingBanks && _bankAccounts.isNotEmpty) ...[
-                        _buildSelectField(
-                          label: "Payment Method",
-                          currentValue: _selectedBankAccount ?? "",
-                          items: _bankAccounts,
-                          icon: Icons.account_balance,
-                          onChanged: (val) =>
-                              setState(() => _selectedBankAccount = val!),
+                        _buildSectionLabel("EXPENSE DETAILS"),
+                        const SizedBox(height: 8),
+                        _buildTextInput(
+                          "Expense Title",
+                          "e.g. Client Lunch / AWS Bill",
                         ),
                         const SizedBox(height: 24),
-                      ],
 
-                      _buildDateSelector(),
-                      const SizedBox(height: 24),
-                      _buildTextArea("Description / Notes"),
-                      const SizedBox(height: 32),
-                      _buildSectionLabel("LINK MEMBER (OPTIONAL)"),
-                      const SizedBox(height: 16),
-                      _buildTeamSelector(),
-                      const SizedBox(height: 32),
-                      _buildSectionLabel("ATTACHMENT"),
-                      const SizedBox(height: 16),
-                      _buildAttachmentZone(),
-                      const SizedBox(height: 40),
-                    ],
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildSelectField(
+                                label: "Category",
+                                currentValue: _selectedCategory,
+                                items: categories,
+                                icon: Icons.pie_chart_outline,
+                                onChanged: (val) {
+                                  FocusScope.of(context).unfocus();
+                                  setState(() => _selectedCategory = val!);
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildSelectField(
+                                label: "Type",
+                                currentValue: _selectedType,
+                                items: types,
+                                icon: Icons.repeat,
+                                onChanged: (val) {
+                                  FocusScope.of(context).unfocus();
+                                  setState(() => _selectedType = val!);
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        if (!_isLoadingBanks && _bankAccounts.isNotEmpty) ...[
+                          _buildSelectField(
+                            label: "Payment Method",
+                            currentValue: _selectedBankAccount ?? "",
+                            items: _bankAccounts,
+                            icon: Icons.account_balance,
+                            onChanged: (val) {
+                              FocusScope.of(context).unfocus();
+                              setState(() => _selectedBankAccount = val!);
+                            },
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+
+                        _buildDateSelector(),
+                        const SizedBox(height: 24),
+                        _buildTextArea("Description / Notes"),
+                        const SizedBox(height: 32),
+                        _buildSectionLabel("LINK MEMBER (OPTIONAL)"),
+                        const SizedBox(height: 16),
+                        _buildTeamSelector(),
+                        const SizedBox(height: 32),
+                        _buildSectionLabel("ATTACHMENT"),
+                        const SizedBox(height: 16),
+                        _buildAttachmentZone(),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -475,9 +522,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: Colors.white.withValues(
+                  alpha: 0.05,
+                ), // White Glass Style
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: const Icon(Icons.close, color: Colors.white, size: 20),
             ),
@@ -496,6 +545,18 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  Widget _buildSectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: Colors.white54,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
   Widget _buildAmountInput() {
     return SizedBox(
       width: double.infinity,
@@ -503,6 +564,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         controller: _amountController,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         textAlign: TextAlign.center,
+        onTapOutside: (event) => FocusScope.of(context).unfocus(),
+        textInputAction: TextInputAction.next,
         style: GoogleFonts.inter(
           color: Colors.white,
           fontSize: 56,
@@ -521,7 +584,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           contentPadding: EdgeInsets.zero,
           prefixText: _isLoadingCountry
               ? '₹'
-              : CurrencyFormatter.getCurrencySymbol(_userCountryCode),
+              : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
           prefixStyle: GoogleFonts.inter(
             color: Colors.white38,
             fontSize: 32,
@@ -533,30 +596,28 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   Widget _buildTextInput(String label, String placeholder) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionLabel(label),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-          ),
-          child: TextField(
-            controller: _titleController,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-            decoration: InputDecoration(
-              hintText: placeholder,
-              hintStyle: GoogleFonts.inter(color: Colors.white24),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
+      child: TextField(
+        controller: _titleController,
+        onTapOutside: (event) => FocusScope.of(context).unfocus(),
+        textInputAction: TextInputAction.next,
+        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
+          hintText: placeholder,
+          hintStyle: GoogleFonts.inter(color: Colors.white24),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          floatingLabelBehavior: FloatingLabelBehavior.auto,
         ),
-      ],
+      ),
     );
   }
 
@@ -592,6 +653,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             onChanged: onChanged,
           ),
@@ -604,6 +667,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _buildSectionLabel("DATE"),
+        const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
@@ -615,7 +680,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             readOnly: true,
             controller: _dateController,
             style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-            onTap: _showShadCalendar,
+            onTap: () {
+              FocusScope.of(context).unfocus();
+              _showShadCalendar();
+            },
             decoration: InputDecoration(
               icon: const Icon(
                 Icons.calendar_today,
@@ -623,15 +691,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 size: 20,
               ),
               hintText: "Select date",
-              labelText: "Date",
-              labelStyle: GoogleFonts.inter(
-                color: Colors.white38,
-                fontSize: 13,
-              ),
               hintStyle: GoogleFonts.inter(color: Colors.white12),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
-              floatingLabelBehavior: FloatingLabelBehavior.auto,
               suffixIcon: const Icon(
                 Icons.calendar_month,
                 color: Colors.white38,
@@ -653,66 +715,73 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
           child: Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+            ),
+            child: SingleChildScrollView(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      "Select Date",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Select Date",
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close, color: Colors.white38),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white38),
+                    const SizedBox(height: 20),
+                    ShadCalendar(
+                      selected: _selectedDate,
+                      fromMonth: DateTime(_selectedDate.year - 1),
+                      toMonth: DateTime(_selectedDate.year + 1, 12),
+                      onChanged: (DateTime? date) {
+                        if (date != null) {
+                          setState(() {
+                            _selectedDate = date;
+                            _dateController.text =
+                                "${date.day}/${date.month}/${date.year}";
+                          });
+                          Navigator.pop(context);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          "Done",
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
-                ShadCalendar(
-                  selected: _selectedDate,
-                  fromMonth: DateTime(_selectedDate.year - 1),
-                  toMonth: DateTime(_selectedDate.year + 1, 12),
-                  onChanged: (DateTime? date) {
-                    if (date != null) {
-                      setState(() {
-                        _selectedDate = date;
-                        _dateController.text =
-                            "${date.day}/${date.month}/${date.year}";
-                      });
-                      Navigator.pop(context);
-                    }
-                  },
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: Text(
-                      "Done",
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         );
@@ -735,6 +804,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           ),
           child: TextField(
             controller: _descriptionController,
+            onTapOutside: (event) => FocusScope.of(context).unfocus(),
+            textInputAction: TextInputAction.done,
             style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
             maxLines: 4,
             minLines: 3,
@@ -826,18 +897,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         curve: Curves.easeInOut,
       );
     }
-  }
-
-  Widget _buildSectionLabel(String text) {
-    return Text(
-      text.toUpperCase(),
-      style: GoogleFonts.inter(
-        color: Colors.white24,
-        fontSize: 10,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.5,
-      ),
-    );
   }
 
   Widget _buildSaveButton() {

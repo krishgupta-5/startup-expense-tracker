@@ -36,13 +36,13 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
   String _userCountryCode = '+1'; // Default to USD
   bool _isLoadingCountry = true;
 
-  // NEW: Holds image path before processing so user can crop/retake
+  // Holds image path before processing so user can crop/retake
   String? _capturedImagePath;
 
   // Flash state
   bool _flashOn = false;
 
-  // ✅ FIX: Loading locks and cost control
+  // Loading locks and cost control
   bool _isProcessing = false;
   static const int _maxImageSizeMB =
       1; // Reduced to 1MB for better API performance
@@ -116,36 +116,83 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
   void _showPermissionDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF141416),
-        title: Text(
-          'Camera Permission Required',
-          style: GoogleFonts.inter(color: Colors.white),
-        ),
-        content: Text(
-          'Please grant camera permission to scan receipts.',
-          style: GoogleFonts.inter(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.inter(color: const Color(0xFF0A84FF)),
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF141416),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.camera_alt_outlined,
+                  color: Colors.white,
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  "Camera Permission Required",
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  "Please grant camera permission to scan receipts.",
+                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
+                          ),
+                        ),
+                        child: const Text("Cancel"),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _initializeCamera();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.black,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text("Retry"),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _initializeCamera();
-            },
-            child: Text(
-              'Retry',
-              style: GoogleFonts.inter(color: const Color(0xFF0A84FF)),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -171,7 +218,6 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     }
   }
 
-  // UPDATED: Now sets _capturedImagePath instead of processing immediately
   Future<void> _capturePhoto() async {
     if (_cameraController != null && _cameraController!.value.isInitialized) {
       try {
@@ -185,7 +231,6 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     }
   }
 
-  // UPDATED: Now sets _capturedImagePath instead of processing immediately
   Future<void> _pickImageFromGallery() async {
     try {
       final XFile? image = await _imagePicker.pickImage(
@@ -204,11 +249,10 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     }
   }
 
-  // NEW: Crop Image Logic with compression
+  // Crop Image Logic with compression
   Future<void> _cropImage() async {
     if (_capturedImagePath == null) return;
     try {
-      // ✅ FIX: Check image size before processing
       final imageFile = File(_capturedImagePath!);
       final imageSizeBytes = await imageFile.length();
       final imageSizeMB = imageSizeBytes / (1024 * 1024);
@@ -251,7 +295,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     }
   }
 
-  // NEW: Retake photo (cancel preview)
+  // Retake photo (cancel preview)
   void _cancelCapture() {
     setState(() {
       _capturedImagePath = null;
@@ -263,7 +307,6 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
   // ─── CORE: IMAGE → BASE64 → GEMINI VISION ──────────────────────────────────
 
   Future<void> _processScannedImage(String imagePath) async {
-    // ✅ FIX: Add processing guard to prevent spam
     if (_isProcessing) return;
 
     setState(() {
@@ -315,7 +358,6 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     String mediaType,
   ) async {
     try {
-      // ✅ FIX: Use ApiService with built-in retry and fallback
       final result = await ApiService.extractReceiptData(
         base64Image: base64Image,
         mediaType: mediaType,
@@ -348,7 +390,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     }
     if (data['amount']?.isNotEmpty == true) {
       lines.add(
-        '  ${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${data['amount']}',
+        '💵  ${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${data['amount']}',
       );
     }
     if (data['date']?.isNotEmpty == true) {
@@ -360,7 +402,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     if (data['description']?.isNotEmpty == true) {
       lines.add('📝  ${data['description']}');
     }
-    return lines.join('\n');
+    return lines.join('\n\n');
   }
 
   String _capitalize(String s) =>
@@ -478,9 +520,9 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(
-                  0xFF141416,
-                ).withValues(alpha: 0.8), // added slight transparency
+                color: Colors.white.withValues(
+                  alpha: 0.05,
+                ), // White Glass Style
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
@@ -494,8 +536,9 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.black54,
+              color: Colors.white.withValues(alpha: 0.05), // White Glass Style
               borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
             ),
             child: Text(
               _capturedImagePath != null ? "Review Image" : "Scan Expense",
@@ -512,14 +555,14 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: _flashOn
-                    ? const Color(0xFF0A84FF)
-                    : const Color(0xFF141416).withValues(alpha: 0.8),
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
               child: Icon(
                 _flashOn ? Icons.flash_on : Icons.flash_off,
-                color: Colors.white,
+                color: _flashOn ? Colors.black : Colors.white,
                 size: 20,
               ),
             ),
@@ -574,17 +617,17 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
               width: 80,
               height: 80,
               decoration: BoxDecoration(
-                color: const Color(0xFF0A84FF),
+                color: Colors.white, // Standard white button
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: Colors.white.withValues(alpha: 0.3),
-                  width: 4,
+                  width: 6,
                 ),
               ),
               child: const Icon(
                 Icons.camera_alt,
-                color: Colors.white,
-                size: 36,
+                color: Colors.black,
+                size: 32,
               ),
             ),
           ),
@@ -594,7 +637,6 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     );
   }
 
-  // ✅ FIX: Helper method for error dialogs
   void _showErrorDialog(String title, String message) {
     showDialog(
       context: context,
@@ -603,13 +645,18 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
           backgroundColor: const Color(0xFF141416),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
           ),
           child: Container(
             padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.error_outline, color: Colors.red, size: 48),
+                Icon(
+                  Icons.error_outline,
+                  color: const Color(0xFFFF453A),
+                  size: 48,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   title,
@@ -626,14 +673,27 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                   style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      "OK",
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
-                  child: const Text("OK"),
                 ),
               ],
             ),
@@ -659,16 +719,22 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
             child: GestureDetector(
               onTap: _cancelCapture,
               child: Container(
-                height: 50,
+                height: 52,
                 decoration: BoxDecoration(
                   color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white24),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
                 ),
                 child: Center(
                   child: Text(
                     "Retake",
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
               ),
@@ -679,13 +745,14 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
           GestureDetector(
             onTap: _cropImage,
             child: Container(
-              height: 50,
-              width: 50,
+              height: 52,
+              width: 52,
               decoration: BoxDecoration(
-                color: Colors.white12,
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
-              child: const Icon(Icons.crop, color: Colors.white),
+              child: const Icon(Icons.crop, color: Colors.white, size: 20),
             ),
           ),
           const SizedBox(width: 12),
@@ -698,18 +765,18 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 }
               },
               child: Container(
-                height: 50,
+                height: 52,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0A84FF),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white, // Standard white action button
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: Center(
                   child: Text(
                     "Use Photo",
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: Colors.black,
                       fontSize: 15,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
@@ -728,9 +795,9 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
         width: 56,
         height: 56,
         decoration: BoxDecoration(
-          color: const Color(0xFF141416).withValues(alpha: 0.8),
+          color: Colors.white.withValues(alpha: 0.05), // Glassy round btn
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
         ),
         child: Icon(icon, color: Colors.white, size: 24),
       ),
@@ -749,7 +816,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 width: 80,
                 height: 80,
                 child: CircularProgressIndicator(
-                  color: const Color(0xFF0A84FF).withValues(alpha: 0.2),
+                  color: Colors.white.withValues(alpha: 0.2), // Muted track
                   strokeWidth: 4,
                 ),
               ),
@@ -757,7 +824,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 width: 40,
                 height: 40,
                 child: CircularProgressIndicator(
-                  color: Color(0xFF0A84FF),
+                  color: Colors.white, // White spinner
                   strokeWidth: 4,
                 ),
               ),
@@ -769,7 +836,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
             decoration: BoxDecoration(
               color: const Color(0xFF141416),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: Text(
               _scanStatus,
@@ -785,6 +852,19 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     );
   }
 
+  // --- SECTION LABEL HELPER ---
+  Widget _buildSectionLabel(String text) {
+    return Text(
+      text.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: Colors.white54,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
   // Final Extracted Result View
   Widget _buildResultBottomPanel() {
     final bool hasData =
@@ -792,10 +872,10 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
         _parsedData['amount']?.isNotEmpty == true;
 
     return Container(
-      constraints: const BoxConstraints(maxHeight: 350),
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+      constraints: const BoxConstraints(maxHeight: 400),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: const Color(0xFF141416), // Match settings container color
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         border: Border(
           top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
@@ -807,15 +887,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
         children: [
           Row(
             children: [
-              Text(
-                "EXTRACTED DATA",
-                style: GoogleFonts.inter(
-                  color: Colors.white38,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
-                ),
-              ),
+              _buildSectionLabel("EXTRACTED DATA"),
               const Spacer(),
               if (hasData)
                 Container(
@@ -838,29 +910,32 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Flexible(
             child: SingleChildScrollView(
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20), // Tighter padding
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0A0A0C),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white12),
+                  color: const Color(0xFF09090B), // Deep background for text
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.04),
+                  ),
                 ),
                 child: Text(
                   _scannedResult,
                   style: GoogleFonts.inter(
                     color: Colors.white,
-                    fontSize: 15,
+                    fontSize: 14, // Slightly smaller for better fit
                     height: 1.6,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Row(
             children: [
               Expanded(
@@ -888,16 +963,16 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                   child: Container(
                     height: 52,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0A84FF),
+                      color: Colors.white, // Standard Save/Proceed Button
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Center(
                       child: Text(
                         "Proceed",
                         style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
@@ -921,7 +996,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                         "Discard",
                         style: GoogleFonts.inter(
                           color: Colors.white70,
-                          fontSize: 16,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
