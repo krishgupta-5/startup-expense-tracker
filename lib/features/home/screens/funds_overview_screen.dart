@@ -251,159 +251,34 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
 
   Future<void> _fetchBankAccounts() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      debugPrint('🔍 DEBUG Funds Overview: Starting _fetchBankAccounts()');
+      // Use BankAccountService for consistent bank account processing
+      final accountsWithSpending =
+          await BankAccountService.getBankAccountsWithSpending(allExpenses);
 
-      final docSnapshot = await FirebaseFirestore.instance
-          .collection("companies")
-          .doc(user.uid)
-          .get();
-
-      if (docSnapshot.exists && docSnapshot.data() != null) {
-        final data = docSnapshot.data()!;
-        final bankAccountsData = data["Bank Accounts"] as List<dynamic>? ?? [];
-
-        // Calculate total transactions for each bank account (expenses + salary + advance salary)
-        debugPrint('🔍 DEBUG: Processing ${allExpenses.length} transactions');
-        final Map<String, double> transactionTotals = {};
-
-        // Sum all transactions by their bankAccount field
-        for (var transaction in allExpenses) {
-          final amount = (transaction['amount'] as num).toDouble();
-          final transactionBankAccount = transaction['bankAccount'] as String?;
-
-          if (transactionBankAccount != null &&
-              transactionBankAccount != 'N/A') {
-            String matchedAccountKey = '';
-
-            // Try to find an exact match first
-            for (var account in bankAccountsData) {
-              final bankName =
-                  account["name"] ?? account["bankName"] ?? 'Unknown Bank';
-              final rawLast4 =
-                  account["last4"]?.toString() ??
-                  account["number"]?.toString() ??
-                  '';
-              final last4 = rawLast4.isNotEmpty
-                  ? BankAccountService.extractLast4(rawLast4)
-                  : '';
-              final accountKey = "$bankName-$last4";
-
-              if (transactionBankAccount == accountKey) {
-                matchedAccountKey = accountKey;
-                break;
-              }
-            }
-
-            // If no exact match, try partial matching or special cases
-            if (matchedAccountKey.isEmpty) {
-              if (transactionBankAccount.toLowerCase() == 'cash') {
-                matchedAccountKey = 'Cash-'; // Special key for cash
-              } else {
-                // Try to match by bank name or last 4 digits
-                for (var account in bankAccountsData) {
-                  final bankName =
-                      account["name"] ?? account["bankName"] ?? 'Unknown Bank';
-                  final rawLast4 =
-                      account["last4"]?.toString() ??
-                      account["number"]?.toString() ??
-                      '';
-                  final last4 = rawLast4.isNotEmpty
-                      ? BankAccountService.extractLast4(rawLast4)
-                      : '';
-
-                  // Check if transaction contains bank name or last 4 digits
-                  if (transactionBankAccount.toLowerCase().contains(
-                        bankName.toLowerCase(),
-                      ) ||
-                      (last4.isNotEmpty &&
-                          transactionBankAccount.contains(last4))) {
-                    matchedAccountKey = "$bankName-$last4";
-                    break;
-                  }
-                }
-              }
-            }
-
-            if (matchedAccountKey.isNotEmpty) {
-              transactionTotals[matchedAccountKey] =
-                  (transactionTotals[matchedAccountKey] ?? 0.0) + amount;
-            } else {
-              // If still no match, use the transactionBankAccount as key
-              transactionTotals[transactionBankAccount] =
-                  (transactionTotals[transactionBankAccount] ?? 0.0) + amount;
-            }
-          }
-        }
-
-        // Create bank accounts list from both original accounts and transaction accounts
-        final List<Map<String, dynamic>> allBankAccounts = [];
-
-        // Add original bank accounts with their totals
-        for (var account in bankAccountsData) {
-          final bankName =
-              account["name"] ?? account["bankName"] ?? 'Unknown Bank';
-          final rawLast4 =
-              account["last4"]?.toString() ??
-              account["number"]?.toString() ??
-              '';
-          final last4 = rawLast4.isNotEmpty
-              ? BankAccountService.extractLast4(rawLast4)
-              : '';
-          final accountKey = "$bankName-$last4";
-          final totalSpent = transactionTotals[accountKey] ?? 0.0;
-
-          allBankAccounts.add({
-            'name': bankName,
-            'number': last4,
-            'maskedNumber': last4.isNotEmpty ? '****$last4' : '****',
-            'totalSpent': totalSpent,
-          });
-        }
-
-        // Add any additional accounts from transactions that weren't in original list
-        for (var entry in transactionTotals.entries) {
-          final accountKey = entry.key;
-          final totalSpent = entry.value;
-
-          // Skip if this account is already in the list
-          bool alreadyExists = allBankAccounts.any(
-            (account) =>
-                "${account['name']}-${account['number']}" == accountKey,
-          );
-
-          if (!alreadyExists) {
-            // Try to extract bank name and number from the account key
-            String bankName = 'Unknown Bank';
-            String last4 = '';
-
-            if (accountKey.contains('-')) {
-              final parts = accountKey.split('-');
-              if (parts.length >= 2) {
-                bankName = parts[0];
-                last4 = parts.length > 1
-                    ? BankAccountService.extractLast4(parts[1])
-                    : '';
-              }
-            } else {
-              bankName = accountKey;
-              last4 = '';
-            }
-
-            allBankAccounts.add({
-              'name': bankName,
-              'number': last4,
-              'maskedNumber': last4.isNotEmpty ? '****$last4' : '****',
-              'totalSpent': totalSpent,
-            });
-          }
-        }
-
-        bankAccounts = allBankAccounts;
+      debugPrint(
+        '🔍 DEBUG Funds Overview: BankAccountService returned ${accountsWithSpending.length} accounts',
+      );
+      for (var account in accountsWithSpending) {
+        debugPrint('🔍 DEBUG Funds Overview: Account - ${account}');
       }
-    } catch (e) {
+
+      if (mounted) {
+        setState(() {
+          bankAccounts = accountsWithSpending;
+        });
+      }
+    } catch (e, stackTrace) {
+      debugPrint(
+        '🔍 DEBUG Funds Overview: Exception in _fetchBankAccounts(): $e',
+      );
+      debugPrint('🔍 DEBUG Funds Overview: Stack trace: $stackTrace');
       log("Error fetching bank accounts: $e");
-      bankAccounts = [];
+      if (mounted) {
+        setState(() {
+          bankAccounts = [];
+        });
+      }
     }
   }
 

@@ -780,20 +780,16 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Handle multiple possible field names for bank name
                           Text(
-                            'DEBUG: ${account.toString()}',
-                            style: GoogleFonts.inter(
-                              color: Colors.yellow,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            account['name']?.toString() ??
-                                account['bankName']?.toString() ??
-                                account['bank_name']?.toString() ??
-                                'Unknown Bank',
+                            (() {
+                              final bankName =
+                                  account['name']?.toString() ??
+                                  account['bankName']?.toString() ??
+                                  account['bank_name']?.toString() ??
+                                  'Unknown Bank';
+                              return bankName;
+                            })(),
                             style: GoogleFonts.inter(
                               color: Colors.white,
                               fontSize: 14,
@@ -802,7 +798,15 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            account['maskedNumber'] ?? '****',
+                            (() {
+                              final maskedNumber =
+                                  account['maskedNumber']?.toString() ??
+                                  (account['last4']?.toString().isNotEmpty ==
+                                          true
+                                      ? '****${account['last4']}'
+                                      : '****');
+                              return maskedNumber;
+                            })(),
                             style: GoogleFonts.inter(
                               color: Colors.white70,
                               fontSize: 13,
