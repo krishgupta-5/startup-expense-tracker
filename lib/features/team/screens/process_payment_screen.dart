@@ -8,7 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../services/bank_account_service.dart';
 import '../../../services/currency_formatter.dart';
-import '../../../services/user_country_service.dart';
+import '../../../services/currency_preference_service.dart';
 
 class ProcessPaymentScreen extends StatefulWidget {
   final String memberId;
@@ -30,7 +30,8 @@ class ProcessPaymentScreen extends StatefulWidget {
   State<ProcessPaymentScreen> createState() => _ProcessPaymentScreenState();
 }
 
-class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
+class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
+    with SingleTickerProviderStateMixin {
   late final TextEditingController _amountController;
   late final TextEditingController _reasonController;
 
@@ -44,31 +45,38 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen> {
   @override
   void initState() {
     super.initState();
-    _userCountryCode = UserCountryService.getUserCountryCodeSync();
+
+    // Get currency preference synchronously for instant display
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    // Listen for currency changes
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
+
     _amountController = TextEditingController(
       text: widget.defaultAmount.toStringAsFixed(2),
     );
     _reasonController = TextEditingController();
 
-    // Load country and banks silently in background
-    _loadUserCountryCode();
+    // Load bank accounts silently in background
     _fetchBankAccounts();
-  }
-
-  Future<void> _loadUserCountryCode() async {
-    final countryCode = await UserCountryService.getUserCountryCode();
-    if (mounted && countryCode != _userCountryCode) {
-      setState(() {
-        _userCountryCode = countryCode;
-      });
-    }
   }
 
   @override
   void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
     _amountController.dispose();
     _reasonController.dispose();
     super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
   }
 
   Future<void> _fetchBankAccounts() async {

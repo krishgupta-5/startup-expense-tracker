@@ -10,7 +10,6 @@ import 'package:printing/printing.dart';
 import 'transaction_details_screen.dart'; // Make sure to import the new screen
 import '../../../../services/currency_formatter.dart';
 import '../../../../services/currency_preference_service.dart';
-import '../../../../services/user_country_service.dart';
 import '../../../../services/bank_account_service.dart';
 
 class PaymentHistoryScreen extends StatefulWidget {
@@ -66,23 +65,31 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   Future<void> _downloadPaymentHistory() async {
     setState(() => _isDownloading = true);
 
-    // Simple currency mapping for PDF compatibility
+    // Use currency service for PDF formatting with fallback for unsupported symbols
     String getPdfCurrencySymbol(double amount) {
-      final userCountryCode = UserCountryService.getUserCountryCodeSync();
-      switch (userCountryCode) {
-        case '+1': // USD
-        case '+61': // AUD
-          return '\$${amount.toStringAsFixed(2)}';
-        case '+44': // GBP
-          return '£${amount.toStringAsFixed(2)}';
-        case '+33': // EUR
-          return '€${amount.toStringAsFixed(2)}';
-        case '+91': // INR
+      final userCurrencyCode =
+          CurrencyPreferenceService.getCurrencyPreferenceSync();
+      final formattedAmount = CurrencyFormatter.formatByCountry(
+        amount,
+        userCurrencyCode,
+      );
+
+      // Handle currency symbols that might not render properly in PDF
+      switch (userCurrencyCode) {
+        case '+91': // INR - ₹ might not render in PDF
           return 'Rs.${amount.toStringAsFixed(2)}';
-        case '+81': // JPY
-          return '¥${amount.toStringAsFixed(2)}';
+        case '+971': // AED - د.إ might not render in PDF
+          return 'AED ${amount.toStringAsFixed(2)}';
+        case '+49': // EUR - € might not render in PDF
+        case '+33': // EUR - € might not render in PDF
+          return 'EUR ${amount.toStringAsFixed(2)}';
+        case '+81': // JPY - ¥ might not render in PDF
+          return 'JPY ${amount.toStringAsFixed(0)}';
+        case '+65': // SGD - S$ might not render in PDF
+          return 'SGD ${amount.toStringAsFixed(2)}';
         default:
-          return '\$${amount.toStringAsFixed(2)}';
+          // For USD, GBP, AUD - symbols usually work fine in PDF
+          return formattedAmount;
       }
     }
 
@@ -495,6 +502,11 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
               fontSize: 32,
               fontWeight: FontWeight.w600,
               letterSpacing: -1,
+              fontFeatures: [
+                // Enable font features for better symbol support
+                const FontFeature.enable('liga'),
+                const FontFeature.enable('clig'),
+              ],
             ),
           ),
           const SizedBox(height: 12),
@@ -621,6 +633,11 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                               color: Colors.white,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
+                              fontFeatures: [
+                                // Enable font features for better symbol support
+                                const FontFeature.enable('liga'),
+                                const FontFeature.enable('clig'),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -697,7 +714,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         }
       }
 
-      return bankAccountId;
+      // Ensure PDF-safe text by removing any problematic characters
+      return bankAccountId.replaceAll(RegExp(r'[^\w\s\-\.\*]'), '');
     }
 
     // Check if it's a cash payment

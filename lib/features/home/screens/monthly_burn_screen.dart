@@ -56,16 +56,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
     }
   }
 
-  Future<void> _loadUserCountryCode() async {
-    final currencyCode =
-        await CurrencyPreferenceService.getCurrencyPreference();
-    if (mounted && currencyCode != _userCountryCode) {
-      setState(() {
-        _userCountryCode = currencyCode;
-      });
-    }
-  }
-
   double _toDouble(dynamic value, {double fallback = 0.0}) {
     if (value == null) return fallback;
     if (value is double) return value;
@@ -807,7 +797,12 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                                   fit: BoxFit.scaleDown,
                                   alignment: Alignment.centerLeft,
                                   child: Text(
-                                    team['cost'] as String,
+                                    _isLoadingCountry
+                                        ? "₹${_toDouble(team['cost']).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+                                        : CurrencyFormatter.formatByCountry(
+                                            _toDouble(team['cost']),
+                                            _userCountryCode,
+                                          ),
                                     style: GoogleFonts.inter(
                                       color: Colors.white,
                                       fontSize: 14,

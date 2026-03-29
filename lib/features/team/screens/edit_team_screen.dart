@@ -6,7 +6,7 @@ import '../../../shared/widgets/error_popup.dart';
 import '../../../utils/data_helpers.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/currency_formatter.dart';
-import '../../../services/user_country_service.dart';
+import '../../../services/currency_preference_service.dart';
 
 class EditTeamScreen extends StatefulWidget {
   final String teamId;
@@ -22,7 +22,8 @@ class EditTeamScreen extends StatefulWidget {
   State<EditTeamScreen> createState() => _EditTeamScreenState();
 }
 
-class _EditTeamScreenState extends State<EditTeamScreen> {
+class _EditTeamScreenState extends State<EditTeamScreen>
+    with SingleTickerProviderStateMixin {
   // 1. CONTROLLERS & STATE
   late TextEditingController _nameController;
   late TextEditingController _budgetController;
@@ -47,17 +48,20 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
   void initState() {
     super.initState();
 
-    // Load country code for currency formatting
-    _userCountryCode = UserCountryService.getUserCountryCodeSync();
-    _loadUserCountryCode();
+    // Get currency preference synchronously for instant display
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    // Listen for currency changes
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
 
     // Pre-fill controllers with data from Firebase
     _nameController = TextEditingController(
       text: widget.teamData['teamName'] ?? "",
     );
-    _budgetController = TextEditingController(
-      text: widget.teamData['monthlyBudget']?.toString() ?? "0.00",
-    );
+
+    // Initialize budget controller with proper formatting
+    final budget = widget.teamData['monthlyBudget']?.toDouble() ?? 0.0;
+    _budgetController = TextEditingController(text: budget.toStringAsFixed(2));
+
     _descController = TextEditingController(
       text: widget.teamData['description'] ?? "",
     );
@@ -65,21 +69,24 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
     _selectedColor = widget.teamData['color'] ?? "Blue";
   }
 
-  Future<void> _loadUserCountryCode() async {
-    final countryCode = await UserCountryService.getUserCountryCode();
-    if (mounted && countryCode != _userCountryCode) {
-      setState(() {
-        _userCountryCode = countryCode;
-      });
-    }
-  }
-
   @override
   void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
     _nameController.dispose();
     _budgetController.dispose();
     _descController.dispose();
     super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
   }
 
   // --- FIREBASE LOGIC ---
@@ -560,6 +567,9 @@ class _EditTeamScreenState extends State<EditTeamScreen> {
             minHeight: 0,
           ),
         ),
+        onChanged: (value) {
+          // Optional: Add real-time formatting or validation here
+        },
       ),
     );
   }

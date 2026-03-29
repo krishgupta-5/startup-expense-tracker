@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'currency_formatter.dart';
 import 'user_country_service.dart';
 
 class FinancialDataService {
@@ -314,11 +313,6 @@ class FinancialDataService {
     return months[month - 1];
   }
 
-  // Helper method to format currency with specific country code
-  static String _formatCurrencyWithCountry(double amount, String countryCode) {
-    return CurrencyFormatter.formatByCountry(amount, countryCode);
-  }
-
   static Future<Map<String, dynamic>> getUnifiedTeamCostData() async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('User not authenticated');
@@ -360,9 +354,6 @@ class FinancialDataService {
       final actualSpending = futures[0] as Map<String, double>;
       final teamsData = futures[1] as List<Map<String, dynamic>>;
 
-      // Get user's currency for formatting
-      final countryCode = await UserCountryService.getUserCountryCode();
-
       Map<String, double> teamCosts = {};
       double totalCost = 0;
 
@@ -379,7 +370,7 @@ class FinancialDataService {
       for (var entry in teamCosts.entries) {
         teamCostList.add({
           'name': entry.key,
-          'cost': _formatCurrencyWithCountry(entry.value, countryCode),
+          'cost': entry.value, // Return raw numeric value
           'pct': totalCost > 0 ? (entry.value / totalCost) : 0.0,
         });
       }
@@ -478,7 +469,7 @@ class FinancialDataService {
       for (var entry in departmentCosts.entries) {
         teamCostList.add({
           'name': entry.key,
-          'cost': _formatCurrencyWithCountry(entry.value, countryCode),
+          'cost': entry.value, // Return raw numeric value
           'pct': totalCost > 0 ? (entry.value / totalCost) : 0.0,
         });
       }

@@ -11,7 +11,7 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:io';
 import '../../../services/currency_formatter.dart';
-import '../../../services/user_country_service.dart';
+import '../../../services/currency_preference_service.dart';
 
 class AddMemberScreen extends StatefulWidget {
   final String teamId;
@@ -22,7 +22,8 @@ class AddMemberScreen extends StatefulWidget {
   State<AddMemberScreen> createState() => _AddMemberScreenState();
 }
 
-class _AddMemberScreenState extends State<AddMemberScreen> {
+class _AddMemberScreenState extends State<AddMemberScreen>
+    with SingleTickerProviderStateMixin {
   // 1. CONTROLLERS & STATE
   late final TextEditingController _nameController;
   late final TextEditingController _emailController;
@@ -53,10 +54,12 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
   @override
   void initState() {
     super.initState();
-    // Get country code synchronously for instant display
-    _userCountryCode = UserCountryService.getUserCountryCodeSync();
-    // Load in background for more accurate result
-    _loadUserCountryCode();
+
+    // Get currency preference synchronously for instant display
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    // Listen for currency changes
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
+
     _nameController = TextEditingController();
     _emailController = TextEditingController();
     _jobTitleController = TextEditingController();
@@ -65,22 +68,25 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
     _selectedTeamId = widget.teamId;
   }
 
-  Future<void> _loadUserCountryCode() async {
-    final countryCode = await UserCountryService.getUserCountryCode();
-    if (mounted && countryCode != _userCountryCode) {
-      setState(() {
-        _userCountryCode = countryCode;
-      });
-    }
-  }
-
   @override
   void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
     _nameController.dispose();
     _emailController.dispose();
     _jobTitleController.dispose();
     _costController.dispose();
     super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
   }
 
   // --- FIREBASE LOGIC ---

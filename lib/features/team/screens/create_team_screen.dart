@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 import '../../../services/currency_formatter.dart';
-import '../../../services/user_country_service.dart';
+import '../../../services/currency_preference_service.dart';
 
 class CreateTeamScreen extends StatefulWidget {
   const CreateTeamScreen({super.key});
@@ -14,7 +14,8 @@ class CreateTeamScreen extends StatefulWidget {
   State<CreateTeamScreen> createState() => _CreateTeamScreenState();
 }
 
-class _CreateTeamScreenState extends State<CreateTeamScreen> {
+class _CreateTeamScreenState extends State<CreateTeamScreen>
+    with SingleTickerProviderStateMixin {
   // 1. CONTROLLERS & STATE
   late final TextEditingController _nameController;
   late final TextEditingController _descController;
@@ -24,6 +25,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
 
   String _selectedColor = "Blue";
   IconData _selectedIcon = Icons.code;
+  String _userCountryCode = '+1'; // Default
 
   // 2. DATA OPTIONS
   final List<Map<String, dynamic>> _colors = [
@@ -46,6 +48,12 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
   @override
   void initState() {
     super.initState();
+
+    // Get currency preference synchronously for instant display
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    // Listen for currency changes
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
+
     _nameController = TextEditingController();
     _descController = TextEditingController();
     _budgetController = TextEditingController();
@@ -53,10 +61,22 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
 
   @override
   void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
     _nameController.dispose();
     _descController.dispose();
     _budgetController.dispose();
     super.dispose();
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
   }
 
   // 3. FIREBASE UPLOAD LOGIC
@@ -370,7 +390,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen> {
                           padding: const EdgeInsets.only(right: 8),
                           child: Text(
                             CurrencyFormatter.getCurrencySymbol(
-                              UserCountryService.getUserCountryCodeSync(),
+                              _userCountryCode,
                             ),
                             style: GoogleFonts.inter(
                               color: Colors.white38,

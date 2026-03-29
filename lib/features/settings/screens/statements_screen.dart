@@ -7,6 +7,10 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+// Ensure these paths match your project structure
+import '../../../../services/currency_formatter.dart';
+import '../../../../services/currency_preference_service.dart';
+
 class ExpensesExportScreen extends StatefulWidget {
   const ExpensesExportScreen({super.key});
 
@@ -80,6 +84,34 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
   Future<void> _downloadReport(String reportType) async {
     setState(() => _isDownloading = true);
 
+    // Use currency service for PDF formatting with fallback for unsupported symbols
+    String getPdfCurrencySymbol(double amount) {
+      final userCurrencyCode =
+          CurrencyPreferenceService.getCurrencyPreferenceSync();
+      final formattedAmount = CurrencyFormatter.formatByCountry(
+        amount,
+        userCurrencyCode,
+      );
+
+      // Handle currency symbols that might not render properly in PDF
+      switch (userCurrencyCode) {
+        case '+91': // INR - ₹ might not render in PDF
+          return 'Rs.${amount.toStringAsFixed(2)}';
+        case '+971': // AED - د.إ might not render in PDF
+          return 'AED ${amount.toStringAsFixed(2)}';
+        case '+49': // EUR - € might not render in PDF
+        case '+33': // EUR - € might not render in PDF
+          return 'EUR ${amount.toStringAsFixed(2)}';
+        case '+81': // JPY - ¥ might not render in PDF
+          return 'JPY ${amount.toStringAsFixed(0)}';
+        case '+65': // SGD - S$ might not render in PDF
+          return 'SGD ${amount.toStringAsFixed(2)}';
+        default:
+          // For USD, GBP, AUD - symbols usually work fine in PDF
+          return formattedAmount;
+      }
+    }
+
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception("User not logged in");
@@ -152,7 +184,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
               data['Category']?.toString().toUpperCase() ?? 'N/A',
               data['BankAccount']?.toString().split('-').first ??
                   'N/A', // Just the bank name
-              "\$${amount.toStringAsFixed(2)}",
+              getPdfCurrencySymbol(amount), // Replaced hardcoded '$'
             ];
           })
           .cast<List<String>>()
@@ -221,7 +253,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
               pw.Container(
                 alignment: pw.Alignment.centerRight,
                 child: pw.Text(
-                  "Total: \$${totalAmount.toStringAsFixed(2)}",
+                  "Total: ${getPdfCurrencySymbol(totalAmount)}", // Replaced hardcoded '$'
                   style: pw.TextStyle(
                     fontSize: 18,
                     fontWeight: pw.FontWeight.bold,
