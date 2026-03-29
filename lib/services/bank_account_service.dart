@@ -285,6 +285,8 @@ class BankAccountService {
           _maskAccountNumber(accountNumber.isNotEmpty ? accountNumber : '****'),
       'createdAt': data['createdAt'],
       'isActive': data['isActive'] ?? true,
+      'legacyKey':
+          '${bankName.toUpperCase()}-${last4}', // Add legacyKey for matching with expenses
     };
   }
 
@@ -294,8 +296,12 @@ class BankAccountService {
   ) {
     debugPrint('🔍 DEBUG: Processing company array bank account: $accountData');
 
-    // Company setup uses "bankName" field
-    String bankName = accountData['bankName'] ?? 'Unknown Bank';
+    // Company setup uses either "bankName" or "name" field
+    String bankName =
+        accountData['bankName'] ??
+        accountData['name'] ??
+        accountData['bank_name'] ??
+        'Unknown Bank';
 
     // Clean up the bank name
     if (bankName.toLowerCase() == 'unknown bank') {
@@ -312,21 +318,35 @@ class BankAccountService {
 
     final String rawLast4 = accountData['last4']?.toString() ?? '';
     final String last4 = rawLast4.isNotEmpty ? extractLast4(rawLast4) : '****';
-    final String accountNumber = ''; // Not stored in company setup format
+
+    // Handle account number - could be in 'number' field or extract from last4
+    String accountNumber = accountData['number']?.toString() ?? '';
+    if (accountNumber.isEmpty && rawLast4.isNotEmpty) {
+      accountNumber = rawLast4; // Use last4 as account number fallback
+    }
 
     debugPrint(
-      '🔍 DEBUG: Company array bank - Name: "$bankName", Last4: "$last4"',
+      '🔍 DEBUG: Company array bank - Name: "$bankName", Last4: "$last4", AccountNumber: "$accountNumber"',
     );
+
+    // For masking, always use the available number (full account number or last4)
+    final String numberToMask = accountNumber.isNotEmpty
+        ? accountNumber
+        : rawLast4;
 
     return {
       'id':
-          'company_array_${accountData['bankName']}_${accountData['last4']}', // More stable ID using bank name and last4
+          'company_array_${bankName}_${last4}', // More stable ID using bank name and last4
       'name': bankName,
       'number': accountNumber,
       'last4': last4,
-      'maskedNumber': _maskAccountNumber('****'),
+      'maskedNumber': _maskAccountNumber(
+        numberToMask.isNotEmpty ? numberToMask : '****',
+      ),
       'createdAt': DateTime.now(), // Use current time as fallback
       'isActive': true,
+      'legacyKey':
+          '${bankName.toUpperCase()}-${last4}', // Add legacyKey for matching with expenses
     };
   }
 
@@ -344,7 +364,7 @@ class BankAccountService {
 
     // Calculate actual spending for each bank account from expenses
     for (var expense in expenses) {
-      final amount = expense['amount'] as double;
+      final amount = (expense['amount'] as num).toDouble();
       final expenseBankAccount = expense['bankAccount'] as String?;
 
       if (expenseBankAccount != null) {
@@ -440,7 +460,8 @@ class BankAccountService {
 
   /// Mask account number for display - show only last 4 digits
   static String _maskAccountNumber(String accountNumber) {
-    if (accountNumber.length <= 4) return accountNumber;
+    if (accountNumber.length <= 4)
+      return '****$accountNumber'; // Always mask even short numbers
     final last4 = accountNumber.substring(accountNumber.length - 4);
     return '****$last4';
   }
