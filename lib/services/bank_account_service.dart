@@ -165,10 +165,6 @@ class BankAccountService {
 
       final accounts = bankAccountsData
           .map((accountData) {
-            debugPrint(
-              '🔍 DEBUG: Processing company array bank account: $accountData',
-            );
-
             // Handle the format from company setup
             if (accountData is Map<String, dynamic>) {
               return _processCompanyArrayBankAccount(accountData);
@@ -286,7 +282,7 @@ class BankAccountService {
       'createdAt': data['createdAt'],
       'isActive': data['isActive'] ?? true,
       'legacyKey':
-          '${bankName.toUpperCase()}-${last4}', // Add legacyKey for matching with expenses
+          '${bankName.toUpperCase()}-$last4', // Add legacyKey for matching with expenses
     };
   }
 
@@ -336,7 +332,7 @@ class BankAccountService {
 
     return {
       'id':
-          'company_array_${bankName}_${last4}', // More stable ID using bank name and last4
+          'company_array_${bankName}_$last4', // More stable ID using bank name and last4
       'name': bankName,
       'number': accountNumber,
       'last4': last4,
@@ -346,7 +342,7 @@ class BankAccountService {
       'createdAt': DateTime.now(), // Use current time as fallback
       'isActive': true,
       'legacyKey':
-          '${bankName.toUpperCase()}-${last4}', // Add legacyKey for matching with expenses
+          '${bankName.toUpperCase()}-$last4', // Add legacyKey for matching with expenses
     };
   }
 
@@ -366,6 +362,14 @@ class BankAccountService {
     for (var expense in expenses) {
       final amount = (expense['amount'] as num).toDouble();
       final expenseBankAccount = expense['bankAccount'] as String?;
+      final expenseTitle =
+          expense['title'] as String? ??
+          expense['Title'] as String? ??
+          'Unknown';
+
+      debugPrint(
+        '🔍 DEBUG: Processing expense - Title: "$expenseTitle", Amount: $amount, BankAccount: "$expenseBankAccount"',
+      );
 
       if (expenseBankAccount != null) {
         // Try stable ID match first (new format)
@@ -375,14 +379,29 @@ class BankAccountService {
               _findAccountByLegacyKey(bankAccounts, expenseBankAccount),
         );
 
+        debugPrint(
+          '🔍 DEBUG: Matched account for expense "$expenseTitle": ${matchedAccount['id']} (${matchedAccount['name']})',
+        );
+
         if (matchedAccount['id'] != null) {
           // 🔥 PRODUCTION FIX: Only count real outflows (positive amounts)
           // Exclude refunds, revenue, and credits from "total spent"
           if (amount > 0) {
             bankSpending[matchedAccount['id']] =
                 (bankSpending[matchedAccount['id']] ?? 0.0) + amount;
+            debugPrint(
+              '🔍 DEBUG: Added $amount to ${matchedAccount['name']} (total: ${bankSpending[matchedAccount['id']]})',
+            );
           }
+        } else {
+          debugPrint(
+            '🔍 DEBUG: No matching account found for expense "$expenseTitle" with bankAccount: "$expenseBankAccount"',
+          );
         }
+      } else {
+        debugPrint(
+          '🔍 DEBUG: Expense "$expenseTitle" has no bankAccount field',
+        );
       }
     }
 
@@ -443,11 +462,52 @@ class BankAccountService {
     String legacyKey,
   ) {
     try {
-      return accounts.firstWhere(
+      // First try exact legacyKey match
+      final exactMatch = accounts.firstWhere(
         (account) => account['legacyKey'] == legacyKey,
         orElse: () => {'id': null},
       );
+
+      if (exactMatch['id'] != null) {
+        return exactMatch;
+      }
+
+      // If no exact match, try to match by extracting bank name and last4 from legacyKey
+      // Handle formats like "ICICI Bank-4321" or "HDFC BANK-3037"
+      final parts = legacyKey.split('-');
+      if (parts.length >= 2) {
+        final bankName = parts.sublist(0, parts.length - 1).join('-').trim();
+        final last4 = parts.last.trim();
+
+        debugPrint(
+          '🔍 DEBUG: Trying to match by bankName: "$bankName", last4: "$last4"',
+        );
+
+        // Try to find account by matching bank name (case-insensitive) and last4
+        final fuzzyMatch = accounts.firstWhere((account) {
+          final accountName = account['name']?.toString().toLowerCase() ?? '';
+          final accountLast4 = account['last4']?.toString() ?? '';
+          final searchName = bankName.toLowerCase();
+
+          debugPrint(
+            '🔍 DEBUG: Comparing "$accountName" with "$searchName" and "$accountLast4" with "$last4"',
+          );
+
+          return accountName.contains(searchName) ||
+              searchName.contains(accountName);
+        }, orElse: () => {'id': null});
+
+        if (fuzzyMatch['id'] != null) {
+          debugPrint(
+            '🔍 DEBUG: Found fuzzy match: ${fuzzyMatch['name']} with last4: ${fuzzyMatch['last4']}',
+          );
+          return fuzzyMatch;
+        }
+      }
+
+      return {'id': null};
     } catch (e) {
+      debugPrint('🔍 DEBUG: Error in _findAccountByLegacyKey: $e');
       return {'id': null};
     }
   }
@@ -460,8 +520,9 @@ class BankAccountService {
 
   /// Mask account number for display - show only last 4 digits
   static String _maskAccountNumber(String accountNumber) {
-    if (accountNumber.length <= 4)
+    if (accountNumber.length <= 4) {
       return '****$accountNumber'; // Always mask even short numbers
+    }
     final last4 = accountNumber.substring(accountNumber.length - 4);
     return '****$last4';
   }

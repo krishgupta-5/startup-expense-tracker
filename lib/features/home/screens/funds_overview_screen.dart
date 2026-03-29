@@ -260,7 +260,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         '🔍 DEBUG Funds Overview: BankAccountService returned ${accountsWithSpending.length} accounts',
       );
       for (var account in accountsWithSpending) {
-        debugPrint('🔍 DEBUG Funds Overview: Account - ${account}');
+        debugPrint('🔍 DEBUG Funds Overview: Account - $account');
       }
 
       if (mounted) {
