@@ -21,6 +21,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
 
   Future<void> loginUserWithEmailAndPassword() async {
+    FocusScope.of(context).unfocus(); // Dismiss keyboard
+
     final email = _emailController.text.trim();
 
     // Email validation
@@ -82,87 +84,92 @@ class _LoginScreenState extends State<LoginScreen> {
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight:
-                    MediaQuery.of(context).size.height -
-                    MediaQuery.of(context).viewInsets.bottom -
-                    MediaQuery.of(context).padding.top,
-              ),
-              child: IntrinsicHeight(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 60),
+          child: GestureDetector(
+            onTap: () => FocusScope.of(context).unfocus(),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight:
+                      MediaQuery.of(context).size.height -
+                      MediaQuery.of(context).viewInsets.bottom -
+                      MediaQuery.of(context).padding.top,
+                ),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 60),
 
-                    // Header
-                    _buildHeader(),
-                    const SizedBox(height: 48),
+                      // Header
+                      _buildHeader(),
+                      const SizedBox(height: 48),
 
-                    // Login Form
-                    _buildLabel("EMAIL ADDRESS"),
-                    const SizedBox(height: 8),
-                    _buildInputField(
-                      controller: _emailController,
-                      hint: "name@company.com",
-                      icon: Icons.email_outlined,
-                    ),
+                      // Login Form
+                      _buildLabel("EMAIL ADDRESS"),
+                      const SizedBox(height: 8),
+                      _buildInputField(
+                        controller: _emailController,
+                        hint: "name@company.com",
+                        action: TextInputAction.next,
+                        keyboardType: TextInputType.emailAddress,
+                      ),
 
-                    const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                    _buildLabel("PASSWORD"),
-                    const SizedBox(height: 8),
-                    _buildPasswordField(),
+                      _buildLabel("PASSWORD"),
+                      const SizedBox(height: 8),
+                      _buildPasswordField(),
 
-                    const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                    // Forgot Password Link
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const ForgotPasswordScreen(),
+                      // Forgot Password Link
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const ForgotPasswordScreen(),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            "Forgot Password?",
+                            style: GoogleFonts.inter(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
                             ),
-                          );
-                        },
-                        child: Text(
-                          "Forgot Password?",
-                          style: GoogleFonts.inter(
-                            color: Colors.white70, // Increased visibility
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
-                    ),
 
-                    const SizedBox(height: 40),
+                      const SizedBox(height: 40),
 
-                    // Login Button
-                    _buildLoginButton(),
+                      // Login Button
+                      _buildLoginButton(),
 
-                    const SizedBox(height: 40),
+                      const SizedBox(height: 40),
 
-                    // Divider
-                    _buildDivider(),
+                      // Divider
+                      _buildDivider(),
 
-                    const SizedBox(height: 32),
+                      const SizedBox(height: 32),
 
-                    // Google Sign In
-                    _buildGoogleSignInButton(),
+                      // Google Sign In
+                      _buildGoogleSignInButton(),
 
-                    const SizedBox(height: 40),
+                      const Spacer(),
 
-                    // Sign Up Footer
-                    _buildFooter(context),
-                    const SizedBox(height: 24),
-                  ],
+                      // Sign Up Footer
+                      _buildFooter(context),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -191,7 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           "Sign in to access your dashboard.",
           style: GoogleFonts.inter(
-            color: Colors.white70, // Fixed from white38
+            color: Colors.white70,
             fontSize: 14,
             fontWeight: FontWeight.w400,
           ),
@@ -204,7 +211,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Text(
       text,
       style: GoogleFonts.inter(
-        color: Colors.white70, // Fixed from white24
+        color: Colors.white70,
         fontSize: 10,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.5,
@@ -215,33 +222,31 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildInputField({
     required TextEditingController controller,
     required String hint,
-    required IconData icon,
+    TextInputAction action = TextInputAction.next,
+    TextInputType keyboardType = TextInputType.text,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
-        ), // Increased border visibility slightly
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: TextField(
         controller: controller,
+        textInputAction: action,
+        keyboardType: keyboardType,
+        onTapOutside: (_) => FocusScope.of(context).unfocus(),
         style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
         cursorColor: Colors.white,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: GoogleFonts.inter(
-            color: Colors.white38,
-          ), // Fixed from white12
-          icon: Icon(
-            icon,
-            color: Colors.white60,
-            size: 20,
-          ), // Fixed from white38
+          hintStyle: GoogleFonts.inter(color: Colors.white38),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 16,
+            horizontal: 4,
+          ),
         ),
       ),
     );
@@ -253,39 +258,45 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
-        ), // Increased border visibility slightly
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: TextField(
         controller: _passwordController,
         obscureText: !_isPasswordVisible,
+        textInputAction: TextInputAction.done,
+        onTapOutside: (_) => FocusScope.of(context).unfocus(),
         style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
         cursorColor: Colors.white,
         decoration: InputDecoration(
           hintText: "Enter your password",
-          hintStyle: GoogleFonts.inter(
-            color: Colors.white38,
-          ), // Fixed from white12
-          icon: const Icon(
-            Icons.lock_outline,
-            color: Colors.white60,
-            size: 20,
-          ), // Fixed from white38
-          suffixIcon: IconButton(
-            icon: Icon(
-              _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-              color: Colors.white60, // Fixed from white38
-              size: 20,
-            ),
-            onPressed: () {
+          hintStyle: GoogleFonts.inter(color: Colors.white38),
+          // Text-based toggle instead of icon
+          suffixIcon: GestureDetector(
+            onTap: () {
               setState(() {
                 _isPasswordVisible = !_isPasswordVisible;
               });
             },
+            child: Container(
+              alignment: Alignment.center,
+              width: 60,
+              color: Colors.transparent,
+              child: Text(
+                _isPasswordVisible ? "HIDE" : "SHOW",
+                style: GoogleFonts.inter(
+                  color: Colors.white54,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ),
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 16,
+            horizontal: 4,
+          ),
         ),
       ),
     );
@@ -300,14 +311,12 @@ class _LoginScreenState extends State<LoginScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
-          disabledBackgroundColor:
-              Colors.white70, // Keeps it somewhat white when disabled
+          disabledBackgroundColor: Colors.white70,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
         ),
-        // Add a loading spinner so you know it's working
         child: _isLoading
             ? const SizedBox(
                 height: 24,
@@ -322,7 +331,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black, // Explicitly declare color
+                  color: Colors.black,
                 ),
               ),
       ),
@@ -338,7 +347,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Text(
             "Or continue with",
             style: GoogleFonts.inter(
-              color: Colors.white60, // Fixed from white24
+              color: Colors.white60,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -352,6 +361,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildGoogleSignInButton() {
     return GestureDetector(
       onTap: () async {
+        if (_isLoading) return;
+
         setState(() {
           _isLoading = true;
         });
@@ -366,14 +377,12 @@ class _LoginScreenState extends State<LoginScreen> {
             });
 
             if (userCredential != null) {
-              // Show success message
               if (mounted) {
                 ErrorHandler.handleSuccess(
                   context: context,
                   message: 'Google sign-in successful! Welcome back.',
                 );
               }
-              // Do nothing, AuthWrapper will react automatically
             } else {
               ErrorHandler.handleAuthError(
                 context: context,
@@ -381,9 +390,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   code: 'invalid-credential',
                   message: 'Google sign-in was cancelled or failed.',
                 ),
-                onRetry: () async {
-                  // Retry logic can be implemented here if needed
-                },
+                onRetry: () async {},
               );
             }
           }
@@ -397,9 +404,7 @@ class _LoginScreenState extends State<LoginScreen> {
               context: context,
               error: e,
               customMessage: 'Failed to sign in with Google. Please try again.',
-              onRetry: () async {
-                // Retry logic can be implemented here if needed
-              },
+              onRetry: () async {},
             );
           }
         }
@@ -415,13 +420,11 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset('assets/images/google_logo.png', height: 24, width: 24),
-            const SizedBox(width: 12),
-            const Text(
-              "Google Sign-In",
-              style: TextStyle(
+            Text(
+              "Continue with Google",
+              style: GoogleFonts.inter(
                 color: Colors.black87,
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -437,10 +440,7 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Text(
           "Don't have an account? ",
-          style: GoogleFonts.inter(
-            color: Colors.white70,
-            fontSize: 14,
-          ), // Fixed from white38
+          style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
         ),
         GestureDetector(
           onTap: () {
@@ -449,12 +449,15 @@ class _LoginScreenState extends State<LoginScreen> {
               MaterialPageRoute(builder: (context) => const SignUpScreen()),
             );
           },
-          child: Text(
-            "Sign Up",
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            child: Text(
+              "Sign Up",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
             ),
           ),
         ),
