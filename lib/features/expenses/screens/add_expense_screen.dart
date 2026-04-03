@@ -14,6 +14,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/bank_account_service.dart';
+import '../../../services/team_member_service.dart';
+import '../../../widgets/avatar_widget.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   // ✅ Accept prefill data from scan screen
@@ -69,6 +71,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   };
 
   Map<String, String> _bankAccounts = {};
+  List<TeamMember> _teamMembers = [];
+  List<Team> _teams = [];
+  TeamMember? _selectedTeamMember;
+  Team? _selectedTeam;
+  String _expenseType = "team"; // "team" or "member"
 
   String _selectedCategory = "marketing";
   String _selectedType = "one_time";
@@ -122,6 +129,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
 
     _fetchBankAccounts();
+    _fetchTeamMembers();
+    _fetchTeams();
 
     // ✅ Auto-upload image and scroll to attachment section if image path provided
     if (widget.imagePath != null) {
@@ -255,6 +264,32 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
+  Future<void> _fetchTeamMembers() async {
+    try {
+      final members = await TeamMemberService.getTeamMembers();
+      if (mounted) {
+        setState(() {
+          _teamMembers = members;
+        });
+      }
+    } catch (e) {
+      debugPrint("Failed to load team members: $e");
+    }
+  }
+
+  Future<void> _fetchTeams() async {
+    try {
+      final teams = await TeamMemberService.getTeams();
+      if (mounted) {
+        setState(() {
+          _teams = teams;
+        });
+      }
+    } catch (e) {
+      debugPrint("Failed to load teams: $e");
+    }
+  }
+
   Future<void> _uploadExpense() async {
     FocusScope.of(context).unfocus(); // Dismiss keyboard
 
@@ -316,10 +351,41 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         "Type": _selectedType,
         "BankAccount": _selectedBankAccount,
         "AttachmentFileId": _attachmentFileId ?? '',
+        "ExpenseType": _expenseType, // "team" or "member"
+        "TeamId": _selectedTeam?.id,
+        "TeamName": _selectedTeam?.teamName,
+        "TeamMemberId": _selectedTeamMember?.id,
+        "TeamMemberName": _selectedTeamMember?.fullName,
         "Time": FieldValue.serverTimestamp(),
       });
 
-      await _updateFundsAfterExpense(amount);
+      // Update appropriate budget based on expense type
+      if (_expenseType == "team") {
+        if (_selectedTeam != null) {
+          await _updateTeamBudget(amount);
+        }
+      } else if (_expenseType == "member" && _selectedTeamMember != null) {
+        try {
+          await _updateMemberSalary(_selectedTeamMember!.id, amount);
+        } catch (e) {
+          // Handle salary validation error - delete the expense and show error
+          await FirebaseFirestore.instance
+              .collection('expenses')
+              .doc(id)
+              .delete();
+          if (e.toString().contains('exceeds remaining salary')) {
+            _showMinimalToast(
+              "Expense amount exceeds remaining salary for ${_selectedTeamMember!.fullName}",
+              isError: true,
+            );
+            return; // Don't proceed with navigation
+          }
+          rethrow; // Re-throw other errors
+        }
+      } else {
+        // Fallback to original behavior for team expenses without team
+        await _updateFundsAfterExpense(amount);
+      }
 
       if (mounted) Navigator.pop(context);
     } on FirebaseException catch (e) {
@@ -331,6 +397,145 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildExpenseTypeSelector() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _expenseType = "team";
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: _expenseType == "team"
+                      ? const Color(0xFF30D158).withValues(alpha: 0.2)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  "Team Expense",
+                  style: GoogleFonts.inter(
+                    color: _expenseType == "team"
+                        ? const Color(0xFF30D158)
+                        : Colors.white70,
+                    fontSize: 14,
+                    fontWeight: _expenseType == "team"
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _expenseType = "member";
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: _expenseType == "member"
+                      ? const Color(0xFF0A84FF).withValues(alpha: 0.2)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  "Member Expense",
+                  style: GoogleFonts.inter(
+                    color: _expenseType == "member"
+                        ? const Color(0xFF0A84FF)
+                        : Colors.white70,
+                    fontSize: 14,
+                    fontWeight: _expenseType == "member"
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateTeamBudget(double expenseAmount) async {
+    try {
+      if (_selectedTeam == null) return;
+
+      // Update team's used budget
+      final teamDoc = await FirebaseFirestore.instance
+          .collection('teams')
+          .doc(_selectedTeam!.id)
+          .get();
+
+      if (teamDoc.exists) {
+        final currentUsedBudget = teamDoc.data()?['usedBudget'] ?? 0.0;
+        final newUsedBudget = currentUsedBudget + expenseAmount;
+
+        await FirebaseFirestore.instance
+            .collection('teams')
+            .doc(_selectedTeam!.id)
+            .update({'usedBudget': newUsedBudget});
+      }
+    } catch (e) {
+      debugPrint("Error updating team budget: $e");
+    }
+  }
+
+  Future<void> _updateMemberSalary(
+    String memberId,
+    double expenseAmount,
+  ) async {
+    try {
+      // Get current member data to check salary
+      final memberDoc = await FirebaseFirestore.instance
+          .collection('members')
+          .doc(memberId)
+          .get();
+
+      if (memberDoc.exists) {
+        final data = memberDoc.data() as Map<String, dynamic>;
+        final currentSalary = (data['salary'] as num?)?.toDouble() ?? 0.0;
+        final currentExpenses =
+            (data['totalExpenses'] as num?)?.toDouble() ?? 0.0;
+        final newExpenses = currentExpenses + expenseAmount;
+
+        // Check if expense exceeds remaining salary
+        if (newExpenses > currentSalary) {
+          throw Exception('Expense amount exceeds remaining salary');
+        }
+
+        // Update member's total expenses
+        await FirebaseFirestore.instance
+            .collection('members')
+            .doc(memberId)
+            .update({
+              'totalExpenses': newExpenses,
+              'remainingSalary': currentSalary - newExpenses,
+            });
+      }
+    } catch (e) {
+      debugPrint("Error updating member salary: $e");
+      rethrow; // Re-throw to show error message to user
     }
   }
 
@@ -467,11 +672,20 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         _buildDateSelector(),
                         const SizedBox(height: 24),
                         _buildTextArea("Description / Notes"),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 24),
+                        _buildSectionLabel("EXPENSE TYPE"),
+                        const SizedBox(height: 8),
+                        _buildExpenseTypeSelector(),
+                        const SizedBox(height: 24),
                         _buildSectionLabel("LINK MEMBER (OPTIONAL)"),
                         const SizedBox(height: 16),
-                        _buildTeamSelector(),
-                        const SizedBox(height: 32),
+                        if (_expenseType == "member") ...[
+                          _buildTeamSelector(),
+                          const SizedBox(height: 32),
+                        ] else ...[
+                          _buildTeamSelector(),
+                          const SizedBox(height: 32),
+                        ],
                         _buildSectionLabel("ATTACHMENT"),
                         const SizedBox(height: 16),
                         _buildAttachmentZone(),
@@ -830,51 +1044,472 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   Widget _buildTeamSelector() {
-    return SizedBox(
-      height: 48,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          _buildAvatar("https://i.pravatar.cc/150?img=68", isSelected: true),
-          const SizedBox(width: 12),
-          _buildAvatar("https://i.pravatar.cc/150?img=47"),
-          const SizedBox(width: 12),
-          _buildAvatar("https://i.pravatar.cc/150?img=12"),
-          const SizedBox(width: 12),
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            child: const Icon(Icons.add, color: Colors.white, size: 20),
+    final isTeamExpense = _expenseType == "team";
+    final items = isTeamExpense ? _teams : _teamMembers;
+
+    if (items.isEmpty) {
+      return Container(
+        height: 80,
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        ),
+        child: Center(
+          child: Text(
+            isTeamExpense ? "No teams available" : "No team members available",
+            style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
           ),
-        ],
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 80,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: items.length + 1, // +1 for "None" option
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            // "None" option to deselect
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedTeam = null;
+                    _selectedTeamMember = null;
+                  });
+                },
+                child: Column(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                        color:
+                            (isTeamExpense
+                                ? _selectedTeam == null
+                                : _selectedTeamMember == null)
+                            ? Colors.white.withValues(alpha: 0.1)
+                            : Colors.transparent,
+                      ),
+                      child: Icon(
+                        isTeamExpense
+                            ? Icons.group_outlined
+                            : Icons.person_outline,
+                        color:
+                            (isTeamExpense
+                                ? _selectedTeam == null
+                                : _selectedTeamMember == null)
+                            ? Colors.white
+                            : Colors.white38,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "None",
+                      style: GoogleFonts.inter(
+                        color:
+                            (isTeamExpense
+                                ? _selectedTeam == null
+                                : _selectedTeamMember == null)
+                            ? Colors.white
+                            : Colors.white38,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          if (isTeamExpense) {
+            final team = _teams[index - 1];
+            final isSelected = _selectedTeam?.id == team.id;
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedTeam = isSelected ? null : team;
+                    _selectedTeamMember =
+                        null; // Clear member selection when team is selected
+                  });
+                },
+                child: _buildTeamAvatar(team, isSelected),
+              ),
+            );
+          } else {
+            final member = _teamMembers[index - 1];
+            final isSelected = _selectedTeamMember?.id == member.id;
+            final avatarUrl = TeamMemberService.getMemberAvatarUrl(member);
+
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedTeamMember = isSelected ? null : member;
+                    _selectedTeam =
+                        null; // Clear team selection when member is selected
+                  });
+                },
+                child: _buildMemberAvatarWithName(
+                  member,
+                  avatarUrl,
+                  isSelected,
+                ),
+              ),
+            );
+          }
+        },
       ),
     );
   }
 
-  Widget _buildAvatar(String url, {bool isSelected = false}) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: isSelected
-            ? Border.all(color: Colors.white, width: 2)
-            : Border.all(color: Colors.transparent),
-        image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
-      ),
-      child: isSelected
-          ? Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.5),
-                shape: BoxShape.circle,
+  Widget _buildTeamAvatar(Team team, bool isSelected) {
+    return Column(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: isSelected
+                ? Border.all(color: Colors.white, width: 2)
+                : Border.all(color: Colors.transparent),
+          ),
+          child: Stack(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _getTeamColor(team.color).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _getTeamIcon(team),
+                  color: _getTeamColor(team.color),
+                  size: 20,
+                ),
               ),
-              child: const Icon(Icons.check, color: Colors.white, size: 18),
-            )
+              if (isSelected)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF30D158),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      color: Colors.white,
+                      size: 10,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        SizedBox(
+          width: 60,
+          child: Text(
+            team.teamName,
+            style: GoogleFonts.inter(
+              color: isSelected ? Colors.white : Colors.white70,
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color _getTeamColor(String? colorName) {
+    switch (colorName?.toLowerCase()) {
+      case 'blue':
+        return const Color(0xFF0A84FF);
+      case 'orange':
+        return const Color(0xFFFF9F0A);
+      case 'purple':
+        return const Color(0xFFA259FF);
+      case 'green':
+        return const Color(0xFF30D158);
+      case 'red':
+        return const Color(0xFFFF453A);
+      default:
+        return const Color(0xFF0A84FF);
+    }
+  }
+
+  IconData _getTeamIcon(Team team) {
+    if (team.iconCodePoint != null && team.iconFontFamily != null) {
+      switch (int.tryParse(team.iconCodePoint!)) {
+        case 0xe3af:
+          return Icons.work;
+        case 0xe0af:
+          return Icons.business;
+        case 0xe7fd:
+          return Icons.group;
+        case 0xe226:
+          return Icons.code;
+        case 0xe86c:
+          return Icons.design_services;
+        case 0xe85d:
+          return Icons.computer;
+        case 0xe53b:
+          return Icons.build;
+        case 0xe251:
+          return Icons.lightbulb;
+        case 0xe7f1:
+          return Icons.trending_up;
+        case 0xe8b6:
+          return Icons.people;
+        default:
+          return Icons.group;
+      }
+    }
+    return Icons.group;
+  }
+
+  Widget _buildMemberAvatarWithName(
+    TeamMember member,
+    String? avatarUrl,
+    bool isSelected,
+  ) {
+    final remainingSalary = member.remainingSalary;
+    final originalSalary = member.salary;
+    final expensesAmount = member.totalExpenses ?? 0;
+    final remainingPercentage = member.remainingPercentage ?? 100.0;
+
+    return Column(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: isSelected
+                ? Border.all(color: Colors.white, width: 2)
+                : Border.all(color: Colors.transparent),
+          ),
+          child: Stack(
+            children: [
+              _buildMemberAvatarWithTelegram(
+                member.fullName,
+                48,
+                avatarUrl ?? '',
+              ),
+              if (isSelected)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF30D158),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      color: Colors.white,
+                      size: 10,
+                    ),
+                  ),
+                ),
+              // Low salary warning indicator
+              if (remainingSalary != null && remainingPercentage <= 30)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF453A),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        SizedBox(
+          width: 70,
+          child: Column(
+            children: [
+              Text(
+                member.fullName,
+                style: GoogleFonts.inter(
+                  color: isSelected ? Colors.white : Colors.white70,
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (originalSalary != null && originalSalary > 0) ...[
+                const SizedBox(height: 2),
+                // Show salary after expenses (remaining salary)
+                Text(
+                  "₹${remainingSalary?.toStringAsFixed(0) ?? '0'}",
+                  style: GoogleFonts.inter(
+                    color: remainingSalary! > 0
+                        ? Colors.white
+                        : Colors.redAccent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 1),
+                // Show original salary with strikethrough to indicate deduction
+                Text(
+                  "was ₹${originalSalary.toStringAsFixed(0)}",
+                  style: GoogleFonts.inter(
+                    color: Colors.white38,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w400,
+                    decoration: TextDecoration.lineThrough,
+                    decorationColor: Colors.white38,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                // Progress bar showing remaining percentage
+                Container(
+                  width: 50,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: remainingPercentage / 100,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: remainingPercentage > 30
+                            ? const Color(0xFF30D158)
+                            : const Color(0xFFFF453A),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 1),
+                // Show expenses amount
+                Text(
+                  "spent ₹${expensesAmount.toStringAsFixed(0)}",
+                  style: GoogleFonts.inter(
+                    color: Colors.white38,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Build member avatar with Telegram photo support
+  Widget _buildMemberAvatarWithTelegram(
+    String name,
+    double size,
+    String avatarUrl,
+  ) {
+    // Check if it's a Telegram photo
+    if (avatarUrl.startsWith('telegram:')) {
+      final telegramFileId = TeamMemberService.getTelegramFileId(avatarUrl);
+      if (telegramFileId != null) {
+        return FutureBuilder<String>(
+          future: TeamMemberService.getTelegramImageUrl(telegramFileId),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              // Show loading indicator while fetching Telegram photo
+              return Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141416),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.1),
+                  ),
+                ),
+                child: Center(
+                  child: SizedBox(
+                    width: size * 0.3,
+                    height: size * 0.3,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white38,
+                    ),
+                  ),
+                ),
+              );
+            } else if (snapshot.hasError || !snapshot.hasData) {
+              // Fallback to generated avatar on error
+              return AvatarWidget(
+                name: name,
+                size: size,
+                imageUrl: null,
+                fontSize: size * 0.4,
+              );
+            } else {
+              // Show Telegram photo
+              return AvatarWidget(
+                name: name,
+                size: size,
+                imageUrl: snapshot.data!,
+                fontSize: size * 0.4,
+              );
+            }
+          },
+        );
+      }
+    }
+
+    // Handle regular avatar URL
+    return AvatarWidget(
+      name: name,
+      size: size,
+      imageUrl: avatarUrl.isNotEmpty && !avatarUrl.contains('ui-avatars.com')
+          ? avatarUrl
           : null,
+      fontSize: size * 0.4,
     );
   }
 
@@ -1085,7 +1720,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         name.endsWith('.gif')) {
       return Icons.image;
     }
-    if (name.endsWith('.mp4') || name.endsWith('.avi') || name.endsWith('.mov')) {
+    if (name.endsWith('.mp4') ||
+        name.endsWith('.avi') ||
+        name.endsWith('.mov')) {
       return Icons.video_file;
     }
     if (name.endsWith('.mp3') ||
@@ -1093,7 +1730,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         name.endsWith('.flac')) {
       return Icons.audio_file;
     }
-    if (name.endsWith('.zip') || name.endsWith('.rar') || name.endsWith('.tar')) {
+    if (name.endsWith('.zip') ||
+        name.endsWith('.rar') ||
+        name.endsWith('.tar')) {
       return Icons.archive;
     }
     return Icons.insert_drive_file;
