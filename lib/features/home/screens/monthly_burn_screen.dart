@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 // Required for FontFeature
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/financial_data_service.dart';
-import '../../../services/financial_calculator.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 
@@ -71,7 +71,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
   Map<String, dynamic>? _teamCostData;
   List<Map<String, dynamic>>? _rawTeamsData;
   Map<String, double>? _actualSpendingPerTeam;
-
+  Map<String, Map<String, dynamic>>? _budgetVarianceData;
   bool _isRefreshing = false;
   String? _error;
 
@@ -112,6 +112,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         FinancialDataService.getActualSpendingPerTeam().catchError(
           (e) => <String, double>{},
         ),
+        FinancialDataService.getBudgetVarianceAnalysis(
+          FirebaseAuth.instance.currentUser!.uid,
+        ).catchError((e) => <String, Map<String, dynamic>>{}),
       ]);
 
       setState(() {
@@ -119,7 +122,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         _teamCostData = results[1] as Map<String, dynamic>?;
         _rawTeamsData = results[2] as List<Map<String, dynamic>>?;
         _actualSpendingPerTeam = results[3] as Map<String, double>?;
-
+        _budgetVarianceData = results[4] as Map<String, Map<String, dynamic>>?;
         // Set all loading states to true at once
         _mainCardLoaded = true;
         _trendLoaded = true;
@@ -210,25 +213,31 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                     // Show trend section or shimmer
                     _trendLoaded
                         ? _buildBurnTrendSection()
-                        : _buildSkeletonSection("Burn Trend"),
+                        : _buildSkeletonSection(
+                            _selectedRange == "YTD" || _selectedRange == "ALL"
+                                ? "$_selectedRange Burn Trend"
+                                : "${_getMonthsCount()}-Month Burn Trend",
+                          ),
                     const SizedBox(height: 32),
 
                     // Show categories or shimmer
                     _categoriesLoaded
                         ? _buildExpenseCategoriesSection()
-                        : _buildSkeletonSection("Expense Categories"),
+                        : _buildSkeletonSection(
+                            "TRANSACTION-BASED BUDGET ANALYSIS",
+                          ),
                     const SizedBox(height: 32),
 
                     // Show teams or shimmer
                     _teamsLoaded
                         ? _buildTeamCostSection()
-                        : _buildSkeletonSection("Team Cost Distribution"),
+                        : _buildSkeletonSection("TEAM COST DISTRIBUTION"),
                     const SizedBox(height: 32),
 
                     // Show forecast or shimmer
                     _forecastLoaded
                         ? _buildForecastComparisonSection()
-                        : _buildSkeletonSection("Budget vs Actual"),
+                        : _buildSkeletonSection("TEAM-BASED BUDGET ANALYSIS"),
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -598,7 +607,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                             mainAxisAlignment: barCount <= 3
                                 ? MainAxisAlignment.spaceEvenly
                                 : MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.end,
+                            // FIX 1: Ensure the Row gives bounded height to its children
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: displayData.map((data) {
                               final amount = _toDouble(data['amount']);
                               final percentage = maxAmount > 0
@@ -608,6 +618,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                                 data['month'] as String,
                                 percentage,
                                 barWidth,
+                                amount,
                                 isActive:
                                     data['isCurrentMonth'] as bool? ?? false,
                               );
@@ -626,9 +637,14 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
   Widget _buildFlatBar(
     String label,
     double pct,
-    double width, {
+    double width,
+    double amount, {
     bool isActive = false,
   }) {
+    // FIX 2: Scale 0 to 2% (0.02) so it's not completely invisible,
+    // otherwise strictly use the percentage scale for the height.
+    final safePct = pct == 0.0 ? 0.02 : pct.clamp(0.0, 1.0);
+
     // Truncate the month label slightly if width is getting very small (like in 'ALL' view)
     String displayLabel = label;
     if (width < 25 && displayLabel.length > 1) {
@@ -638,33 +654,80 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        Container(
-          width: width,
-          height: 120 * pct,
-          decoration: BoxDecoration(
-            color: isActive ? Colors.white : const Color(0xFF1F1F22),
-            borderRadius: BorderRadius.circular(4),
+        Flexible(
+          child: Text(
+            _isLoadingCountry
+                ? "₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+                : CurrencyFormatter.formatByCountry(amount, _userCountryCode),
+            style: GoogleFonts.inter(
+              color: isActive ? Colors.white : Colors.white54,
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
+        // FIX 3: Use Expanded and FractionallySizedBox to apply the percentage to the height
+        Expanded(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: FractionallySizedBox(
+              heightFactor: safePct,
+              child: Container(
+                width: width,
+                decoration: BoxDecoration(
+                  color: isActive ? Colors.white : const Color(0xFF1F1F22),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         Text(
           displayLabel,
           style: GoogleFonts.inter(
             color: isActive ? Colors.white : Colors.white38,
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: FontWeight.w500,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
   }
 
   Widget _buildExpenseCategoriesSection() {
-    if (_error != null) return _buildErrorSection("Expense Categories");
+    if (_error != null) return _buildErrorSection("Budget Variance Analysis");
 
+    // Get category breakdown from monthly burn data (transaction-based)
     final categoryBreakdown =
         _financialData?['categoryBreakdown'] as Map<String, double>? ?? {};
-    final totalExpenses = _toDouble(_financialData?['totalExpenses']);
+    final budgetVariance = _budgetVarianceData ?? {};
+
+    // Combine both sources: transaction data + budget variance
+    Map<String, dynamic> combinedData = {};
+
+    // Start with transaction-based categories
+    for (var entry in categoryBreakdown.entries) {
+      combinedData[entry.key] = {
+        'actual': entry.value,
+        'budget': 0.0,
+        'variance': -entry.value, // negative means over budget if no budget set
+        'variancePercentage': 0.0,
+        'isOverBudget': true,
+        'hasBudget': false,
+      };
+    }
+
+    // Overlay budget data where available
+    for (var entry in budgetVariance.entries) {
+      combinedData[entry.key] = entry.value;
+    }
 
     return AnimatedOpacity(
       opacity: _categoriesLoaded ? 1.0 : 0.0,
@@ -677,7 +740,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionLabel("EXPENSE CATEGORIES"),
+            _buildSectionLabel("TRANSACTION-BASED BUDGET ANALYSIS"),
             const SizedBox(height: 16),
             Container(
               width: double.infinity,
@@ -687,59 +750,65 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
               ),
-              child: categoryBreakdown.isEmpty
-                  ? _buildEmptyState("No expense data available")
-                  : Column(
-                      children: categoryBreakdown.entries.map((entry) {
-                        final amount = _toDouble(entry.value);
-                        final color = _getCategoryColor(entry.key);
-                        final percentage =
-                            FinancialCalculator.calculatePercentage(
-                              amount: amount,
-                              total: totalExpenses,
-                            );
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 24),
-                          child: _buildCategoryRow(
-                            _capitalizeFirstLetter(entry.key),
-                            _isLoadingCountry
-                                ? "₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                                : CurrencyFormatter.formatByCountry(
-                                    amount,
-                                    _userCountryCode,
-                                  ),
-                            percentage,
-                            color,
-                          ),
-                        );
-                      }).toList(),
+              child: Builder(
+                builder: (context) {
+                  final sortedEntries = combinedData.entries
+                      .where(
+                        (entry) =>
+                            (entry.value['actual'] as double? ?? 0.0) > 0,
+                      )
+                      .toList();
+                  sortedEntries.sort(
+                    (a, b) => (b.value['actual'] as double).compareTo(
+                      a.value['actual'] as double,
                     ),
+                  );
+
+                  return combinedData.isEmpty
+                      ? _buildEmptyState("No transaction data available")
+                      : Column(
+                          children: [
+                            // Header row
+                            _buildBudgetVarianceHeader(),
+                            const SizedBox(height: 16),
+                            // Category rows - sort by actual amount descending
+                            ...sortedEntries.map((entry) {
+                              final categoryData = entry.value;
+                              final budget =
+                                  categoryData['budget'] as double? ?? 0.0;
+                              final actual =
+                                  categoryData['actual'] as double? ?? 0.0;
+                              final variance =
+                                  categoryData['variance'] as double? ?? 0.0;
+                              final variancePercentage =
+                                  categoryData['variancePercentage']
+                                      as double? ??
+                                  0.0;
+                              final isOverBudget =
+                                  categoryData['isOverBudget'] as bool? ??
+                                  false;
+                              final hasBudget =
+                                  categoryData['hasBudget'] as bool? ?? false;
+
+                              return _buildBudgetVarianceRow(
+                                _getCategoryDisplayName(entry.key),
+                                budget,
+                                actual,
+                                variance,
+                                variancePercentage,
+                                isOverBudget,
+                                hasBudget,
+                              );
+                            }).toList(),
+                          ],
+                        );
+                },
+              ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  Color _getCategoryColor(String category) {
-    switch (category.toLowerCase()) {
-      case 'salaries':
-      case 'salary':
-        return const Color(0xFF30D158);
-      case 'servers':
-      case 'infrastructure':
-      case 'servers & infrastructure':
-        return const Color(0xFF3A4B8A);
-      case 'marketing':
-        return const Color(0xFFFF9F0A);
-      case 'office':
-      case 'operations':
-      case 'office & operations':
-        return const Color(0xFF00BFA5);
-      default:
-        return const Color(0xFF8E8E93);
-    }
   }
 
   Widget _buildTeamCostSection() {
@@ -857,80 +926,6 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
     );
   }
 
-  Widget _buildCategoryRow(
-    String label,
-    String value,
-    int percentage,
-    Color color,
-  ) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 5,
-          child: Text(
-            label,
-            style: GoogleFonts.inter(
-              color: Colors.white70,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-            textAlign: TextAlign.left,
-          ),
-        ),
-        const SizedBox(width: 16),
-        SizedBox(
-          width: 80,
-          // FIXED: FITTED BOX FOR LARGE NUMBERS
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerRight,
-            child: Text(
-              value,
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                fontFeatures: [const FontFeature.tabularFigures()],
-              ),
-              textAlign: TextAlign.right,
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          flex: 3,
-          child: Stack(
-            children: [
-              Container(
-                height: 4,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1F1F22),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              FractionallySizedBox(
-                widthFactor: percentage / 100.0,
-                child: Container(
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _capitalizeFirstLetter(String text) {
-    if (text.isEmpty) return text;
-    return text[0].toUpperCase() + text.substring(1);
-  }
-
   String _formatCurrencyForForecast(double amount) {
     return _isLoadingCountry
         ? '₹${amount.round().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}'
@@ -953,7 +948,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionLabel("BUDGET VS ACTUAL"),
+            _buildSectionLabel("TEAM-BASED BUDGET ANALYSIS"),
             const SizedBox(height: 16),
             Container(
               width: double.infinity,
@@ -1299,11 +1294,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                         begin: Alignment(value - 1, 0),
                         end: Alignment(value, 0),
                         colors: [
-                          Colors.white.withValues(alpha: 0.05),
-                          Colors.white.withValues(alpha: 0.08),
-                          Colors.white.withValues(alpha: 0.12),
-                          Colors.white.withValues(alpha: 0.08),
-                          Colors.white.withValues(alpha: 0.05),
+                          Colors.white.withValues(alpha: 0.03),
+                          Colors.white.withValues(alpha: 0.06),
+                          Colors.white.withValues(alpha: 0.10),
+                          Colors.white.withValues(alpha: 0.06),
+                          Colors.white.withValues(alpha: 0.03),
                         ],
                         stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
                       ),
@@ -1319,11 +1314,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                         begin: Alignment(value - 1, 0),
                         end: Alignment(value, 0),
                         colors: [
-                          Colors.white.withValues(alpha: 0.05),
-                          Colors.white.withValues(alpha: 0.08),
-                          Colors.white.withValues(alpha: 0.12),
-                          Colors.white.withValues(alpha: 0.08),
-                          Colors.white.withValues(alpha: 0.05),
+                          Colors.white.withValues(alpha: 0.03),
+                          Colors.white.withValues(alpha: 0.06),
+                          Colors.white.withValues(alpha: 0.10),
+                          Colors.white.withValues(alpha: 0.06),
+                          Colors.white.withValues(alpha: 0.03),
                         ],
                         stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
                       ),
@@ -1341,11 +1336,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                     begin: Alignment(value - 1, 0),
                     end: Alignment(value, 0),
                     colors: [
-                      Colors.white.withValues(alpha: 0.05),
-                      Colors.white.withValues(alpha: 0.08),
-                      Colors.white.withValues(alpha: 0.12),
-                      Colors.white.withValues(alpha: 0.08),
-                      Colors.white.withValues(alpha: 0.05),
+                      Colors.white.withValues(alpha: 0.03),
+                      Colors.white.withValues(alpha: 0.06),
+                      Colors.white.withValues(alpha: 0.10),
+                      Colors.white.withValues(alpha: 0.06),
+                      Colors.white.withValues(alpha: 0.03),
                     ],
                     stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
                   ),
@@ -1377,11 +1372,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                             begin: Alignment(value - 1, 0),
                             end: Alignment(value, 0),
                             colors: [
-                              Colors.white.withValues(alpha: 0.05),
-                              Colors.white.withValues(alpha: 0.08),
-                              Colors.white.withValues(alpha: 0.12),
-                              Colors.white.withValues(alpha: 0.08),
-                              Colors.white.withValues(alpha: 0.05),
+                              Colors.white.withValues(alpha: 0.03),
+                              Colors.white.withValues(alpha: 0.06),
+                              Colors.white.withValues(alpha: 0.10),
+                              Colors.white.withValues(alpha: 0.06),
+                              Colors.white.withValues(alpha: 0.03),
                             ],
                             stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
                           ),
@@ -1397,11 +1392,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                             begin: Alignment(value - 1, 0),
                             end: Alignment(value, 0),
                             colors: [
-                              Colors.white.withValues(alpha: 0.05),
-                              Colors.white.withValues(alpha: 0.08),
-                              Colors.white.withValues(alpha: 0.12),
-                              Colors.white.withValues(alpha: 0.08),
-                              Colors.white.withValues(alpha: 0.05),
+                              Colors.white.withValues(alpha: 0.03),
+                              Colors.white.withValues(alpha: 0.06),
+                              Colors.white.withValues(alpha: 0.10),
+                              Colors.white.withValues(alpha: 0.06),
+                              Colors.white.withValues(alpha: 0.03),
                             ],
                             stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
                           ),
@@ -1432,11 +1427,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
               begin: Alignment(value - 1, 0),
               end: Alignment(value, 0),
               colors: [
-                Colors.white.withValues(alpha: 0.05),
-                Colors.white.withValues(alpha: 0.08),
-                Colors.white.withValues(alpha: 0.12),
-                Colors.white.withValues(alpha: 0.08),
-                Colors.white.withValues(alpha: 0.05),
+                Colors.white.withValues(alpha: 0.03),
+                Colors.white.withValues(alpha: 0.06),
+                Colors.white.withValues(alpha: 0.10),
+                Colors.white.withValues(alpha: 0.06),
+                Colors.white.withValues(alpha: 0.03),
               ],
               stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
             ),
@@ -1472,6 +1467,200 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
           ),
         ),
       ],
+    );
+  }
+
+  String _getCategoryDisplayName(String categoryKey) {
+    // Map category keys to proper display names matching budget settings
+    switch (categoryKey) {
+      case 'salaries':
+        return 'Salary';
+      case 'marketing':
+        return 'Marketing';
+      case 'infrastructure':
+        return 'Infrastructure';
+      case 'office':
+        return 'Office Rent';
+      case 'software':
+        return 'Software';
+      case 'hardware':
+        return 'Hardware';
+      case 'transport':
+        return 'Transport';
+      case 'design':
+        return 'Design';
+      case 'others':
+        return 'Others';
+      case 'travel':
+        return 'Travel';
+      case 'meals':
+        return 'Meals';
+      case 'contractors':
+        return 'Contractors';
+      case 'legal':
+        return 'Legal';
+      default:
+        return _capitalizeFirstLetter(categoryKey);
+    }
+  }
+
+  String _capitalizeFirstLetter(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1);
+  }
+
+  Widget _buildBudgetVarianceHeader() {
+    return Row(
+      children: [
+        Expanded(
+          flex: 3,
+          child: Text(
+            'Category',
+            style: GoogleFonts.inter(
+              color: Colors.white38,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 2,
+          child: Text(
+            'Budget',
+            style: GoogleFonts.inter(
+              color: Colors.white38,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.right,
+          ),
+        ),
+        Expanded(
+          flex: 2,
+          child: Text(
+            'Actual',
+            style: GoogleFonts.inter(
+              color: Colors.white38,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.right,
+          ),
+        ),
+        Expanded(
+          flex: 2,
+          child: Text(
+            'Variance',
+            style: GoogleFonts.inter(
+              color: Colors.white38,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.right,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBudgetVarianceRow(
+    String category,
+    double budget,
+    double actual,
+    double variance,
+    double variancePercentage,
+    bool isOverBudget,
+    bool hasBudget,
+  ) {
+    final varianceColor = isOverBudget
+        ? const Color(0xFFFF453A)
+        : const Color(0xFF30D158);
+    final varianceText = isOverBudget
+        ? '${variancePercentage.abs().toStringAsFixed(1)}% over'
+        : '${variancePercentage.abs().toStringAsFixed(1)}% under';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  category,
+                  style: GoogleFonts.inter(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (!hasBudget)
+                  Text(
+                    'No budget set',
+                    style: GoogleFonts.inter(
+                      color: Colors.white38,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              _formatCurrencyForForecast(budget),
+              style: GoogleFonts.inter(
+                color: hasBudget ? Colors.white38 : Colors.white24,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.right,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              _formatCurrencyForForecast(actual),
+              style: GoogleFonts.inter(
+                color: actual > 0 ? Colors.white : Colors.white24,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.right,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _formatCurrencyForForecast(variance.abs()),
+                  style: GoogleFonts.inter(
+                    color: varianceColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.right,
+                ),
+                if (hasBudget)
+                  Text(
+                    varianceText,
+                    style: GoogleFonts.inter(
+                      color: varianceColor.withValues(alpha: 0.8),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

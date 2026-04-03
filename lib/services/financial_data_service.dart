@@ -108,7 +108,13 @@ class FinancialDataService {
         if (data == null) continue;
 
         final amount = double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
-        final category = data['Category']?.toString() ?? 'Other';
+        String category = data['Category']?.toString() ?? 'Other';
+
+        // Map transaction categories to budget category keys
+        if (category.toLowerCase() == 'salary') {
+          category = 'salaries'; // Map to match budget key
+        }
+
         final vendor = data['Vendor']?.toString() ?? 'Unknown';
 
         totalExpenses += amount;
@@ -599,6 +605,150 @@ class FinancialDataService {
       return teamSpending;
     } catch (e) {
       throw Exception('Failed to fetch team spending: $e');
+    }
+  }
+
+  static Future<Map<String, double>> getCategoryBudgets(String uid) async {
+    try {
+      // Get user document to find companyId
+      final userDoc = await _firestore.collection('users').doc(uid).get();
+
+      final companyId = userDoc.data()?['companyId'];
+      if (companyId == null) {
+        print('DEBUG: No companyId found for user $uid');
+        return {};
+      }
+
+      // Get company document with budgets
+      final companyDoc = await _firestore
+          .collection('companies')
+          .doc(companyId)
+          .get();
+
+      if (!companyDoc.exists) {
+        print('DEBUG: No company document found for companyId $companyId');
+        return {};
+      }
+
+      final companyData = companyDoc.data() as Map<String, dynamic>;
+      final budgets = companyData['budgets'] as Map<String, dynamic>? ?? {};
+
+      Map<String, double> categoryBudgets = {};
+
+      // Convert all budget values to double
+      for (var entry in budgets.entries) {
+        final amount = double.tryParse(entry.value.toString()) ?? 0.0;
+        if (amount > 0) {
+          categoryBudgets[entry.key] = amount;
+          print('DEBUG: Category budget - ${entry.key}: $amount');
+        }
+      }
+
+      print('DEBUG: Final category budgets: $categoryBudgets');
+      return categoryBudgets;
+    } catch (e) {
+      print('DEBUG: Error fetching category budgets: $e');
+      return {};
+    }
+  }
+
+  static Future<Map<String, double>> getActualSpendingPerCategory(
+    String uid,
+  ) async {
+    try {
+      final now = DateTime.now();
+      final startOfMonth = DateTime(now.year, now.month, 1);
+      final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+
+      print(
+        'DEBUG: Fetching category spending from ${startOfMonth.toIso8601String()} to ${endOfMonth.toIso8601String()}',
+      );
+
+      // Get expenses for current month
+      final expensesSnapshot = await _firestore
+          .collection('expenses')
+          .where('uid', isEqualTo: uid)
+          .where(
+            'Date',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth),
+          )
+          .where('Date', isLessThanOrEqualTo: Timestamp.fromDate(endOfMonth))
+          .get();
+
+      Map<String, double> categorySpending = {};
+
+      for (var doc in expensesSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (data.isEmpty) continue;
+
+        final amount = double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
+        String category =
+            data['Category']?.toString().toLowerCase().trim() ?? 'other';
+
+        // Map transaction categories to budget category keys
+        if (category == 'salary') {
+          category = 'salaries'; // Map to match budget key
+        }
+
+        if (amount > 0) {
+          categorySpending[category] =
+              (categorySpending[category] ?? 0) + amount;
+          print('DEBUG: Category spending - $category: $amount');
+        }
+      }
+
+      print('DEBUG: Final category spending: $categorySpending');
+      return categorySpending;
+    } catch (e) {
+      print('DEBUG: Error fetching category spending: $e');
+      return {};
+    }
+  }
+
+  static Future<Map<String, Map<String, dynamic>>> getBudgetVarianceAnalysis(
+    String uid,
+  ) async {
+    try {
+      // Get budgets and actual spending in parallel
+      final futures = await Future.wait([
+        getCategoryBudgets(uid),
+        getActualSpendingPerCategory(uid),
+      ]);
+
+      final categoryBudgets = futures[0];
+      final actualSpending = futures[1];
+
+      Map<String, Map<String, dynamic>> varianceAnalysis = {};
+
+      // Process all categories that have either budget or spending
+      final allCategories = {...categoryBudgets.keys, ...actualSpending.keys};
+
+      for (String category in allCategories) {
+        final budget = categoryBudgets[category] ?? 0.0;
+        final actual = actualSpending[category] ?? 0.0;
+        final variance = budget - actual;
+        final variancePercentage = budget > 0
+            ? ((variance / budget) * 100)
+            : 0.0;
+
+        varianceAnalysis[category] = {
+          'budget': budget,
+          'actual': actual,
+          'variance': variance,
+          'variancePercentage': variancePercentage,
+          'isOverBudget': variance < 0,
+          'hasBudget': budget > 0,
+        };
+
+        print(
+          'DEBUG: Category $category - Budget: $budget, Actual: $actual, Variance: $variance (${variancePercentage.toStringAsFixed(1)}%)',
+        );
+      }
+
+      return varianceAnalysis;
+    } catch (e) {
+      print('DEBUG: Error calculating budget variance: $e');
+      return {};
     }
   }
 

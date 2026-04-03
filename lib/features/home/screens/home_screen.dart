@@ -1050,13 +1050,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     mainAxisAlignment: display.length <= 3
                         ? MainAxisAlignment.spaceEvenly
                         : MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                    // FIX 1: Ensure the Row gives bounded height to its children
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: display.map((data) {
                       final amount = (data['amount'] as num).toDouble();
                       final pct = maxAmount > 0 ? amount / maxAmount : 0.0;
                       return _buildFlatBar(
                         data['month'] as String,
                         pct,
+                        amount,
                         isActive: data['isCurrentMonth'] as bool? ?? false,
                       );
                     }).toList(),
@@ -1067,26 +1069,61 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFlatBar(String label, double pct, {bool isActive = false}) {
+  Widget _buildFlatBar(
+    String label,
+    double pct,
+    double amount, {
+    bool isActive = false,
+  }) {
+    // FIX 2: Scale 0 to 2% (0.02) so it's not completely invisible,
+    // otherwise strictly use the percentage scale for the height.
+    final safePct = pct == 0.0 ? 0.02 : pct.clamp(0.0, 1.0);
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        Container(
-          width: 36,
-          height: 120 * pct,
-          decoration: BoxDecoration(
-            color: isActive ? Colors.white : const Color(0xFF1F1F22),
-            borderRadius: BorderRadius.circular(6),
+        Flexible(
+          child: Text(
+            _isLoadingCountry
+                ? "₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
+                : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
+            style: GoogleFonts.inter(
+              color: isActive ? Colors.white : Colors.white54,
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
+        // FIX 3: Use Expanded and FractionallySizedBox to apply the percentage to the height
+        Expanded(
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: FractionallySizedBox(
+              heightFactor: safePct,
+              child: Container(
+                width: 36,
+                decoration: BoxDecoration(
+                  color: isActive ? Colors.white : const Color(0xFF1F1F22),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         Text(
           label,
           style: GoogleFonts.inter(
             color: isActive ? Colors.white : Colors.white38,
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: FontWeight.w500,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );

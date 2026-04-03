@@ -13,6 +13,7 @@ import 'edit_profile_screen.dart';
 import 'statements_screen.dart';
 import 'change_password.dart';
 import 'privacy_assurances_screen.dart';
+import 'budget_settings_screen.dart';
 import '../widgets/coming_soon_dialog.dart';
 import '../../../services/currency_preference_service.dart';
 
@@ -402,6 +403,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                ),
+                _buildDivider(),
+                _buildTile(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: "Budget Settings",
+                  subtitle: "Set budget for ALL expense categories",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const BudgetSettingsScreen(),
+                      ),
+                    );
+                  },
                 ),
               ]),
 

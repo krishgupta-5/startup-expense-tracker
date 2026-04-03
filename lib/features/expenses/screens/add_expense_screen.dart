@@ -1073,23 +1073,29 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   // ✅ Get file icon based on file type
   IconData _getFileIcon(String name) {
     if (name.endsWith('.pdf')) return Icons.picture_as_pdf;
-    if (name.endsWith('.doc') || name.endsWith('.docx'))
+    if (name.endsWith('.doc') || name.endsWith('.docx')) {
       return Icons.description;
-    if (name.endsWith('.xls') || name.endsWith('.xlsx'))
+    }
+    if (name.endsWith('.xls') || name.endsWith('.xlsx')) {
       return Icons.table_chart;
+    }
     if (name.endsWith('.jpg') ||
         name.endsWith('.jpeg') ||
         name.endsWith('.png') ||
-        name.endsWith('.gif'))
+        name.endsWith('.gif')) {
       return Icons.image;
-    if (name.endsWith('.mp4') || name.endsWith('.avi') || name.endsWith('.mov'))
+    }
+    if (name.endsWith('.mp4') || name.endsWith('.avi') || name.endsWith('.mov')) {
       return Icons.video_file;
+    }
     if (name.endsWith('.mp3') ||
         name.endsWith('.wav') ||
-        name.endsWith('.flac'))
+        name.endsWith('.flac')) {
       return Icons.audio_file;
-    if (name.endsWith('.zip') || name.endsWith('.rar') || name.endsWith('.tar'))
+    }
+    if (name.endsWith('.zip') || name.endsWith('.rar') || name.endsWith('.tar')) {
       return Icons.archive;
+    }
     return Icons.insert_drive_file;
   }
 
