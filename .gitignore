@@ -16,6 +16,8 @@ migrate_working_dir/
 
 # Environment variables
 .env.local
+.env
+**/.env
 
 # IntelliJ related
 *.iml
