@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AiScreen extends StatefulWidget {
-  final String uid; // 🔥 PASS USER ID
+  final String uid;
 
   const AiScreen({super.key, required this.uid});
 
@@ -52,20 +52,13 @@ class _AiScreenState extends State<AiScreen>
 
   // 🔥 FINAL FIREBASE + AI FUNCTION
   Future<void> fetchAIInsight() async {
-    if (widget.uid.isEmpty) {
-      if (mounted) setState(() => aiInsight = "User not authenticated");
-      return;
-    }
-
     try {
       final snapshot = await FirebaseFirestore.instance
-          .collection('Expenses')
+          .collection('expenses')
           .where('uid', isEqualTo: widget.uid) // 🔥 USER FILTER
           .orderBy('Date', descending: true)
           .limit(10)
           .get();
-
-      if (!mounted) return; // ✅ Early exit if disposed
 
       if (snapshot.docs.isEmpty) {
         setState(() {
@@ -90,14 +83,12 @@ class _AiScreenState extends State<AiScreen>
       print("FINAL CLEAN EXPENSES: $cleanExpenses");
 
       final res = await http.post(
-        Uri.parse("http://10.24.187.117:8000/expense-ai"),
+        Uri.parse("http://10.0.2.2:8000/expense-ai"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({"expenses": cleanExpenses}),
       );
 
       print("API RESPONSE: ${res.body}");
-
-      if (!mounted) return; // ✅ Check again after every await
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
@@ -112,7 +103,6 @@ class _AiScreenState extends State<AiScreen>
       }
     } catch (e) {
       print("ERROR: $e");
-      if (!mounted) return; // ✅
       setState(() {
         aiInsight = "Error: $e";
       });
@@ -121,11 +111,9 @@ class _AiScreenState extends State<AiScreen>
 
   void _loadSection(String sectionKey) {
     if (!_sectionLoadStates[sectionKey]!) {
-      if (mounted) {
-        setState(() {
-          _sectionLoadStates[sectionKey] = true;
-        });
-      }
+      setState(() {
+        _sectionLoadStates[sectionKey] = true;
+      });
     }
   }
 
