@@ -59,8 +59,9 @@ class AIService {
           .collection('companies')
           .doc(companyId)
           .get();
-      if (companyDoc.exists)
+      if (companyDoc.exists) {
         companyData = companyDoc.data() as Map<String, dynamic>;
+      }
 
       final banksSnapshot = await _firestore
           .collection('companies')

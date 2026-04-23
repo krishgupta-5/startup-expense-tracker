@@ -678,7 +678,7 @@ class FinancialDataService {
       Map<String, double> categorySpending = {};
 
       for (var doc in expensesSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         if (data.isEmpty) continue;
 
         final amount = double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;

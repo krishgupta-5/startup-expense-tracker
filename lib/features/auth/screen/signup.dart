@@ -1,13 +1,14 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/features/auth/services/google_sign_in_service.dart';
+import 'package:startup_expense_tracker/features/company-setup/screen/company_setup_screen.dart';
 import 'package:startup_expense_tracker/services/ai_service.dart';
 import 'package:startup_expense_tracker/shared/utils/error_handler.dart';
+
 import 'login.dart';
-import 'package:startup_expense_tracker/features/company-setup/screen/company_setup_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});

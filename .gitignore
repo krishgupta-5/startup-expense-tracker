@@ -16,6 +16,8 @@ migrate_working_dir/
 
 # Environment variables
 .env.local
+.env
+**/.env
 
 # IntelliJ related
 *.iml
@@ -51,4 +53,4 @@ app.*.map.json
 /android/app/release
 
 # FVM Version Cache
-.fvm/
+.fvm/lib/features/ai/screens/.env
