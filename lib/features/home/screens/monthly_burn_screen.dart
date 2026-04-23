@@ -799,7 +799,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                                 isOverBudget,
                                 hasBudget,
                               );
-                            }).toList(),
+                            }),
                           ],
                         );
                 },

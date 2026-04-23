@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/features/auth/screen/signup.dart';
 import 'package:startup_expense_tracker/features/auth/screen/forget_password.dart';
 import 'package:startup_expense_tracker/features/auth/services/google_sign_in_service.dart';
+import 'package:startup_expense_tracker/services/ai_service.dart';
 import 'package:startup_expense_tracker/shared/utils/error_handler.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -52,6 +53,11 @@ class _LoginScreenState extends State<LoginScreen> {
           message: 'Login successful! Welcome back.',
         );
       }
+
+      // Sync AI collections in background after successful login
+      AIService.syncAICollections().catchError((e) {
+        print("Failed to sync AI data after login: $e");
+      });
 
       // Do nothing, AuthWrapper will handle navigation
     } on FirebaseAuthException catch (e) {
@@ -377,6 +383,11 @@ class _LoginScreenState extends State<LoginScreen> {
             });
 
             if (userCredential != null) {
+              // Sync AI collections in background after successful Google sign-in
+              AIService.syncAICollections().catchError((e) {
+                print("Failed to sync AI data after Google sign-in: $e");
+              });
+
               if (mounted) {
                 ErrorHandler.handleSuccess(
                   context: context,

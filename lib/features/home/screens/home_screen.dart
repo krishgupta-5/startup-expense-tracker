@@ -60,6 +60,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // Load in background for more accurate result
     _loadUserCountryCode();
     _loadAllData();
+    // Create AI collection for existing users
+    _createAIData();
   }
 
   @override
@@ -130,6 +132,11 @@ class _HomeScreenState extends State<HomeScreen> {
     await fetchTotalFundsAvailable();
     await fetchMonthlyBurn();
     await _loadFinancialDataForPieChart();
+  }
+
+  Future<void> _createAIData() async {
+    // AI data sync is now handled after login/signup for better performance
+    // This method is kept for compatibility but no longer syncs data
   }
 
   // --- PREMIUM SECTION LABEL HELPER ---

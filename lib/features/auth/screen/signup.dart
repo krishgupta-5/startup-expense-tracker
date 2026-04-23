@@ -1,12 +1,14 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/features/auth/services/google_sign_in_service.dart';
-import 'package:startup_expense_tracker/shared/utils/error_handler.dart';
-import 'login.dart';
 import 'package:startup_expense_tracker/features/company-setup/screen/company_setup_screen.dart';
+import 'package:startup_expense_tracker/services/ai_service.dart';
+import 'package:startup_expense_tracker/shared/utils/error_handler.dart';
+
+import 'login.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -77,6 +79,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
           'provider': 'email',
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        // Sync AI collections in background after successful signup
+        AIService.syncAICollections().catchError((e) {
+          print("Failed to sync AI data after signup: $e");
         });
 
         // Show success message
@@ -459,6 +466,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
             });
 
             if (userCredential != null) {
+              // Sync AI collections in background after successful Google sign-up
+              AIService.syncAICollections().catchError((e) {
+                print("Failed to sync AI data after Google sign-up: $e");
+              });
+
               // Show success message
               if (mounted) {
                 ErrorHandler.handleSuccess(
