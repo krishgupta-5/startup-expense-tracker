@@ -53,21 +53,40 @@ class _AiScreenState extends State<AiScreen>
   // 🔥 FINAL FIREBASE + AI FUNCTION
   Future<void> fetchAIInsight() async {
     try {
+      print("USER UID: ${widget.uid}");
+
+      // 🔍 QUICK DEBUG: Remove uid filter temporarily
       final snapshot = await FirebaseFirestore.instance
+          .collection('expenses')
+          .orderBy('Date', descending: true)
+          .limit(10)
+          .get();
+
+      print("DOC COUNT (no filter): ${snapshot.docs.length}");
+
+      // Print document structure to see actual field names
+      for (var doc in snapshot.docs) {
+        print("DOCUMENT: ${doc.id} -> ${doc.data()}");
+      }
+
+      // 🔍 NOW TEST WITH UID FILTER
+      final uidSnapshot = await FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: widget.uid) // 🔥 USER FILTER
           .orderBy('Date', descending: true)
           .limit(10)
           .get();
 
-      if (snapshot.docs.isEmpty) {
+      print("DOC COUNT (with uid filter): ${uidSnapshot.docs.length}");
+
+      if (uidSnapshot.docs.isEmpty) {
         setState(() {
           aiInsight = "No expense data found";
         });
         return;
       }
 
-      final expenses = snapshot.docs.map((doc) => doc.data()).toList();
+      final expenses = uidSnapshot.docs.map((doc) => doc.data()).toList();
 
       // 🔥 CLEAN DATA (SAFE)
       final cleanExpenses = expenses.map((e) {
