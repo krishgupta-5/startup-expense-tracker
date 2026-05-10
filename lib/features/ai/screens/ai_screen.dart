@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -19,6 +20,7 @@ class _AiScreenState extends State<AiScreen>
   final Map<String, bool> _sectionLoadStates = {};
 
   String aiInsight = "Loading AI insights...";
+  Map<String, dynamic>? aiMetrics;
 
   @override
   bool get wantKeepAlive => true;
@@ -50,61 +52,108 @@ class _AiScreenState extends State<AiScreen>
     _sectionLoadStates['keyPoints'] = true;
   }
 
-  // 🔥 FINAL FIREBASE + AI FUNCTION
+  // 🔥 UPDATED TO MATCH MAIN.PY ENDPOINT
   Future<void> fetchAIInsight() async {
     try {
       print("USER UID: ${widget.uid}");
 
-      // 🔍 QUICK DEBUG: Remove uid filter temporarily
-      final snapshot = await FirebaseFirestore.instance
+      // Fetch expenses
+      final expensesSnapshot = await FirebaseFirestore.instance
           .collection('expenses')
+          .where('uid', isEqualTo: widget.uid)
           .orderBy('Date', descending: true)
-          .limit(10)
+          .limit(50)
           .get();
 
-      print("DOC COUNT (no filter): ${snapshot.docs.length}");
-
-      // Print document structure to see actual field names
-      for (var doc in snapshot.docs) {
-        print("DOCUMENT: ${doc.id} -> ${doc.data()}");
-      }
-
-      // 🔍 NOW TEST WITH UID FILTER
-      final uidSnapshot = await FirebaseFirestore.instance
-          .collection('expenses')
-          .where('uid', isEqualTo: widget.uid) // 🔥 USER FILTER
-          .orderBy('Date', descending: true)
-          .limit(10)
+      // Fetch company data
+      final companySnapshot = await FirebaseFirestore.instance
+          .collection('companies')
+          .where('uid', isEqualTo: widget.uid)
+          .limit(1)
           .get();
 
-      print("DOC COUNT (with uid filter): ${uidSnapshot.docs.length}");
+      // Fetch teams data
+      final teamsSnapshot = await FirebaseFirestore.instance
+          .collection('teams')
+          .where('uid', isEqualTo: widget.uid)
+          .get();
 
-      if (uidSnapshot.docs.isEmpty) {
+      // Fetch members data
+      final membersSnapshot = await FirebaseFirestore.instance
+          .collection('members')
+          .where('uid', isEqualTo: widget.uid)
+          .get();
+
+      print(
+        "DOCS FOUND - Expenses: ${expensesSnapshot.docs.length}, "
+        "Company: ${companySnapshot.docs.length}, "
+        "Teams: ${teamsSnapshot.docs.length}, "
+        "Members: ${membersSnapshot.docs.length}",
+      );
+
+      if (expensesSnapshot.docs.isEmpty) {
         setState(() {
           aiInsight = "No expense data found";
         });
         return;
       }
 
-      final expenses = uidSnapshot.docs.map((doc) => doc.data()).toList();
-
-      // 🔥 CLEAN DATA (SAFE)
+      // Prepare expenses data
+      final expenses = expensesSnapshot.docs.map((doc) => doc.data()).toList();
       final cleanExpenses = expenses.map((e) {
         return {
-          "amount": (e["Amount"] ?? 0).toDouble(),
-          "category": (e["Category"] ?? "unknown").toString(),
-          "type": (e["Type"] ?? "unknown").toString(),
-          "description": (e["Description"] ?? e["Title"] ?? "").toString(),
-          "team": (e["linkedTeamName"] ?? "general").toString(),
+          "Amount": (e["Amount"] ?? 0).toDouble(),
+          "Category": (e["Category"] ?? "unknown").toString(),
+          "Type": (e["Type"] ?? "unknown").toString(),
+          "Description": (e["Description"] ?? e["Title"] ?? "").toString(),
+          "linkedTeamName": (e["linkedTeamName"] ?? "general").toString(),
+          "Date": (e["Date"] is Timestamp)
+              ? (e["Date"] as Timestamp).toDate().toIso8601String()
+              : e["Date"]?.toString() ?? "",
         };
       }).toList();
 
-      print("FINAL CLEAN EXPENSES: $cleanExpenses");
+      // Prepare company data with Timestamp handling
+      final companyData = companySnapshot.docs.isNotEmpty
+          ? _cleanTimestamps(companySnapshot.docs.first.data())
+          : {};
+
+      // Prepare teams data with Timestamp handling
+      final teamsData = teamsSnapshot.docs
+          .map((doc) => _cleanTimestamps(doc.data()))
+          .toList();
+
+      // Prepare members data with Timestamp handling
+      final membersData = membersSnapshot.docs
+          .map((doc) => _cleanTimestamps(doc.data()))
+          .toList();
+
+      // Prepare request body according to main.py structure
+      final requestBody = {
+        "sectionName": "main",
+        "sectionData": {
+          "expenses": cleanExpenses,
+          "revenue": [], // Add revenue collection if available
+          "company": companyData,
+          "members": membersData,
+          "teams": teamsData,
+        },
+      };
+
+      print("REQUEST BODY: ${jsonEncode(requestBody)}");
+
+      // Determine URL based on platform
+      String baseUrl;
+      if (Platform.isIOS) {
+        baseUrl = "http://127.0.0.1:8000";
+      } else {
+        baseUrl = "http://10.0.2.2:8000";
+      }
 
       final res = await http.post(
-        Uri.parse("http://10.0.2.2:8000/expense-ai"),
+        Uri.parse("$baseUrl/generate-ai-section"),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"expenses": cleanExpenses}),
+        body: jsonEncode(requestBody),
       );
 
       print("API RESPONSE: ${res.body}");
@@ -114,6 +163,7 @@ class _AiScreenState extends State<AiScreen>
 
         setState(() {
           aiInsight = data["insight"] ?? "No insight generated";
+          aiMetrics = data["metrics"] as Map<String, dynamic>?;
         });
       } else {
         setState(() {
@@ -126,6 +176,33 @@ class _AiScreenState extends State<AiScreen>
         aiInsight = "Error: $e";
       });
     }
+  }
+
+  // Helper method to convert Timestamp objects to JSON-safe format
+  Map<String, dynamic> _cleanTimestamps(Map<String, dynamic> data) {
+    final cleaned = <String, dynamic>{};
+
+    for (final entry in data.entries) {
+      final value = entry.value;
+      if (value is Timestamp) {
+        cleaned[entry.key] = value.toDate().toIso8601String();
+      } else if (value is Map<String, dynamic>) {
+        cleaned[entry.key] = _cleanTimestamps(value);
+      } else if (value is List) {
+        cleaned[entry.key] = value.map((item) {
+          if (item is Timestamp) {
+            return item.toDate().toIso8601String();
+          } else if (item is Map<String, dynamic>) {
+            return _cleanTimestamps(item);
+          }
+          return item;
+        }).toList();
+      } else {
+        cleaned[entry.key] = value;
+      }
+    }
+
+    return cleaned;
   }
 
   void _loadSection(String sectionKey) {
@@ -151,7 +228,12 @@ class _AiScreenState extends State<AiScreen>
                   horizontal: 24,
                   vertical: 16,
                 ),
-                child: Column(children: [_buildMainInsightCard()]),
+                child: Column(
+                  children: [
+                    if (aiMetrics != null) _buildMetricsCard(),
+                    _buildMainInsightCard(),
+                  ],
+                ),
               ),
             ),
           ],
@@ -166,6 +248,78 @@ class _AiScreenState extends State<AiScreen>
       child: Text(
         "AI Financial Insights",
         style: GoogleFonts.inter(color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildMetricsCard() {
+    if (aiMetrics == null) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF333333)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Key Financial Metrics",
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildMetricRow(
+            "Total Spending",
+            "\$${(aiMetrics!['total_spending'] ?? 0).toStringAsFixed(0)}",
+          ),
+          _buildMetricRow(
+            "Average Spending",
+            "\$${(aiMetrics!['avg_spending'] ?? 0).toStringAsFixed(0)}",
+          ),
+          _buildMetricRow(
+            "Net Burn Rate",
+            "\$${(aiMetrics!['net_burn'] ?? 0).toStringAsFixed(0)}",
+          ),
+          _buildMetricRow("Risk Level", "${aiMetrics!['risk'] ?? 'Unknown'}"),
+          if (aiMetrics!['funding'] != null)
+            _buildMetricRow(
+              "Total Funding",
+              "\$${(aiMetrics!['funding']).toStringAsFixed(0)}",
+            ),
+          _buildMetricRow("Teams", "${aiMetrics!['team_count'] ?? 0}"),
+          _buildMetricRow("Members", "${aiMetrics!['member_count'] ?? 0}"),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
