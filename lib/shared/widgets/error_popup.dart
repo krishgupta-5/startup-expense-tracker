@@ -231,7 +231,6 @@ class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
           opacity: _fadeAnimation,
           child: Material(
             color: Colors.transparent,
-            // Wrap in GestureDetector so the user can tap the popup to dismiss it early
             child: GestureDetector(
               onTap: _dismiss,
               child: Container(
@@ -241,7 +240,7 @@ class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
                   vertical: 16,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF141416), // Deep matte surface
+                  color: const Color(0xFF141416), 
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: Colors.white.withValues(alpha: 0.08),
@@ -262,7 +261,7 @@ class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
                     Text(
                       widget.title,
                       style: GoogleFonts.inter(
-                        color: _getStatusColor(), // Status color goes here
+                        color: _getStatusColor(), 
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.5,
@@ -288,12 +287,10 @@ class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
     );
   }
 
-  // Purely controls the Title Text Color
   Color _getStatusColor() {
     switch (widget.type) {
       case ErrorType.success:
-        return Colors
-            .redAccent; // RED for success (positive actions like delete)
+        return Colors.greenAccent; // FIXED: Green for success
       case ErrorType.warning:
         return Colors.orangeAccent;
       case ErrorType.info:
@@ -303,7 +300,7 @@ class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
       case ErrorType.authentication:
       case ErrorType.server:
       case ErrorType.general:
-        return Colors.greenAccent; // GREEN for errors (negative things)
+        return Colors.redAccent; // FIXED: Red for errors
     }
   }
 }

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'dart:developer';
+import '../../../services/currency_preference_service.dart';
 
 class CompanySetupScreen extends StatefulWidget {
   const CompanySetupScreen({super.key});
@@ -29,7 +30,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   final _ownerNameController = TextEditingController();
   final _companyNameController = TextEditingController();
   final _mobileController = TextEditingController();
-  final _countryController = TextEditingController();
+  String? _selectedCountryLocation;
 
   // Country Code State
   String _selectedCountryCode = "+91";
@@ -131,7 +132,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     _ownerNameController.dispose();
     _companyNameController.dispose();
     _mobileController.dispose();
-    _countryController.dispose();
     _addressController.dispose();
     _workDescController.dispose();
     _fundingController.dispose();
@@ -171,6 +171,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     }
   }
 
+  // ENHANCED VALIDATION CONSTRAINTS & WORD LIMITS
   bool _validateCurrentStep() {
     setState(() {
       _errors.clear();
@@ -179,23 +180,46 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     bool isValid = true;
 
     switch (_currentPage) {
-      case 0:
-        if (_ownerNameController.text.trim().isEmpty) _errors.add('owner');
-        if (_mobileController.text.trim().isEmpty) _errors.add('mobile');
-        if (_countryController.text.trim().isEmpty) _errors.add('country');
+      case 0: // Identity
+        if (_ownerNameController.text.trim().length < 2) _errors.add('owner');
+        if (_mobileController.text.trim().length < 7) _errors.add('mobile');
+        if (_selectedCountryLocation == null) _errors.add('country');
         if (_companyNameController.text.trim().isEmpty) _errors.add('company');
         isValid = _errors.isEmpty;
         break;
 
-      case 1:
+      case 1: // Legal
         if (_selectedCompanyType == null) _errors.add('type');
-        if (_workDescController.text.trim().isEmpty) _errors.add('work');
-        if (_addressController.text.trim().isEmpty) _errors.add('address');
-        isValid = _errors.isEmpty;
+
+        // MINIMUM 3 WORDS VALIDATION FOR WORK DESC
+        final workWords = _workDescController.text.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+        if (workWords.length < 3) {
+          _errors.add('work');
+          if (isValid) {
+            ErrorPopup.showValidation(
+              context: context, 
+              message: "Work description must be at least 3 words long."
+            );
+          }
+          isValid = false;
+        }
+
+        // MINIMUM 3 WORDS VALIDATION FOR ADDRESS
+        final addressWords = _addressController.text.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+        if (addressWords.length < 3) {
+          _errors.add('address');
+          if (isValid) {
+            ErrorPopup.showValidation(
+              context: context, 
+              message: "Registered address must be at least 3 words long."
+            );
+          }
+          isValid = false;
+        }
         break;
 
-      case 2:
-        if (double.tryParse(_fundingController.text.trim()) == null) {
+      case 2: // Financials
+        if (int.tryParse(_fundingController.text.trim()) == null) {
           _errors.add('funding');
         }
         if (int.tryParse(_runwayController.text.trim()) == null) {
@@ -204,26 +228,40 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         isValid = _errors.isEmpty;
         break;
 
-      case 3:
+      case 3: // Banking
         for (var i = 0; i < _bankAccounts.length; i++) {
-          if (_bankAccounts[i]["name"]!.text.trim().isEmpty) {
+          if (_bankAccounts[i]["name"]!.text.trim().length < 2) {
             _errors.add('bank_name_$i');
           }
-          if (_bankAccounts[i]["number"]!.text.trim().isEmpty) {
+          if (_bankAccounts[i]["number"]!.text.trim().length < 5) {
             _errors.add('bank_num_$i');
           }
         }
         isValid = _errors.isEmpty;
         break;
 
-      case 4:
-      case 5:
-        isValid = true;
+      case 4: // Categories
+        if (_selectedCategories.isEmpty) {
+          _errors.add('categories');
+          isValid = false;
+          ErrorPopup.showValidation(
+              context: context, message: "Please select at least one category.");
+        }
+        break;
+
+      case 5: // Teams
+        if (_teams.isEmpty) {
+          _errors.add('teams');
+          isValid = false;
+          ErrorPopup.showValidation(
+              context: context, message: "You must have at least one team.");
+        }
         break;
     }
 
-    if (!isValid) {
-      setState(() {});
+    if (!isValid && _currentPage < 4 && _currentPage != 1) {
+      HapticFeedback.heavyImpact();
+    } else if (!isValid) {
       HapticFeedback.heavyImpact();
     }
 
@@ -231,121 +269,16 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   }
 
   bool _validateAllMandatoryFields() {
-    setState(() {
-      _errors.clear();
-    });
-
-    bool isValid = true;
-
-    if (_ownerNameController.text.trim().isEmpty) {
-      _errors.add('owner');
-      isValid = false;
-    }
-    if (_mobileController.text.trim().isEmpty) {
-      _errors.add('mobile');
-      isValid = false;
-    }
-    if (_countryController.text.trim().isEmpty) {
-      _errors.add('country');
-      isValid = false;
-    }
-    if (_companyNameController.text.trim().isEmpty) {
-      _errors.add('company');
-      isValid = false;
-    }
-
-    if (_selectedCompanyType == null) {
-      _errors.add('type');
-      isValid = false;
-    }
-    if (_workDescController.text.trim().isEmpty) {
-      _errors.add('work');
-      isValid = false;
-    }
-    if (_addressController.text.trim().isEmpty) {
-      _errors.add('address');
-      isValid = false;
-    }
-
-    if (_fundingController.text.trim().isEmpty) {
-      _errors.add('funding');
-      isValid = false;
-    }
-    if (_runwayController.text.trim().isEmpty) {
-      _errors.add('runway');
-      isValid = false;
-    }
-
-    for (var i = 0; i < _bankAccounts.length; i++) {
-      if (_bankAccounts[i]["name"]!.text.trim().isEmpty) {
-        _errors.add('bank_name_$i');
-        isValid = false;
-      }
-      if (_bankAccounts[i]["number"]!.text.trim().isEmpty) {
-        _errors.add('bank_num_$i');
-        isValid = false;
-      }
-    }
-
-    if (!isValid) {
-      HapticFeedback.heavyImpact();
-      setState(() {});
-    }
-
-    return isValid;
+    return _validateCurrentStep();
   }
 
   void _showValidationErrorDialog() {
-    ErrorPopup.showValidation(
-      context: context,
-      message:
-          "Please fill in all mandatory fields before finishing. Redirecting you to missing fields...",
-    );
-
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (mounted) {
-        _navigateToFirstErrorPage();
-      }
-    });
-  }
-
-  void _navigateToFirstErrorPage() {
-    if (_errors.contains('owner') ||
-        _errors.contains('mobile') ||
-        _errors.contains('country') ||
-        _errors.contains('company')) {
-      _pageController.animateToPage(
-        0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else if (_errors.contains('type') ||
-        _errors.contains('work') ||
-        _errors.contains('address')) {
-      _pageController.animateToPage(
-        1,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else if (_errors.contains('funding') || _errors.contains('runway')) {
-      _pageController.animateToPage(
-        2,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else if (_errors.any(
-      (error) =>
-          error.startsWith('bank_name_') || error.startsWith('bank_num_'),
-    )) {
-      _pageController.animateToPage(
-        3,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
+    if (_currentPage != 1 && _currentPage != 4 && _currentPage != 5) {
+      ErrorPopup.showValidation(
+        context: context,
+        message: "Please fill in all mandatory fields correctly.",
       );
     }
-    setState(() {
-      _currentPage = _pageController.page?.round() ?? 0;
-    });
   }
 
   Future<void> createTeamsInTeamsCollection() async {
@@ -393,7 +326,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           .map((account) => _formatBankAccount(account))
           .toList();
 
-      // Combine Country Code and Mobile Number
       final String fullMobileNumber =
           "$_selectedCountryCode ${_mobileController.text.trim()}";
 
@@ -411,13 +343,13 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           "uid": userId,
           "Owner Name": _ownerNameController.text.trim(),
           "Mobile Number": fullMobileNumber,
-          "Country Location": _countryController.text.trim(),
+          "Country Location": _selectedCountryLocation,
           "Company Name": _companyNameController.text.trim(),
-          "Company Type": _selectedCompanyType,
+          "Company Type": companyTypes[_selectedCompanyType],
           "Company Work": _workDescController.text.trim(),
           "Company Address": _addressController.text.trim(),
-          "Funding": _fundingController.text.trim(),
-          "Runway": _runwayController.text.trim(),
+          "Funding": int.parse(_fundingController.text.trim()),
+          "Runway": int.parse(_runwayController.text.trim()),
           "Bank Accounts": formattedBankAccounts,
           "Categories": _selectedCategories.toList(),
           "Teams": _teams,
@@ -429,6 +361,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           "companySetup": true,
           "companyId": userId,
           "email": FirebaseAuth.instance.currentUser!.email,
+          "preferredCurrency": _selectedCountryCode,
           "updatedAt": FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
 
@@ -436,6 +369,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       });
 
       await createTeamsInTeamsCollection();
+
+      CurrencyPreferenceService.currencyNotifier.value = _selectedCountryCode;
+
       return result;
     } catch (e) {
       log('Company setup error: $e');
@@ -506,7 +442,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 Expanded(
                   child: PageView(
                     controller: _pageController,
-                    physics: const BouncingScrollPhysics(),
+                    physics: const NeverScrollableScrollPhysics(), 
                     onPageChanged: (page) {
                       FocusScope.of(context).unfocus();
                       setState(() {
@@ -583,44 +519,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 )
               else
                 const SizedBox(width: 38, height: 38),
-
-              if (_currentPage >= 4)
-                GestureDetector(
-                  onTap: () {
-                    if (_currentPage == 4) {
-                      _pageController.nextPage(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      );
-                    } else {
-                      _submitSetup();
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF141416),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.1),
-                      ),
-                    ),
-                    child: Text(
-                      "SKIP",
-                      style: GoogleFonts.inter(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
-                )
-              else
-                const SizedBox(width: 38, height: 38),
+              
+              const SizedBox(width: 38, height: 38),
             ],
           ),
         ],
@@ -632,11 +532,11 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     required String title,
     required String subtitle,
     required List<Widget> children,
-    Widget? extraHeader,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -656,7 +556,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               style: GoogleFonts.inter(color: Colors.white70, fontSize: 16),
             ),
             const SizedBox(height: 24),
-            ?extraHeader,
             ...children,
             const SizedBox(height: 100),
           ],
@@ -741,18 +640,77 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           "Your Full Name",
           "owner",
           icon: Icons.person_outline,
+          textCapitalization: TextCapitalization.words,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
+          ],
         ),
         const SizedBox(height: 32),
         _buildLabel("MOBILE NUMBER"),
-        _buildPhoneInputField(_mobileController, "98765 43210", "mobile"),
-        const SizedBox(height: 32),
-        _buildLabel("COUNTRY LOCATION"),
-        _buildInputField(
-          _countryController,
-          "United States",
-          "country",
-          icon: Icons.public,
+        _buildPhoneInputField(
+          _mobileController, 
+          "98765 43210", 
+          "mobile"
         ),
+        const SizedBox(height: 32),
+        
+        // --- USING SHAD SELECT FOR COUNTRY ---
+        _buildLabel("COUNTRY LOCATION"),
+        ShakeWidget(
+          shake: _errors.contains('country'),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: double.infinity),
+            child: ShadSelect<String>(
+              placeholder: Text(
+                'Select your country',
+                style: GoogleFonts.inter(
+                  color: _errors.contains('country')
+                      ? const Color(0xFFFF453A).withValues(alpha: 0.6)
+                      : Colors.white60,
+                  fontSize: 15,
+                ),
+              ),
+              decoration: ShadDecoration(
+                color: const Color(0xFF141416),
+                border: ShadBorder.all(
+                  color: _errors.contains('country')
+                      ? const Color(0xFFFF453A)
+                      : Colors.white.withValues(alpha: 0.1),
+                  width: 1,
+                ),
+              ),
+              options: [
+                ..._countryCodes.map(
+                  (country) => ShadOption(
+                    value: country["name"]!,
+                    child: Text(
+                      "${country["flag"]}  ${country["name"]}",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              selectedOptionBuilder: (context, value) {
+                final country = _countryCodes.firstWhere((c) => c["name"] == value);
+                return Text(
+                  "${country["flag"]}  ${country["name"]}",
+                  style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+                );
+              },
+              onChanged: (value) {
+                setState(() {
+                  _selectedCountryLocation = value;
+                  _clearError('country');
+                });
+              },
+            ),
+          ),
+        ),
+        // -------------------------------------
+
         const SizedBox(height: 32),
         _buildLabel("COMPANY NAME"),
         _buildInputField(
@@ -760,6 +718,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           "Startup Name",
           "company",
           icon: Icons.business,
+          textCapitalization: TextCapitalization.words,
         ),
       ],
     );
@@ -770,6 +729,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       title: "Structure",
       subtitle: "Legal details and location.",
       children: [
+        
+        // --- USING SHAD SELECT FOR COMPANY TYPE ---
         _buildLabel("COMPANY TYPE"),
         ShakeWidget(
           shake: _errors.contains('type'),
@@ -821,21 +782,25 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             ),
           ),
         ),
+        // ------------------------------------------
+
         const SizedBox(height: 32),
-        _buildLabel("WHAT IS THE WORK?"),
+        _buildLabel("WHAT IS THE WORK? (Min 3 Words)"),
         _buildTextArea(
           _workDescController,
-          "e.g. SaaS Platform...",
+          "e.g. SaaS Platform for managing inventory...",
           "work",
           icon: Icons.description_outlined,
+          textCapitalization: TextCapitalization.sentences,
         ),
         const SizedBox(height: 32),
-        _buildLabel("REGISTERED ADDRESS"),
+        _buildLabel("REGISTERED ADDRESS (Min 3 Words)"),
         _buildTextArea(
           _addressController,
-          "Full Address...",
+          "Full Complete Address...",
           "address",
           icon: Icons.location_on_outlined,
+          textCapitalization: TextCapitalization.words,
         ),
       ],
     );
@@ -868,6 +833,10 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     controller: _fundingController,
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly, 
+                      LengthLimitingTextInputFormatter(12), 
+                    ],
                     onChanged: (_) => _clearError('funding'),
                     style: GoogleFonts.inter(
                       color: _errors.contains('funding')
@@ -877,12 +846,12 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                     decoration: InputDecoration(
-                      prefixText: "₹ ",
+                      prefixText: "$_selectedCountryCode ", 
                       prefixStyle: GoogleFonts.inter(
                         color: _errors.contains('funding')
                             ? const Color(0xFFFF453A)
                             : Colors.white70,
-                        fontSize: 48,
+                        fontSize: 24, 
                       ),
                       hintText: "0",
                       hintStyle: GoogleFonts.inter(
@@ -907,6 +876,10 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           "runway",
           isNumber: true,
           icon: Icons.timeline,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly, 
+            LengthLimitingTextInputFormatter(3), 
+          ],
         ),
       ],
     );
@@ -952,17 +925,24 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 const SizedBox(height: 12),
                 _buildInputField(
                   _bankAccounts[index]["name"]!,
-                  "Bank Name (e.g. HDFC)",
+                  "Bank Name (e.g. Chase, HDFC)",
                   "bank_name_$index",
                   icon: Icons.account_balance_outlined,
+                  textCapitalization: TextCapitalization.words,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s\-]')), 
+                  ]
                 ),
                 const SizedBox(height: 12),
                 _buildInputField(
                   _bankAccounts[index]["number"]!,
                   "Account Number",
                   "bank_num_$index",
-                  isNumber: true,
                   icon: Icons.numbers,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')), 
+                  ]
                 ),
               ],
             ),
@@ -1012,6 +992,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   isSelected
                       ? _selectedCategories.remove(cat)
                       : _selectedCategories.add(cat);
+                  _clearError('categories');
                 });
               },
               child: AnimatedContainer(
@@ -1026,7 +1007,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   border: Border.all(
                     color: isSelected
                         ? Colors.white
-                        : Colors.white.withValues(alpha: 0.1),
+                        : _errors.contains('categories') 
+                            ? const Color(0xFFFF453A).withValues(alpha: 0.5) 
+                            : Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
                 child: Text(
@@ -1058,7 +1041,11 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               decoration: BoxDecoration(
                 color: const Color(0xFF141416),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(
+                  color: _errors.contains('teams') 
+                    ? const Color(0xFFFF453A) 
+                    : Colors.white.withValues(alpha: 0.1)
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1099,17 +1086,19 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               child: _buildInputField(
                 _teamController,
                 "Add Team (e.g. Sales)",
-                "teams",
+                "teams_input",
                 icon: Icons.group_add,
+                textCapitalization: TextCapitalization.words,
               ),
             ),
             const SizedBox(width: 12),
             GestureDetector(
               onTap: () {
-                if (_teamController.text.isNotEmpty) {
+                if (_teamController.text.trim().isNotEmpty) {
                   setState(() {
-                    _teams.add({"name": _teamController.text, "members": []});
+                    _teams.add({"name": _teamController.text.trim(), "members": []});
                     _teamController.clear();
+                    _clearError('teams');
                   });
                 }
               },
@@ -1127,6 +1116,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       ],
     );
   }
+
+  // --- REUSABLE INPUT WIDGETS UPDATED WITH CONSTRAINTS ---
 
   Widget _buildLabel(String text) {
     return Padding(
@@ -1149,6 +1140,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     String errorKey, {
     bool isNumber = false,
     IconData? icon,
+    List<TextInputFormatter>? inputFormatters,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     final hasError = _errors.contains(errorKey);
 
@@ -1168,6 +1161,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         child: TextField(
           controller: controller,
           keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+          inputFormatters: inputFormatters,
+          textCapitalization: textCapitalization,
           onChanged: (_) => _clearError(errorKey),
           style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
           cursorColor: Colors.white,
@@ -1194,7 +1189,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     );
   }
 
-  // --- NEW: THEMED PHONE INPUT WITH COUNTRY CODE SELECTOR ---
   Widget _buildPhoneInputField(
     TextEditingController controller,
     String hint,
@@ -1252,6 +1246,10 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               child: TextField(
                 controller: controller,
                 keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly, 
+                  LengthLimitingTextInputFormatter(15), 
+                ],
                 onChanged: (_) => _clearError(errorKey),
                 style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
                 cursorColor: Colors.white,
@@ -1274,7 +1272,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     );
   }
 
-  // --- NEW: THEMED COUNTRY CODE PICKER DIALOG ---
   void _showCountryCodePicker() {
     showDialog(
       context: context,
@@ -1379,6 +1376,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     String hint,
     String errorKey, {
     IconData? icon,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     final hasError = _errors.contains(errorKey);
 
@@ -1398,6 +1396,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         child: TextField(
           controller: controller,
           maxLines: 3,
+          textCapitalization: textCapitalization,
           onChanged: (_) => _clearError(errorKey),
           style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
           cursorColor: Colors.white,

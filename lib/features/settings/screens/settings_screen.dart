@@ -226,7 +226,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-
   Future<void> _updateCurrency(String currencyCode) async {
     if (kDebugMode) {
       print('Settings: Starting currency update to: $currencyCode');
@@ -252,9 +251,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             duration: const Duration(seconds: 2),
           ),
         );
-
-        // Reload the app to apply currency changes everywhere
-        await _reloadApp();
+        // Currency notifier automatically propagates changes to all screens
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -284,35 +281,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _reloadApp() async {
-    if (kDebugMode) print('Settings: Starting app reload');
-
-    // Force rebuild of the entire app by restarting the widget tree
-    if (mounted) {
-      // Go back to home screen first
-      Navigator.of(context).popUntil((route) => route.isFirst);
-
-      // Show a brief message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Applying currency changes...',
-            style: GoogleFonts.inter(color: Colors.white),
-          ),
-          backgroundColor: const Color(0xFF00C851),
-          duration: const Duration(seconds: 1),
-        ),
-      );
-
-      // Force a complete rebuild by pushing a replacement route
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (mounted) {
-        if (kDebugMode) print('Settings: Navigating to home screen');
-        Navigator.of(context).pushReplacementNamed('/');
       }
     }
   }

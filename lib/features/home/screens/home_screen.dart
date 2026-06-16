@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-// Required for FontFeature
+import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
@@ -34,8 +34,16 @@ class _HomeScreenState extends State<HomeScreen> {
   String? runwayValue;
   bool isLoading = true;
   String? errorMessage;
-  String? totalFundsAvailable;
-  String? monthlyBurn;
+  
+  // Storing raw numbers ensures real-time calculation and instant currency updates
+  double _fundingAmount = 0.0;
+  double _absoluteTotalExpenses = 0.0;
+  double _currentMonthBurn = 0.0;
+  double get _availableFunds => _fundingAmount - _absoluteTotalExpenses;
+
+  // Real-time calculated Pie Chart data
+  Map<String, double> _realtimeCategoryBreakdown = {};
+  
   List<Map<String, dynamic>> allExpenses = [];
 
   Map<String, dynamic>? _financialData;
@@ -47,69 +55,71 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isTrendLoading = true;
 
   String _userCountryCode = '+1'; // Default to USD
-  final bool _isLoadingCountry =
-      false; // Start as false since we use sync method
+  final bool _isLoadingCountry = false;
+
+  // Real-time stream subscriptions
+  StreamSubscription<DocumentSnapshot>? _companySubscription;
+  StreamSubscription<QuerySnapshot>? _expensesSubscription;
 
   @override
   void initState() {
     super.initState();
-    // Get currency preference synchronously for instant display
     _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
-    // Listen for currency changes
     CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
-    // Load in background for more accurate result
     _loadUserCountryCode();
-    _loadAllData();
-    // Create AI collection for existing users
+    
+    // Initiate Real-Time Listeners
+    _setupRealtimeListeners();
     _createAIData();
   }
 
   @override
   void dispose() {
-    CurrencyPreferenceService.currencyNotifier.removeListener(
-      _onCurrencyChanged,
-    );
+    CurrencyPreferenceService.currencyNotifier.removeListener(_onCurrencyChanged);
+    _companySubscription?.cancel();
+    _expensesSubscription?.cancel();
     super.dispose();
   }
 
   void _onCurrencyChanged() {
     if (mounted) {
       setState(() {
-        _userCountryCode =
-            CurrencyPreferenceService.getCurrencyPreferenceSync();
+        _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
       });
     }
   }
 
-  // Telegram photo fetching methods with caching
+  double _toDouble(dynamic value, {double fallback = 0.0}) {
+    if (value == null) return fallback;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), '')) ?? fallback;
+    return fallback;
+  }
+
+  String _formatCurrency(double amount) {
+    if (_isLoadingCountry) {
+      return "₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}";
+    }
+    return CurrencyFormatter.formatByCountry(amount, _userCountryCode);
+  }
+
   Future<String> getTelegramImageUrl(String fileId) async {
-    // Check cache first
     if (_telegramPhotoCache.containsKey(fileId)) {
       return _telegramPhotoCache[fileId]!;
     }
-
     try {
       await dotenv.load(fileName: ".env.local");
       final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
 
-      if (botToken == null) {
-        throw Exception('Telegram bot token not found in environment');
-      }
+      if (botToken == null) throw Exception('Telegram bot token not found');
 
-      final res = await http.get(
-        Uri.parse(
-          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
-        ),
-      );
-
+      final res = await http.get(Uri.parse("https://api.telegram.org/bot$botToken/getFile?file_id=$fileId"));
       final data = jsonDecode(res.body);
       final path = data['result']['file_path'];
-
       final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
 
-      // Cache the result
       _telegramPhotoCache[fileId] = imageUrl;
-
       return imageUrl;
     } catch (e) {
       debugPrint('Error getting Telegram image URL: $e');
@@ -118,8 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadUserCountryCode() async {
-    final currencyCode =
-        await CurrencyPreferenceService.getCurrencyPreference();
+    final currencyCode = await CurrencyPreferenceService.getCurrencyPreference();
     if (mounted && currencyCode != _userCountryCode) {
       setState(() {
         _userCountryCode = currencyCode;
@@ -127,16 +136,133 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _loadAllData() async {
-    await _fetchRunwayData();
-    await fetchTotalFundsAvailable();
-    await fetchMonthlyBurn();
-    await _loadFinancialDataForPieChart();
+  Future<void> _createAIData() async {
+    // Handled in auth layer
   }
 
-  Future<void> _createAIData() async {
-    // AI data sync is now handled after login/signup for better performance
-    // This method is kept for compatibility but no longer syncs data
+  // --- REAL-TIME LISTENER SETUP (Fixes Reload & Fetching Issues) ---
+  void _setupRealtimeListeners() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() {
+        errorMessage = "User not authenticated";
+        isLoading = false;
+        _isFundsLoading = false;
+        _isMonthlyBurnLoading = false;
+      });
+      return;
+    }
+
+    // 1. Listen to Company Document (For Runway & Total Funding)
+    _companySubscription = FirebaseFirestore.instance
+        .collection("companies")
+        .doc(user.uid)
+        .snapshots()
+        .listen((docSnapshot) {
+      if (docSnapshot.exists && docSnapshot.data() != null) {
+        final data = docSnapshot.data()!;
+        
+        final runwayFromFirebase = data["Runway"]?.toString() ?? "0";
+        final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
+        
+        if (mounted) {
+          setState(() {
+            runwayValue = runwayFromFirebase != "0" ? _toDouble(runwayFromFirebase).toStringAsFixed(2) : "0";
+            _fundingAmount = _toDouble(funding);
+            
+            isLoading = false;
+            _isFundsLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            errorMessage = "No company data found";
+            isLoading = false;
+            _isFundsLoading = false;
+          });
+        }
+      }
+    }, onError: (e) {
+      if (mounted) {
+        setState(() {
+          errorMessage = "Failed to load company data";
+          isLoading = false;
+          _isFundsLoading = false;
+        });
+      }
+    });
+
+    // 2. Listen to Expenses Collection (For Instant Burn, Funds & Pie Chart Updates)
+    _expensesSubscription = FirebaseFirestore.instance
+        .collection('expenses')
+        .where('uid', isEqualTo: user.uid)
+        .orderBy('Date', descending: true)
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        double currentMonthTotal = 0.0;
+        double absoluteTotal = 0.0;
+        Map<String, double> localCategoryBreakdown = {};
+        final now = DateTime.now();
+
+        final expensesList = snapshot.docs.map((doc) {
+          final data = doc.data();
+          final amount = _toDouble(data['Amount'] ?? data['amount']);
+          final date = data['Date'] as Timestamp?;
+          final category = (data['Category'] ?? data['category'] ?? 'others').toString().toLowerCase();
+
+          absoluteTotal += amount;
+
+          if (date != null) {
+            final dt = date.toDate();
+            if (dt.month == now.month && dt.year == now.year) {
+              currentMonthTotal += amount;
+              localCategoryBreakdown[category] = (localCategoryBreakdown[category] ?? 0.0) + amount;
+            }
+          }
+
+          return {
+            'id': doc.id,
+            'amount': amount,
+            'date': date,
+            'category': category,
+          };
+        }).toList();
+
+        setState(() {
+          allExpenses = expensesList;
+          _absoluteTotalExpenses = absoluteTotal;
+          _currentMonthBurn = currentMonthTotal;
+          _realtimeCategoryBreakdown = localCategoryBreakdown;
+          
+          _isMonthlyBurnLoading = false;
+          _isPieChartLoading = false; 
+        });
+
+        // Trigger historical trend fetch in background
+        _loadFinancialDataForPieChart();
+      }
+    }, onError: (e) {
+      log("Error fetching expenses: $e");
+      if (mounted) setState(() => _isMonthlyBurnLoading = false);
+    });
+  }
+
+  Future<void> _loadFinancialDataForPieChart() async {
+    try {
+      final financialData = await FinancialDataService.getMonthlyBurnData();
+      if (mounted) {
+        setState(() {
+          _financialData = financialData;
+          final rawTrend = financialData['trendData'] as List? ?? [];
+          _trendData = List<Map<String, dynamic>>.from(rawTrend);
+          _isTrendLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isTrendLoading = false);
+    }
   }
 
   // --- PREMIUM SECTION LABEL HELPER ---
@@ -153,11 +279,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // --- PROFILE AVATAR METHODS ---
-
-  // Build profile avatar with Telegram photo support
   Widget _buildProfileAvatar(String? profileImageFileId) {
     if (profileImageFileId != null && profileImageFileId.isNotEmpty) {
-      // Show uploaded profile image
       return FutureBuilder<String>(
         future: getTelegramImageUrl(profileImageFileId),
         builder: (context, snapshot) {
@@ -188,8 +311,6 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       );
     }
-
-    // Show default avatar
     return _buildDefaultAvatar();
   }
 
@@ -209,7 +330,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- MINIMAL EMPTY STATE COMPONENT ---
   Widget _buildEmptyState(String text) {
     return Center(
       child: Padding(
@@ -232,14 +352,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildRunwayDisplay(String runwayValue) {
     final runway = double.tryParse(runwayValue) ?? 0;
 
-    // Show empty state if 0 or no data
     if (runway <= 0) {
       return Text(
         "--",
         style: GoogleFonts.inter(
           color: Colors.white,
           fontSize: 56,
-          fontWeight: FontWeight.w600, // Upgraded weight
+          fontWeight: FontWeight.w600,
           height: 1.0,
           letterSpacing: -2,
         ),
@@ -258,7 +377,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 56,
-                fontWeight: FontWeight.w600, // Upgraded weight
+                fontWeight: FontWeight.w600,
                 height: 1.0,
                 letterSpacing: -2,
               ),
@@ -268,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 32,
-                fontWeight: FontWeight.w600, // Upgraded weight
+                fontWeight: FontWeight.w600,
                 height: 1.0,
                 letterSpacing: -1,
               ),
@@ -285,7 +404,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 56,
-                fontWeight: FontWeight.w600, // Upgraded weight
+                fontWeight: FontWeight.w600,
                 height: 1.0,
                 letterSpacing: -2,
               ),
@@ -295,7 +414,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 32,
-                fontWeight: FontWeight.w600, // Upgraded weight
+                fontWeight: FontWeight.w600,
                 height: 1.0,
                 letterSpacing: -1,
               ),
@@ -305,7 +424,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 56,
-                fontWeight: FontWeight.w600, // Upgraded weight
+                fontWeight: FontWeight.w600,
                 height: 1.0,
                 letterSpacing: -2,
               ),
@@ -315,7 +434,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 32,
-                fontWeight: FontWeight.w600, // Upgraded weight
+                fontWeight: FontWeight.w600,
                 height: 1.0,
                 letterSpacing: -1,
               ),
@@ -345,14 +464,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (runway <= criticalThreshold) {
       return (runway / criticalThreshold) * 0.33;
     } else if (runway <= warningThreshold) {
-      return 0.33 +
-          ((runway - criticalThreshold) /
-                  (warningThreshold - criticalThreshold)) *
-              0.33;
+      return 0.33 + ((runway - criticalThreshold) / (warningThreshold - criticalThreshold)) * 0.33;
     } else if (runway <= safeThreshold) {
-      return 0.66 +
-          ((runway - warningThreshold) / (safeThreshold - warningThreshold)) *
-              0.34;
+      return 0.66 + ((runway - warningThreshold) / (safeThreshold - warningThreshold)) * 0.34;
     } else {
       return 1.0;
     }
@@ -360,219 +474,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   HealthStatus _calculateHealthStatus() {
     if (isLoading) return HealthStatus.unknown;
-    if (runwayValue == null || errorMessage != null) {
-      return HealthStatus.unknown;
-    }
+    if (runwayValue == null || errorMessage != null) return HealthStatus.unknown;
 
     final runway = double.tryParse(runwayValue!) ?? 0;
     if (runway <= 0) return HealthStatus.unknown;
     if (runway <= 3) return HealthStatus.critical;
     if (runway <= 6) return HealthStatus.warning;
     return HealthStatus.safe;
-  }
-
-  Future<void> _fetchRunwayData() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        if (mounted) {
-          setState(() {
-            errorMessage = "User not authenticated";
-            isLoading = false;
-          });
-        }
-        return;
-      }
-
-      final docSnapshot = await FirebaseFirestore.instance
-          .collection("companies")
-          .doc(user.uid)
-          .get();
-
-      if (docSnapshot.exists && docSnapshot.data() != null) {
-        final data = docSnapshot.data()!;
-        final runwayFromFirebase = data["Runway"]?.toString() ?? "0";
-
-        if (runwayFromFirebase != "0") {
-          final runwayAmount =
-              double.tryParse(runwayFromFirebase.toString()) ?? 0;
-          if (mounted) {
-            setState(() {
-              runwayValue = runwayAmount.toStringAsFixed(2);
-              isLoading = false;
-            });
-          }
-        } else {
-          if (mounted) {
-            setState(() {
-              runwayValue = "0";
-              isLoading = false;
-            });
-          }
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            errorMessage = "No company data found";
-            isLoading = false;
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          errorMessage = "Failed to load runway data";
-          isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> fetchTotalFundsAvailable() async {
-    if (!mounted) return;
-    setState(() => _isFundsLoading = true);
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        if (mounted) setState(() => _isFundsLoading = false);
-        return;
-      }
-
-      final docSnapshot = await FirebaseFirestore.instance
-          .collection("companies")
-          .doc(user.uid)
-          .get();
-
-      if (docSnapshot.exists && docSnapshot.data() != null) {
-        final data = docSnapshot.data()!;
-        final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
-        final totalExpenses =
-            data["totalExpenses"] ?? data["total_expenses"] ?? "0";
-
-        if (funding != null) {
-          final fundingAmount = double.tryParse(funding.toString()) ?? 0;
-          final totalExpensesAmount =
-              double.tryParse(totalExpenses.toString()) ?? 0;
-          final availableFundsNum = fundingAmount - totalExpensesAmount;
-
-          if (mounted) {
-            setState(() {
-              String formattedFunds = availableFundsNum
-                  .toStringAsFixed(0)
-                  .replaceAllMapped(
-                    RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-                    (match) => '${match[1]},',
-                  );
-              totalFundsAvailable = _isLoadingCountry
-                  ? "₹$formattedFunds"
-                  : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$formattedFunds";
-              _isFundsLoading = false;
-            });
-          }
-        } else {
-          if (mounted) setState(() => _isFundsLoading = false);
-        }
-      } else {
-        if (mounted) setState(() => _isFundsLoading = false);
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isFundsLoading = false);
-    }
-  }
-
-  Future<void> fetchMonthlyBurn() async {
-    if (!mounted) return;
-    setState(() => _isMonthlyBurnLoading = true);
-    try {
-      await _fetchAllExpenses();
-      final currentMonthBurnAmount = _calculateCurrentMonthBurn();
-
-      if (mounted) {
-        setState(() {
-          monthlyBurn = currentMonthBurnAmount > 0
-              ? (_isLoadingCountry
-                    ? "₹${currentMonthBurnAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                    : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${currentMonthBurnAmount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}")
-              : null;
-          _isMonthlyBurnLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          monthlyBurn = null;
-          _isMonthlyBurnLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _fetchAllExpenses() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      final expensesSnapshot = await FirebaseFirestore.instance
-          .collection('expenses')
-          .where('uid', isEqualTo: user.uid)
-          .orderBy('Date', descending: true)
-          .get();
-
-      if (mounted) {
-        setState(() {
-          allExpenses = expensesSnapshot.docs.map((doc) {
-            final data = doc.data();
-            return {
-              'id': doc.id,
-              'amount': (data['Amount'] as num).toDouble(),
-              'date': data['Date'],
-            };
-          }).toList();
-        });
-      }
-    } catch (e) {
-      log("Error fetching expenses: $e");
-    }
-  }
-
-  double _calculateCurrentMonthBurn() {
-    if (allExpenses.isEmpty) return 0;
-    final now = DateTime.now();
-    double currentMonthTotal = 0;
-    for (var expense in allExpenses) {
-      final expenseDate = expense['date'] as Timestamp?;
-      if (expenseDate != null) {
-        final dt = expenseDate.toDate();
-        if (dt.month == now.month && dt.year == now.year) {
-          currentMonthTotal += expense['amount'] as double;
-        }
-      }
-    }
-    return currentMonthTotal;
-  }
-
-  Future<void> _loadFinancialDataForPieChart() async {
-    if (!mounted) return;
-    setState(() => _isPieChartLoading = true);
-    try {
-      final financialData = await FinancialDataService.getMonthlyBurnData();
-      if (mounted) {
-        setState(() {
-          _financialData = financialData;
-          final rawTrend = financialData['trendData'] as List? ?? [];
-          _trendData = List<Map<String, dynamic>>.from(rawTrend);
-          _isPieChartLoading = false;
-          _isTrendLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isPieChartLoading = false;
-          _isTrendLoading = false;
-        });
-      }
-    }
   }
 
   Color _getCategoryColor(String category) {
@@ -591,7 +499,15 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'office & operations':
         return const Color(0xFF00BFA5);
       default:
-        return const Color(0xFF8E8E93);
+        // Expanded dynamic colors for unmapped categories
+        final colors = [
+          const Color(0xFF5E5CE6),
+          const Color(0xFFFF375F),
+          const Color(0xFFBF5AF2),
+          const Color(0xFFFFD60A),
+          const Color(0xFF32ADE6),
+        ];
+        return colors[category.hashCode % colors.length];
     }
   }
 
@@ -637,7 +553,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       child: _buildFlatMetricCard(
                         label: "Available Funds",
-                        value: totalFundsAvailable,
+                        value: _isFundsLoading ? null : _formatCurrency(_availableFunds),
                         icon: Icons.account_balance_wallet_outlined,
                         isLoading: _isFundsLoading,
                       ),
@@ -654,7 +570,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       child: _buildFlatMetricCard(
                         label: "Monthly Burn",
-                        value: monthlyBurn,
+                        value: _isMonthlyBurnLoading || _currentMonthBurn <= 0 
+                                ? null 
+                                : _formatCurrency(_currentMonthBurn),
                         icon: Icons.local_fire_department_outlined,
                         isBurn: true,
                         isLoading: _isMonthlyBurnLoading,
@@ -740,12 +658,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection("users")
-          .doc(user.uid)
-          .snapshots(),
+      stream: FirebaseFirestore.instance.collection("users").doc(user.uid).snapshots(),
       builder: (context, userSnapshot) {
-        // Load profile image FileId from user data
         String? profileImageFileId;
         if (userSnapshot.hasData && userSnapshot.data!.exists) {
           final userData = userSnapshot.data!.data() as Map<String, dynamic>;
@@ -828,36 +742,6 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildSectionLabel("EST. RUNWAY"),
               Row(
                 children: [
-                  GestureDetector(
-                    onTap: _loadAllData,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(100),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
-                        ),
-                      ),
-                      child: isLoading
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white38,
-                              ),
-                            )
-                          : const Icon(
-                              Icons.refresh,
-                              color: Colors.white38,
-                              size: 16,
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -917,7 +801,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // FIXED: FITTED BOX FOR LARGE NUMBERS
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
@@ -986,7 +869,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             )
           else
-            // FIXED: FITTED BOX FOR LARGE NUMBERS
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
@@ -998,7 +880,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
                 style: GoogleFonts.inter(
                   color: value != null ? Colors.white : Colors.white54,
-                  fontSize: 24, // Slight bump in size to match aesthetics
+                  fontSize: 24,
                   fontWeight: FontWeight.w600,
                   letterSpacing: -0.5,
                 ),
@@ -1008,10 +890,10 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(
             label,
             style: GoogleFonts.inter(
-              color: Colors.white54, // Changed from white38 to white54
-              fontSize: 11, // Changed from 12 to 11
-              fontWeight: FontWeight.bold, // Changed from w500 to bold
-              letterSpacing: 1.2, // Added spacing to match section labels
+              color: Colors.white54,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
             ),
           ),
         ],
@@ -1044,23 +926,32 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 160,
               child: Builder(
                 builder: (context) {
-                  final display = _trendData.length > 6
-                      ? _trendData.sublist(_trendData.length - 6)
-                      : _trendData;
+                  // Safely handle chronological ordering for chart
+                  List<Map<String, dynamic>> display = _trendData;
+                  if (display.isNotEmpty) {
+                    bool isNewestFirst = display.first['isCurrentMonth'] == true;
+                    if (isNewestFirst) {
+                      display = display.take(6).toList().reversed.toList();
+                    } else {
+                      if (display.length > 6) {
+                        display = display.sublist(display.length - 6);
+                      }
+                    }
+                  }
+
                   final maxAmount = display.isEmpty
                       ? 1.0
                       : display
-                            .map((d) => (d['amount'] as num).toDouble())
-                            .reduce((a, b) => a > b ? a : b);
+                          .map((d) => _toDouble(d['amount']))
+                          .reduce((a, b) => a > b ? a : b);
 
                   return Row(
                     mainAxisAlignment: display.length <= 3
                         ? MainAxisAlignment.spaceEvenly
                         : MainAxisAlignment.spaceBetween,
-                    // FIX 1: Ensure the Row gives bounded height to its children
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: display.map((data) {
-                      final amount = (data['amount'] as num).toDouble();
+                      final amount = _toDouble(data['amount']);
                       final pct = maxAmount > 0 ? amount / maxAmount : 0.0;
                       return _buildFlatBar(
                         data['month'] as String,
@@ -1082,8 +973,6 @@ class _HomeScreenState extends State<HomeScreen> {
     double amount, {
     bool isActive = false,
   }) {
-    // FIX 2: Scale 0 to 2% (0.02) so it's not completely invisible,
-    // otherwise strictly use the percentage scale for the height.
     final safePct = pct == 0.0 ? 0.02 : pct.clamp(0.0, 1.0);
 
     return Column(
@@ -1091,9 +980,7 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         Flexible(
           child: Text(
-            _isLoadingCountry
-                ? "₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
+            _formatCurrency(amount),
             style: GoogleFonts.inter(
               color: isActive ? Colors.white : Colors.white54,
               fontSize: 9,
@@ -1105,7 +992,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(height: 4),
-        // FIX 3: Use Expanded and FractionallySizedBox to apply the percentage to the height
         Expanded(
           child: Align(
             alignment: Alignment.bottomCenter,
@@ -1155,9 +1041,9 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final categoryBreakdown =
-        _financialData?['categoryBreakdown'] as Map<String, double>? ?? {};
-    final totalExpenses = _financialData?['totalExpenses'] as double? ?? 0;
+    // Use REAL-TIME data populated from the stream listener
+    final categoryBreakdown = _realtimeCategoryBreakdown;
+    final totalExpenses = _currentMonthBurn;
 
     if (categoryBreakdown.isEmpty || totalExpenses == 0) {
       return Container(
@@ -1300,15 +1186,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                // FIXED: FITTED BOX FOR LARGE NUMBERS
                 Expanded(
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerRight,
                     child: Text(
-                      _isLoadingCountry
-                          ? "₹${totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                          : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
+                      _formatCurrency(totalExpenses),
                       style: GoogleFonts.inter(
                         color: Colors.white,
                         fontSize: 14,
@@ -1336,9 +1219,9 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 8,
-        ), // Standardized padding
+        ),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08), // White Glass effect
+          color: Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
         ),
@@ -1350,7 +1233,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: Colors.white,
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 1.0, // Standardized tracking
+                letterSpacing: 1.0,
               ),
             ),
             const SizedBox(width: 4),
