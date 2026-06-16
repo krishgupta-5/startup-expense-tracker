@@ -61,12 +61,34 @@ service cloud.firestore {
         && request.auth.uid == resource.data.userId;
     }
     
-    // Team collection - email verification required
-    match /team/{teamId} {
-      allow read, write: if request.auth != null 
+    // Teams collection - email verification required
+    match /teams/{teamId} {
+      allow read: if request.auth != null 
+        && (request.auth.token.email_verified == true || 
+            request.auth.token.firebase.sign_in_provider == 'google.com');
+      allow create: if request.auth != null 
         && (request.auth.token.email_verified == true || 
             request.auth.token.firebase.sign_in_provider == 'google.com')
-        && request.auth.uid == resource.data.userId;
+        && request.auth.uid == request.resource.data.uid;
+      allow update, delete: if request.auth != null 
+        && (request.auth.token.email_verified == true || 
+            request.auth.token.firebase.sign_in_provider == 'google.com')
+        && request.auth.uid == resource.data.uid;
+    }
+    
+    // Members collection - email verification required
+    match /members/{memberId} {
+      allow read: if request.auth != null 
+        && (request.auth.token.email_verified == true || 
+            request.auth.token.firebase.sign_in_provider == 'google.com');
+      allow create: if request.auth != null 
+        && (request.auth.token.email_verified == true || 
+            request.auth.token.firebase.sign_in_provider == 'google.com')
+        && request.auth.uid == request.resource.data.uid;
+      allow update, delete: if request.auth != null 
+        && (request.auth.token.email_verified == true || 
+            request.auth.token.firebase.sign_in_provider == 'google.com')
+        && request.auth.uid == resource.data.uid;
     }
     
     // Default deny for any other collections

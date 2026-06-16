@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../shared/widgets/error_popup.dart';
 import '../services/auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -12,41 +14,61 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
+  
   bool _isLoading = false;
+  int _cooldownSeconds = 0;
+  Timer? _cooldownTimer;
+
+  @override
+  void dispose() {
+    _cooldownTimer?.cancel();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  void _startCooldown() {
+    setState(() => _cooldownSeconds = 60);
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_cooldownSeconds == 0) {
+        timer.cancel();
+      } else {
+        setState(() => _cooldownSeconds--);
+      }
+    });
+  }
 
   Future<void> _sendPasswordResetEmail() async {
-    FocusScope.of(context).unfocus(); // Dismiss keyboard
+    FocusScope.of(context).unfocus(); 
 
-    if (_emailController.text.trim().isEmpty) {
-      _showErrorSnackBar('Please enter your email address');
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
-    // Email validation
-    if (!_emailController.text.contains('@')) {
-      _showErrorSnackBar('Enter a valid email');
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(
         email: _emailController.text.trim(),
       );
 
-      // Log successful password reset request
       await AuthService.logPasswordReset(
         email: _emailController.text.trim(),
         status: 'success',
       );
 
       if (mounted) {
-        _showSuccessSnackBar('Password reset link sent to your email');
-        // Don't auto pop - let user confirm
+        // USING CUSTOM POPUP FOR SUCCESS
+        ErrorPopup.showSuccess(
+          context: context, 
+          message: 'Reset link sent! Please check your inbox.'
+        );
+        _startCooldown(); 
+        
+        // Auto-pop removed as requested. User stays on this screen.
       }
     } on FirebaseAuthException catch (e) {
       String errorMessage;
@@ -59,6 +81,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           break;
         case 'too-many-requests':
           errorMessage = 'Too many requests. Try again later';
+          _startCooldown(); 
           break;
         case 'user-disabled':
           errorMessage = 'This account has been disabled';
@@ -67,56 +90,45 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           errorMessage = 'Failed to send reset link: ${e.message}';
       }
 
-      // Log failed password reset request
       await AuthService.logPasswordReset(
         email: _emailController.text.trim(),
         status: 'failed',
         error: e.code,
       );
 
-      _showErrorSnackBar(errorMessage);
+      if (mounted) {
+        // USING CUSTOM POPUP FOR FIREBASE ERRORS
+        ErrorPopup.showAuth(
+          context: context, 
+          message: errorMessage
+        );
+      }
     } catch (e) {
-      // Log unexpected error
       await AuthService.logPasswordReset(
         email: _emailController.text.trim(),
         status: 'failed',
         error: 'unexpected_error',
       );
 
-      _showErrorSnackBar('An unexpected error occurred');
+      if (mounted) {
+        // USING CUSTOM POPUP FOR GENERAL ERRORS
+        ErrorPopup.showError(
+          context: context, 
+          title: 'Unexpected Error',
+          message: 'An unexpected error occurred. Please try again.',
+        );
+      }
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
-  }
-
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFF30D158),
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFFFF3B30),
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: const Color(0xFF09090B), 
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
@@ -134,33 +146,37 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       MediaQuery.of(context).padding.top,
                 ),
                 child: IntrinsicHeight(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 24),
-
-                      // Header
-                      _buildHeader(),
-
-                      const SizedBox(height: 48),
-
-                      // Email Input
-                      _buildLabel("EMAIL ADDRESS"),
-                      const SizedBox(height: 8),
-                      _buildInputField(
-                        controller: _emailController,
-                        hint: "name@company.com",
-                        action: TextInputAction.done,
-                        keyboardType: TextInputType.emailAddress,
-                      ),
-
-                      const SizedBox(height: 48),
-
-                      // Send Button
-                      _buildSendButton(),
-
-                      const SizedBox(height: 40),
-                    ],
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 24),
+                        _buildHeader(),
+                        const SizedBox(height: 48),
+                        _buildLabel("EMAIL ADDRESS"),
+                        const SizedBox(height: 8),
+                        _buildInputField(
+                          controller: _emailController,
+                          hint: "name@company.com",
+                          action: TextInputAction.done,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter your email address';
+                            }
+                            final emailRegex = RegExp(r'^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+');
+                            if (!emailRegex.hasMatch(value.trim())) {
+                              return 'Please enter a valid email';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 48),
+                        _buildSendButton(),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -171,13 +187,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-  // --- WIDGET BUILDERS ---
-
   Widget _buildHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Back Button (Matched to Company Setup)
         GestureDetector(
           onTap: () => Navigator.pop(context),
           child: Container(
@@ -239,41 +252,59 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     required String hint,
     TextInputAction action = TextInputAction.next,
     TextInputType keyboardType = TextInputType.text,
+    String? Function(String?)? validator,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-      ),
-      child: TextField(
-        controller: controller,
-        textInputAction: action,
-        keyboardType: keyboardType,
-        onTapOutside: (_) => FocusScope.of(context).unfocus(),
-        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-        cursorColor: Colors.white,
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: GoogleFonts.inter(color: Colors.white38),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+    return TextFormField(
+      controller: controller,
+      textInputAction: action,
+      keyboardType: keyboardType,
+      validator: validator,
+      onTapOutside: (_) => FocusScope.of(context).unfocus(),
+      style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+      cursorColor: Colors.white,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: GoogleFonts.inter(color: Colors.white38),
+        filled: true,
+        fillColor: const Color(0xFF141416),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Colors.white),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFFF3B30)),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFFF3B30)),
+        ),
+        errorStyle: GoogleFonts.inter(color: const Color(0xFFFF3B30)),
       ),
     );
   }
 
   Widget _buildSendButton() {
+    final bool isButtonDisabled = _isLoading || _cooldownSeconds > 0;
+
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
-        onPressed: _isLoading ? null : _sendPasswordResetEmail,
+        onPressed: isButtonDisabled ? null : _sendPasswordResetEmail,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
-          disabledBackgroundColor: Colors.white70,
+          disabledBackgroundColor: Colors.white.withValues(alpha: 0.5),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -289,11 +320,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
               )
             : Text(
-                "Send Reset Link",
+                _cooldownSeconds > 0 
+                    ? "Resend in ${_cooldownSeconds}s" 
+                    : "Send Reset Link",
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  color: isButtonDisabled ? Colors.black54 : Colors.black,
                 ),
               ),
       ),

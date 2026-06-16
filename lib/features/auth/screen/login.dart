@@ -56,7 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Sync AI collections in background after successful login
       AIService.syncAICollections().catchError((e) {
-        print("Failed to sync AI data after login: $e");
+        debugPrint("Failed to sync AI data after login: $e");
       });
 
       // Do nothing, AuthWrapper will handle navigation
@@ -83,6 +83,13 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF09090B), // Deep Matte Black
@@ -97,8 +104,7 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight:
-                      MediaQuery.of(context).size.height -
+                  minHeight: MediaQuery.of(context).size.height -
                       MediaQuery.of(context).viewInsets.bottom -
                       MediaQuery.of(context).padding.top,
                 ),
@@ -106,11 +112,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 60),
+                      const SizedBox(height: 24),
 
-                      // Header
+                      // Header (Matched to SignUpScreen)
                       _buildHeader(),
-                      const SizedBox(height: 48),
+                      const SizedBox(height: 24),
 
                       // Login Form
                       _buildLabel("EMAIL ADDRESS"),
@@ -118,11 +124,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       _buildInputField(
                         controller: _emailController,
                         hint: "name@company.com",
+                        icon: Icons.email_outlined,
                         action: TextInputAction.next,
                         keyboardType: TextInputType.emailAddress,
                       ),
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
 
                       _buildLabel("PASSWORD"),
                       const SizedBox(height: 8),
@@ -154,17 +161,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 24),
 
                       // Login Button
                       _buildLoginButton(),
 
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 24),
 
                       // Divider
                       _buildDivider(),
 
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 16),
 
                       // Google Sign In
                       _buildGoogleSignInButton(),
@@ -173,7 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       // Sign Up Footer
                       _buildFooter(context),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
@@ -191,6 +198,26 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Back Button (Matched to SignUpScreen)
+        GestureDetector(
+          onTap: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF141416),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.1),
+              ),
+            ),
+            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+          ),
+        ),
+        const SizedBox(height: 20),
         Text(
           "Welcome Back",
           style: GoogleFonts.inter(
@@ -228,6 +255,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildInputField({
     required TextEditingController controller,
     required String hint,
+    required IconData icon,
     TextInputAction action = TextInputAction.next,
     TextInputType keyboardType = TextInputType.text,
   }) {
@@ -236,7 +264,9 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+        ),
       ),
       child: TextField(
         controller: controller,
@@ -247,12 +277,16 @@ class _LoginScreenState extends State<LoginScreen> {
         cursorColor: Colors.white,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: GoogleFonts.inter(color: Colors.white38),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 16,
-            horizontal: 4,
+          hintStyle: GoogleFonts.inter(
+            color: Colors.white38,
           ),
+          icon: Icon(
+            icon,
+            color: Colors.white60,
+            size: 20,
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 16),
         ),
       ),
     );
@@ -264,7 +298,9 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+        ),
       ),
       child: TextField(
         controller: _passwordController,
@@ -275,34 +311,28 @@ class _LoginScreenState extends State<LoginScreen> {
         cursorColor: Colors.white,
         decoration: InputDecoration(
           hintText: "Enter your password",
-          hintStyle: GoogleFonts.inter(color: Colors.white38),
-          // Text-based toggle instead of icon
-          suffixIcon: GestureDetector(
-            onTap: () {
+          hintStyle: GoogleFonts.inter(
+            color: Colors.white38,
+          ),
+          icon: const Icon(
+            Icons.lock_outline,
+            color: Colors.white60,
+            size: 20,
+          ),
+          suffixIcon: IconButton(
+            icon: Icon(
+              _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+              color: Colors.white60,
+              size: 20,
+            ),
+            onPressed: () {
               setState(() {
                 _isPasswordVisible = !_isPasswordVisible;
               });
             },
-            child: Container(
-              alignment: Alignment.center,
-              width: 60,
-              color: Colors.transparent,
-              child: Text(
-                _isPasswordVisible ? "HIDE" : "SHOW",
-                style: GoogleFonts.inter(
-                  color: Colors.white54,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.0,
-                ),
-              ),
-            ),
           ),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 16,
-            horizontal: 4,
-          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 16),
         ),
       ),
     );
@@ -351,7 +381,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            "Or continue with",
+            "Or",
             style: GoogleFonts.inter(
               color: Colors.white60,
               fontSize: 12,
@@ -383,9 +413,8 @@ class _LoginScreenState extends State<LoginScreen> {
             });
 
             if (userCredential != null) {
-              // Sync AI collections in background after successful Google sign-in
               AIService.syncAICollections().catchError((e) {
-                print("Failed to sync AI data after Google sign-in: $e");
+                debugPrint("Failed to sync AI data after Google sign-in: $e");
               });
 
               if (mounted) {
@@ -431,11 +460,13 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              "Continue with Google",
-              style: GoogleFonts.inter(
+            Image.asset('assets/images/google_logo.png', height: 24, width: 24),
+            const SizedBox(width: 12),
+            const Text(
+              "Google Sign-In",
+              style: TextStyle(
                 color: Colors.black87,
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -451,7 +482,10 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Text(
           "Don't have an account? ",
-          style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
+          style: GoogleFonts.inter(
+            color: Colors.white70,
+            fontSize: 14,
+          ),
         ),
         GestureDetector(
           onTap: () {
