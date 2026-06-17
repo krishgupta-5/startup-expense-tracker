@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/features/auth/screen/signup.dart';
 import 'package:startup_expense_tracker/features/auth/screen/forget_password.dart';
 import 'package:startup_expense_tracker/features/auth/services/google_sign_in_service.dart';
+import 'package:startup_expense_tracker/features/company-setup/screen/company_setup_screen.dart';
 import 'package:startup_expense_tracker/services/ai_service.dart';
 import 'package:startup_expense_tracker/shared/utils/error_handler.dart';
 
@@ -22,12 +24,11 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
 
   Future<void> loginUserWithEmailAndPassword() async {
-    FocusScope.of(context).unfocus(); // Dismiss keyboard
+    FocusScope.of(context).unfocus(); 
 
     final email = _emailController.text.trim();
 
-    // Email validation
-    if (!email.contains('@')) {
+    if (!email.contains('@') || email.isEmpty) {
       ErrorHandler.handleValidationError(
         context: context,
         field: 'Email',
@@ -46,7 +47,6 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text.trim(),
       );
 
-      // Show success message
       if (mounted) {
         ErrorHandler.handleSuccess(
           context: context,
@@ -54,12 +54,10 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
 
-      // Sync AI collections in background after successful login
       AIService.syncAICollections().catchError((e) {
         debugPrint("Failed to sync AI data after login: $e");
       });
 
-      // Do nothing, AuthWrapper will handle navigation
     } on FirebaseAuthException catch (e) {
       ErrorHandler.handleAuthError(
         context: context,
@@ -92,7 +90,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: const Color(0xFF09090B), 
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
@@ -113,12 +111,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 24),
-
-                      // Header (Matched to SignUpScreen)
                       _buildHeader(),
                       const SizedBox(height: 24),
-
-                      // Login Form
                       _buildLabel("EMAIL ADDRESS"),
                       const SizedBox(height: 8),
                       _buildInputField(
@@ -128,16 +122,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         action: TextInputAction.next,
                         keyboardType: TextInputType.emailAddress,
                       ),
-
                       const SizedBox(height: 20),
-
                       _buildLabel("PASSWORD"),
                       const SizedBox(height: 8),
                       _buildPasswordField(),
-
                       const SizedBox(height: 16),
-
-                      // Forgot Password Link
                       Align(
                         alignment: Alignment.centerRight,
                         child: GestureDetector(
@@ -160,25 +149,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 24),
-
-                      // Login Button
                       _buildLoginButton(),
-
                       const SizedBox(height: 24),
-
-                      // Divider
                       _buildDivider(),
-
                       const SizedBox(height: 16),
-
-                      // Google Sign In
                       _buildGoogleSignInButton(),
-
                       const Spacer(),
-
-                      // Sign Up Footer
                       _buildFooter(context),
                       const SizedBox(height: 16),
                     ],
@@ -192,13 +169,10 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // --- WIDGET BUILDERS ---
-
   Widget _buildHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Back Button (Matched to SignUpScreen)
         GestureDetector(
           onTap: () {
             if (Navigator.canPop(context)) {
@@ -413,15 +387,43 @@ class _LoginScreenState extends State<LoginScreen> {
             });
 
             if (userCredential != null) {
-              AIService.syncAICollections().catchError((e) {
-                debugPrint("Failed to sync AI data after Google sign-in: $e");
-              });
+              final bool isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+              final User user = userCredential.user!;
 
-              if (mounted) {
-                ErrorHandler.handleSuccess(
-                  context: context,
-                  message: 'Google sign-in successful! Welcome back.',
-                );
+              if (isNewUser) {
+                await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                  'uid': user.uid,
+                  'email': user.email ?? '',
+                  'provider': 'google',
+                  'companySetup': false, 
+                  'createdAt': FieldValue.serverTimestamp(),
+                  'updatedAt': FieldValue.serverTimestamp(),
+                }, SetOptions(merge: true));
+
+                AIService.syncAICollections().catchError((e) {
+                  debugPrint("Failed to sync AI data after Google sign-up: $e");
+                });
+
+                if (mounted) {
+                  ErrorHandler.handleSuccess(
+                    context: context,
+                    message: 'Account created successfully! Welcome.',
+                  );
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
+                  );
+                }
+              } else {
+                AIService.syncAICollections().catchError((e) {
+                  debugPrint("Failed to sync AI data after Google sign-in: $e");
+                });
+
+                if (mounted) {
+                  ErrorHandler.handleSuccess(
+                    context: context,
+                    message: 'Welcome back! Logging you in.',
+                  );
+                }
               }
             } else {
               ErrorHandler.handleAuthError(
@@ -489,7 +491,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         GestureDetector(
           onTap: () {
-            Navigator.push(
+            Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const SignUpScreen()),
             );
