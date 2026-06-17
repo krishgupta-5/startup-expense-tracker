@@ -33,8 +33,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     try {
       final apiKey = dotenv.env['APILAYER_EMAIL_ACCESS_KEY'];
       if (apiKey == null || apiKey.isEmpty) {
-        print('Error: APILAYER_EMAIL_ACCESS_KEY is missing in .env.local');
-        return true; // Bypass validation so users aren't blocked if env is missing
+        debugPrint('Error: APILAYER_EMAIL_ACCESS_KEY is missing in .env.local');
+        return true; 
       }
 
       final encodedEmail = Uri.encodeComponent(email);
@@ -48,22 +48,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
         final data = json.decode(response.body);
 
         if (data.containsKey('error')) {
-          print('APILayer Error: ${data['error']['info']}');
-          return true; // Bypass on API limit/error
+          debugPrint('APILayer Error: ${data['error']['info']}');
+          return true; 
         }
 
-        // 1. Basic Checks
         final bool isFormatValid = data['format_valid'] == true;
         final bool isMxFound = data['mx_found'] == true;
-        
-        // 2. Block Temp/Disposable emails
         final bool isDisposable = data['disposable'] == true;
-
-        // 3. Strict Checks (Server ping & reputation)
         final bool isSmtpValid = data['smtp_check'] == true; 
         final double score = (data['score'] ?? 0.0).toDouble();
 
-        // Must pass ALL of these to be considered a "real" email
         return isFormatValid && 
                isMxFound && 
                !isDisposable && 
@@ -72,15 +66,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
       }
       return false;
     } catch (e) {
-      print('Email validation exception: $e');
-      return true; // Gracefully fallback on network error
+      debugPrint('Email validation exception: $e');
+      return true; 
     }
   }
 
   Future<void> createUserWithEmailAndPassword() async {
+    FocusScope.of(context).unfocus(); 
+    
     final email = _emailController.text.trim();
     
-    // Basic local Email validation
     if (!email.contains('@') || email.isEmpty) {
       ErrorHandler.handleValidationError(
         context: context,
@@ -90,7 +85,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
-    // Strong password validation
     final password = _passwordController.text.trim();
     if (password.length < 8 ||
         !password.contains(RegExp(r'[A-Z]')) ||
@@ -108,7 +102,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ErrorHandler.handleValidationError(
         context: context,
         field: 'Password',
-        validationMessage: 'passwords do not match',
+        validationMessage: 'Passwords do not match',
       );
       return;
     }
@@ -117,7 +111,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _isLoading = true;
     });
 
-    // Run network API email validation
     final isEmailActiveAndValid = await _verifyEmail(email);
     
     if (!isEmailActiveAndValid) {
@@ -131,7 +124,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           validationMessage: 'Please enter a valid, active real email address.',
         );
       }
-      return; // Stops signup if email is fake/temp
+      return; 
     }
 
     try {
@@ -143,28 +136,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       final User? user = userCredential.user;
       if (user != null) {
-        // Create Firestore user document
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'uid': user.uid,
           'email': user.email ?? '',
           'provider': 'email',
+          'companySetup': false, 
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
 
-        // Sync AI collections in background after successful signup
         AIService.syncAICollections().catchError((e) {
-          print("Failed to sync AI data after signup: $e");
+          debugPrint("Failed to sync AI data after signup: $e");
         });
 
-        // Show success message
         if (mounted) {
           ErrorHandler.handleSuccess(
             context: context,
             message: 'Account created successfully! Welcome to our platform.',
           );
 
-          // Navigate to company setup screen directly
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
           );
@@ -172,12 +162,31 @@ class _SignUpScreenState extends State<SignUpScreen> {
       }
 
     } on FirebaseAuthException catch (e) {
-      ErrorHandler.handleAuthError(
-        context: context,
-        error: e,
-        onRetry: createUserWithEmailAndPassword,
-      );
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      // --- FIXED: MODERN WAY TO CHECK FOR DUPLICATE PROVIDER EMAILS ---
+      if (e.code == 'email-already-in-use') {
+        ErrorHandler.handleValidationError(
+          context: context,
+          field: 'Email',
+          validationMessage: 'This email is already registered (Google or Email). Please log in instead.',
+        );
+      } else {
+        ErrorHandler.handleAuthError(
+          context: context,
+          error: e,
+          onRetry: createUserWithEmailAndPassword,
+        );
+      }
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
       ErrorHandler.handleError(
         context: context,
         error: e,
@@ -185,13 +194,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             'An error occurred while creating your account. Please try again.',
         onRetry: createUserWithEmailAndPassword,
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+    } 
   }
 
   @override
@@ -205,69 +208,56 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: const Color(0xFF09090B),
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
         child: SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
+          child: GestureDetector(
+            onTap: () => FocusScope.of(context).unfocus(),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 24),
-
-                  // Header
-                  _buildHeader(),
-
-                  const SizedBox(height: 24),
-
-                  // Sign Up Form
-                  // Email
-                  _buildLabel("EMAIL ADDRESS"),
-                  const SizedBox(height: 8),
-                  _buildInputField(
-                    controller: _emailController,
-                    hint: "name@company.com",
-                    icon: Icons.email_outlined,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: MediaQuery.of(context).size.height -
+                      MediaQuery.of(context).viewInsets.bottom -
+                      MediaQuery.of(context).padding.top,
+                ),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 24),
+                      _buildHeader(),
+                      const SizedBox(height: 24),
+                      _buildLabel("EMAIL ADDRESS"),
+                      const SizedBox(height: 8),
+                      _buildInputField(
+                        controller: _emailController,
+                        hint: "name@company.com",
+                        icon: Icons.email_outlined,
+                      ),
+                      const SizedBox(height: 20),
+                      _buildLabel("PASSWORD"),
+                      const SizedBox(height: 8),
+                      _buildPasswordField(),
+                      const SizedBox(height: 20),
+                      _buildLabel("CONFIRM PASSWORD"),
+                      const SizedBox(height: 8),
+                      _buildConfirmPasswordField(),
+                      const SizedBox(height: 24),
+                      _buildSignUpButton(),
+                      const SizedBox(height: 24),
+                      _buildDivider(),
+                      const SizedBox(height: 16),
+                      _buildGoogleSignInButton(),
+                      const Spacer(),
+                      _buildFooter(),
+                      const SizedBox(height: 16),
+                    ],
                   ),
-
-                  const SizedBox(height: 20),
-
-                  // Password
-                  _buildLabel("PASSWORD"),
-                  const SizedBox(height: 8),
-                  _buildPasswordField(),
-
-                  const SizedBox(height: 20),
-
-                  // Confirm Password
-                  _buildLabel("CONFIRM PASSWORD"),
-                  const SizedBox(height: 8),
-                  _buildConfirmPasswordField(),
-
-                  const SizedBox(height: 24),
-
-                  // Sign Up Button
-                  _buildSignUpButton(),
-
-                  const SizedBox(height: 24),
-
-                  // Divider
-                  _buildDivider(),
-
-                  const SizedBox(height: 16),
-
-                  // Google Sign Up
-                  _buildGoogleSignInButton(),
-
-                  const SizedBox(height: 16),
-
-                  // Login Footer
-                  _buildFooter(),
-                  const SizedBox(height: 16),
-                ],
+                ),
               ),
             ),
           ),
@@ -276,13 +266,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  // --- WIDGET BUILDERS ---
-
   Widget _buildHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Back Button
         GestureDetector(
           onTap: () => Navigator.pop(context),
           child: Container(
@@ -520,6 +507,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildGoogleSignInButton() {
     return GestureDetector(
       onTap: () async {
+        if (_isLoading) return;
+
         setState(() {
           _isLoading = true;
         });
@@ -534,20 +523,44 @@ class _SignUpScreenState extends State<SignUpScreen> {
             });
 
             if (userCredential != null) {
-              // Sync AI collections in background after successful Google sign-up
-              AIService.syncAICollections().catchError((e) {
-                print("Failed to sync AI data after Google sign-up: $e");
-              });
+              final bool isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+              final User user = userCredential.user!;
 
-              // Show success message
-              if (mounted) {
-                ErrorHandler.handleSuccess(
-                  context: context,
-                  message:
-                      'Google sign-up successful! Welcome to our platform.',
-                );
+              if (isNewUser) {
+                await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+                  'uid': user.uid,
+                  'email': user.email ?? '',
+                  'provider': 'google',
+                  'companySetup': false, 
+                  'createdAt': FieldValue.serverTimestamp(),
+                  'updatedAt': FieldValue.serverTimestamp(),
+                }, SetOptions(merge: true));
+
+                AIService.syncAICollections().catchError((e) {
+                  debugPrint("Failed to sync AI data after Google sign-up: $e");
+                });
+
+                if (mounted) {
+                  ErrorHandler.handleSuccess(
+                    context: context,
+                    message: 'Account created successfully! Welcome.',
+                  );
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
+                  );
+                }
+              } else {
+                AIService.syncAICollections().catchError((e) {
+                  debugPrint("Failed to sync AI data after Google sign-in: $e");
+                });
+
+                if (mounted) {
+                  ErrorHandler.handleSuccess(
+                    context: context,
+                    message: 'Welcome back! Logging you in.',
+                  );
+                }
               }
-              // Do nothing, AuthWrapper will react automatically
             } else {
               ErrorHandler.handleAuthError(
                 context: context,
@@ -555,9 +568,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   code: 'invalid-credential',
                   message: 'Google sign-in was cancelled or failed.',
                 ),
-                onRetry: () async {
-                  // Retry logic can be implemented here if needed
-                },
+                onRetry: () async {},
               );
             }
           }
@@ -571,9 +582,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               context: context,
               error: e,
               customMessage: 'Failed to sign in with Google. Please try again.',
-              onRetry: () async {
-                // Retry logic can be implemented here if needed
-              },
+              onRetry: () async {},
             );
           }
         }
@@ -620,7 +629,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ),
         GestureDetector(
           onTap: () {
-            Navigator.push(
+            Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const LoginScreen()),
             );

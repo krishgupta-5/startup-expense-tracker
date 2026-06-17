@@ -22,7 +22,15 @@
           }
         },
         {
-          "client_id": "565170721970-0e38sp6rf9oli1pee0g6nr2cch1nijtk.apps.googleusercontent.com",
+          "client_id": "565170721970-iqf8fs420s7hts3n7h2v1f6gikmkqhvu.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.startup_expense_tracker",
+            "certificate_hash": "36a94cfbd5007ac7fb9d946fa90b45c2c851b5d0"
+          }
+        },
+        {
+          "client_id": "565170721970-si53otkg5d2fl1j4a1tpchv33lu5lotf.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
