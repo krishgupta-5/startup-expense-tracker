@@ -71,12 +71,125 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
+  /// Shows a dialog when email is already registered, offering to go to login.
+  void _showEmailExistsDialog(String email, List<String> providers) {
+    final bool isGoogleOnly =
+        providers.contains('google.com') && !providers.contains('password');
+    final bool isEmailOnly =
+        providers.contains('password') && !providers.contains('google.com');
+    final bool isBoth =
+        providers.contains('google.com') && providers.contains('password');
+
+    String message;
+    if (isGoogleOnly) {
+      message =
+          'This email is already linked to a Google account. Please use the "Google Sign-In" button to continue.';
+    } else if (isEmailOnly) {
+      message =
+          'This email is already registered with a password. Would you like to log in instead?';
+    } else if (isBoth) {
+      message =
+          'This email is already registered. Would you like to log in instead?';
+    } else {
+      message =
+          'This email is already registered. Please log in instead.';
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141416),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        title: Text(
+          'Email Already Registered',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          message,
+          style: GoogleFonts.inter(
+            color: Colors.white70,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: Colors.white54,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          if (!isGoogleOnly)
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                // Navigate to login with pre-filled email
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (_) => LoginScreen(prefillEmail: email),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                'Go to Login',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Looks up an email in Firestore's users collection to determine
+  /// which provider (if any) owns that email address.
+  Future<List<String>> _getProvidersByEmail(String email) async {
+    try {
+      final query = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email.toLowerCase().trim())
+          .limit(1)
+          .get();
+
+      if (query.docs.isEmpty) return [];
+
+      final data = query.docs.first.data();
+      final provider = data['provider'] as String?;
+      if (provider == null) return [];
+
+      // Normalise provider field: Firestore stores 'google' or 'email'
+      if (provider == 'google') return ['google.com'];
+      if (provider == 'email') return ['password'];
+      return [provider];
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<void> createUserWithEmailAndPassword() async {
-    FocusScope.of(context).unfocus(); 
-    
+    FocusScope.of(context).unfocus();
+
     final email = _emailController.text.trim();
-    
-    if (!email.contains('@') || email.isEmpty) {
+
+    if (email.isEmpty || !email.contains('@')) {
       ErrorHandler.handleValidationError(
         context: context,
         field: 'Email',
@@ -111,42 +224,39 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _isLoading = true;
     });
 
-    final isEmailActiveAndValid = await _verifyEmail(email);
-    
-    if (!isEmailActiveAndValid) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        ErrorHandler.handleValidationError(
-          context: context,
-          field: 'Email',
-          validationMessage: 'Please enter a valid, active real email address.',
-        );
-      }
-      return; 
-    }
-
     try {
-      final userCredential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-            email: email,
-            password: password,
+      // Step 1: Validate email via external API
+      final isEmailActiveAndValid = await _verifyEmail(email);
+      if (!isEmailActiveAndValid) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ErrorHandler.handleValidationError(
+            context: context,
+            field: 'Email',
+            validationMessage:
+                'Please enter a valid, active real email address.',
           );
+        }
+        return;
+      }
+
+      // Step 2: Create the account
+      final userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
 
       final User? user = userCredential.user;
       if (user != null) {
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'uid': user.uid,
-          'email': user.email ?? '',
+          'email': (user.email ?? '').toLowerCase(),
           'provider': 'email',
-          'companySetup': false, 
+          'companySetup': false,
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
 
         AIService.syncAICollections().catchError((e) {
-          debugPrint("Failed to sync AI data after signup: $e");
+          debugPrint('Failed to sync AI data after signup: $e');
         });
 
         if (mounted) {
@@ -154,47 +264,45 @@ class _SignUpScreenState extends State<SignUpScreen> {
             context: context,
             message: 'Account created successfully! Welcome to our platform.',
           );
-
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
+            MaterialPageRoute(
+                builder: (context) => const CompanySetupScreen()),
           );
         }
       }
-
     } on FirebaseAuthException catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-      // --- FIXED: MODERN WAY TO CHECK FOR DUPLICATE PROVIDER EMAILS ---
+      if (mounted) setState(() => _isLoading = false);
+
       if (e.code == 'email-already-in-use') {
-        ErrorHandler.handleValidationError(
-          context: context,
-          field: 'Email',
-          validationMessage: 'This email is already registered (Google or Email). Please log in instead.',
-        );
+        // Query Firestore to determine which provider owns this email
+        final providers = await _getProvidersByEmail(email);
+        if (mounted) {
+          _showEmailExistsDialog(email, providers.isEmpty ? ['password'] : providers);
+        }
       } else {
-        ErrorHandler.handleAuthError(
-          context: context,
-          error: e,
-          onRetry: createUserWithEmailAndPassword,
-        );
+        if (mounted) {
+          ErrorHandler.handleAuthError(
+            context: context,
+            error: e,
+            onRetry: createUserWithEmailAndPassword,
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
+        ErrorHandler.handleError(
+          context: context,
+          error: e,
+          customMessage:
+              'An error occurred while creating your account. Please try again.',
+          onRetry: createUserWithEmailAndPassword,
+        );
       }
-      ErrorHandler.handleError(
-        context: context,
-        error: e,
-        customMessage:
-            'An error occurred while creating your account. Please try again.',
-        onRetry: createUserWithEmailAndPassword,
-      );
-    } 
+    } finally {
+      // Ensure loading is always reset even if something unexpected happens.
+      if (mounted && _isLoading) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -271,7 +379,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         GestureDetector(
-          onTap: () => Navigator.pop(context),
+          onTap: () => Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          ),
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -509,75 +620,69 @@ class _SignUpScreenState extends State<SignUpScreen> {
       onTap: () async {
         if (_isLoading) return;
 
-        setState(() {
-          _isLoading = true;
-        });
+        setState(() => _isLoading = true);
 
         try {
           final UserCredential? userCredential =
               await GoogleSignInService.signInWithGoogle();
 
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
+          if (!mounted) return;
+          setState(() => _isLoading = false);
 
-            if (userCredential != null) {
-              final bool isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
-              final User user = userCredential.user!;
+          if (userCredential != null) {
+            final bool isNewUser =
+                userCredential.additionalUserInfo?.isNewUser ?? false;
+            final User user = userCredential.user!;
 
-              if (isNewUser) {
-                await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-                  'uid': user.uid,
-                  'email': user.email ?? '',
-                  'provider': 'google',
-                  'companySetup': false, 
-                  'createdAt': FieldValue.serverTimestamp(),
-                  'updatedAt': FieldValue.serverTimestamp(),
-                }, SetOptions(merge: true));
+            if (isNewUser) {
+              // Brand new account — ensure Firestore document exists
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user.uid)
+                  .set({
+                'uid': user.uid,
+                'email': user.email ?? '',
+                'provider': 'google',
+                'companySetup': false,
+                'createdAt': FieldValue.serverTimestamp(),
+                'updatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
 
-                AIService.syncAICollections().catchError((e) {
-                  debugPrint("Failed to sync AI data after Google sign-up: $e");
-                });
+              AIService.syncAICollections().catchError((e) {
+                debugPrint('Failed to sync AI data after Google sign-up: $e');
+              });
 
-                if (mounted) {
-                  ErrorHandler.handleSuccess(
-                    context: context,
-                    message: 'Account created successfully! Welcome.',
-                  );
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
-                  );
-                }
-              } else {
-                AIService.syncAICollections().catchError((e) {
-                  debugPrint("Failed to sync AI data after Google sign-in: $e");
-                });
-
-                if (mounted) {
-                  ErrorHandler.handleSuccess(
-                    context: context,
-                    message: 'Welcome back! Logging you in.',
-                  );
-                }
+              if (mounted) {
+                ErrorHandler.handleSuccess(
+                  context: context,
+                  message: 'Account created successfully! Welcome.',
+                );
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                      builder: (context) => const CompanySetupScreen()),
+                );
               }
             } else {
-              ErrorHandler.handleAuthError(
-                context: context,
-                error: FirebaseAuthException(
-                  code: 'invalid-credential',
-                  message: 'Google sign-in was cancelled or failed.',
-                ),
-                onRetry: () async {},
-              );
+              // Existing account — treat as login
+              AIService.syncAICollections().catchError((e) {
+                debugPrint('Failed to sync AI data after Google sign-in: $e');
+              });
+
+              if (mounted) {
+                ErrorHandler.handleSuccess(
+                  context: context,
+                  message: 'Welcome back! Signed in with Google.',
+                );
+                // AuthWrapper will navigate automatically
+              }
             }
+          } else {
+            // User cancelled Google sign-in — not an error, just reset state
+            if (mounted) setState(() => _isLoading = false);
           }
         } catch (e) {
           if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
-
+            setState(() => _isLoading = false);
             ErrorHandler.handleError(
               context: context,
               error: e,

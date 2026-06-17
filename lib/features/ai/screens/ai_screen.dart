@@ -55,7 +55,7 @@ class _AiScreenState extends State<AiScreen>
   // 🔥 UPDATED TO MATCH MAIN.PY ENDPOINT
   Future<void> fetchAIInsight() async {
     try {
-      print("USER UID: ${widget.uid}");
+      debugPrint("USER UID: ${widget.uid}");
 
       // Fetch expenses
       final expensesSnapshot = await FirebaseFirestore.instance
@@ -84,16 +84,19 @@ class _AiScreenState extends State<AiScreen>
           .where('uid', isEqualTo: widget.uid)
           .get();
 
-      print(
+      debugPrint(
         "DOCS FOUND - Expenses: ${expensesSnapshot.docs.length}, "
         "Company: ${companySnapshot.docs.length}, "
         "Teams: ${teamsSnapshot.docs.length}, "
         "Members: ${membersSnapshot.docs.length}",
       );
 
+      if (!mounted) return;
+
       if (expensesSnapshot.docs.isEmpty) {
         setState(() {
-          aiInsight = "No expense data found";
+          aiInsight =
+              "No expenses recorded yet. Add some expenses to get AI insights!";
         });
         return;
       }
@@ -140,7 +143,7 @@ class _AiScreenState extends State<AiScreen>
         },
       };
 
-      print("REQUEST BODY: ${jsonEncode(requestBody)}");
+      debugPrint("REQUEST BODY: ${jsonEncode(requestBody)}");
 
       // Determine URL based on platform
       String baseUrl;
@@ -156,11 +159,12 @@ class _AiScreenState extends State<AiScreen>
         body: jsonEncode(requestBody),
       );
 
-      print("API RESPONSE: ${res.body}");
+      debugPrint("API RESPONSE: ${res.body}");
+
+      if (!mounted) return;
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-
         setState(() {
           aiInsight = data["insight"] ?? "No insight generated";
           aiMetrics = data["metrics"] as Map<String, dynamic>?;
@@ -170,10 +174,18 @@ class _AiScreenState extends State<AiScreen>
           aiInsight = "Server error: ${res.statusCode}";
         });
       }
-    } catch (e) {
-      print("ERROR: $e");
+    } on SocketException {
+      // AI server not running locally — show a friendly fallback
+      if (!mounted) return;
       setState(() {
-        aiInsight = "Error: $e";
+        aiInsight =
+            "AI server is not running. Start the local Python server to get insights.";
+      });
+    } catch (e) {
+      debugPrint("ERROR: $e");
+      if (!mounted) return;
+      setState(() {
+        aiInsight = "Could not load AI insights. Please try again later.";
       });
     }
   }
@@ -205,13 +217,7 @@ class _AiScreenState extends State<AiScreen>
     return cleaned;
   }
 
-  void _loadSection(String sectionKey) {
-    if (!_sectionLoadStates[sectionKey]!) {
-      setState(() {
-        _sectionLoadStates[sectionKey] = true;
-      });
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {

@@ -187,6 +187,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                         _isResending = true; // Use loading state
                       });
 
+                      // Capture messenger before async gap
+                      final messenger = ScaffoldMessenger.of(context);
+
                       try {
                         // Force reload multiple times to ensure we get latest status
                         await FirebaseAuth.instance.currentUser?.reload();
@@ -200,7 +203,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                         if (user != null && user.emailVerified) {
                           // Email is verified, AuthWrapper will handle navigation
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(
                                 backgroundColor: const Color(0xFF30D158),
                                 content: Text(
@@ -214,7 +217,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                         } else {
                           // Email not verified yet
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(
                                 backgroundColor: const Color(0xFFFF3B30),
                                 content: Text(
@@ -228,7 +231,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                         }
                       } catch (e) {
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(
                               backgroundColor: const Color(0xFFFF3B30),
                               content: Text(
@@ -275,6 +278,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                         _isResending = true;
                       });
 
+                      // Capture messenger before async gap
+                      final messenger = ScaffoldMessenger.of(context);
+
                       try {
                         // Force sign out and sign back in to trigger token refresh
                         final user = FirebaseAuth.instance.currentUser;
@@ -290,7 +296,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
                           // This will trigger AuthWrapper to show login screen
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(
                                 backgroundColor: const Color(0xFF30D158),
                                 content: Text(
@@ -304,7 +310,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                         }
                       } catch (e) {
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          messenger.showSnackBar(
                             SnackBar(
                               backgroundColor: const Color(0xFFFF3B30),
                               content: Text(
