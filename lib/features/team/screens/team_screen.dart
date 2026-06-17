@@ -33,8 +33,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   // Refresh state
   bool _needsRefresh = false;
   String _userCountryCode = '+1'; // Default to USD
-  final bool _isLoadingCountry =
-      false; // Start as false since we use sync method
+  final bool _isLoadingCountry = false; 
 
   // Cache for Telegram photos to avoid repeated fetching
   static final Map<String, String> _telegramPhotoCache = {};
@@ -42,13 +41,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    // Listen for app lifecycle changes to refresh when returning to foreground
     WidgetsBinding.instance.addObserver(this);
-    // Get currency preference synchronously for instant display
     _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
-    // Listen for currency changes
     CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
-    // Load in background for more accurate result
     _loadUserCountryCode();
   }
 
@@ -90,15 +85,12 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     }
   }
 
-  // Method to trigger refresh
   void _refreshData() {
     setState(() {});
   }
 
-  // Reconstruct Icon from Font Family & Code Point saved in Firebase
   IconData _getIconFromData(Map<String, dynamic> data) {
     if (data['iconCodePoint'] != null && data['iconFontFamily'] != null) {
-      // Use a switch statement with common icon code points to ensure tree shaking
       switch (data['iconCodePoint']) {
         case 0xe3af:
           return Icons.work;
@@ -124,10 +116,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
           return Icons.group;
       }
     }
-    return Icons.group; // Fallback
+    return Icons.group; 
   }
 
-  // Parse color string to actual Color object
   Color _getColorFromName(String colorName) {
     switch (colorName.toLowerCase()) {
       case 'blue':
@@ -141,11 +132,10 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
       case 'red':
         return const Color(0xFFFF453A);
       default:
-        return const Color(0xFF0A84FF); // Fallback
+        return const Color(0xFF0A84FF); 
     }
   }
 
-  // Stream for real-time team updates
   Stream<List<Map<String, dynamic>>> _getTeamsStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return Stream.value([]);
@@ -169,23 +159,19 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   Future<List<Map<String, dynamic>>> _filterAndSortTeams(
     List<Map<String, dynamic>> teams,
   ) async {
-    // A. Filter by Search Query
-    List<Map<String, dynamic>> filteredTeams = teams;
+    List<Map<String, dynamic>> filteredTeams = List.from(teams);
 
     if (_searchQuery.isNotEmpty) {
-      filteredTeams = teams.where((team) {
+      filteredTeams = filteredTeams.where((team) {
         final teamName = (team['teamName'] ?? '').toString().toLowerCase();
         return teamName.contains(_searchQuery.toLowerCase());
       }).toList();
     }
 
-    // B. Apply sorting
     if (_selectedSortOption == "Team Size") {
-      // For team size, we need to fetch member counts asynchronously
       final teamSizes = <String, int>{};
 
       for (final team in filteredTeams) {
-        // All teams are now from teams collection, so fetch from members collection
         final membersSnapshot = await FirebaseFirestore.instance
             .collection('members')
             .where('teamId', isEqualTo: team['id'])
@@ -201,7 +187,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
             : sizeB.compareTo(sizeA);
       });
     } else {
-      // For synchronous sorting options
       filteredTeams.sort((a, b) {
         switch (_selectedSortOption) {
           case "Name":
@@ -212,8 +197,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                 : nameB.compareTo(nameA);
 
           case "Monthly Amount":
-            final costA = (a['monthlyBudget'] ?? 0.0) as double;
-            final costB = (b['monthlyBudget'] ?? 0.0) as double;
+            // FIX: Safely cast to double to prevent int-parsing crashes
+            final costA = (a['monthlyBudget'] ?? 0).toDouble();
+            final costB = (b['monthlyBudget'] ?? 0).toDouble();
             return _selectedOrder == "Low-High"
                 ? costA.compareTo(costB)
                 : costB.compareTo(costA);
@@ -227,11 +213,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     return filteredTeams;
   }
 
-  // Toggle order when the same chip is clicked again
   void _toggleOrder(String option) {
     setState(() {
       if (_selectedSortOption == option) {
-        // Toggle existing order
         if (option == "Name") {
           _selectedOrder = _selectedOrder == "A-Z" ? "Z-A" : "A-Z";
         } else {
@@ -240,12 +224,11 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
               : "Low-High";
         }
       } else {
-        // Select new option and reset to default order
         _selectedSortOption = option;
         if (option == "Name") {
           _selectedOrder = "A-Z";
         } else {
-          _selectedOrder = "High-Low"; // Default for numbers usually High-Low
+          _selectedOrder = "High-Low"; 
         }
       }
     });
@@ -256,10 +239,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: const Color(0xFF09090B), // Themed Dark background
-        // --- NEW TEAM BUTTON (Hidden during search) ---
+        backgroundColor: const Color(0xFF09090B),
         floatingActionButton: _isSearching
-            ? null // Hide the FAB completely when searching
+            ? null 
             : FloatingActionButton.extended(
                 onPressed: () {
                   Navigator.push(
@@ -268,12 +250,10 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                       builder: (context) => const CreateTeamScreen(),
                     ),
                   ).then((_) {
-                    // Refresh data when returning from create team screen
                     _refreshData();
                   });
                 },
-                backgroundColor:
-                    Colors.white, // Match other main action buttons
+                backgroundColor: Colors.white, 
                 foregroundColor: Colors.black,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -294,13 +274,11 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Header with Search (Fixed at top)
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
                 child: _buildHeader(),
               ),
 
-              // 2. Section Title
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Row(
@@ -314,7 +292,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 16),
 
-              // 3. Horizontal Filter Component (Chips)
               if (!_isSearching)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -323,7 +300,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
 
               if (!_isSearching) const SizedBox(height: 24),
 
-              // 4. Teams List (Scrollable Stream)
               Expanded(child: _buildFirebaseTeamsStream()),
             ],
           ),
@@ -331,8 +307,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
       ),
     );
   }
-
-  // --- WIDGET BUILDERS ---
 
   Widget _buildFirebaseTeamsStream() {
     final user = FirebaseAuth.instance.currentUser;
@@ -383,12 +357,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
             }
 
             return ListView.builder(
-              padding: const EdgeInsets.fromLTRB(
-                24,
-                0,
-                24,
-                100,
-              ), // Bottom padding for FAB
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 100), 
               physics: const BouncingScrollPhysics(),
               itemCount: teams.length,
               itemBuilder: (context, index) {
@@ -491,7 +460,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        // Title or Active Search Bar
         Expanded(
           child: _isSearching
               ? _buildActiveSearchBar()
@@ -519,8 +487,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                   ],
                 ),
         ),
-
-        // Search Toggle Button (only show if not already searching)
         if (!_isSearching) ...[
           GestureDetector(
             onTap: () {
@@ -607,12 +573,10 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildTeamCard(BuildContext context, Map<String, dynamic> teamData) {
-    debugPrint(
-      "Building team card for team ID: ${teamData['id']}, team name: ${teamData['teamName']}",
-    );
-
     final name = teamData['teamName'] ?? 'Unnamed Team';
-    final rawCost = teamData['monthlyBudget'] ?? 0.0;
+    // FIX: Safely cast to double
+    final double rawCost = (teamData['monthlyBudget'] ?? 0).toDouble(); 
+    
     final cost = _isLoadingCountry
         ? CurrencyFormatter.formatByCountry(rawCost, '+1')
         : CurrencyFormatter.formatByCountry(rawCost, _userCountryCode);
@@ -624,7 +588,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
       padding: const EdgeInsets.only(bottom: 16),
       child: GestureDetector(
         onTap: () {
-          // Pass team data to details screen
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -632,7 +595,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                   TeamDetailScreen(teamId: teamId, initialTeamData: teamData),
             ),
           ).then((_) {
-            // Refresh data when returning from team detail screen
             _refreshData();
           });
         },
@@ -671,7 +633,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          // Member count display
                           _buildMemberCount(teamData),
                         ],
                       ),
@@ -690,9 +651,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Avatar Pile
                   _buildAvatarPile(teamData),
-                  // Monthly Cost
                   Row(
                     children: [
                       Text(
@@ -722,7 +681,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildMemberCount(Map<String, dynamic> teamData) {
-    // All teams are now from teams collection, so fetch from members collection
     final teamId = teamData['id'] as String;
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -731,7 +689,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
           .snapshots(),
       builder: (context, membersSnapshot) {
         if (membersSnapshot.hasError) {
-          debugPrint("Error fetching members: ${membersSnapshot.error}");
           return Text(
             "Error loading members",
             style: GoogleFonts.inter(
@@ -754,8 +711,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
         }
 
         final memberCount = membersSnapshot.data?.docs.length ?? 0;
-        debugPrint("Team $teamId has $memberCount members");
-
         final memberCountStr = memberCount == 1
             ? "1 Member"
             : "$memberCount Members";
@@ -773,7 +728,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildAvatarPile(Map<String, dynamic> teamData) {
-    // All teams are now from teams collection, so fetch from members collection
     final teamId = teamData['id'] as String;
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -782,20 +736,13 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
           .snapshots(),
       builder: (context, membersSnapshot) {
         if (membersSnapshot.hasError) {
-          debugPrint(
-            "Error fetching members for avatars: ${membersSnapshot.error}",
-          );
           return Text(
-            "Error loading members",
+            "Error",
             style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 12),
           );
         }
 
         final membersDocs = membersSnapshot.data?.docs ?? [];
-        debugPrint(
-          "Avatar pile - Team $teamId has ${membersDocs.length} members",
-        );
-
         final List<String> avatars = [];
         final List<String> names = [];
         final List<String> memberIds = [];
@@ -809,19 +756,17 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
           names.add(name);
           memberIds.add(memberDoc.id);
 
-          // Check for Telegram photo first, then regular avatar
           if (telegramFileId != null && telegramFileId.isNotEmpty) {
-            avatars.add('telegram:$telegramFileId'); // Mark as Telegram photo
+            avatars.add('telegram:$telegramFileId'); 
           } else if (avatarUrl != null &&
               avatarUrl.isNotEmpty &&
               !avatarUrl.startsWith('http') &&
               !avatarUrl.contains('ui-avatars.com')) {
-            // Backward compatibility: avatarUrl might contain Telegram file ID
             avatars.add('telegram:$avatarUrl');
           } else if (avatarUrl != null && avatarUrl.isNotEmpty) {
             avatars.add(avatarUrl);
           } else {
-            avatars.add(''); // Empty string for generated avatar
+            avatars.add(''); 
           }
         }
 
@@ -843,12 +788,12 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     }
 
     return SizedBox(
-      height: 28, // Adjusted height
-      width: 100, // Fixed width to allow stacking
+      height: 28, 
+      width: 100, 
       child: Stack(
         children: List.generate((names.length > 3 ? 3 : names.length), (index) {
           return Positioned(
-            left: index * 20.0, // Adjusted overlap amount
+            left: index * 20.0, 
             child: _buildMemberAvatar(
               names[index],
               avatars[index],
@@ -861,7 +806,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildMemberAvatar(String name, String avatarUrl, String? memberId) {
-    // Make avatar clickable to show member profile
     return GestureDetector(
       onTap: () {
         if (memberId != null) {
@@ -872,22 +816,17 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     );
   }
 
-  // Build member avatar with Telegram photo support
   Widget _buildMemberAvatarWithTelegram(
     String name,
     double size,
     String avatarUrl,
   ) {
-    // Check if it's a Telegram photo
     if (avatarUrl.startsWith('telegram:')) {
-      final telegramFileId = avatarUrl.substring(
-        9,
-      ); // Remove 'telegram:' prefix
+      final telegramFileId = avatarUrl.substring(9); 
       return FutureBuilder<String>(
         future: getTelegramImageUrl(telegramFileId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            // Show loading indicator while fetching Telegram photo
             return Container(
               width: size,
               height: size,
@@ -908,7 +847,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
               ),
             );
           } else if (snapshot.hasError || !snapshot.hasData) {
-            // Fallback to generated avatar on error
             return AvatarWidget(
               name: name,
               size: size,
@@ -916,7 +854,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
               fontSize: size * 0.4,
             );
           } else {
-            // Show Telegram photo
             return AvatarWidget(
               name: name,
               size: size,
@@ -927,7 +864,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
         },
       );
     } else {
-      // Handle regular avatar URL
       return AvatarWidget(
         name: name,
         size: size,
@@ -940,7 +876,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   }
 
   void _showMemberProfile(String memberId) {
-    // Navigate to member detail screen
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -959,7 +894,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
               Icons.group_off_outlined,
               color: Colors.white12,
               size: 48,
-            ), // Updated Icon
+            ), 
             const SizedBox(height: 16),
             Text(
               message,
@@ -971,9 +906,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     );
   }
 
-  // Telegram photo fetching methods with caching
   Future<String> getTelegramImageUrl(String fileId) async {
-    // Check cache first
     if (_telegramPhotoCache.containsKey(fileId)) {
       return _telegramPhotoCache[fileId]!;
     }
@@ -995,7 +928,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
       final path = data['result']['file_path'];
       final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
 
-      // Cache the result
       _telegramPhotoCache[fileId] = imageUrl;
 
       return imageUrl;
@@ -1026,7 +958,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
       var data = jsonDecode(responseData);
 
       if (data['ok']) {
-        // Take highest quality image
         return data['result']['photo'].last['file_id'];
       } else {
         throw Exception("Upload failed: ${response.statusCode}");
