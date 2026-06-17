@@ -162,13 +162,12 @@ class _HomeScreenState extends State<HomeScreen> {
       if (docSnapshot.exists && docSnapshot.data() != null) {
         final data = docSnapshot.data()!;
         
-        final runwayFromFirebase = data["Runway"]?.toString() ?? "0";
         final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
         
         if (mounted) {
           setState(() {
-            runwayValue = runwayFromFirebase != "0" ? _toDouble(runwayFromFirebase).toStringAsFixed(2) : "0";
             _fundingAmount = _toDouble(funding);
+            _updateRunwayValue();
             
             isLoading = false;
             _isFundsLoading = false;
@@ -227,6 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
             'amount': amount,
             'date': date,
             'category': category,
+            'type': data['Type'] ?? data['type'] ?? 'one_time',
           };
         }).toList();
 
@@ -235,6 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _absoluteTotalExpenses = absoluteTotal;
           _currentMonthBurn = currentMonthTotal;
           _realtimeCategoryBreakdown = localCategoryBreakdown;
+          _updateRunwayValue();
           
           _isMonthlyBurnLoading = false;
           _isPieChartLoading = false; 
@@ -263,6 +264,70 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (mounted) setState(() => _isTrendLoading = false);
     }
+  }
+
+  void _updateRunwayValue() {
+    if (_fundingAmount <= 0) {
+      runwayValue = "0.0";
+      return;
+    }
+
+    // Compute available balance dynamically from allExpenses
+    final realTotalExpenses = allExpenses.fold<double>(
+      0.0,
+      (t, e) => t + (e['amount'] as double? ?? 0.0),
+    );
+    final availableBalance = _fundingAmount - realTotalExpenses;
+    if (availableBalance <= 0) {
+      runwayValue = "0.0";
+      return;
+    }
+
+    // Calculate current month burn using FinancialCalculator
+    final expensesForCalculation = allExpenses
+        .map(
+          (expense) => {
+            'amount': expense['amount'] as double,
+            'date': expense['date'],
+            'type': expense['type'] ?? 'one_time',
+          },
+        )
+        .toList();
+
+    double actualMonthlyBurn = FinancialCalculator.currentMonthBurn(
+      expensesForCalculation,
+    );
+
+    if (actualMonthlyBurn == 0 && allExpenses.isNotEmpty) {
+      actualMonthlyBurn = _calculateAverageMonthlyBurn();
+    }
+
+    if (actualMonthlyBurn <= 0) {
+      runwayValue = "0.0";
+    } else {
+      runwayValue = (availableBalance / actualMonthlyBurn).toStringAsFixed(2);
+    }
+  }
+
+  double _calculateAverageMonthlyBurn() {
+    if (allExpenses.isEmpty) return 0.0;
+    Map<String, double> monthlyTotals = {};
+
+    for (var expense in allExpenses) {
+      final expenseDate = expense['date'] as Timestamp?;
+      if (expenseDate != null) {
+        final expenseDateTime = expenseDate.toDate();
+        final monthKey =
+            "${expenseDateTime.year}-${expenseDateTime.month.toString().padLeft(2, '0')}";
+
+        monthlyTotals[monthKey] =
+            (monthlyTotals[monthKey] ?? 0.0) + (expense['amount'] as double);
+      }
+    }
+
+    if (monthlyTotals.isEmpty) return 0.0;
+    double total = monthlyTotals.values.fold(0.0, (sum, item) => sum + item);
+    return total / monthlyTotals.length;
   }
 
   // --- PREMIUM SECTION LABEL HELPER ---
