@@ -54,105 +54,68 @@ class FinancialDataService {
     final startOfMonth = DateTime(now.year, now.month, 1);
     final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
 
-    print(
-      'DEBUG: Fetching monthly burn data from ${startOfMonth.toIso8601String()} to ${endOfMonth.toIso8601String()}',
-    );
-
     try {
-      // Run all queries in parallel for better performance
       final futures = await Future.wait([
-        // Get expenses for current month
         _firestore
             .collection('expenses')
             .where('uid', isEqualTo: user.uid)
-            .where(
-              'Date',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth),
-            )
-            .where('Date', isLessThanOrEqualTo: Timestamp.fromDate(endOfMonth))
             .get(),
-        // Get budget data
         _getBudgetData(user.uid),
-        // Get revenue data
-        _getMonthlyRevenue(user.uid, startOfMonth, endOfMonth),
-        // Get trend data
-        _getSixMonthTrend(user.uid),
-        // Get team member data for salaries
+        _getRevenueForRange(user.uid, null, null),
         _firestore
             .collection('team_members')
             .where('uid', isEqualTo: user.uid)
             .get(),
       ]);
 
-      final expensesSnapshot = futures[0] as QuerySnapshot;
+      final allExpensesSnapshot = futures[0] as QuerySnapshot;
       final budgetComparison = futures[1] as Map<String, dynamic>;
-      final revenue = futures[2] as double;
-      final trendData = futures[3] as List<Map<String, dynamic>>;
-      final teamMembersSnapshot = futures[4] as QuerySnapshot;
+      final allRevenue = futures[2] as List<QueryDocumentSnapshot>;
+      final teamMembersSnapshot = futures[3] as QuerySnapshot;
 
-      print('DEBUG: Found ${expensesSnapshot.docs.length} expenses');
-      print('DEBUG: Budget data keys: ${budgetComparison.keys.toList()}');
-      print('DEBUG: Revenue: $revenue');
-      print('DEBUG: Trend data length: ${trendData.length}');
-      print('DEBUG: Found ${teamMembersSnapshot.docs.length} team members');
+      // Filter in Dart
+      final currentMonthExpenses = allExpensesSnapshot.docs.where((doc) {
+        final date = (doc.data() as Map<String, dynamic>)['Date'] as Timestamp?;
+        return date != null &&
+            date.toDate().isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
+            date.toDate().isBefore(endOfMonth.add(const Duration(seconds: 1)));
+      }).toList();
 
-      // Process data efficiently
+      final currentMonthRevenue = allRevenue.where((doc) {
+        final date = (doc.data() as Map<String, dynamic>)['Date'] as Timestamp?;
+        return date != null &&
+            date.toDate().isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
+            date.toDate().isBefore(endOfMonth.add(const Duration(seconds: 1)));
+      }).fold(0.0, (total, doc) => total + (double.tryParse((doc.data() as Map<String, dynamic>)['Amount']?.toString() ?? '0') ?? 0));
+
+      final trendData = _calculateSixMonthTrend(allExpensesSnapshot.docs, teamMembersSnapshot.docs);
+
       double totalExpenses = 0;
       double salariesTotal = 0;
       Map<String, double> categoryTotals = {};
       Map<String, double> vendorTotals = {};
 
-      // Process expenses (already filtered by date in query)
-      for (var doc in expensesSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>?;
-        if (data == null) continue;
-
+      for (var doc in currentMonthExpenses) {
+        final data = doc.data() as Map<String, dynamic>;
         final amount = double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
         String category = data['Category']?.toString() ?? 'Other';
-
-        // Map transaction categories to budget category keys
-        if (category.toLowerCase() == 'salary') {
-          category = 'salaries'; // Map to match budget key
-        }
-
+        if (category.toLowerCase() == 'salary') category = 'salaries';
         final vendor = data['Vendor']?.toString() ?? 'Unknown';
 
         totalExpenses += amount;
         categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
         vendorTotals[vendor] = (vendorTotals[vendor] ?? 0) + amount;
-
-        final expenseDate = (data['Date'] as Timestamp?)?.toDate();
-        print(
-          'DEBUG: Processed expense - Amount: $amount, Category: $category, Date: $expenseDate',
-        );
       }
 
-      // Calculate salaries from actual team members
       for (var doc in teamMembersSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>?;
-        if (data == null) continue;
-
-        final salary = double.tryParse(data['salary']?.toString() ?? '0') ?? 0;
-        salariesTotal += salary;
-
-        print('DEBUG: Team member salary: $salary');
+        final data = doc.data() as Map<String, dynamic>;
+        salariesTotal += double.tryParse(data['salary']?.toString() ?? '0') ?? 0;
       }
-
-      print('DEBUG: Total expenses: $totalExpenses');
-      print('DEBUG: Category totals: $categoryTotals');
-      print('DEBUG: Salaries total: $salariesTotal');
-
-      // Calculate monthly burn metrics
-      final grossBurn = totalExpenses + salariesTotal;
-      final netBurn = grossBurn - revenue;
-
-      print('DEBUG: Gross burn: $grossBurn');
-      print('DEBUG: Net burn: $netBurn');
 
       final result = {
-        'grossBurn': grossBurn,
-        'netBurn': netBurn,
-        'revenue': revenue,
+        'grossBurn': totalExpenses + salariesTotal,
+        'netBurn': (totalExpenses + salariesTotal) - currentMonthRevenue,
+        'revenue': currentMonthRevenue,
         'categoryBreakdown': categoryTotals,
         'vendorBreakdown': vendorTotals,
         'teamCosts': salariesTotal,
@@ -163,98 +126,66 @@ class FinancialDataService {
         'year': now.year,
       };
 
-      // Cache the result
       _setCachedData(cacheKey, result);
       return result;
     } catch (e) {
-      print('ERROR in getMonthlyBurnData: $e');
       throw Exception('Failed to fetch financial data: $e');
     }
   }
 
-  static Future<double> _getMonthlyRevenue(
+  // Fetches all revenue docs without date filter (filter in Dart to avoid composite index)
+  static Future<List<QueryDocumentSnapshot>> _getRevenueForRange(
     String uid,
-    DateTime start,
-    DateTime end,
+    DateTime? start,
+    DateTime? end,
   ) async {
     try {
-      // Assuming revenue is stored in a 'revenue' collection or as negative expenses
       final revenueSnapshot = await _firestore
           .collection('revenue')
           .where('uid', isEqualTo: uid)
-          .where('Date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-          .where('Date', isLessThanOrEqualTo: Timestamp.fromDate(end))
           .get();
-
-      double totalRevenue = 0;
-      for (var doc in revenueSnapshot.docs) {
-        final amount =
-            double.tryParse(doc.data()['Amount']?.toString() ?? '0') ?? 0;
-        totalRevenue += amount;
-      }
-
-      return totalRevenue;
+      return revenueSnapshot.docs;
     } catch (e) {
-      // If no revenue collection exists, return 0
-      return 0;
+      return [];
     }
   }
 
-  static Future<List<Map<String, dynamic>>> _getSixMonthTrend(
-    String uid,
-  ) async {
+  // Compute 6-month trend synchronously from already-fetched docs (no extra Firestore calls)
+  static List<Map<String, dynamic>> _calculateSixMonthTrend(
+    List<QueryDocumentSnapshot> allExpenseDocs,
+    List<QueryDocumentSnapshot> teamMemberDocs,
+  ) {
     final now = DateTime.now();
     final trendData = <Map<String, dynamic>>[];
 
+    // Pre-compute salaries total (same across all months)
+    double salariesTotal = 0;
+    for (var doc in teamMemberDocs) {
+      final data = doc.data() as Map<String, dynamic>;
+      salariesTotal += double.tryParse(data['salary']?.toString() ?? '0') ?? 0;
+    }
+
     for (int i = 5; i >= 0; i--) {
-      final month = DateTime(now.year, now.month - i, 1);
-      final nextMonth = DateTime(now.year, now.month - i + 1, 1);
+      final monthStart = DateTime(now.year, now.month - i, 1);
+      final monthEnd = DateTime(now.year, now.month - i + 1, 1);
 
-      try {
-        // Get expenses for the month
-        final expensesSnapshot = await _firestore
-            .collection('expenses')
-            .where('uid', isEqualTo: uid)
-            .where('Date', isGreaterThanOrEqualTo: Timestamp.fromDate(month))
-            .where('Date', isLessThan: Timestamp.fromDate(nextMonth))
-            .get();
-
-        double expensesTotal = 0;
-        for (var doc in expensesSnapshot.docs) {
-          final amount =
-              double.tryParse(doc.data()['Amount']?.toString() ?? '0') ?? 0;
-          expensesTotal += amount;
+      double expensesTotal = 0;
+      for (var doc in allExpenseDocs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final date = (data['Date'] as Timestamp?)?.toDate();
+        if (date == null) continue;
+        if (date.isAfter(monthStart.subtract(const Duration(seconds: 1))) &&
+            date.isBefore(monthEnd)) {
+          expensesTotal +=
+              double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
         }
-
-        // Get team/salary data for the month
-        final teamSnapshot = await _firestore
-            .collection('team_members')
-            .where('uid', isEqualTo: uid)
-            .get();
-
-        double salariesTotal = 0;
-        for (var doc in teamSnapshot.docs) {
-          final salary =
-              double.tryParse(doc.data()['salary']?.toString() ?? '0') ?? 0;
-          salariesTotal += salary;
-        }
-
-        // Calculate total burn (expenses + salaries)
-        final totalBurn = expensesTotal + salariesTotal;
-
-        trendData.add({
-          'month': _getMonthAbbreviation(month.month),
-          'amount': totalBurn,
-          'isCurrentMonth': i == 0,
-        });
-      } catch (e) {
-        // Add default data if there's an error
-        trendData.add({
-          'month': _getMonthAbbreviation(month.month),
-          'amount': 35000.0 + (i * 2000), // Add some variation for demo
-          'isCurrentMonth': i == 0,
-        });
       }
+
+      trendData.add({
+        'month': _getMonthAbbreviation(monthStart.month),
+        'amount': expensesTotal + salariesTotal,
+        'isCurrentMonth': i == 0,
+      });
     }
 
     return trendData;
@@ -280,7 +211,12 @@ class FinancialDataService {
       for (var doc in teamsSnapshot.docs) {
         final teamData = doc.data();
         final teamName = teamData['teamName'] as String? ?? 'Unknown Team';
-        final monthlyBudget = (teamData['monthlyBudget'] ?? 0.0) as double;
+        final rawBudget = teamData['monthlyBudget'];
+        final monthlyBudget = rawBudget is double
+            ? rawBudget
+            : rawBudget is int
+                ? rawBudget.toDouble()
+                : double.tryParse(rawBudget?.toString() ?? '0') ?? 0.0;
 
         if (monthlyBudget > 0) {
           budgetData[teamName] = monthlyBudget;
