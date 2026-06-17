@@ -60,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // Real-time stream subscriptions
   StreamSubscription<DocumentSnapshot>? _companySubscription;
   StreamSubscription<QuerySnapshot>? _expensesSubscription;
+  StreamSubscription<QuerySnapshot>? _teamMembersSubscription;
 
   @override
   void initState() {
@@ -78,6 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
     CurrencyPreferenceService.currencyNotifier.removeListener(_onCurrencyChanged);
     _companySubscription?.cancel();
     _expensesSubscription?.cancel();
+    _teamMembersSubscription?.cancel();
     super.dispose();
   }
 
@@ -172,6 +174,8 @@ class _HomeScreenState extends State<HomeScreen> {
             isLoading = false;
             _isFundsLoading = false;
           });
+          FinancialDataService.clearAllCache();
+          _loadFinancialDataForPieChart();
         }
       } else {
         if (mounted) {
@@ -242,11 +246,24 @@ class _HomeScreenState extends State<HomeScreen> {
         });
 
         // Trigger historical trend fetch in background
+        FinancialDataService.clearAllCache();
         _loadFinancialDataForPieChart();
       }
     }, onError: (e) {
       log("Error fetching expenses: $e");
       if (mounted) setState(() => _isMonthlyBurnLoading = false);
+    });
+
+    // 3. Listen to Team Members Collection (For Salary Burn Updates in Trend Chart)
+    _teamMembersSubscription = FirebaseFirestore.instance
+        .collection('team_members')
+        .where('uid', isEqualTo: user.uid)
+        .snapshots()
+        .listen((_) {
+      if (mounted) {
+        FinancialDataService.clearAllCache();
+        _loadFinancialDataForPieChart();
+      }
     });
   }
 
