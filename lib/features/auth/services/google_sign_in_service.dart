@@ -44,21 +44,29 @@ class GoogleSignInService {
         .collection('users')
         .doc(user.uid);
 
-    // Set user data without overwriting createdAt
-    await userRef.set({
+    // Check if user document already exists to preserve companySetup status
+    final existingDoc = await userRef.get();
+    final bool isNewUser = !existingDoc.exists;
+
+    // Build the base update payload — never overwrite companySetup for existing users
+    final Map<String, dynamic> data = {
       'uid': user.uid,
-      'email': user.email ?? '',
+      'email': (user.email ?? '').toLowerCase(),
       'displayName': user.displayName ?? '',
       'photoURL': user.photoURL ?? '',
       'provider': 'google',
-      'companySetup': false,
       'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    };
 
-    // Only set createdAt if it doesn't exist
-    await userRef.set({
-      'createdAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    // Only set companySetup: false for genuinely new users.
+    // Existing users (e.g. previously signed up with email+password and
+    // now signing in with Google) must retain their existing companySetup value.
+    if (isNewUser) {
+      data['companySetup'] = false;
+      data['createdAt'] = FieldValue.serverTimestamp();
+    }
+
+    await userRef.set(data, SetOptions(merge: true));
   }
 
   static Future<void> signOut() async {

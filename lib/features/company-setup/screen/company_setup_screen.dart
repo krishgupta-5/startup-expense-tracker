@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -9,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'dart:developer';
+import '../../../features/navigation/screens/main_navigation_wrapper.dart';
 import '../../../services/currency_preference_service.dart';
 
 class CompanySetupScreen extends StatefulWidget {
@@ -464,7 +466,18 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     }
 
     if (!mounted) return;
-    Navigator.of(context).pop();
+
+    // Use pushAndRemoveUntil instead of pop().
+    // pop() only works when CompanySetupScreen was explicitly pushed via
+    // Navigator (signup flow). When AuthWrapper renders it directly in its
+    // StreamBuilder (Google login / direct auth flow), there is nothing below
+    // to pop to, which causes a black screen.
+    // pushAndRemoveUntil clears the full stack and navigates to
+    // MainNavigationWrapper in all cases.
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const MainNavigationWrapper()),
+      (route) => false,
+    );
   }
 
   @override
@@ -531,6 +544,75 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     );
   }
 
+  /// Shows a confirmation dialog before cancelling setup and signing out.
+  Future<void> _confirmCancelSetup() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141416),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        title: Text(
+          'Cancel Setup?',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          'Your progress will not be saved. You will be signed out and returned to the login screen.',
+          style: GoogleFonts.inter(
+            color: Colors.white70,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Continue Setup',
+              style: GoogleFonts.inter(
+                color: Colors.white54,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF3B30),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Sign Out',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      // Sign out from Google (if applicable) and Firebase.
+      // No company/user data has been written yet so this is safe.
+      try {
+        await GoogleSignIn.instance.signOut();
+      } catch (_) {
+        // Not signed in with Google — ignore
+      }
+      await FirebaseAuth.instance.signOut();
+      // AuthWrapper's stream will automatically redirect to LoginScreen.
+    }
+  }
+
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -581,8 +663,32 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 )
               else
                 const SizedBox(width: 38, height: 38),
-              
-              const SizedBox(width: 38, height: 38),
+
+              // Cancel / sign-out button — always visible, top-right
+              GestureDetector(
+                onTap: _confirmCancelSetup,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.inter(
+                      color: Colors.white54,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ],
@@ -658,20 +764,22 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     // 2. Run API validation specifically on Step 0
                     if (_currentPage == 0) {
                       setState(() => _isFinishing = true);
-                      
+
                       final isValidPhone = await _verifyPhoneNumber(
-                        _selectedCountryCode, 
-                        _mobileController.text.trim()
+                        _selectedCountryCode,
+                        _mobileController.text.trim(),
                       );
-                      
+
+                      if (!mounted) return;
                       setState(() => _isFinishing = false);
 
                       if (!isValidPhone) {
                         setState(() => _errors.add('mobile'));
                         HapticFeedback.heavyImpact();
                         ErrorPopup.showValidation(
-                          context: context, 
-                          message: "Please enter a valid, active mobile number."
+                          context: context,
+                          message:
+                              "Please enter a valid, active mobile number.",
                         );
                         return; // Stop them from advancing
                       }

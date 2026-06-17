@@ -1,13 +1,18 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:startup_expense_tracker/features/auth/screen/login.dart';
 import '../../../shared/widgets/error_popup.dart';
 import '../services/auth_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  /// Optional email to pre-fill (e.g. passed from login screen).
+  final String? prefillEmail;
+
+  const ForgotPasswordScreen({super.key, this.prefillEmail});
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -16,10 +21,19 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
-  
+
   bool _isLoading = false;
+  bool _emailSent = false;
   int _cooldownSeconds = 0;
   Timer? _cooldownTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.prefillEmail != null && widget.prefillEmail!.isNotEmpty) {
+      _emailController.text = widget.prefillEmail!;
+    }
+  }
 
   @override
   void dispose() {
@@ -43,92 +57,176 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
   }
 
+  /// Checks Firestore to see if this email belongs to a Google-only account.
+  Future<bool> _isGoogleOnlyAccount(String email) async {
+    try {
+      final query = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email.toLowerCase().trim())
+          .limit(1)
+          .get();
+
+      if (query.docs.isEmpty) return false;
+
+      final provider = query.docs.first.data()['provider'] as String?;
+      return provider == 'google';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _showGoogleAccountDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141416),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        title: Text(
+          'Google Account Detected',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          'This email is linked to a Google account. You don\'t need a password — just use the "Google Sign-In" button on the login screen.',
+          style: GoogleFonts.inter(
+            color: Colors.white70,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(
+                color: Colors.white54,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Go to Login',
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _sendPasswordResetEmail() async {
-    FocusScope.of(context).unfocus(); 
+    FocusScope.of(context).unfocus();
 
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
-    try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(
-        email: _emailController.text.trim(),
-      );
+    final email = _emailController.text.trim();
 
-      await AuthService.logPasswordReset(
-        email: _emailController.text.trim(),
-        status: 'success',
-      );
+    try {
+      // Check if this is a Google-only account before sending a useless email
+      final isGoogle = await _isGoogleOnlyAccount(email);
+      if (isGoogle) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          _showGoogleAccountDialog();
+        }
+        return;
+      }
+
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+
+      await AuthService.logPasswordReset(email: email, status: 'success');
 
       if (mounted) {
-        // USING CUSTOM POPUP FOR SUCCESS
+        setState(() => _emailSent = true);
         ErrorPopup.showSuccess(
-          context: context, 
-          message: 'Reset link sent! Please check your inbox.'
+          context: context,
+          message: 'Reset link sent! Please check your inbox and spam folder.',
         );
-        _startCooldown(); 
-        
-        // Auto-pop removed as requested. User stays on this screen.
+        _startCooldown();
       }
     } on FirebaseAuthException catch (e) {
       String errorMessage;
       switch (e.code) {
+        // Note: Firebase no longer throws 'user-not-found' for security reasons —
+        // it silently succeeds even for unknown emails. If it ever does surface:
         case 'user-not-found':
-          errorMessage = 'No account found with this email address';
+          // Security-safe: don't reveal whether the email exists
+          errorMessage =
+              'If an account exists with this email, a reset link has been sent.';
+          if (mounted) setState(() => _emailSent = true);
+          _startCooldown();
           break;
         case 'invalid-email':
-          errorMessage = 'Invalid email address format';
+          errorMessage = 'Invalid email address format.';
           break;
         case 'too-many-requests':
-          errorMessage = 'Too many requests. Try again later';
-          _startCooldown(); 
+          errorMessage = 'Too many requests. Please try again later.';
+          _startCooldown();
           break;
         case 'user-disabled':
-          errorMessage = 'This account has been disabled';
+          errorMessage =
+              'This account has been disabled. Please contact support.';
           break;
         default:
-          errorMessage = 'Failed to send reset link: ${e.message}';
+          errorMessage = 'Failed to send reset link. Please try again.';
       }
 
       await AuthService.logPasswordReset(
-        email: _emailController.text.trim(),
+        email: email,
         status: 'failed',
         error: e.code,
       );
 
       if (mounted) {
-        // USING CUSTOM POPUP FOR FIREBASE ERRORS
-        ErrorPopup.showAuth(
-          context: context, 
-          message: errorMessage
-        );
+        ErrorPopup.showAuth(context: context, message: errorMessage);
       }
     } catch (e) {
       await AuthService.logPasswordReset(
-        email: _emailController.text.trim(),
+        email: email,
         status: 'failed',
         error: 'unexpected_error',
       );
 
       if (mounted) {
-        // USING CUSTOM POPUP FOR GENERAL ERRORS
         ErrorPopup.showError(
-          context: context, 
+          context: context,
           title: 'Unexpected Error',
           message: 'An unexpected error occurred. Please try again.',
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), 
+      backgroundColor: const Color(0xFF09090B),
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: SystemUiOverlayStyle.light,
@@ -140,8 +238,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight:
-                      MediaQuery.of(context).size.height -
+                  minHeight: MediaQuery.of(context).size.height -
                       MediaQuery.of(context).viewInsets.bottom -
                       MediaQuery.of(context).padding.top,
                 ),
@@ -165,16 +262,54 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             if (value == null || value.trim().isEmpty) {
                               return 'Please enter your email address';
                             }
-                            final emailRegex = RegExp(r'^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+');
+                            final emailRegex = RegExp(
+                              r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$',
+                            );
                             if (!emailRegex.hasMatch(value.trim())) {
                               return 'Please enter a valid email';
                             }
                             return null;
                           },
                         ),
+                        // Show success hint after email is sent
+                        if (_emailSent) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF30D158).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFF30D158).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.check_circle_outline,
+                                  color: Color(0xFF30D158),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    "Check your inbox (and spam folder) for the reset link.",
+                                    style: GoogleFonts.inter(
+                                      color: const Color(0xFF30D158),
+                                      fontSize: 13,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 48),
                         _buildSendButton(),
-                        const SizedBox(height: 40),
+                        const Spacer(),
+                        _buildBackToLogin(),
+                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
@@ -194,24 +329,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         GestureDetector(
           onTap: () => Navigator.pop(context),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(12),
+              color: const Color(0xFF141416),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
             ),
-            child: Text(
-              "BACK",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.0,
-              ),
-            ),
+            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 20),
         Text(
           "Reset Password",
           style: GoogleFonts.inter(
@@ -223,7 +350,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          "Enter the email associated with your account and we'll send you a link to reset your password.",
+          "Enter the email associated with your account and we'll send you a reset link.",
           style: GoogleFonts.inter(
             color: Colors.white70,
             fontSize: 14,
@@ -267,7 +394,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         hintStyle: GoogleFonts.inter(color: Colors.white38),
         filled: true,
         fillColor: const Color(0xFF141416),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
@@ -320,9 +448,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
               )
             : Text(
-                _cooldownSeconds > 0 
-                    ? "Resend in ${_cooldownSeconds}s" 
-                    : "Send Reset Link",
+                _cooldownSeconds > 0
+                    ? "Resend in ${_cooldownSeconds}s"
+                    : (_emailSent ? "Send Again" : "Send Reset Link"),
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -330,6 +458,37 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
               ),
       ),
+    );
+  }
+
+  Widget _buildBackToLogin() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          "Remembered your password? ",
+          style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
+        ),
+        GestureDetector(
+          onTap: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+            child: Text(
+              "Login",
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

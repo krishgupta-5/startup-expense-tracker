@@ -11,7 +11,10 @@ import 'package:startup_expense_tracker/services/ai_service.dart';
 import 'package:startup_expense_tracker/shared/utils/error_handler.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  /// Optional email to pre-fill (e.g. when redirected from Sign Up).
+  final String? prefillEmail;
+
+  const LoginScreen({super.key, this.prefillEmail});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -23,12 +26,46 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill email if provided (e.g., redirected from Sign Up screen)
+    if (widget.prefillEmail != null && widget.prefillEmail!.isNotEmpty) {
+      _emailController.text = widget.prefillEmail!;
+    }
+  }
+
+  /// Looks up an email in Firestore's users collection to determine
+  /// which provider (if any) owns that email address.
+  Future<List<String>> _getProvidersByEmail(String email) async {
+    try {
+      final query = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email.toLowerCase().trim())
+          .limit(1)
+          .get();
+
+      if (query.docs.isEmpty) return [];
+
+      final data = query.docs.first.data();
+      final provider = data['provider'] as String?;
+      if (provider == null) return [];
+
+      // Normalise: Firestore stores 'google' or 'email'
+      if (provider == 'google') return ['google.com'];
+      if (provider == 'email') return ['password'];
+      return [provider];
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<void> loginUserWithEmailAndPassword() async {
-    FocusScope.of(context).unfocus(); 
+    FocusScope.of(context).unfocus();
 
     final email = _emailController.text.trim();
 
-    if (!email.contains('@') || email.isEmpty) {
+    if (email.isEmpty || !email.contains('@')) {
       ErrorHandler.handleValidationError(
         context: context,
         field: 'Email',
@@ -37,9 +74,16 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    if (_passwordController.text.trim().isEmpty) {
+      ErrorHandler.handleValidationError(
+        context: context,
+        field: 'Password',
+        validationMessage: 'Please enter your password',
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
 
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -55,29 +99,89 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       AIService.syncAICollections().catchError((e) {
-        debugPrint("Failed to sync AI data after login: $e");
+        debugPrint('Failed to sync AI data after login: $e');
       });
-
     } on FirebaseAuthException catch (e) {
-      ErrorHandler.handleAuthError(
-        context: context,
-        error: e,
-        onRetry: loginUserWithEmailAndPassword,
-      );
-    } catch (e) {
-      ErrorHandler.handleError(
-        context: context,
-        error: e,
-        customMessage: 'An error occurred while logging in. Please try again.',
-        onRetry: loginUserWithEmailAndPassword,
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+      // If wrong credentials, check if account exists with a different provider
+      if (e.code == 'wrong-password' ||
+          e.code == 'user-not-found' ||
+          e.code == 'invalid-credential') {
+        final providers = await _getProvidersByEmail(email);
+        if (providers.isNotEmpty && !providers.contains('password')) {
+          // Account exists but registered via a different provider (e.g. Google)
+          if (mounted) _showWrongProviderDialog(email, providers);
+          return;
+        }
       }
+
+      if (mounted) {
+        ErrorHandler.handleAuthError(
+          context: context,
+          error: e,
+          onRetry: loginUserWithEmailAndPassword,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ErrorHandler.handleError(
+          context: context,
+          error: e,
+          customMessage:
+              'An error occurred while logging in. Please try again.',
+          onRetry: loginUserWithEmailAndPassword,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Shows a dialog when the user tries to log in with email/password but
+  /// their account is registered with a different provider (e.g., Google).
+  void _showWrongProviderDialog(String email, List<String> providers) {
+    final bool hasGoogle = providers.contains('google.com');
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF141416),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        title: Text(
+          'Different Sign-In Method',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        content: Text(
+          hasGoogle
+              ? 'This email is registered with Google Sign-In. Please use the "Google Sign-In" button below to continue.'
+              : 'This email is registered with a different sign-in method. Please use the appropriate method to log in.',
+          style: GoogleFonts.inter(
+            color: Colors.white70,
+            fontSize: 14,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'OK',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -134,8 +238,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) =>
-                                    const ForgotPasswordScreen(),
+                                builder: (context) => ForgotPasswordScreen(
+                                  // Pre-fill with whatever the user typed
+                                  prefillEmail: _emailController.text.trim(),
+                                ),
                               ),
                             );
                           },
@@ -173,24 +279,6 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GestureDetector(
-          onTap: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            }
-          },
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF141416),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.1),
-              ),
-            ),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-          ),
-        ),
         const SizedBox(height: 20),
         Text(
           "Welcome Back",
@@ -373,75 +461,64 @@ class _LoginScreenState extends State<LoginScreen> {
       onTap: () async {
         if (_isLoading) return;
 
-        setState(() {
-          _isLoading = true;
-        });
+        setState(() => _isLoading = true);
 
         try {
           final UserCredential? userCredential =
               await GoogleSignInService.signInWithGoogle();
 
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
+          if (!mounted) return;
+          setState(() => _isLoading = false);
 
-            if (userCredential != null) {
-              final bool isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
-              final User user = userCredential.user!;
+          if (userCredential != null) {
+            final bool isNewUser =
+                userCredential.additionalUserInfo?.isNewUser ?? false;
+            final User user = userCredential.user!;
 
-              if (isNewUser) {
-                await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-                  'uid': user.uid,
-                  'email': user.email ?? '',
-                  'provider': 'google',
-                  'companySetup': false, 
-                  'createdAt': FieldValue.serverTimestamp(),
-                  'updatedAt': FieldValue.serverTimestamp(),
-                }, SetOptions(merge: true));
+            if (isNewUser) {
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user.uid)
+                  .set({
+                'uid': user.uid,
+                'email': user.email ?? '',
+                'provider': 'google',
+                'companySetup': false,
+                'createdAt': FieldValue.serverTimestamp(),
+                'updatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
 
-                AIService.syncAICollections().catchError((e) {
-                  debugPrint("Failed to sync AI data after Google sign-up: $e");
-                });
+              AIService.syncAICollections().catchError((e) {
+                debugPrint('Failed to sync AI data after Google sign-up: $e');
+              });
 
-                if (mounted) {
-                  ErrorHandler.handleSuccess(
-                    context: context,
-                    message: 'Account created successfully! Welcome.',
-                  );
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
-                  );
-                }
-              } else {
-                AIService.syncAICollections().catchError((e) {
-                  debugPrint("Failed to sync AI data after Google sign-in: $e");
-                });
-
-                if (mounted) {
-                  ErrorHandler.handleSuccess(
-                    context: context,
-                    message: 'Welcome back! Logging you in.',
-                  );
-                }
+              if (mounted) {
+                ErrorHandler.handleSuccess(
+                  context: context,
+                  message: 'Account created successfully! Welcome.',
+                );
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                      builder: (context) => const CompanySetupScreen()),
+                );
               }
             } else {
-              ErrorHandler.handleAuthError(
-                context: context,
-                error: FirebaseAuthException(
-                  code: 'invalid-credential',
-                  message: 'Google sign-in was cancelled or failed.',
-                ),
-                onRetry: () async {},
-              );
+              AIService.syncAICollections().catchError((e) {
+                debugPrint('Failed to sync AI data after Google sign-in: $e');
+              });
+
+              if (mounted) {
+                ErrorHandler.handleSuccess(
+                  context: context,
+                  message: 'Welcome back! Signed in with Google.',
+                );
+              }
             }
           }
+          // If userCredential is null the user cancelled — no error needed
         } catch (e) {
           if (mounted) {
-            setState(() {
-              _isLoading = false;
-            });
-
+            setState(() => _isLoading = false);
             ErrorHandler.handleError(
               context: context,
               error: e,
