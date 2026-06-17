@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -25,9 +29,59 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  Future<bool> _verifyEmail(String email) async {
+    try {
+      final apiKey = dotenv.env['APILAYER_EMAIL_ACCESS_KEY'];
+      if (apiKey == null || apiKey.isEmpty) {
+        print('Error: APILAYER_EMAIL_ACCESS_KEY is missing in .env.local');
+        return true; // Bypass validation so users aren't blocked if env is missing
+      }
+
+      final encodedEmail = Uri.encodeComponent(email);
+      final url = Uri.parse('https://apilayer.net/api/check?access_key=$apiKey&email=$encodedEmail');
+
+      final response = await http.get(url, headers: {
+        'Accept': 'application/json',
+      });
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data.containsKey('error')) {
+          print('APILayer Error: ${data['error']['info']}');
+          return true; // Bypass on API limit/error
+        }
+
+        // 1. Basic Checks
+        final bool isFormatValid = data['format_valid'] == true;
+        final bool isMxFound = data['mx_found'] == true;
+        
+        // 2. Block Temp/Disposable emails
+        final bool isDisposable = data['disposable'] == true;
+
+        // 3. Strict Checks (Server ping & reputation)
+        final bool isSmtpValid = data['smtp_check'] == true; 
+        final double score = (data['score'] ?? 0.0).toDouble();
+
+        // Must pass ALL of these to be considered a "real" email
+        return isFormatValid && 
+               isMxFound && 
+               !isDisposable && 
+               isSmtpValid && 
+               score > 0.6;
+      }
+      return false;
+    } catch (e) {
+      print('Email validation exception: $e');
+      return true; // Gracefully fallback on network error
+    }
+  }
+
   Future<void> createUserWithEmailAndPassword() async {
-    // Email validation
-    if (!_emailController.text.contains('@')) {
+    final email = _emailController.text.trim();
+    
+    // Basic local Email validation
+    if (!email.contains('@') || email.isEmpty) {
       ErrorHandler.handleValidationError(
         context: context,
         field: 'Email',
@@ -63,11 +117,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _isLoading = true;
     });
 
+    // Run network API email validation
+    final isEmailActiveAndValid = await _verifyEmail(email);
+    
+    if (!isEmailActiveAndValid) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ErrorHandler.handleValidationError(
+          context: context,
+          field: 'Email',
+          validationMessage: 'Please enter a valid, active real email address.',
+        );
+      }
+      return; // Stops signup if email is fake/temp
+    }
+
     try {
       final userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
+            email: email,
+            password: password,
           );
 
       final User? user = userCredential.user;
@@ -100,7 +171,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
         }
       }
 
-      // Do nothing, AuthWrapper will handle navigation
     } on FirebaseAuthException catch (e) {
       ErrorHandler.handleAuthError(
         context: context,
@@ -222,7 +292,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: Colors.white.withValues(alpha: 0.1),
-              ), // Increased visibility
+              ), 
             ),
             child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
           ),
@@ -241,7 +311,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         Text(
           "Join us to manage your startup finances.",
           style: GoogleFonts.inter(
-            color: Colors.white70, // Fixed from white38
+            color: Colors.white70, 
             fontSize: 14,
             fontWeight: FontWeight.w400,
           ),
@@ -254,7 +324,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return Text(
       text,
       style: GoogleFonts.inter(
-        color: Colors.white70, // Fixed from white24
+        color: Colors.white70, 
         fontSize: 10,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.5,
@@ -274,7 +344,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.1),
-        ), // Increased visibility
+        ), 
       ),
       child: TextField(
         controller: controller,
@@ -284,12 +354,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
           hintText: hint,
           hintStyle: GoogleFonts.inter(
             color: Colors.white38,
-          ), // Fixed from white12
+          ), 
           icon: Icon(
             icon,
             color: Colors.white60,
             size: 20,
-          ), // Fixed from white38
+          ), 
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 16),
         ),
@@ -305,7 +375,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.1),
-        ), // Increased visibility
+        ), 
       ),
       child: TextField(
         controller: _confirmPasswordController,
@@ -316,18 +386,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
           hintText: "Confirm your password",
           hintStyle: GoogleFonts.inter(
             color: Colors.white38,
-          ), // Fixed from white12
+          ), 
           icon: const Icon(
             Icons.lock_outline,
             color: Colors.white60,
             size: 20,
-          ), // Fixed from white38
+          ), 
           suffixIcon: IconButton(
             icon: Icon(
               _isConfirmPasswordVisible
                   ? Icons.visibility
                   : Icons.visibility_off,
-              color: Colors.white60, // Fixed from white38
+              color: Colors.white60, 
               size: 20,
             ),
             onPressed: () {
@@ -351,7 +421,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: Colors.white.withValues(alpha: 0.1),
-        ), // Increased visibility
+        ), 
       ),
       child: TextField(
         controller: _passwordController,
@@ -362,16 +432,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
           hintText: "Create a password",
           hintStyle: GoogleFonts.inter(
             color: Colors.white38,
-          ), // Fixed from white12
+          ), 
           icon: const Icon(
             Icons.lock_outline,
             color: Colors.white60,
             size: 20,
-          ), // Fixed from white38
+          ), 
           suffixIcon: IconButton(
             icon: Icon(
               _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-              color: Colors.white60, // Fixed from white38
+              color: Colors.white60, 
               size: 20,
             ),
             onPressed: () {
@@ -400,8 +470,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
-          disabledBackgroundColor:
-              Colors.white70, // Retains white look when loading
+          disabledBackgroundColor: Colors.white70, 
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -409,7 +478,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ),
         child: _isLoading
             ? const SizedBox(
-                height: 24, // Matched size to login screen for consistency
+                height: 24, 
                 width: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
@@ -421,8 +490,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors
-                      .black, // Explicitly declare color to survive disabled state overrides
+                  color: Colors.black, 
                 ),
               ),
       ),
@@ -438,7 +506,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           child: Text(
             "Or",
             style: GoogleFonts.inter(
-              color: Colors.white60, // Fixed from white24
+              color: Colors.white60, 
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -518,7 +586,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: Colors.white.withValues(alpha: 0.1),
-          ), // Consistency with inputs
+          ), 
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -548,7 +616,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           style: GoogleFonts.inter(
             color: Colors.white70,
             fontSize: 14,
-          ), // Fixed from white38
+          ), 
         ),
         GestureDetector(
           onTap: () {

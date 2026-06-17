@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -144,6 +148,21 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     super.dispose();
   }
 
+  String _getCurrencySymbol(String dialCode) {
+    switch (dialCode) {
+      case "+1": return "\$";
+      case "+91": return "₹";
+      case "+44": return "£";
+      case "+61": return "A\$";
+      case "+81": return "¥";
+      case "+49":
+      case "+33": return "€";
+      case "+971": return "AED";
+      case "+65": return "S\$";
+      default: return "\$";
+    }
+  }
+
   void _addBankAccount() {
     setState(() {
       _bankAccounts.add({
@@ -171,7 +190,40 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     }
   }
 
-  // ENHANCED VALIDATION CONSTRAINTS & WORD LIMITS
+  Future<bool> _verifyPhoneNumber(String countryCode, String mobileNumber) async {
+    try {
+      final apiKey = dotenv.env['APILAYER_ACCESS_KEY'];
+      if (apiKey == null || apiKey.isEmpty) {
+        log('Error: APILAYER_ACCESS_KEY is missing in .env.local');
+        return true; // Bypass validation if env is missing
+      }
+
+      // Remove any spaces or special characters
+      final cleanNumber = "$countryCode$mobileNumber".replaceAll(RegExp(r'\D'), '');
+      
+      // FIXED ENDPOINT: Numverify uses /api/validate
+      final url = Uri.parse('https://apilayer.net/api/validate?access_key=$apiKey&number=$cleanNumber');
+      
+      log('Calling Numverify API: $url');
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        if (data.containsKey('error')) {
+          log('Numverify API Error Details: ${data['error']}');
+          return true; // Bypass if API limit reached or error occurs so user isn't stuck
+        }
+
+        return data['valid'] == true;
+      }
+      return false;
+    } catch (e) {
+      log('Phone validation exception: $e');
+      return true; // Gracefully fallback on network error
+    }
+  }
+
   bool _validateCurrentStep() {
     setState(() {
       _errors.clear();
@@ -191,27 +243,23 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       case 1: // Legal
         if (_selectedCompanyType == null) _errors.add('type');
 
-        // MINIMUM 3 WORDS VALIDATION FOR WORK DESC
-        final workWords = _workDescController.text.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-        if (workWords.length < 3) {
+        if (_workDescController.text.trim().length < 15) {
           _errors.add('work');
           if (isValid) {
             ErrorPopup.showValidation(
               context: context, 
-              message: "Work description must be at least 3 words long."
+              message: "Work description must be at least 15 characters."
             );
           }
           isValid = false;
         }
 
-        // MINIMUM 3 WORDS VALIDATION FOR ADDRESS
-        final addressWords = _addressController.text.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-        if (addressWords.length < 3) {
+        if (_addressController.text.trim().length < 15) {
           _errors.add('address');
           if (isValid) {
             ErrorPopup.showValidation(
               context: context, 
-              message: "Registered address must be at least 3 words long."
+              message: "Registered address must be at least 15 characters."
             );
           }
           isValid = false;
@@ -232,12 +280,19 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         for (var i = 0; i < _bankAccounts.length; i++) {
           if (_bankAccounts[i]["name"]!.text.trim().length < 2) {
             _errors.add('bank_name_$i');
+            isValid = false;
           }
-          if (_bankAccounts[i]["number"]!.text.trim().length < 5) {
+          if (_bankAccounts[i]["number"]!.text.trim().length != 8) {
             _errors.add('bank_num_$i');
+            if (isValid) {
+              ErrorPopup.showValidation(
+                context: context, 
+                message: "Account Number must be exactly 8 digits."
+              );
+            }
+            isValid = false;
           }
         }
-        isValid = _errors.isEmpty;
         break;
 
       case 4: // Categories
@@ -259,7 +314,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         break;
     }
 
-    if (!isValid && _currentPage < 4 && _currentPage != 1) {
+    if (!isValid && _currentPage < 4 && _currentPage != 1 && _currentPage != 3) {
       HapticFeedback.heavyImpact();
     } else if (!isValid) {
       HapticFeedback.heavyImpact();
@@ -273,22 +328,25 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
   }
 
   void _showValidationErrorDialog() {
-    if (_currentPage != 1 && _currentPage != 4 && _currentPage != 5) {
-      ErrorPopup.showValidation(
-        context: context,
-        message: "Please fill in all mandatory fields correctly.",
-      );
-    }
+    ErrorPopup.showValidation(
+      context: context,
+      message: "Please fill in all mandatory fields correctly.",
+    );
   }
 
   Future<void> createTeamsInTeamsCollection() async {
     try {
       final userId = FirebaseAuth.instance.currentUser!.uid;
+      final batch = FirebaseFirestore.instance.batch();
+
       for (var team in _teams) {
-        await FirebaseFirestore.instance.collection('teams').add({
+        final docRef = FirebaseFirestore.instance.collection('teams').doc();
+        batch.set(docRef, {
+          "id": docRef.id,
           "uid": userId,
           "teamName": team["name"],
           "monthlyBudget": 0.0,
+          "budget": 0, 
           "color": "blue",
           "iconCodePoint": 0xe7fd,
           "iconFontFamily": "MaterialIcons",
@@ -296,6 +354,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           "updatedAt": FieldValue.serverTimestamp(),
         });
       }
+      
+      await batch.commit();
       log("Teams created in teams collection successfully");
     } catch (e) {
       log('Error creating teams: $e');
@@ -329,6 +389,10 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       final String fullMobileNumber =
           "$_selectedCountryCode ${_mobileController.text.trim()}";
 
+      // FIX: Force the app to create teams FIRST
+      await createTeamsInTeamsCollection();
+
+      // NOW we update the company and trigger the navigation listener
       final result = await FirebaseFirestore.instance.runTransaction((
         transaction,
       ) async {
@@ -367,8 +431,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
 
         return true;
       });
-
-      await createTeamsInTeamsCollection();
 
       CurrencyPreferenceService.currencyNotifier.value = _selectedCountryCode;
 
@@ -451,12 +513,12 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                       });
                     },
                     children: [
-                      _buildStep1Identity(),
-                      _buildStep2Legal(),
-                      _buildStep3Financials(),
-                      _buildStep4Bank(),
-                      _buildStep5Categories(),
-                      _buildStep6Team(),
+                      KeepAliveWrapper(child: _buildStep1Identity()),
+                      KeepAliveWrapper(child: _buildStep2Legal()),
+                      KeepAliveWrapper(child: _buildStep3Financials()),
+                      KeepAliveWrapper(child: _buildStep4Bank()),
+                      KeepAliveWrapper(child: _buildStep5Categories()),
+                      KeepAliveWrapper(child: _buildStep6Team()),
                     ],
                   ),
                 ),
@@ -534,13 +596,13 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     required List<Widget> children,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             Text(
               title,
               style: GoogleFonts.inter(
@@ -557,7 +619,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             ),
             const SizedBox(height: 24),
             ...children,
-            const SizedBox(height: 100),
+            const SizedBox(height: 40),
           ],
         ),
       ),
@@ -566,7 +628,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
 
   Widget _buildFooter() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -587,7 +649,35 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   FocusScope.of(context).unfocus();
 
                   if (_currentPage < _totalPages - 1) {
-                    if (!_validateCurrentStep()) return;
+                    // 1. Run local synchronous validations first
+                    if (!_validateCurrentStep()) {
+                      _showValidationErrorDialog(); // Ensure popup shows if they miss fields like Country
+                      return;
+                    }
+
+                    // 2. Run API validation specifically on Step 0
+                    if (_currentPage == 0) {
+                      setState(() => _isFinishing = true);
+                      
+                      final isValidPhone = await _verifyPhoneNumber(
+                        _selectedCountryCode, 
+                        _mobileController.text.trim()
+                      );
+                      
+                      setState(() => _isFinishing = false);
+
+                      if (!isValidPhone) {
+                        setState(() => _errors.add('mobile'));
+                        HapticFeedback.heavyImpact();
+                        ErrorPopup.showValidation(
+                          context: context, 
+                          message: "Please enter a valid, active mobile number."
+                        );
+                        return; // Stop them from advancing
+                      }
+                    }
+
+                    // 3. Advance to the next page
                     _pageController.nextPage(
                       duration: const Duration(milliseconds: 300),
                       curve: Curves.easeInOut,
@@ -645,16 +735,15 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
           ],
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
         _buildLabel("MOBILE NUMBER"),
         _buildPhoneInputField(
           _mobileController, 
           "98765 43210", 
           "mobile"
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
         
-        // --- USING SHAD SELECT FOR COUNTRY ---
         _buildLabel("COUNTRY LOCATION"),
         ShakeWidget(
           shake: _errors.contains('country'),
@@ -709,9 +798,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             ),
           ),
         ),
-        // -------------------------------------
 
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
         _buildLabel("COMPANY NAME"),
         _buildInputField(
           _companyNameController,
@@ -729,8 +817,6 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       title: "Structure",
       subtitle: "Legal details and location.",
       children: [
-        
-        // --- USING SHAD SELECT FOR COMPANY TYPE ---
         _buildLabel("COMPANY TYPE"),
         ShakeWidget(
           shake: _errors.contains('type'),
@@ -782,10 +868,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             ),
           ),
         ),
-        // ------------------------------------------
 
-        const SizedBox(height: 32),
-        _buildLabel("WHAT IS THE WORK? (Min 3 Words)"),
+        const SizedBox(height: 24),
+        _buildLabel("WHAT IS THE WORK? (Min 15 Chars)"),
         _buildTextArea(
           _workDescController,
           "e.g. SaaS Platform for managing inventory...",
@@ -793,8 +878,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           icon: Icons.description_outlined,
           textCapitalization: TextCapitalization.sentences,
         ),
-        const SizedBox(height: 32),
-        _buildLabel("REGISTERED ADDRESS (Min 3 Words)"),
+        const SizedBox(height: 24),
+        _buildLabel("REGISTERED ADDRESS (Min 15 Chars)"),
         _buildTextArea(
           _addressController,
           "Full Complete Address...",
@@ -846,7 +931,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                     decoration: InputDecoration(
-                      prefixText: "$_selectedCountryCode ", 
+                      prefixText: "${_getCurrencySymbol(_selectedCountryCode)} ", 
                       prefixStyle: GoogleFonts.inter(
                         color: _errors.contains('funding')
                             ? const Color(0xFFFF453A)
@@ -868,7 +953,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 60),
+        const SizedBox(height: 32),
         _buildLabel("TARGET RUNWAY (MONTHS)"),
         _buildInputField(
           _runwayController,
@@ -892,7 +977,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       children: [
         ...List.generate(_bankAccounts.length, (index) {
           return Padding(
-            padding: const EdgeInsets.only(bottom: 32),
+            padding: const EdgeInsets.only(bottom: 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -925,7 +1010,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 const SizedBox(height: 12),
                 _buildInputField(
                   _bankAccounts[index]["name"]!,
-                  "Bank Name (e.g. Chase, HDFC)",
+                  "Bank Name (e.g. Chase)",
                   "bank_name_$index",
                   icon: Icons.account_balance_outlined,
                   textCapitalization: TextCapitalization.words,
@@ -936,12 +1021,14 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 const SizedBox(height: 12),
                 _buildInputField(
                   _bankAccounts[index]["number"]!,
-                  "Account Number",
+                  "Account Number (8 digits)",
                   "bank_num_$index",
                   icon: Icons.numbers,
-                  textCapitalization: TextCapitalization.characters,
+                  isNumber: true,
+                  textCapitalization: TextCapitalization.none,
                   inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')), 
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(8),
                   ]
                 ),
               ],
@@ -1117,7 +1204,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     );
   }
 
-  // --- REUSABLE INPUT WIDGETS UPDATED WITH CONSTRAINTS ---
+  // --- REUSABLE INPUT WIDGETS ---
 
   Widget _buildLabel(String text) {
     return Padding(
@@ -1148,7 +1235,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     return ShakeWidget(
       shake: hasError,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         decoration: BoxDecoration(
           color: const Color(0xFF141416),
           borderRadius: BorderRadius.circular(16),
@@ -1182,7 +1269,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   )
                 : null,
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
       ),
@@ -1199,7 +1286,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     return ShakeWidget(
       shake: hasError,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         decoration: BoxDecoration(
           color: const Color(0xFF141416),
           borderRadius: BorderRadius.circular(16),
@@ -1262,7 +1349,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     fontSize: 15,
                   ),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
             ),
@@ -1294,7 +1381,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        "Select Country Code",
+                        "Select Dial Code",
                         style: GoogleFonts.inter(
                           color: Colors.white,
                           fontSize: 16,
@@ -1416,7 +1503,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   )
                 : null,
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
       ),
@@ -1425,8 +1512,28 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
 }
 
 // ==========================================
-// UTILITY CLASSES (ShakeWidget & ErrorPopup)
+// UTILITY CLASSES (KeepAlive, ShakeWidget & ErrorPopup)
 // ==========================================
+
+class KeepAliveWrapper extends StatefulWidget {
+  final Widget child;
+  const KeepAliveWrapper({super.key, required this.child});
+
+  @override
+  State<KeepAliveWrapper> createState() => _KeepAliveWrapperState();
+}
+
+class _KeepAliveWrapperState extends State<KeepAliveWrapper>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
 
 class ShakeWidget extends StatefulWidget {
   final Widget child;
