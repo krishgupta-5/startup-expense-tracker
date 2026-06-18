@@ -16,6 +16,8 @@ import 'privacy_assurances_screen.dart';
 import 'budget_settings_screen.dart';
 import '../widgets/coming_soon_dialog.dart';
 import '../../../services/currency_preference_service.dart';
+import 'set_password.dart'; 
+import 'add_funding_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -226,6 +228,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
   Future<void> _updateCurrency(String currencyCode) async {
     if (kDebugMode) {
       print('Settings: Starting currency update to: $currencyCode');
@@ -323,6 +326,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 _buildDivider(),
+                // NEW OPTION: Add Funding
+                _buildTile(
+                  icon: Icons.monetization_on_outlined,
+                  title: "Add Funding",
+                  subtitle: "Update your total available funds",
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => const AddFundingScreen(),
+                    );
+                  },
+                ),
+                _buildDivider(),
                 _buildTile(
                   icon: Icons.description_outlined,
                   title: "Statements",
@@ -393,6 +409,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // 5. Security & Data
               _buildSectionLabel("SECURITY & PRIVACY"),
               _buildSettingsGroup([
+                // NEW OPTION: Set Password
+                _buildTile(
+                  icon: Icons.password_outlined,
+                  title: "Set Password",
+                  subtitle: "Create a password for Google accounts",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SetPasswordScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _buildDivider(),
                 _buildTile(
                   icon: Icons.lock_outline,
                   title: "Change Password",
@@ -435,7 +466,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 32),
 
-              // 5. Support
+              // 6. Support
               _buildSectionLabel("SUPPORT"),
               _buildSettingsGroup([
                 _buildTile(
@@ -452,12 +483,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 48),
 
-              // 6. Logout
+              // 7. Logout
               _buildLogoutButton(),
 
               const SizedBox(height: 32),
 
-              // 7. Version
+              // 8. Version
               Center(
                 child: Text(
                   "Version 1.0.2 (Build 402)",
@@ -608,31 +639,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             return Column(
               children: [
-                Stack(
-                  children: [
-                    _buildProfileAvatar(profileImageFileId),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFF09090B),
-                            width: 3,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.edit,
-                          size: 14,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                // Display Avatar (Pencil removed)
+                _buildProfileAvatar(profileImageFileId),
                 const SizedBox(height: 16),
                 Text(
                   name,
@@ -756,7 +764,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
               ),
-              ?trailing,
+              if (trailing != null) trailing,
               if (trailing == null)
                 const Icon(
                   Icons.chevron_right,

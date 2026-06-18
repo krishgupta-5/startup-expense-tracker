@@ -12,6 +12,7 @@ import 'package:startup_expense_tracker/features/company-setup/screen/company_se
 import 'package:startup_expense_tracker/services/ai_service.dart';
 import 'package:startup_expense_tracker/shared/utils/error_handler.dart';
 
+import 'package:startup_expense_tracker/features/auth/auth_wrapper.dart';
 import 'login.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -673,7 +674,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   context: context,
                   message: 'Welcome back! Signed in with Google.',
                 );
-                // AuthWrapper will navigate automatically
+                // Navigate to AuthWrapper which will route to the correct screen
+                // (CompanySetup or Home based on companySetup status).
+                // We must navigate explicitly because the signup screen replaced
+                // AuthWrapper in the stack, so it won't auto-navigate.
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                      builder: (context) => const AuthWrapper()),
+                  (route) => false,
+                );
               }
             }
           } else {

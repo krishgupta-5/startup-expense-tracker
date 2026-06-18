@@ -207,8 +207,11 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
                             if (value == null || value.trim().isEmpty) {
                               return 'Account number is required';
                             }
-                            if (value.trim().length < 4) {
-                              return 'Please enter a valid account number';
+                            if (value.trim().length < 8) {
+                              return 'Account number must be at least 8 digits';
+                            }
+                            if (value.trim().length > 18) {
+                              return 'Account number must be at most 18 digits';
                             }
                             return null;
                           },

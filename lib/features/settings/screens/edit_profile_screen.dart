@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -234,7 +235,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       // Update user profile in users collection
       await FirebaseFirestore.instance.collection("users").doc(uid).set({
         "name": _nameController.text.trim(),
-        "email": _emailController.text.trim(),
         "phone": _phoneController.text.trim(),
         "location": _locationController.text.trim(),
         "profileImageFileId": _profileImageFileId,
@@ -249,7 +249,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         "Owner Name": _nameController.text.trim(),
         "Mobile Number": fullMobileNumber,
         "Country Location": _locationController.text.trim(),
-        "Email": _emailController.text.trim(),
         "profileImageFileId": _profileImageFileId,
         "updatedAt": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -309,6 +308,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
+                          readOnly: true, // Fades out the text automatically
                         ),
 
                         const SizedBox(height: 32),
@@ -390,7 +390,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // Avatar Uploader with Telegram functionality (same as edit member screen)
+  // Avatar Uploader with Telegram functionality
   Widget _buildAvatarUploader() {
     return GestureDetector(
       onTap: _showImagePicker,
@@ -493,9 +493,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Container(
       width: 100,
       height: 100,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF141416),
+        color: Color(0xFF141416),
       ),
       child: const Icon(Icons.person, size: 40, color: Colors.white38),
     );
@@ -683,6 +683,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     IconData icon, {
     TextInputType keyboardType = TextInputType.text,
     TextInputAction textInputAction = TextInputAction.done,
+    bool readOnly = false,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -695,9 +696,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         controller: controller,
         keyboardType: keyboardType,
         textInputAction: textInputAction,
+        readOnly: readOnly,
+        canRequestFocus: !readOnly, // Removes the blinking cursor when locked
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         style: GoogleFonts.inter(
-          color: Colors.white,
+          // FADED OUT TEXT: Dimming the color to white38 makes it visually distinct as disabled/locked
+          color: readOnly ? Colors.white38 : Colors.white, 
           fontSize: 15,
           fontWeight: FontWeight.w500,
         ),

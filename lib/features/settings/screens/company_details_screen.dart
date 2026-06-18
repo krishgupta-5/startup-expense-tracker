@@ -3,12 +3,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:async';
 import 'dart:developer';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../services/currency_formatter.dart';
 import '../../../services/user_country_service.dart';
 import '../../../services/bank_account_service.dart';
+import '../../../services/financial_calculator.dart';
 import '../../home/screens/add_bank_account_screen.dart';
 
 class CompanyDetailsScreen extends StatefulWidget {
@@ -24,18 +26,29 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
-  final TextEditingController _fundingController = TextEditingController();
-  final TextEditingController _runwayController = TextEditingController();
+  final TextEditingController _targetRunwayController = TextEditingController();
 
   String _userCountryCode = '+1'; // Default to USD
   bool _isLoading = false;
   List<Map<String, dynamic>> _bankAccounts = [];
   List<Map<String, dynamic>> _allExpenses = [];
 
+  // Real-time computed financial values (synced like home screen)
+  double _fundingAmount = 0.0;
+  double _absoluteTotalExpenses = 0.0;
+  double get _availableFunds => _fundingAmount - _absoluteTotalExpenses;
+  String? _runwayValue;
+  List<Map<String, dynamic>> _allExpensesForCalc = [];
+
+  // Real-time stream subscriptions
+  StreamSubscription<DocumentSnapshot>? _companySubscription;
+  StreamSubscription<QuerySnapshot>? _expensesSubscription;
+
   @override
   void initState() {
     super.initState();
     _userCountryCode = UserCountryService.getUserCountryCodeSync();
+    _setupRealtimeListeners();
     _loadAllData();
   }
 
@@ -66,6 +79,151 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         });
       }
     }
+  }
+
+  double _toDouble(dynamic value, {double fallback = 0.0}) {
+    if (value == null) return fallback;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), '')) ?? fallback;
+    return fallback;
+  }
+
+  void _setupRealtimeListeners() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // Listen to Company Document (for Funding amount)
+    _companySubscription = FirebaseFirestore.instance
+        .collection("companies")
+        .doc(user.uid)
+        .snapshots()
+        .listen((docSnapshot) {
+      if (docSnapshot.exists && docSnapshot.data() != null) {
+        final data = docSnapshot.data()!;
+        final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
+        if (mounted) {
+          setState(() {
+            _fundingAmount = _toDouble(funding);
+            _updateRunwayValue();
+          });
+        }
+      }
+    });
+
+    // Listen to Expenses Collection (for total expenses & runway calc)
+    _expensesSubscription = FirebaseFirestore.instance
+        .collection('expenses')
+        .where('uid', isEqualTo: user.uid)
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        double absoluteTotal = 0.0;
+
+        final expensesList = snapshot.docs
+            .where((doc) => doc.data()['isFunding'] != true)
+            .map((doc) {
+          final data = doc.data();
+          final amount = _toDouble(data['Amount'] ?? data['amount']);
+          final date = data['Date'] as Timestamp?;
+
+          absoluteTotal += amount;
+
+          return {
+            'amount': amount,
+            'date': date,
+            'type': data['Type'] ?? data['type'] ?? 'one_time',
+          };
+        }).toList();
+
+        setState(() {
+          _absoluteTotalExpenses = absoluteTotal;
+          _allExpensesForCalc = expensesList;
+          _updateRunwayValue();
+        });
+      }
+    });
+  }
+
+  void _updateRunwayValue() {
+    if (_fundingAmount <= 0) {
+      _runwayValue = "0.0";
+      return;
+    }
+
+    final availableBalance = _availableFunds;
+    if (availableBalance <= 0) {
+      _runwayValue = "0.0";
+      return;
+    }
+
+    double actualMonthlyBurn = FinancialCalculator.currentMonthBurn(
+      _allExpensesForCalc,
+    );
+
+    if (actualMonthlyBurn == 0 && _allExpensesForCalc.isNotEmpty) {
+      actualMonthlyBurn = _calculateAverageMonthlyBurn();
+    }
+
+    if (actualMonthlyBurn <= 0) {
+      _runwayValue = "0.0";
+    } else {
+      _runwayValue = (availableBalance / actualMonthlyBurn).toStringAsFixed(2);
+    }
+  }
+
+  double _calculateAverageMonthlyBurn() {
+    if (_allExpensesForCalc.isEmpty) return 0.0;
+    Map<String, double> monthlyTotals = {};
+
+    for (var expense in _allExpensesForCalc) {
+      final expenseDate = expense['date'] as Timestamp?;
+      if (expenseDate != null) {
+        final expenseDateTime = expenseDate.toDate();
+        final monthKey =
+            "${expenseDateTime.year}-${expenseDateTime.month.toString().padLeft(2, '0')}";
+        monthlyTotals[monthKey] =
+            (monthlyTotals[monthKey] ?? 0.0) + (expense['amount'] as double);
+      }
+    }
+
+    if (monthlyTotals.isEmpty) return 0.0;
+    double total = monthlyTotals.values.fold(0.0, (s, item) => s + item);
+    return total / monthlyTotals.length;
+  }
+
+  Widget _buildReadOnlyMetric(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            color: Colors.white38,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          ),
+          child: Text(
+            value,
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _fetchExpenses() async {
@@ -355,13 +513,14 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
 
   @override
   void dispose() {
+    _companySubscription?.cancel();
+    _expensesSubscription?.cancel();
     _companyNameController.dispose();
     _ownerNameController.dispose();
     _emailController.dispose();
     _addressController.dispose();
     _descController.dispose();
-    _fundingController.dispose();
-    _runwayController.dispose();
+    _targetRunwayController.dispose();
     super.dispose();
   }
 
@@ -370,7 +529,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // First try fetching directly by uid as doc ID (matches how updateCompanyData saves)
       final directDoc = await FirebaseFirestore.instance
           .collection("companies")
           .doc(user.uid)
@@ -380,7 +538,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       if (directDoc.exists) {
         doc = directDoc;
       } else {
-        // Fallback: query by uid field for legacy docs
         final snapshot = await FirebaseFirestore.instance
             .collection("companies")
             .where("uid", isEqualTo: user.uid)
@@ -397,13 +554,23 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         setState(() {
           _companyNameController.text = data["Company Name"] ?? "";
           _ownerNameController.text = data["Owner Name"] ?? "";
-          // Use Firebase Auth email since company setup doesn't save email to companies
           _emailController.text = user.email ?? "";
           _addressController.text = data["Company Address"] ?? "";
           _descController.text = data["Company Work"] ?? "";
-          _fundingController.text = data["Funding"]?.toString() ?? "";
-          _runwayController.text = data["Runway"]?.toString() ?? "";
-          _selectedType = data["Company Type"] ?? "sole_proprietorship";
+          _targetRunwayController.text = data["Target Runway"]?.toString() ?? "";
+          
+          // --- FIXED: Reverse Lookup for Dropdown Key ---
+          final savedType = data["Company Type"];
+          if (savedType != null) {
+            // Find the key corresponding to the saved value to prevent ShadSelect crash
+            final key = companyTypes.keys.firstWhere(
+              (k) => companyTypes[k] == savedType || k == savedType,
+              orElse: () => "sole_proprietorship",
+            );
+            _selectedType = key;
+          } else {
+            _selectedType = "sole_proprietorship";
+          }
         });
       }
     } catch (e) {
@@ -426,9 +593,8 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
             "Email": _emailController.text.trim(),
             "Company Address": _addressController.text.trim(),
             "Company Work": _descController.text.trim(),
-            "Funding": _fundingController.text.trim(),
-            "Runway": _runwayController.text.trim(),
-            "Company Type": _selectedType,
+            "Target Runway": _targetRunwayController.text.trim(),
+            "Company Type": companyTypes[_selectedType],
           }, SetOptions(merge: true));
 
       await _syncOwnerNameToUsers();
@@ -484,7 +650,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                       _buildSectionLabel("LEGAL & LOCATION"),
                       _buildDropdownGroup(
                         "COMPANY TYPE",
-                        companyTypes[_selectedType] ?? "Not Set",
                       ),
                       const SizedBox(height: 24),
                       _buildInputGroup(
@@ -500,24 +665,15 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                       ),
                       const SizedBox(height: 40),
                       _buildSectionLabel("FINANCIAL OVERVIEW"),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildInputGroup(
-                              "FUNDS LEFT (${CurrencyFormatter.getCurrencySymbol(_userCountryCode)})",
-                              _fundingController,
-                              isNumber: true,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildInputGroup(
-                              "RUNWAY (MO)",
-                              _runwayController,
-                              isNumber: true,
-                            ),
-                          ),
-                        ],
+                      _buildReadOnlyMetric(
+                        "FUNDS LEFT (${CurrencyFormatter.getCurrencySymbol(_userCountryCode)})",
+                        CurrencyFormatter.formatByCountry(_availableFunds, _userCountryCode),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildInputGroup(
+                        "TARGET RUNWAY (MONTHS)",
+                        _targetRunwayController,
+                        isNumber: true,
                       ),
                       const SizedBox(height: 40),
                       _buildBankSection(),
@@ -633,7 +789,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
     );
   }
 
-  Widget _buildDropdownGroup(String label, String value) {
+  Widget _buildDropdownGroup(String label) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -649,10 +805,8 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         ConstrainedBox(
           constraints: const BoxConstraints(minWidth: double.infinity),
           child: ShadSelect<String>(
-            // Add this Key to force rebuild when Firestore data loads
-            key: ValueKey(_selectedType),
-            // Add this to set the default option!
-            initialValue: _selectedType,
+            key: ValueKey(_selectedType), // Force rebuild when data loads
+            initialValue: _selectedType, // Provide the validated key
             placeholder: Text(
               'Select $label',
               style: GoogleFonts.inter(color: Colors.white24, fontSize: 15),
@@ -662,8 +816,9 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                 (e) => ShadOption(value: e.key, child: Text(e.value)),
               ),
             ],
+            // --- FIXED: Added null fallback here to prevent crash ---
             selectedOptionBuilder: (context, selectedValue) => Text(
-              companyTypes[selectedValue]!,
+              companyTypes[selectedValue] ?? selectedValue,
               style: GoogleFonts.inter(
                 color: Colors.white,
                 fontSize: 15,
@@ -724,9 +879,9 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         ),
         const SizedBox(height: 8),
         if (_isLoading)
-          Center(
+          const Center(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: EdgeInsets.all(16.0),
               child: CircularProgressIndicator(
                 color: Colors.white38,
                 strokeWidth: 2,

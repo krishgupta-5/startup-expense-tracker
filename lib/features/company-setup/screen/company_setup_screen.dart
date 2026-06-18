@@ -284,12 +284,13 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             _errors.add('bank_name_$i');
             isValid = false;
           }
-          if (_bankAccounts[i]["number"]!.text.trim().length != 8) {
+          final accountNumLength = _bankAccounts[i]["number"]!.text.trim().length;
+          if (accountNumLength < 8 || accountNumLength > 18) {
             _errors.add('bank_num_$i');
             if (isValid) {
               ErrorPopup.showValidation(
                 context: context, 
-                message: "Account Number must be exactly 8 digits."
+                message: "Account Number must be between 8 and 18 digits."
               );
             }
             isValid = false;
@@ -1129,14 +1130,14 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 const SizedBox(height: 12),
                 _buildInputField(
                   _bankAccounts[index]["number"]!,
-                  "Account Number (8 digits)",
+                  "Account Number (8-18 digits)",
                   "bank_num_$index",
                   icon: Icons.numbers,
                   isNumber: true,
                   textCapitalization: TextCapitalization.none,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(8),
+                    LengthLimitingTextInputFormatter(18),
                   ]
                 ),
               ],

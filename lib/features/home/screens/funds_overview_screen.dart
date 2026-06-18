@@ -136,27 +136,76 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           .doc(user.uid)
           .get();
 
+      fundingHistory.clear();
+
       if (docSnapshot.exists && docSnapshot.data() != null) {
         final data = docSnapshot.data()!;
-        final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
+        final totalFunding = double.tryParse(
+              (data["Funding"] ?? data["funding"] ?? data["FUNDING"] ?? 0)
+                  .toString(),
+            ) ??
+            0;
 
-        final createdAt = docSnapshot.get('createdAt') as Timestamp?;
-        final fundingDateStr = createdAt != null
-            ? _formatDate(createdAt)
-            : 'Date unknown';
+        final createdAt = data['createdAt'] as Timestamp?;
+        final companyDateStr =
+            createdAt != null ? _formatDate(createdAt) : 'Date unknown';
 
-        fundingHistory.clear();
-        if (funding != null) {
-          final fundingAmt = double.tryParse(funding.toString()) ?? 0;
-          if (fundingAmt > 0) {
-            fundingHistory.add({
-              'round': 'Initial Funding',
-              'amount': fundingAmt.toInt(),
-              'date': fundingDateStr,
+        // Fetch all funding transactions (no orderBy to avoid index requirement)
+        double additionalFundingTotal = 0;
+        final List<Map<String, dynamic>> txnEntries = [];
+
+        try {
+          final txnSnapshot = await FirebaseFirestore.instance
+              .collection('funding_transactions')
+              .where('uid', isEqualTo: user.uid)
+              .get();
+
+          // Sort by createdAt in memory
+          final sortedDocs = txnSnapshot.docs.toList()
+            ..sort((a, b) {
+              final aTime = a.data()['createdAt'] as Timestamp?;
+              final bTime = b.data()['createdAt'] as Timestamp?;
+              if (aTime == null) return 1;
+              if (bTime == null) return -1;
+              return aTime.compareTo(bTime);
+            });
+
+          int roundNumber = 2;
+          for (var doc in sortedDocs) {
+            final txnData = doc.data();
+            final amt = (txnData['amount'] as num?)?.toDouble() ?? 0;
+            final source = txnData['source'] ?? 'Funding';
+            final txnCreatedAt = txnData['createdAt'] as Timestamp?;
+            final txnDateStr =
+                txnCreatedAt != null ? _formatDate(txnCreatedAt) : 'Recent';
+
+            additionalFundingTotal += amt;
+            txnEntries.add({
+              'round': 'Round $roundNumber · $source',
+              'amount': amt.toInt(),
+              'date': txnDateStr,
               'status': 'completed',
             });
+            roundNumber++;
           }
+        } catch (e) {
+          log("Error fetching funding transactions: $e");
         }
+
+        // Initial funding = total funding minus all additional transactions
+        final initialFunding = totalFunding - additionalFundingTotal;
+
+        if (initialFunding > 0) {
+          fundingHistory.add({
+            'round': 'Initial Funding',
+            'amount': initialFunding.toInt(),
+            'date': companyDateStr,
+            'status': 'completed',
+          });
+        }
+
+        // Add all funding rounds after the initial
+        fundingHistory.addAll(txnEntries);
       }
     } catch (e) {
       log("Error fetching funding history: $e");
@@ -241,7 +290,13 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           .orderBy('Date', descending: true)
           .get();
 
-      allExpenses = expensesSnapshot.docs.map((doc) {
+      allExpenses = expensesSnapshot.docs
+          .where((doc) {
+            final data = doc.data();
+            // Exclude funding entries from expense calculations
+            return data['isFunding'] != true;
+          })
+          .map((doc) {
         final data = doc.data();
         final rawAmount =
             double.tryParse(data['Amount']?.toString() ?? '0') ?? 0.0;

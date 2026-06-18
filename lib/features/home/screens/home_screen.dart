@@ -217,7 +217,9 @@ class _HomeScreenState extends State<HomeScreen> {
         Map<String, double> localCategoryBreakdown = {};
         final now = DateTime.now();
 
-        final expensesList = snapshot.docs.map((doc) {
+        final expensesList = snapshot.docs
+            .where((doc) => doc.data()['isFunding'] != true)
+            .map((doc) {
           final data = doc.data();
           final amount = _toDouble(data['Amount'] ?? data['amount']);
           final date = data['Date'] as Timestamp?;
