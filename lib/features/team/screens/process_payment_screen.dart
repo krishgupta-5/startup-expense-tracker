@@ -79,42 +79,31 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
     }
   }
 
+  // Fix #3: Use BankAccountService so companyId fallback logic is respected
   Future<void> _fetchBankAccounts() async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      final accounts = await BankAccountService.getBankAccounts();
+      final Map<String, String> loadedBanks = {};
 
-      final doc = await FirebaseFirestore.instance
-          .collection('companies')
-          .doc(user.uid)
-          .get();
+      for (final acc in accounts) {
+        final String name = acc['name'] as String? ?? 'Unknown Bank';
+        final String last4 = acc['last4'] as String? ?? '';
+        final String key = "$name-$last4";
+        final String label =
+            last4.isNotEmpty && last4 != '****'
+                ? "$name (****$last4)"
+                : name;
+        loadedBanks[key] = label;
+      }
 
-      if (doc.exists && doc.data()!.containsKey('Bank Accounts')) {
-        final accounts = doc.data()!['Bank Accounts'] as List<dynamic>;
-        Map<String, String> loadedBanks = {};
-
-        for (var acc in accounts) {
-          final String name = acc['name'] ?? acc['bankName'] ?? 'Unknown Bank';
-          final String rawLast4 =
-              acc['last4']?.toString() ?? acc['number']?.toString() ?? '';
-          final String last4 = rawLast4.isNotEmpty
-              ? BankAccountService.extractLast4(rawLast4)
-              : '';
-          final String key = "$name-$last4";
-          final String label = last4.isNotEmpty ? "$name (****$last4)" : name;
-          loadedBanks[key] = label;
-        }
-
-        if (mounted) {
-          setState(() {
-            _bankAccounts = loadedBanks;
-            if (_bankAccounts.isNotEmpty) {
-              _selectedBankAccount = _bankAccounts.keys.first;
-              _selectedPaymentMethod =
-                  'bank'; // Auto-switch to bank if available
-            }
-          });
-        }
+      if (mounted) {
+        setState(() {
+          _bankAccounts = loadedBanks;
+          if (_bankAccounts.isNotEmpty) {
+            _selectedBankAccount = _bankAccounts.keys.first;
+            _selectedPaymentMethod = 'bank';
+          }
+        });
       }
     } catch (e) {
       debugPrint("Failed to load bank accounts: $e");
@@ -166,15 +155,23 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
         "Date": DateTime.now(),
         "Category": "salary",
         "Type": "recurring",
+        // Store the bank account key (BankName-last4) for later lookup,
+        // or 'Cash-' for cash payments
         "BankAccount": _selectedPaymentMethod == 'bank'
-            ? _selectedBankAccount
+            ? (_selectedBankAccount ?? 'Cash-')
+            : 'Cash-',
+        "bankAccount": _selectedPaymentMethod == 'bank'
+            ? (_selectedBankAccount ?? 'Cash-')
             : 'Cash-',
         "PaymentMethod": _selectedPaymentMethod,
         "memberId": widget.memberId,
         "Time": FieldValue.serverTimestamp(),
       });
 
-      // 2. Update Total Expenses
+      // 2. Update Company Total Expenses + Member Total Expenses (Fix #2)
+      final batch = FirebaseFirestore.instance.batch();
+
+      // 2a. Update company's totalExpenses
       final companyDoc = await FirebaseFirestore.instance
           .collection('companies')
           .doc(user.uid)
@@ -186,11 +183,21 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
             double.tryParse(data["totalExpenses"]?.toString() ?? "0") ?? 0.0;
         final newTotalExpenses = currentTotalExpenses + amount;
 
-        await FirebaseFirestore.instance
+        final companyRef = FirebaseFirestore.instance
             .collection('companies')
-            .doc(user.uid)
-            .update({"totalExpenses": newTotalExpenses});
+            .doc(user.uid);
+        batch.update(companyRef, {"totalExpenses": newTotalExpenses});
       }
+
+      // 2b. Increment member's totalExpenses so MemberDetailScreen stays accurate
+      final memberRef = FirebaseFirestore.instance
+          .collection('members')
+          .doc(widget.memberId);
+      batch.update(memberRef, {
+        "totalExpenses": FieldValue.increment(amount),
+      });
+
+      await batch.commit();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -360,22 +367,26 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
     );
   }
 
+  // Fix #4: Amount is editable for both salary and advance payments.
+  // Salaries can vary month-to-month (deductions, partial months).
   Widget _buildAmountInput() {
     return SizedBox(
       width: double.infinity,
       child: TextField(
         controller: _amountController,
-        readOnly: !widget.isAdvance, // Only editable if Advance
+        readOnly: false, // Always editable — salary can differ month-to-month
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         textAlign: TextAlign.center,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         style: GoogleFonts.inter(
-          color: widget.isAdvance ? Colors.white : Colors.white70,
+          color: Colors.white,
           fontSize: 56,
           fontWeight: FontWeight.w600,
           letterSpacing: -2,
         ),
-        cursorColor: const Color(0xFF5E5CE6), // Match purple for advance
+        cursorColor: widget.isAdvance
+            ? const Color(0xFF5E5CE6)
+            : Colors.white54,
         decoration: InputDecoration(
           prefixText:
               "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",

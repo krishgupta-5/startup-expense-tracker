@@ -148,7 +148,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               final String role = memberData['jobTitle'] ?? "No Role";
               final String email = memberData['email'] ?? "No Email";
               final String status = memberData['status'] ?? "Active";
-              final double cost = (memberData['monthlyCost'] ?? 0.0) as double;
+              final double cost = (memberData['monthlyCost'] ?? 0.0).toDouble();
               final String salary = _isLoadingCountry
                   ? CurrencyFormatter.formatByCountry(cost, '+1')
                   : CurrencyFormatter.formatByCountry(cost, _userCountryCode);
@@ -580,15 +580,14 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           );
         }
 
-        // 1. Count Total Salary Payments Made for this member
+        // 1. Count Total Salary Payments Made for this member using stable memberId
         int totalPaymentsMade = 0;
         if (snapshot.hasData) {
           for (var doc in snapshot.data!.docs) {
             final data = doc.data() as Map<String, dynamic>;
             final category = data['Category']?.toString().toLowerCase() ?? '';
-            final title = data['Title']?.toString() ?? '';
 
-            if (category == 'salary' && title.contains(memberName)) {
+            if (category == 'salary' && data['memberId'] == widget.memberId) {
               totalPaymentsMade++;
             }
           }
@@ -813,6 +812,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       stream: FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: currentUser?.uid)
+          // Fix #7: Filter server-side to avoid loading all expenses
+          .where('memberId', isEqualTo: widget.memberId)
+          .where('Category', isEqualTo: 'salary')
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1333,18 +1335,22 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
                             final memberData = memberDoc.data()!;
                             final memberSalary = DataHelpers.safeParseDouble(
-                              memberData['salary'] ?? 0,
+                              memberData['monthlyCost'] ?? 0,
                             );
-                            final memberName = memberData['name'] ?? 'Unknown';
+                            final memberName = memberData['fullName'] ?? 'Unknown';
 
                             // Use batch for atomic operations
                             final batch = FirebaseFirestore.instance.batch();
 
-                            // Archive payment history before deletion
+                            // Fix #6: Salary payments are stored in 'expenses'
+                            // (not 'payments') with Category='salary'.
+                            // Archive them before deletion so history is preserved.
                             final paymentsSnapshot = await FirebaseFirestore
                                 .instance
-                                .collection('payments')
+                                .collection('expenses')
+                                .where('uid', isEqualTo: user.uid)
                                 .where('memberId', isEqualTo: widget.memberId)
+                                .where('Category', isEqualTo: 'salary')
                                 .get();
 
                             // Create archived payment records
@@ -1377,8 +1383,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                 .collection('companies')
                                 .doc(companyId);
 
-                            // Calculate annual salary impact on monthly expenses
-                            final monthlySalaryImpact = memberSalary / 12;
+                            // monthlyCost is already the monthly amount, no division needed
+                            final monthlySalaryImpact = memberSalary;
                             batch.update(companyRef, {
                               "totalExpenses": FieldValue.increment(
                                 -monthlySalaryImpact,
