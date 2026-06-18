@@ -28,8 +28,6 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   List<Map<String, dynamic>> allExpenses = [];
 
   String _userCountryCode = '+1'; // Default to USD
-  final bool _isLoadingCountry =
-      false; // Start as false since we use sync method
 
   @override
   void initState() {
@@ -77,9 +75,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   }
 
   String _formatCurrency(double amount) {
-    return _isLoadingCountry
-        ? "₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-        : CurrencyFormatter.formatByCountry(amount, _userCountryCode);
+    return CurrencyFormatter.formatByCountry(amount, _userCountryCode);
   }
 
   Future<void> _fetchRunwayData() async {
@@ -101,16 +97,16 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
         // Get runway from Firebase
         final runwayFromFirebase = data["Runway"]?.toString() ?? "0";
         final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
-        final totalExpenses =
-            data["totalExpenses"] ?? data["total_expenses"] ?? "0";
-
         final runwayAmount =
             double.tryParse(runwayFromFirebase.toString()) ?? 0;
         final fundingAmount = double.tryParse(funding?.toString() ?? "0") ?? 0;
-        final totalExpensesAmount =
-            double.tryParse(totalExpenses.toString()) ?? 0;
-
-        final availableBalance = fundingAmount - totalExpensesAmount;
+        // Compute available balance from REAL loaded expenses
+        // (NOT from stale company doc field that is never written)
+        final realTotalExpenses = allExpenses.fold<double>(
+          0.0,
+          (t, e) => t + (e['amount'] as double? ?? 0.0),
+        );
+        final availableBalance = fundingAmount - realTotalExpenses;
 
         // Calculate current month burn using FinancialCalculator with proper scaling
         final expensesForCalculation = allExpenses
@@ -140,15 +136,11 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             currentBalance = _formatCurrency(
               availableBalance < 0 ? 0 : availableBalance,
             );
-            monthlyBurn = _isLoadingCountry
-                ? "₹0"
-                : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0";
-            netBurn = _isLoadingCountry
-                ? "₹0"
-                : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0";
+            monthlyBurn = CurrencyFormatter.getCurrencySymbol(_userCountryCode) + '0';
+            netBurn = CurrencyFormatter.getCurrencySymbol(_userCountryCode) + '0';
             zeroCashDate = availableBalance <= 0
-                ? (fundingAmount == 0 ? "Awaiting funding" : "Funds depleted")
-                : "Add expenses to track";
+                ? (fundingAmount == 0 ? 'Awaiting funding' : 'Funds depleted')
+                : 'Add expenses to track';
             monthlyProjections = [];
             isLoading = false;
           });
@@ -185,18 +177,13 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   }
 
   void _setEmptyState() {
+    final zeroStr = '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0';
     setState(() {
       runwayMonths = 0.0;
-      currentBalance = _isLoadingCountry
-          ? "₹0"
-          : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0";
-      monthlyBurn = _isLoadingCountry
-          ? "₹0"
-          : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0";
-      netBurn = _isLoadingCountry
-          ? "₹0"
-          : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0";
-      zeroCashDate = "--";
+      currentBalance = zeroStr;
+      monthlyBurn = zeroStr;
+      netBurn = zeroStr;
+      zeroCashDate = '--';
       monthlyProjections = [];
       isLoading = false;
     });
@@ -313,9 +300,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
         'month': "${months[futureDate.month - 1]} ${futureDate.year}",
         'balance': projectedBalance > 0
             ? _formatCurrency(projectedBalance)
-            : (_isLoadingCountry
-                  ? "₹0"
-                  : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
+            : '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0',
         'monthsLeft': remainingRunway > 0
             ? remainingRunway.toStringAsFixed(1)
             : "0.0",
@@ -329,13 +314,11 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
 
   String _getHealthStatus() {
     if (isLoading) return "CALCULATING";
-    final zeroSymbol = _isLoadingCountry
-        ? "₹0"
-        : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0";
-    if (monthlyBurn == zeroSymbol && currentBalance == zeroSymbol) {
-      return "NO DATA";
+    final zeroStr = '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0';
+    if (monthlyBurn == zeroStr && currentBalance == zeroStr) {
+      return 'NO DATA';
     }
-    if (monthlyBurn == zeroSymbol) return "NO EXPENSES";
+    if (monthlyBurn == zeroStr) return 'NO EXPENSES';
     if (runwayMonths == null || runwayMonths! <= 0) return "DEPLETED";
 
     if (runwayMonths! <= 3) return "CRITICAL";
@@ -662,11 +645,8 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
               child: _buildMetricCard(
                 "Current Balance",
                 isLoading
-                    ? "--"
-                    : (currentBalance ??
-                          (_isLoadingCountry
-                              ? "₹0"
-                              : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0")),
+                    ? '--'
+                    : (currentBalance ?? '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0'),
                 Icons.account_balance_wallet_outlined,
                 const Color(0xFF30D158),
               ),
@@ -676,11 +656,8 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
               child: _buildMetricCard(
                 "Monthly Burn",
                 isLoading
-                    ? "--"
-                    : (monthlyBurn ??
-                          (_isLoadingCountry
-                              ? "₹0"
-                              : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0")),
+                    ? '--'
+                    : (monthlyBurn ?? '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0'),
                 Icons.local_fire_department_outlined,
                 const Color(0xFFFF9F0A),
               ),
@@ -694,11 +671,8 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
               child: _buildMetricCard(
                 "Total Burn",
                 isLoading
-                    ? "--"
-                    : (netBurn ??
-                          (_isLoadingCountry
-                              ? "₹0"
-                              : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0")),
+                    ? '--'
+                    : (netBurn ?? '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0'),
                 Icons.remove_circle_outline,
                 const Color(0xFFFF453A),
               ),

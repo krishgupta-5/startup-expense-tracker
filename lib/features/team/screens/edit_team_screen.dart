@@ -173,13 +173,13 @@ class _EditTeamScreenState extends State<EditTeamScreen>
       for (var memberDoc in membersSnapshot.docs) {
         final memberData = memberDoc.data();
         final memberSalary = DataHelpers.safeParseDouble(
-          memberData['salary'] ?? 0,
+          memberData['monthlyCost'] ?? 0,
         );
-        final memberName = memberData['name'] ?? 'Unknown';
+        final memberName = memberData['fullName'] ?? 'Unknown';
         final memberId = memberDoc.id;
 
-        // Calculate monthly salary impact
-        totalMonthlySalaryImpact += memberSalary / 12;
+        // monthlyCost is already the monthly amount, no division needed
+        totalMonthlySalaryImpact += memberSalary;
 
         // Archive payment history for this member
         final paymentsSnapshot = await FirebaseFirestore.instance

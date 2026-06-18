@@ -47,7 +47,7 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
   final Map<String, String> _statuses = {
     'Active': 'Active',
     'Paused': 'Paused',
-    'On Leave': 'On Leave',
+    'Inactive': 'Inactive',
   };
 
   late String _status;

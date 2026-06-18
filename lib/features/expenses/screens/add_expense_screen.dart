@@ -1376,7 +1376,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 Text(
                   "₹${remainingSalary?.toStringAsFixed(0) ?? '0'}",
                   style: GoogleFonts.inter(
-                    color: remainingSalary! > 0
+                    color: (remainingSalary ?? 0.0) > 0
                         ? Colors.white
                         : Colors.redAccent,
                     fontSize: 10,

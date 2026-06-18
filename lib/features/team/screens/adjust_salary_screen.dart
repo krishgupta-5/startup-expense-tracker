@@ -133,6 +133,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
           .doc(widget.memberId)
           .update({
             'monthlyCost': newSalary,
+            'salary': newSalary, // Keep in sync with monthlyCost
             'lastSalaryUpdateDate': _effectiveDate,
             'lastSalaryUpdateReason': _reasonController.text.trim(),
           });

@@ -58,8 +58,8 @@ class TeamMember {
   }
 
   double? get remainingSalary {
-    if (salary == null || totalExpenses == null) return null;
-    return salary! - totalExpenses!;
+    if (salary == null) return null;
+    return salary! - (totalExpenses ?? 0.0);
   }
 
   double? get expensesPercentage {

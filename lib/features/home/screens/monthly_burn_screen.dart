@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/financial_data_service.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
@@ -33,6 +34,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
     );
     _shimmerController.repeat();
     _loadFinancialData();
+    _setupRealtimeListeners();
   }
 
   @override
@@ -40,7 +42,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
     CurrencyPreferenceService.currencyNotifier.removeListener(
       _onCurrencyChanged,
     );
+    _expensesSubscription?.cancel();
+    _teamMembersSubscription?.cancel();
+    _companySubscription?.cancel();
     _debounceTimer?.cancel();
+    _realtimeDebounceTimer?.cancel();
     _shimmerController.dispose();
     super.dispose();
   }
@@ -82,17 +88,32 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
 
   // Debouncing
   Timer? _debounceTimer;
+  Timer? _realtimeDebounceTimer;
 
-  Future<void> _loadFinancialData() async {
-    setState(() {
-      _isRefreshing = true;
-      _error = null;
-      _mainCardLoaded = false;
-      _trendLoaded = false;
-      _categoriesLoaded = false;
-      _teamsLoaded = false;
-      _forecastLoaded = false;
-    });
+  // Real-time listener subscriptions
+  StreamSubscription? _expensesSubscription;
+  StreamSubscription? _teamMembersSubscription;
+  StreamSubscription? _companySubscription;
+
+  Future<void> _loadFinancialData({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _isRefreshing = true;
+        _error = null;
+        _mainCardLoaded = false;
+        _trendLoaded = false;
+        _categoriesLoaded = false;
+        _teamsLoaded = false;
+        _forecastLoaded = false;
+      });
+    } else {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = true;
+          _error = null;
+        });
+      }
+    }
 
     try {
       final results = await Future.wait([
@@ -113,26 +134,70 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         ).catchError((e) => <String, Map<String, dynamic>>{}),
       ]);
 
-      setState(() {
-        _financialData = results[0] as Map<String, dynamic>?;
-        _teamCostData = results[1] as Map<String, dynamic>?;
-        _rawTeamsData = results[2] as List<Map<String, dynamic>>?;
-        _actualSpendingPerTeam = results[3] as Map<String, double>?;
-        _budgetVarianceData = results[4] as Map<String, Map<String, dynamic>>?;
-        
-        _mainCardLoaded = true;
-        _trendLoaded = true;
-        _categoriesLoaded = true;
-        _teamsLoaded = true;
-        _forecastLoaded = true;
-        _isRefreshing = false;
-      });
+      if (mounted) {
+        setState(() {
+          _financialData = results[0] as Map<String, dynamic>?;
+          _teamCostData = results[1] as Map<String, dynamic>?;
+          _rawTeamsData = results[2] as List<Map<String, dynamic>>?;
+          _actualSpendingPerTeam = results[3] as Map<String, double>?;
+          _budgetVarianceData = results[4] as Map<String, Map<String, dynamic>>?;
+          
+          _mainCardLoaded = true;
+          _trendLoaded = true;
+          _categoriesLoaded = true;
+          _teamsLoaded = true;
+          _forecastLoaded = true;
+          _isRefreshing = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _error = "Failed to load financial data: ${e.toString()}";
-        _isRefreshing = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = "Failed to load financial data: ${e.toString()}";
+          _isRefreshing = false;
+        });
+      }
     }
+  }
+
+  void _setupRealtimeListeners() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // Listen to changes in the expenses collection
+    _expensesSubscription = FirebaseFirestore.instance
+        .collection('expenses')
+        .where('uid', isEqualTo: user.uid)
+        .snapshots()
+        .listen((_) {
+      _handleRealtimeUpdate();
+    });
+
+    // Listen to changes in the team_members collection
+    _teamMembersSubscription = FirebaseFirestore.instance
+        .collection('team_members')
+        .where('uid', isEqualTo: user.uid)
+        .snapshots()
+        .listen((_) {
+      _handleRealtimeUpdate();
+    });
+
+    // Listen to changes in the companies document
+    _companySubscription = FirebaseFirestore.instance
+        .collection('companies')
+        .doc(user.uid)
+        .snapshots()
+        .listen((_) {
+      _handleRealtimeUpdate();
+    });
+  }
+
+  void _handleRealtimeUpdate() {
+    _realtimeDebounceTimer?.cancel();
+    _realtimeDebounceTimer = Timer(const Duration(milliseconds: 100), () {
+      FinancialDataService.clearAllCache();
+      _loadFinancialData(silent: true);
+    });
   }
 
   void _onRangeChanged(String newRange) {

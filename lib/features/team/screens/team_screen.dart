@@ -35,6 +35,15 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   String _userCountryCode = '+1'; // Default to USD
   final bool _isLoadingCountry = false; 
 
+  // Cache for the last sort future to prevent rebuilding on every stream tick
+  Future<List<Map<String, dynamic>>>? _sortedTeamsFuture;
+  List<Map<String, dynamic>>? _lastTeamsData;
+
+  void _rebuildSortFuture(List<Map<String, dynamic>> teams) {
+    _lastTeamsData = teams;
+    _sortedTeamsFuture = _filterAndSortTeams(teams);
+  }
+
   // Cache for Telegram photos to avoid repeated fetching
   static final Map<String, String> _telegramPhotoCache = {};
 
@@ -228,8 +237,12 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
         if (option == "Name") {
           _selectedOrder = "A-Z";
         } else {
-          _selectedOrder = "High-Low"; 
+          _selectedOrder = "High-Low";
         }
+      }
+      // Invalidate cache so sort re-runs with new criteria
+      if (_lastTeamsData != null) {
+        _sortedTeamsFuture = _filterAndSortTeams(_lastTeamsData!);
       }
     });
   }
@@ -333,8 +346,16 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
           return _buildEmptyState("You don't have any teams yet.");
         }
 
+        // Only rebuild sort future if team data actually changed
+        final newTeams = snapshot.data!;
+        if (_sortedTeamsFuture == null ||
+            _lastTeamsData == null ||
+            _lastTeamsData!.length != newTeams.length) {
+          _rebuildSortFuture(newTeams);
+        }
+
         return FutureBuilder<List<Map<String, dynamic>>>(
-          future: _filterAndSortTeams(snapshot.data!),
+          future: _sortedTeamsFuture,
           builder: (context, futureSnapshot) {
             if (futureSnapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -405,14 +426,18 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     required bool isSelected,
   }) {
     IconData arrowIcon;
-    if (label == "Name") {
-      arrowIcon = _selectedOrder == "A-Z"
-          ? Icons.arrow_downward
-          : Icons.arrow_upward;
+    if (isSelected) {
+      if (label == "Name") {
+        arrowIcon = _selectedOrder == "A-Z"
+            ? Icons.arrow_downward
+            : Icons.arrow_upward;
+      } else {
+        arrowIcon = _selectedOrder == "High-Low"
+            ? Icons.arrow_downward
+            : Icons.arrow_upward;
+      }
     } else {
-      arrowIcon = _selectedOrder == "High-Low"
-          ? Icons.arrow_downward
-          : Icons.arrow_upward;
+      arrowIcon = Icons.arrow_downward; // default, won't be shown
     }
 
     return GestureDetector(
@@ -541,6 +566,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
               onChanged: (val) {
                 setState(() {
                   _searchQuery = val;
+                  if (_lastTeamsData != null) {
+                    _sortedTeamsFuture = _filterAndSortTeams(_lastTeamsData!);
+                  }
                 });
               },
             ),
@@ -937,34 +965,4 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<String?> getTelegramFileId(String telegramFileId) async {
-    try {
-      await dotenv.load(fileName: ".env.local");
-      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
-      if (botToken == null) {
-        throw Exception('Telegram bot token not found in environment');
-      }
-
-      final uri = Uri.parse("https://api.telegram.org/bot$botToken/sendPhoto");
-
-      var request = http.MultipartRequest('POST', uri);
-      request.fields['chat_id'] = '-1003885930746';
-      request.files.add(
-        await http.MultipartFile.fromPath('photo', telegramFileId),
-      );
-
-      var response = await request.send();
-      var responseData = await response.stream.bytesToString();
-      var data = jsonDecode(responseData);
-
-      if (data['ok']) {
-        return data['result']['photo'].last['file_id'];
-      } else {
-        throw Exception("Upload failed: ${response.statusCode}");
-      }
-    } catch (e) {
-      debugPrint('Error uploading to Telegram: $e');
-      return null;
-    }
-  }
 }

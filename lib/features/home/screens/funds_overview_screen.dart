@@ -19,13 +19,15 @@ class FundsOverviewScreen extends StatefulWidget {
 }
 
 class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
-  String? expense;
-  String? availableFunds;
+  // Raw financial data — always kept in sync via setState
+  double _totalExpensesAmount = 0.0;
+  double _availableAmount = 0.0;
+  bool _dataLoaded = false;
+
   String? lastUpdated;
   bool isLoading = true;
   String? errorMessage;
   double? fundingAmount;
-  double? available;
 
   List<Map<String, dynamic>> fundingHistory = [];
   List<Map<String, dynamic>> allExpenses = [];
@@ -33,8 +35,6 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   List<Map<String, dynamic>> cashFlowBreakdown = [];
 
   String _userCountryCode = '+1'; // Default to USD
-  final bool _isLoadingCountry =
-      false; // Start as false since we use sync method
 
   @override
   void initState() {
@@ -84,26 +84,47 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     });
 
     try {
-      // Fetch all data sequentially without triggering false loading states
-      await _fetchFundsData();
-      await _fetchAllExpenses();
-      await _fetchBankAccounts();
+      // Fetch funding amount and expenses in parallel
+      await Future.wait([
+        _fetchFundsData(),
+        _fetchAllExpenses(),
+      ]);
+
+      // Compute totals from REAL loaded expenses — inside setState so rebuild always sees correct values
+      if (fundingAmount != null) {
+        final totalReal = allExpenses.fold<double>(
+          0.0,
+          (t, e) => t + (e['rawAmount'] as double? ?? 0.0),
+        );
+        setState(() {
+          _totalExpensesAmount = totalReal;
+          _availableAmount = fundingAmount! - totalReal;
+          lastUpdated = 'Today';
+          _dataLoaded = true;
+        });
+      }
+
       _calculateCashFlowBreakdown();
-      await _fetchFundingHistory();
+
+      // Fetch bank accounts and funding history in parallel
+      await Future.wait([
+        _fetchBankAccounts(),
+        _fetchFundingHistory(),
+      ]);
     } catch (e) {
-      log("Error loading all data: $e");
+      log('Error loading all data: $e');
       if (mounted) {
         setState(() {
-          errorMessage = "Failed to load some data. Pull down to refresh.";
+          errorMessage = 'Failed to load some data. Pull down to refresh.';
         });
       }
     } finally {
-      // ONLY set isLoading to false when EVERYTHING is done
       if (mounted) {
         setState(() => isLoading = false);
       }
     }
   }
+
 
   Future<void> _fetchFundingHistory() async {
     try {
@@ -146,7 +167,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     final Map<String, double> categoryTotals = {};
     for (var expense in allExpenses) {
       final category = expense['category'] as String? ?? 'Other';
-      final amount = (expense['amount'] as num).toDouble();
+      final amount = expense['rawAmount'] as double? ?? (expense['amount'] as num).toDouble();
       categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
     }
 
@@ -164,12 +185,12 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   }
 
   String _getHealthStatus() {
-    if (isLoading || available == null || fundingAmount == null) {
-      return "NO DATA";
+    if (isLoading || !_dataLoaded || fundingAmount == null) {
+      return 'NO DATA';
     }
 
     final runwayMonths = FinancialCalculator.runwayMonths(
-      availableFunds: available!,
+      availableFunds: _availableAmount,
       monthlyBurn: _calculateCurrentMonthBurn(),
     );
 
@@ -195,30 +216,25 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     final now = DateTime.now();
     double currentMonthTotal = 0;
     for (var expense in allExpenses) {
-      final expenseDate = expense['date'] as String?;
-      if (expenseDate != null) {
-        // Parse date string and check if it's current month
-        final parts = expenseDate.split('/');
-        if (parts.length >= 2) {
-          final month = int.tryParse(parts[0]);
-          final year = int.tryParse(parts[1]);
-          if (month != null &&
-              year != null &&
-              month == now.month &&
-              year == now.year) {
-            currentMonthTotal += (expense['amount'] as num).toDouble();
-          }
+      final ts = expense['timestamp'] as Timestamp?;
+      if (ts != null) {
+        final dt = ts.toDate();
+        if (dt.month == now.month && dt.year == now.year) {
+          currentMonthTotal += expense['rawAmount'] as double? ?? 0.0;
         }
       }
     }
     return currentMonthTotal;
   }
 
+
   Future<void> _fetchAllExpenses() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
+      // No orderBy — avoids needing a composite Firestore index.
+      // The index uid+Date(DESCENDING) exists, so we use it directly.
       final expensesSnapshot = await FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: user.uid)
@@ -227,14 +243,18 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
 
       allExpenses = expensesSnapshot.docs.map((doc) {
         final data = doc.data();
+        final rawAmount =
+            double.tryParse(data['Amount']?.toString() ?? '0') ?? 0.0;
         return {
           'id': doc.id,
-          'title': data['Title'] ?? 'Unnamed Expense',
-          'amount': (data['Amount'] as num).toInt(),
+          'title': data['Title'] ?? data['Description'] ?? 'Unnamed Expense',
+          'amount': rawAmount.toInt(),       // kept for UI compat
+          'rawAmount': rawAmount,            // accurate double for calculations
           'category': data['Category'] ?? 'General',
           'date': data['Date'] != null
-              ? _formatDate(data['Date'])
+              ? _formatDate(data['Date'] as Timestamp)
               : 'Unknown Date',
+          'timestamp': data['Date'] as Timestamp?,  // raw timestamp for filtering
           'description': data['Description'] ?? '',
           'type': data['Type'] ?? 'one_time',
           'bankAccount':
@@ -245,9 +265,10 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         };
       }).toList();
     } catch (e) {
-      log("Error fetching expenses: $e");
+      log('Error fetching expenses: $e');
     }
   }
+
 
   Future<void> _fetchBankAccounts() async {
     try {
@@ -305,58 +326,33 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        errorMessage = "User not authenticated";
+        errorMessage = 'User not authenticated';
         return;
       }
 
       final docSnapshot = await FirebaseFirestore.instance
-          .collection("companies")
+          .collection('companies')
           .doc(user.uid)
           .get();
 
       if (docSnapshot.exists && docSnapshot.data() != null) {
         final data = docSnapshot.data()!;
-        final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
-        final totalExpenses =
-            data["totalExpenses"] ?? data["total_expenses"] ?? "0";
+        final funding = data['Funding'] ?? data['funding'] ?? data['FUNDING'];
 
         if (funding != null) {
+          // Only store raw funding amount; available is computed after expenses load
           fundingAmount = double.tryParse(funding.toString()) ?? 0;
-          final totalExpensesAmount =
-              double.tryParse(totalExpenses.toString()) ?? 0;
-          available = fundingAmount! - totalExpensesAmount;
-
-          // Add Indian comma formatting to large numbers
-          String formattedAvailable = available!
-              .toStringAsFixed(0)
-              .replaceAllMapped(
-                RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-                (match) => '${match[1]},',
-              );
-          String formattedExpense = totalExpensesAmount
-              .toStringAsFixed(0)
-              .replaceAllMapped(
-                RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-                (match) => '${match[1]},',
-              );
-
-          availableFunds = _isLoadingCountry
-              ? "₹ $formattedAvailable"
-              : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} $formattedAvailable";
-          expense = _isLoadingCountry
-              ? "₹ $formattedExpense"
-              : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} $formattedExpense";
-          lastUpdated = "Today";
         } else {
-          errorMessage = "No funding data found";
+          errorMessage = 'No funding data found';
         }
       } else {
-        errorMessage = "No company data found";
+        errorMessage = 'No company data found';
       }
     } catch (e) {
-      errorMessage = "Failed to load funds data";
+      errorMessage = 'Failed to load funds data';
     }
   }
+
 
   // --- PREMIUM SECTION LABEL HELPER ---
   Widget _buildSectionLabel(String text) {
@@ -419,14 +415,14 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       isLoading
-                          ? "--"
-                          : (expense ??
-                                (_isLoadingCountry
-                                    ? "₹0"
-                                    : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0")),
+                          ? '--'
+                          : CurrencyFormatter.formatByCountry(
+                              _totalExpensesAmount,
+                              _userCountryCode,
+                            ),
                       style: GoogleFonts.inter(
                         color: Colors.white,
-                        fontSize: 48, // Bumped size for hero impact
+                        fontSize: 48,
                         fontWeight: FontWeight.w600,
                         height: 1.0,
                         letterSpacing: -1.5,
@@ -597,28 +593,24 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             alignment: Alignment.centerLeft,
             child: Text(
               isLoading
-                  ? "--"
-                  : (availableFunds != null
-                        ? "$availableFunds"
-                        : (_isLoadingCountry
-                              ? "₹0"
-                              : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0")),
+                  ? '--'
+                  : CurrencyFormatter.formatByCountry(
+                      _availableAmount,
+                      _userCountryCode,
+                    ),
               style: GoogleFonts.inter(
                 color: Colors.white,
-                fontSize: 32, // Large enough, but fitted
+                fontSize: 32,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -1,
               ),
             ),
           ),
-          if (!isLoading &&
-              availableFunds != null &&
-              fundingAmount != null &&
-              fundingAmount! > 0)
+          if (!isLoading && _dataLoaded && fundingAmount != null && fundingAmount! > 0)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                "${((available! / fundingAmount!) * 100).toStringAsFixed(1)}% of total capital remaining",
+                '${((_availableAmount / fundingAmount!) * 100).toStringAsFixed(1)}% of total capital remaining',
                 style: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
               ),
             ),
@@ -675,9 +667,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     final isActive =
         item['status'] == 'active' || item['status'] == 'completed';
 
-    String formattedAmount = _isLoadingCountry
-        ? "+₹${amount.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-        : "+${CurrencyFormatter.formatByCountry(amount.toDouble(), _userCountryCode)}";
+    final formattedAmount =
+        '+${CurrencyFormatter.formatByCountry(amount.toDouble(), _userCountryCode)}';
 
     return Row(
       children: [
@@ -839,14 +830,10 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     );
 
     if (isNegative) {
-      formattedAmount = _isLoadingCountry
-          ? '-₹$cleanAmount'
-          : '-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount';
+      formattedAmount = '-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount';
       amountColor = const Color(0xFFFF453A);
     } else {
-      formattedAmount = _isLoadingCountry
-          ? '+₹$cleanAmount'
-          : '+${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount';
+      formattedAmount = '+${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount';
       amountColor = isActive ? const Color(0xFF30D158) : Colors.white;
     }
 
@@ -984,9 +971,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                             fit: BoxFit.scaleDown,
                             alignment: Alignment.centerRight,
                             child: Text(
-                              _isLoadingCountry
-                                  ? "-₹$formattedOutflow"
-                                  : "-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$formattedOutflow",
+                              '-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$formattedOutflow',
                               style: GoogleFonts.inter(
                                 color: const Color(0xFFFF453A),
                                 fontSize: 16,
@@ -1012,11 +997,9 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
       (match) => '${match[1]},',
     );
-    final formattedAmount = _isLoadingCountry
-        ? (isPositive ? "+₹$cleanAmount" : "-₹$cleanAmount")
-        : (isPositive
-              ? "+${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount"
-              : "-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount");
+    final formattedAmount = isPositive
+        ? '+${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount'
+        : '-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -1398,12 +1381,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           (match) => '${match[1]},',
         );
     final formattedAmount = totalSpent > 0
-        ? (_isLoadingCountry
-              ? '-₹$cleanSpent'
-              : '-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanSpent')
-        : (_isLoadingCountry
-              ? '₹0'
-              : '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0');
+        ? '-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanSpent'
+        : '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0';
 
     return Row(
       children: [

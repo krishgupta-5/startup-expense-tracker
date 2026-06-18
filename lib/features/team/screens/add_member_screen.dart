@@ -164,9 +164,11 @@ class _AddMemberScreenState extends State<AddMemberScreen>
         "joiningDate": _joiningDate,
         "employmentType": _employmentType,
         "monthlyCost": cost,
+        "salary": cost, // Mirror field used by delete/financial calculations
         "createdAt": FieldValue.serverTimestamp(),
         "avatarUrl": _telegramFileId ?? "",
         "telegramFileId": _telegramFileId ?? "",
+        "status": "Active",
       });
 
       debugPrint("Member added successfully with teamId: $_selectedTeamId");

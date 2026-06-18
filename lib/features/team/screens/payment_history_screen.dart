@@ -300,6 +300,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                       stream: FirebaseFirestore.instance
                           .collection('expenses')
                           .where('uid', isEqualTo: currentUser?.uid)
+                          // Fix #7: Filter server-side — avoids reading all expenses
+                          .where('memberId', isEqualTo: widget.memberId)
+                          .where('Category', isEqualTo: 'salary')
                           .snapshots(),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
