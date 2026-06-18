@@ -128,6 +128,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // Update the member's monthlyCost and salary fields
       await FirebaseFirestore.instance
           .collection('members')
           .doc(widget.memberId)
@@ -136,6 +137,23 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
             'salary': newSalary, // Keep in sync with monthlyCost
             'lastSalaryUpdateDate': _effectiveDate,
             'lastSalaryUpdateReason': _reasonController.text.trim(),
+          });
+
+      // T-04: Write salary history record for full audit trail
+      // (raised, cut, promotion, annual review — all permanently logged)
+      await FirebaseFirestore.instance
+          .collection('members')
+          .doc(widget.memberId)
+          .collection('salary_history')
+          .add({
+            'previousSalary': widget.currentSalary,
+            'newSalary': newSalary,
+            'delta': newSalary - widget.currentSalary,
+            'reason': _reasonController.text.trim().isNotEmpty
+                ? _reasonController.text.trim()
+                : 'No reason provided',
+            'effectiveDate': _effectiveDate,
+            'changedAt': FieldValue.serverTimestamp(),
           });
 
       if (mounted) {
@@ -151,6 +169,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
         setState(() => _isLoading = false);
       }
     }
+
   }
 
   @override

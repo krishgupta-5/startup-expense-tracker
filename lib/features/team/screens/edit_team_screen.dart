@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../shared/widgets/error_popup.dart';
-import '../../../utils/data_helpers.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
@@ -143,98 +142,83 @@ class _EditTeamScreenState extends State<EditTeamScreen>
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('User not authenticated');
-      }
+      if (user == null) throw Exception('User not authenticated');
 
-      // Get companyId from user document
+      // Get companyId — fall back to user.uid if not set (matches BankAccountService)
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
+      final companyId = userDoc.data()?['companyId'] ?? user.uid;
 
-      final companyId = userDoc.data()?['companyId'];
-      if (companyId == null) {
-        throw Exception('Company not found');
-      }
-
-      // Get all members in the team for financial calculations
+      // Get all members in the team
       final membersSnapshot = await FirebaseFirestore.instance
           .collection('members')
           .where('teamId', isEqualTo: widget.teamId)
           .get();
 
-      double totalMonthlySalaryImpact = 0;
+      // T-02: Track ACTUAL paid-out amounts (not budgeted monthlyCost)
+      double totalActualPayouts = 0;
 
-      // Use batch for atomic operations
       final batch = FirebaseFirestore.instance.batch();
+      final archiveCollection = FirebaseFirestore.instance.collection(
+        'archived_payments',
+      );
 
-      // Archive payment history and calculate financial impact for all members
       for (var memberDoc in membersSnapshot.docs) {
         final memberData = memberDoc.data();
-        final memberSalary = DataHelpers.safeParseDouble(
-          memberData['monthlyCost'] ?? 0,
-        );
         final memberName = memberData['fullName'] ?? 'Unknown';
         final memberId = memberDoc.id;
 
-        // monthlyCost is already the monthly amount, no division needed
-        totalMonthlySalaryImpact += memberSalary;
-
-        // Archive payment history for this member
-        final paymentsSnapshot = await FirebaseFirestore.instance
-            .collection('payments')
+        // T-01: Salary payments are in 'expenses', not 'payments'
+        final expensesSnapshot = await FirebaseFirestore.instance
+            .collection('expenses')
+            .where('uid', isEqualTo: user.uid)
             .where('memberId', isEqualTo: memberId)
+            .where('Category', isEqualTo: 'salary')
             .get();
 
-        // Create archived payment records
-        final archiveCollection = FirebaseFirestore.instance.collection(
-          'archived_payments',
-        );
+        for (var expenseDoc in expensesSnapshot.docs) {
+          final expenseData = Map<String, dynamic>.from(expenseDoc.data());
 
-        for (var paymentDoc in paymentsSnapshot.docs) {
-          final paymentData = paymentDoc.data();
-          paymentData['originalMemberId'] = memberId;
-          paymentData['originalMemberName'] = memberName;
-          paymentData['originalTeamId'] = widget.teamId;
-          paymentData['archivedAt'] = FieldValue.serverTimestamp();
-          paymentData['archiveReason'] = 'team_deleted';
+          // T-02: Accumulate what was ACTUALLY paid out
+          final paidAmount =
+              (expenseData['Amount'] as num?)?.toDouble() ?? 0.0;
+          totalActualPayouts += paidAmount;
 
-          final archiveRef = archiveCollection.doc();
-          batch.set(archiveRef, paymentData);
+          expenseData['originalMemberId'] = memberId;
+          expenseData['originalMemberName'] = memberName;
+          expenseData['originalTeamId'] = widget.teamId;
+          expenseData['archivedAt'] = FieldValue.serverTimestamp();
+          expenseData['archiveReason'] = 'team_deleted';
 
-          // Delete original payment
-          batch.delete(paymentDoc.reference);
+          batch.set(archiveCollection.doc(), expenseData);
+          batch.delete(expenseDoc.reference);
         }
 
-        // Delete member document
         batch.delete(memberDoc.reference);
       }
 
       // Delete the team document
-      final teamRef = FirebaseFirestore.instance
-          .collection('teams')
-          .doc(widget.teamId);
-      batch.delete(teamRef);
+      batch.delete(
+        FirebaseFirestore.instance.collection('teams').doc(widget.teamId),
+      );
 
-      // Update company financial totals with total salary impact
-      if (totalMonthlySalaryImpact > 0) {
+      // T-02: Only adjust by money that was actually paid out, not budgeted salary
+      if (totalActualPayouts > 0) {
         final companyRef = FirebaseFirestore.instance
             .collection('companies')
             .doc(companyId);
         batch.update(companyRef, {
-          "totalExpenses": FieldValue.increment(-totalMonthlySalaryImpact),
+          "totalExpenses": FieldValue.increment(-totalActualPayouts),
         });
       }
 
-      // Commit all operations atomically
       await batch.commit();
 
       if (mounted) {
-        // Pop twice to go back to main Teams list
         Navigator.of(context).pop();
         Navigator.of(context).pop();
-
         ErrorPopup.showSuccess(
           context: context,
           message: "Team and all members removed. Payment history archived.",
@@ -249,11 +233,10 @@ class _EditTeamScreenState extends State<EditTeamScreen>
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isDeleting = false);
-      }
+      if (mounted) setState(() => _isDeleting = false);
     }
   }
+
 
   // --- GORGEOUS CUSTOM DELETE DIALOG ---
   void _showDeleteConfirmation() {

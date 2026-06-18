@@ -337,9 +337,10 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                           // Filter: Must be a salary expense AND match the member's ID
                           if (category == 'salary' &&
                               data['memberId'] == widget.memberId) {
-                            final double amt = data['Amount'] is int
-                                ? (data['Amount'] as int).toDouble()
-                                : (data['Amount'] as double? ?? 0.0);
+                            // T-13: Use num cast — safe for int, double, and avoids
+                            // TypeError crash if Firestore stores Amount as a String
+                            final double amt =
+                                (data['Amount'] as num?)?.toDouble() ?? 0.0;
 
                             totalPaid += amt;
                             memberPayments.add({
