@@ -61,6 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription<DocumentSnapshot>? _companySubscription;
   StreamSubscription<QuerySnapshot>? _expensesSubscription;
   StreamSubscription<QuerySnapshot>? _teamMembersSubscription;
+  Timer? _realtimeDebounceTimer;
 
   @override
   void initState() {
@@ -80,6 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _companySubscription?.cancel();
     _expensesSubscription?.cancel();
     _teamMembersSubscription?.cancel();
+    _realtimeDebounceTimer?.cancel();
     super.dispose();
   }
 
@@ -143,6 +145,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // --- REAL-TIME LISTENER SETUP (Fixes Reload & Fetching Issues) ---
+  void _handleRealtimeUpdate() {
+    _realtimeDebounceTimer?.cancel();
+    _realtimeDebounceTimer = Timer(const Duration(milliseconds: 100), () {
+      FinancialDataService.clearAllCache();
+      _loadFinancialDataForPieChart();
+    });
+  }
+
   void _setupRealtimeListeners() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -174,8 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
             isLoading = false;
             _isFundsLoading = false;
           });
-          FinancialDataService.clearAllCache();
-          _loadFinancialDataForPieChart();
+          _handleRealtimeUpdate();
         }
       } else {
         if (mounted) {
@@ -200,7 +209,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _expensesSubscription = FirebaseFirestore.instance
         .collection('expenses')
         .where('uid', isEqualTo: user.uid)
-        .orderBy('Date', descending: true)
         .snapshots()
         .listen((snapshot) {
       if (mounted) {
@@ -234,6 +242,15 @@ class _HomeScreenState extends State<HomeScreen> {
           };
         }).toList();
 
+        // Sort in memory to keep newest first
+        expensesList.sort((a, b) {
+          final aDate = a['date'] as Timestamp?;
+          final bDate = b['date'] as Timestamp?;
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+          return bDate.compareTo(aDate);
+        });
+
         setState(() {
           allExpenses = expensesList;
           _absoluteTotalExpenses = absoluteTotal;
@@ -245,9 +262,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _isPieChartLoading = false; 
         });
 
-        // Trigger historical trend fetch in background
-        FinancialDataService.clearAllCache();
-        _loadFinancialDataForPieChart();
+        _handleRealtimeUpdate();
       }
     }, onError: (e) {
       log("Error fetching expenses: $e");
@@ -261,8 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
         .snapshots()
         .listen((_) {
       if (mounted) {
-        FinancialDataService.clearAllCache();
-        _loadFinancialDataForPieChart();
+        _handleRealtimeUpdate();
       }
     });
   }
