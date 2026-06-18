@@ -126,12 +126,12 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
               final String teamName = teamData['teamName'] ?? "Team";
               final double teamBudget =
-                  (teamData['monthlyBudget'] ?? 0.0) as double;
+                  (teamData['monthlyBudget'] ?? 0.0).toDouble();
 
               return Column(
                 children: [
                   // 1. Header (Now uses real-time data)
-                  _buildHeader(context, teamName),
+                  _buildHeader(context, teamName, teamData),
 
                   // 2. Real-time Content (Stream for Members Data)
                   Expanded(
@@ -158,7 +158,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                         double totalCost = 0.0;
                         for (var doc in membersDocs) {
                           final data = doc.data() as Map<String, dynamic>;
-                          totalCost += (data['monthlyCost'] ?? 0.0) as double;
+                          totalCost += (data['monthlyCost'] ?? 0.0).toDouble();
                         }
 
                         final bool isWithinBudget = totalCost <= teamBudget;
@@ -175,7 +175,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                             dynamic
                                           >)['monthlyCost'] ??
                                       0.0)
-                                  as double;
+                                  .toDouble();
                           final costB =
                               ((b.data()
                                           as Map<
@@ -183,7 +183,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                             dynamic
                                           >)['monthlyCost'] ??
                                       0.0)
-                                  as double;
+                                  .toDouble();
                           return costB.compareTo(costA);
                         });
 
@@ -246,7 +246,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
   // --- WIDGET BUILDERS ---
 
-  Widget _buildHeader(BuildContext context, String teamName) {
+  Widget _buildHeader(BuildContext context, String teamName, Map<String, dynamic> teamData) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
       child: Row(
@@ -291,7 +291,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 MaterialPageRoute(
                   builder: (context) => EditTeamScreen(
                     teamId: widget.teamId,
-                    teamData: widget.initialTeamData,
+                    teamData: teamData,
                   ),
                 ),
               );
@@ -393,7 +393,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
     final String name = member['fullName'] ?? 'Unnamed Member';
     final String role = member['jobTitle'] ?? 'No Role';
-    final double rawCost = (member['monthlyCost'] ?? 0.0) as double;
+    final double rawCost = (member['monthlyCost'] ?? 0.0).toDouble();
     final String salary =
         "${CurrencyFormatter.formatByCountry(rawCost, _userCountryCode)}/mo";
 
