@@ -1043,13 +1043,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  // 🔥 COMPLETELY CLEANED UP: Only shows Avatars and Names
   Widget _buildTeamSelector() {
     final isTeamExpense = _expenseType == "team";
     final items = isTeamExpense ? _teams : _teamMembers;
 
     if (items.isEmpty) {
       return Container(
-        height: 80,
+        height: 96, // Reduced height since financial data is gone
         decoration: BoxDecoration(
           color: const Color(0xFF141416),
           borderRadius: BorderRadius.circular(16),
@@ -1065,7 +1066,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
 
     return SizedBox(
-      height: 80,
+      height: 96, // Reduced height for the clean UI
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: items.length + 1, // +1 for "None" option
@@ -1082,10 +1083,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   });
                 },
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     Container(
-                      width: 48,
-                      height: 48,
+                      width: 52,
+                      height: 52,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
@@ -1108,10 +1110,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                 : _selectedTeamMember == null)
                             ? Colors.white
                             : Colors.white38,
-                        size: 20,
+                        size: 22,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Text(
                       "None",
                       style: GoogleFonts.inter(
@@ -1121,7 +1123,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                 : _selectedTeamMember == null)
                             ? Colors.white
                             : Colors.white38,
-                        fontSize: 11,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
@@ -1176,10 +1179,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   Widget _buildTeamAvatar(Team team, bool isSelected) {
     return Column(
+      mainAxisAlignment: MainAxisAlignment.start,
       children: [
         Container(
-          width: 48,
-          height: 48,
+          width: 52,
+          height: 52,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: isSelected
@@ -1189,8 +1193,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           child: Stack(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 52,
+                height: 52,
                 decoration: BoxDecoration(
                   color: _getTeamColor(team.color).withValues(alpha: 0.15),
                   shape: BoxShape.circle,
@@ -1198,7 +1202,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 child: Icon(
                   _getTeamIcon(team),
                   color: _getTeamColor(team.color),
-                  size: 20,
+                  size: 22,
                 ),
               ),
               if (isSelected)
@@ -1223,15 +1227,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         SizedBox(
-          width: 60,
+          width: 70,
           child: Text(
             team.teamName,
             style: GoogleFonts.inter(
               color: isSelected ? Colors.white : Colors.white70,
-              fontSize: 11,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             ),
             textAlign: TextAlign.center,
             maxLines: 2,
@@ -1289,158 +1293,69 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     return Icons.group;
   }
 
+  // 🔥 CLEANED UP UI: Shows ONLY avatar and name
   Widget _buildMemberAvatarWithName(
     TeamMember member,
     String? avatarUrl,
     bool isSelected,
   ) {
-    final remainingSalary = member.remainingSalary;
-    final originalSalary = member.salary;
-    final expensesAmount = member.totalExpenses ?? 0;
-    final remainingPercentage = member.remainingPercentage ?? 100.0;
-
-    return Column(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: isSelected
-                ? Border.all(color: Colors.white, width: 2)
-                : Border.all(color: Colors.transparent),
-          ),
-          child: Stack(
-            children: [
-              _buildMemberAvatarWithTelegram(
-                member.fullName,
-                48,
-                avatarUrl ?? '',
-              ),
-              if (isSelected)
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF30D158),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: const Icon(
-                      Icons.check,
-                      color: Colors.white,
-                      size: 10,
-                    ),
-                  ),
+    return SizedBox(
+      width: 76,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: isSelected
+                  ? Border.all(color: Colors.white, width: 2)
+                  : Border.all(color: Colors.transparent),
+            ),
+            child: Stack(
+              children: [
+                _buildMemberAvatarWithTelegram(
+                  member.fullName,
+                  52,
+                  avatarUrl ?? '',
                 ),
-              // Low salary warning indicator
-              if (remainingSalary != null && remainingPercentage <= 30)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFF453A),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 4),
-        SizedBox(
-          width: 70,
-          child: Column(
-            children: [
-              Text(
-                member.fullName,
-                style: GoogleFonts.inter(
-                  color: isSelected ? Colors.white : Colors.white70,
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (originalSalary != null && originalSalary > 0) ...[
-                const SizedBox(height: 2),
-                // Show salary after expenses (remaining salary)
-                Text(
-                  "₹${remainingSalary?.toStringAsFixed(0) ?? '0'}",
-                  style: GoogleFonts.inter(
-                    color: (remainingSalary ?? 0.0) > 0
-                        ? Colors.white
-                        : Colors.redAccent,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 1),
-                // Show original salary with strikethrough to indicate deduction
-                Text(
-                  "was ₹${originalSalary.toStringAsFixed(0)}",
-                  style: GoogleFonts.inter(
-                    color: Colors.white38,
-                    fontSize: 8,
-                    fontWeight: FontWeight.w400,
-                    decoration: TextDecoration.lineThrough,
-                    decorationColor: Colors.white38,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                // Progress bar showing remaining percentage
-                Container(
-                  width: 50,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: remainingPercentage / 100,
+                if (isSelected)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
                     child: Container(
+                      width: 18,
+                      height: 18,
                       decoration: BoxDecoration(
-                        color: remainingPercentage > 30
-                            ? const Color(0xFF30D158)
-                            : const Color(0xFFFF453A),
-                        borderRadius: BorderRadius.circular(2),
+                        color: const Color(0xFF30D158),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 10,
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 1),
-                // Show expenses amount
-                Text(
-                  "spent ₹${expensesAmount.toStringAsFixed(0)}",
-                  style: GoogleFonts.inter(
-                    color: Colors.white38,
-                    fontSize: 8,
-                    fontWeight: FontWeight.w400,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
               ],
-            ],
+            ),
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+          Text(
+            member.fullName,
+            style: GoogleFonts.inter(
+              color: isSelected ? Colors.white : Colors.white70,
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 

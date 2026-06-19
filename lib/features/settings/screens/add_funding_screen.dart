@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
+import 'dart:math'; // Added for the shake sine wave math
 
 import '../../../services/currency_formatter.dart';
 import '../../../services/user_country_service.dart';
@@ -15,8 +16,8 @@ class AddFundingScreen extends StatefulWidget {
   State<AddFundingScreen> createState() => _AddFundingScreenState();
 }
 
-class _AddFundingScreenState extends State<AddFundingScreen> {
-  final _formKey = GlobalKey<FormState>();
+// Added SingleTickerProviderStateMixin for the AnimationController
+class _AddFundingScreenState extends State<AddFundingScreen> with SingleTickerProviderStateMixin {
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _targetRunwayController = TextEditingController();
@@ -30,6 +31,10 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
   double _currentFunding = 0.0;
   double _inputAmount = 0.0;
   String _currentTargetRunway = '';
+
+  // --- Animation & Validation State ---
+  late AnimationController _shakeController;
+  final Set<String> _errorFields = {}; // Tracks which fields failed validation
 
   // Re-introduced elegant, premium colors and icons for the selectable chips
   final Map<String, Map<String, dynamic>> _fundingSources = {
@@ -76,6 +81,12 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
     _userCountryCode = UserCountryService.getUserCountryCodeSync();
     _loadCurrentData();
 
+    // Initialize the shake animation controller
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+
     // Listen to amount changes for real-time projection
     _amountController.addListener(() {
       setState(() {
@@ -89,6 +100,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
 
   @override
   void dispose() {
+    _shakeController.dispose();
     _amountController.dispose();
     _notesController.dispose();
     _targetRunwayController.dispose();
@@ -166,10 +178,22 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
     );
   }
 
-  Future<void> _saveFunding() async {
+  Future<void> _validateAndSaveFunding() async {
     FocusScope.of(context).unfocus();
 
-    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _errorFields.clear();
+      // Check mandatory fields
+      if (_inputAmount <= 0) _errorFields.add("ADD FUNDING AMOUNT");
+      if (_notesController.text.trim().isEmpty) _errorFields.add("NOTES");
+    });
+
+    if (_errorFields.isNotEmpty) {
+      // Trigger the shake animation from 0 to 1
+      _shakeController.forward(from: 0.0);
+      _showMinimalToast("Please fill out all required fields", isError: true);
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -183,7 +207,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
       final newTotalFunding = _currentFunding + amount;
       final now = DateTime.now();
 
-      // 1. Save the funding transaction to funding_transactions collection
+      // 1. Save the funding transaction
       await FirebaseFirestore.instance.collection('funding_transactions').add({
         'uid': user.uid,
         'amount': amount,
@@ -195,7 +219,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
         'newTotalFunding': newTotalFunding,
       });
 
-      // 2. Create an expense transaction so it shows in expenses history
+      // 2. Create an expense transaction
       final expenseId = const Uuid().v4();
       await FirebaseFirestore.instance.collection('expenses').doc(expenseId).set({
         'uid': user.uid,
@@ -263,66 +287,62 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
                     padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 32),
 
-                          // Current & Projected Funding
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildReadOnlyMetric(
-                                  "CURRENT FUNDING",
-                                  CurrencyFormatter.formatByCountry(
-                                    _currentFunding,
-                                    _userCountryCode,
-                                  ),
+                        // Current & Projected Funding
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildReadOnlyMetric(
+                                "CURRENT FUNDING",
+                                CurrencyFormatter.formatByCountry(
+                                  _currentFunding,
+                                  _userCountryCode,
                                 ),
                               ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: _buildReadOnlyMetric(
-                                  "NEW TOTAL",
-                                  CurrencyFormatter.formatByCountry(
-                                    _currentFunding + _inputAmount,
-                                    _userCountryCode,
-                                  ),
-                                  highlight: _inputAmount > 0,
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildReadOnlyMetric(
+                                "NEW TOTAL",
+                                CurrencyFormatter.formatByCountry(
+                                  _currentFunding + _inputAmount,
+                                  _userCountryCode,
                                 ),
+                                highlight: _inputAmount > 0,
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 40),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 40),
 
-                          // Amount input
-                          _buildSectionLabel("ADD FUNDING AMOUNT"),
-                          _buildAmountInput(currencySymbol),
-                          const SizedBox(height: 40),
+                        // Amount input (Animated internally)
+                        _buildAmountInput(currencySymbol),
+                        const SizedBox(height: 40),
 
-                          // Source selector
-                          _buildSectionLabel("FUNDING SOURCE"),
-                          _buildSourceSelector(),
-                          const SizedBox(height: 40),
+                        // Source selector
+                        _buildSectionLabel("FUNDING SOURCE"),
+                        _buildSourceSelector(),
+                        const SizedBox(height: 40),
 
-                          // Notes
-                          _buildSectionLabel("NOTES (OPTIONAL)"),
-                          _buildInputGroup(
-                            "e.g., Seed round from XYZ Ventures",
-                            _notesController,
-                            maxLines: 3,
-                          ),
-                          const SizedBox(height: 40),
+                        // Notes (Animated internally)
+                        _buildInputGroup(
+                          "NOTES",
+                          "e.g., Seed round from XYZ Ventures",
+                          _notesController,
+                          maxLines: 3,
+                        ),
+                        const SizedBox(height: 40),
 
-                          // Target Runway toggle
-                          _buildSectionLabel("PLANNING"),
-                          _buildTargetRunwaySection(),
+                        // Target Runway toggle
+                        _buildSectionLabel("PLANNING"),
+                        _buildTargetRunwaySection(),
 
-                          const SizedBox(height: 100),
-                        ],
-                      ),
+                        const SizedBox(height: 100),
+                      ],
                     ),
                   ),
                 ),
@@ -373,13 +393,13 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
     );
   }
 
-  Widget _buildSectionLabel(String text) {
+  Widget _buildSectionLabel(String text, {bool hasError = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Text(
         text.toUpperCase(),
         style: GoogleFonts.inter(
-          color: Colors.white54,
+          color: hasError ? const Color(0xFFFF453A) : Colors.white54,
           fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.5,
@@ -432,66 +452,81 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
   }
 
   Widget _buildAmountInput(String currencySymbol) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+    final String label = "ADD FUNDING AMOUNT";
+    final bool hasError = _errorFields.contains(label);
+
+    return AnimatedBuilder(
+      animation: _shakeController,
+      builder: (context, child) {
+        final offset = hasError ? sin(_shakeController.value * 3 * pi) * 8 : 0.0;
+        return Transform.translate(
+          offset: Offset(offset, 0),
+          child: child,
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            currencySymbol,
-            style: GoogleFonts.inter(
-              color: Colors.white38,
-              fontSize: 24,
-              fontWeight: FontWeight.w600,
+          _buildSectionLabel(label, hasError: hasError),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            decoration: BoxDecoration(
+              color: hasError 
+                  ? const Color(0xFFFF453A).withValues(alpha: 0.05) 
+                  : const Color(0xFF141416),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: hasError 
+                    ? const Color(0xFFFF453A).withValues(alpha: 0.5) 
+                    : Colors.white.withValues(alpha: 0.04),
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextFormField(
-              controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              textInputAction: TextInputAction.next,
-              onTapOutside: (event) => FocusScope.of(context).unfocus(),
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-              ),
-              cursorColor: Colors.white,
-              decoration: InputDecoration(
-                hintText: "0",
-                hintStyle: GoogleFonts.inter(
-                  color: Colors.white12,
-                  fontSize: 32,
-                  fontWeight: FontWeight.w600,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  currencySymbol,
+                  style: GoogleFonts.inter(
+                    color: hasError ? const Color(0xFFFF453A) : Colors.white38,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                errorStyle: GoogleFonts.inter(
-                  color: const Color(0xFFFF453A),
-                  fontSize: 11,
-                  height: 0.8,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _amountController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    textInputAction: TextInputAction.next,
+                    onTapOutside: (event) => FocusScope.of(context).unfocus(),
+                    onChanged: (_) {
+                      if (hasError) {
+                        setState(() => _errorFields.remove(label));
+                      }
+                    },
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.5,
+                    ),
+                    cursorColor: hasError ? const Color(0xFFFF453A) : Colors.white,
+                    decoration: InputDecoration(
+                      hintText: "0",
+                      hintStyle: GoogleFonts.inter(
+                        color: hasError ? const Color(0xFFFF453A).withValues(alpha: 0.5) : Colors.white12,
+                        fontSize: 32,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
+                    ],
+                  ),
                 ),
-              ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
               ],
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Amount required';
-                }
-                final parsed = double.tryParse(value.trim());
-                if (parsed == null || parsed <= 0) {
-                  return 'Invalid amount';
-                }
-                return null;
-              },
             ),
           ),
         ],
@@ -515,7 +550,6 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              // Elegant Tinted Glass Effect
               color: isSelected
                   ? color.withValues(alpha: 0.1)
                   : const Color(0xFF141416),
@@ -553,40 +587,72 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
   }
 
   Widget _buildInputGroup(
+    String label,
     String hint,
     TextEditingController controller, {
     int maxLines = 1,
     bool isNumber = false,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: TextField(
-        controller: controller,
-        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-        maxLines: maxLines,
-        onTapOutside: (_) => FocusScope.of(context).unfocus(),
-        style: GoogleFonts.inter(
-          color: Colors.white,
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-        ),
-        cursorColor: Colors.white,
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: GoogleFonts.inter(
-            color: Colors.white24,
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
+    final bool hasError = _errorFields.contains(label);
+
+    return AnimatedBuilder(
+      animation: _shakeController,
+      builder: (context, child) {
+        final offset = hasError ? sin(_shakeController.value * 3 * pi) * 8 : 0.0;
+        return Transform.translate(
+          offset: Offset(offset, 0),
+          child: child,
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionLabel(label, hasError: hasError),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(
+              color: hasError
+                  ? const Color(0xFFFF453A).withValues(alpha: 0.05)
+                  : const Color(0xFF141416),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: hasError
+                    ? const Color(0xFFFF453A).withValues(alpha: 0.5)
+                    : Colors.white.withValues(alpha: 0.04),
+              ),
+            ),
+            child: TextField(
+              controller: controller,
+              keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+              maxLines: maxLines,
+              onTapOutside: (_) => FocusScope.of(context).unfocus(),
+              onChanged: (_) {
+                if (hasError) {
+                  setState(() => _errorFields.remove(label));
+                }
+              },
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+              cursorColor: hasError ? const Color(0xFFFF453A) : Colors.white,
+              decoration: InputDecoration(
+                hintText: hasError ? "This field is required" : hint,
+                hintStyle: GoogleFonts.inter(
+                  color: hasError
+                      ? const Color(0xFFFF453A).withValues(alpha: 0.5)
+                      : Colors.white24,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                isDense: true,
+              ),
+            ),
           ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
-          isDense: true,
-        ),
+        ],
       ),
     );
   }
@@ -733,7 +799,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: _isLoading ? null : _saveFunding,
+          onPressed: _isLoading ? null : _validateAndSaveFunding, // Hooked up the new trigger
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.white,
             foregroundColor: Colors.black,

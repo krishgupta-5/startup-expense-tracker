@@ -12,6 +12,7 @@ import 'file_viewer_screen.dart';
 import '../../../utils/data_helpers.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
+import '../../../services/team_member_service.dart';
 
 class ExpenseDetailsScreen extends StatefulWidget {
   final String expenseId;
@@ -30,6 +31,13 @@ class ExpenseDetailsScreen extends StatefulWidget {
 class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   String _userCountryCode = '+1'; // Default to USD
   bool _isLoadingCountry = true;
+
+  // Linked member state
+  String? _linkedMemberName;
+  String? _linkedMemberImageUrl;
+  String? _linkedTeamName;
+  bool _isLoadingLinkedMember = true;
+  bool _isFundingTransaction = false;
 
   // ✅ Get Telegram file URL
   Future<String> getTelegramImageUrl(String fileId) async {
@@ -135,6 +143,120 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     // Listen for currency changes
     CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
     _loadUserCountryCode();
+    _fetchLinkedMember();
+  }
+
+  Future<void> _fetchLinkedMember() async {
+    try {
+      // We need to read the live expense data
+      final expenseDoc = await FirebaseFirestore.instance
+          .collection('expenses')
+          .doc(widget.expenseId)
+          .get();
+
+      final expenseData = expenseDoc.data() ?? widget.expenseData;
+
+      // Check if this is a funding transaction
+      final isFunding = expenseData['isFunding'] == true;
+
+      if (isFunding) {
+        setState(() => _isFundingTransaction = true);
+
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+
+          if (userDoc.exists && userDoc.data() != null) {
+            final userData = userDoc.data()!;
+            final ownerName = userData['name'] as String? ??
+                userData['displayName'] as String? ??
+                'Owner';
+            final profileImageFileId =
+                userData['profileImageFileId'] as String?;
+
+            String? imageUrl;
+            if (profileImageFileId != null && profileImageFileId.isNotEmpty) {
+              try {
+                imageUrl = await TeamMemberService.getTelegramImageUrl(
+                  profileImageFileId,
+                );
+              } catch (e) {
+                debugPrint('Error getting owner profile image: $e');
+              }
+            }
+
+            if (mounted) {
+              setState(() {
+                _linkedMemberName = ownerName;
+                _linkedMemberImageUrl = imageUrl;
+              });
+            }
+          }
+        }
+      } else {
+        // Check for team name
+        final teamName = expenseData['TeamName'] as String?;
+        if (teamName != null && teamName.isNotEmpty) {
+          if (mounted) {
+            setState(() => _linkedTeamName = teamName);
+          }
+        }
+
+        // Check for linked member via TeamMemberId or memberId
+        final memberId = expenseData['TeamMemberId'] as String? ??
+            expenseData['memberId'] as String?;
+
+        if (memberId != null && memberId.isNotEmpty) {
+          final memberDoc = await FirebaseFirestore.instance
+              .collection('members')
+              .doc(memberId)
+              .get();
+
+          if (memberDoc.exists && memberDoc.data() != null) {
+            final memberData = memberDoc.data()!;
+            final memberName =
+                memberData['fullName'] as String? ?? 'Unknown Member';
+            final telegramFileId = memberData['telegramFileId'] as String?;
+
+            String? imageUrl;
+            if (telegramFileId != null && telegramFileId.isNotEmpty) {
+              try {
+                imageUrl = await TeamMemberService.getTelegramImageUrl(
+                  telegramFileId,
+                );
+              } catch (e) {
+                debugPrint('Error getting member image: $e');
+              }
+            }
+
+            if (mounted) {
+              setState(() {
+                _linkedMemberName = memberName;
+                _linkedMemberImageUrl = imageUrl;
+              });
+            }
+          }
+        } else {
+          // Try TeamMemberName as fallback (stored inline)
+          final memberName =
+              expenseData['TeamMemberName'] as String?;
+          if (memberName != null && memberName.isNotEmpty) {
+            if (mounted) {
+              setState(() => _linkedMemberName = memberName);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching linked member: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingLinkedMember = false);
+      }
+    }
   }
 
   @override
@@ -361,11 +483,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                             _buildDivider(),
                             _buildDetailRow("Type", type),
                             _buildDivider(),
-                            // Placeholder for linked member since we haven't added users yet
-                            _buildTeamRow(
-                              "Linked Member",
-                              "https://i.pravatar.cc/150?img=68",
-                            ),
+                            _buildLinkedMemberRow(),
                           ],
                         ),
                       ),
@@ -880,29 +998,196 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     );
   }
 
-  Widget _buildTeamRow(String label, String imageUrl) {
+  // Generate consistent color from name for fallback avatar
+  Color _generateColorFromName(String name) {
+    final int hash = name.hashCode;
+    final List<Color> colors = [
+      const Color(0xFF0A84FF),
+      const Color(0xFF30D158),
+      const Color(0xFFFF9F0A),
+      const Color(0xFFA259FF),
+      const Color(0xFFFF453A),
+      const Color(0xFF5AC8FA),
+      const Color(0xFFFFCC00),
+      const Color(0xFFAF52DE),
+    ];
+    return colors[hash.abs() % colors.length];
+  }
+
+  String _getInitials(String name) {
+    if (name.isEmpty) return '?';
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return name[0].toUpperCase();
+  }
+
+  Widget _buildMemberAvatar(String name, String? imageUrl, {double size = 32}) {
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.15),
+            width: 1.5,
+          ),
+          image: DecorationImage(
+            image: NetworkImage(imageUrl),
+            fit: BoxFit.cover,
+          ),
+        ),
+      );
+    }
+
+    // Fallback: initials avatar
+    final color = _generateColorFromName(name);
+    final initials = _getInitials(name);
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color.withValues(alpha: 0.2),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: GoogleFonts.inter(
+            color: color,
+            fontSize: size * 0.38,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLinkedMemberRow() {
+    if (_isLoadingLinkedMember) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            "Linked Member",
+            style: GoogleFonts.inter(
+              color: Colors.white54,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 1.5,
+              color: Colors.white24,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final hasLinkedMember = _linkedMemberName != null;
+    final hasLinkedTeam = _linkedTeamName != null;
+
+    // Determine display values
+    String displayLabel;
+    String displayName;
+    String? subtitle;
+    String avatarName;
+
+    if (_isFundingTransaction) {
+      displayLabel = "Linked Member";
+      displayName = "Owner";
+      subtitle = _linkedMemberName;
+      avatarName = _linkedMemberName ?? 'Owner';
+    } else if (hasLinkedMember && hasLinkedTeam) {
+      displayLabel = "Linked Member";
+      displayName = _linkedMemberName!;
+      subtitle = _linkedTeamName;
+      avatarName = _linkedMemberName!;
+    } else if (hasLinkedMember) {
+      displayLabel = "Linked Member";
+      displayName = _linkedMemberName!;
+      avatarName = _linkedMemberName!;
+    } else if (hasLinkedTeam) {
+      displayLabel = "Linked Team";
+      displayName = _linkedTeamName!;
+      avatarName = _linkedTeamName!;
+    } else {
+      // No linked member or team
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            "Linked Member",
+            style: GoogleFonts.inter(
+              color: Colors.white54,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Text(
+            "None",
+            style: GoogleFonts.inter(
+              color: Colors.white38,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      );
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
-          label,
+          displayLabel,
           style: GoogleFonts.inter(
             color: Colors.white54,
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
         ),
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-            image: DecorationImage(
-              image: NetworkImage(imageUrl),
-              fit: BoxFit.cover,
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildMemberAvatar(avatarName, _linkedMemberImageUrl),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  displayName,
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (subtitle != null)
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      color: Colors.white38,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+              ],
             ),
-          ),
+          ],
         ),
       ],
     );

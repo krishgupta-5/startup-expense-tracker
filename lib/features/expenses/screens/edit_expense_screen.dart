@@ -9,9 +9,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 import '../../../utils/data_helpers.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
+import '../../../services/bank_account_service.dart';
+import '../../../services/team_member_service.dart';
+import '../../../widgets/avatar_widget.dart';
 
 class EditExpenseScreen extends StatefulWidget {
   final String expenseId;
@@ -32,36 +36,235 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   late TextEditingController _amountController;
   late TextEditingController _titleController;
   late TextEditingController _notesController;
+  late TextEditingController _dateController;
 
   bool _isLoading = false;
+  bool _isLoadingBanks = true;
   String _userCountryCode = '+1';
   bool _isLoadingCountry = true;
 
   // Attachment state
   String? _attachmentFileId;
+  String? _fileName;
+  String? _filePath;
   bool _isUploading = false;
 
   // Data Lists
   final categories = {
     'marketing': 'Marketing',
     'infrastructure': 'Infrastructure',
-    'office': 'Office',
+    'office': 'Office Rent',
     'software': 'Software',
+    'hardware': 'Hardware',
     'transport': 'Transport',
     'design': 'Design',
     'others': 'Others',
+    'travel': 'Travel',
+    'meals': 'Meals',
+    'contractors': 'Contractors',
+    'legal': 'Legal',
   };
+  
   final types = {
     'one_time': 'One-time',
     'recurring': 'Recurring',
     'subscription': 'Subscription',
   };
 
+  Map<String, String> _bankAccounts = {};
+  List<TeamMember> _teamMembers = [];
+  List<Team> _teams = [];
+  
+  TeamMember? _selectedTeamMember;
+  Team? _selectedTeam;
+  String _expenseType = "team"; // "team" or "member"
+
   late String _selectedCategory;
   late String _selectedType;
+  String? _selectedBankAccount;
   late DateTime _selectedDate;
 
-  // ✅ Upload file to Telegram
+  @override
+  void initState() {
+    super.initState();
+    _loadUserCountryCode();
+
+    // 2. PRE-FILL DATA FROM FIREBASE
+    _amountController = TextEditingController(
+      text: widget.expenseData['Amount']?.toString() ?? "",
+    );
+    _titleController = TextEditingController(
+      text: widget.expenseData['Title'] ?? "",
+    );
+    _notesController = TextEditingController(
+      text: widget.expenseData['Description'] ?? "",
+    );
+
+    _attachmentFileId = widget.expenseData['AttachmentFileId'] as String?;
+
+    String fetchedCategory =
+        widget.expenseData['Category']?.toString().toLowerCase() ?? 'marketing';
+    _selectedCategory = categories.containsKey(fetchedCategory)
+        ? fetchedCategory
+        : 'marketing';
+
+    String fetchedType =
+        widget.expenseData['Type']?.toString().toLowerCase() ?? 'one_time';
+    _selectedType = types.containsKey(fetchedType) ? fetchedType : 'one_time';
+
+    if (widget.expenseData['Date'] is Timestamp) {
+      _selectedDate = (widget.expenseData['Date'] as Timestamp).toDate();
+    } else {
+      _selectedDate = DateTime.now();
+    }
+
+    _dateController = TextEditingController(
+      text: "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
+    );
+
+    _expenseType = widget.expenseData['ExpenseType'] ?? 'team';
+
+    _fetchBankAccounts();
+    _fetchTeamMembers();
+    _fetchTeams();
+  }
+
+  void _loadUserCountryCode() {
+    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
+    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    setState(() => _isLoadingCountry = false);
+  }
+
+  void _onCurrencyChanged() {
+    if (mounted) {
+      setState(() {
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
+    _amountController.dispose();
+    _titleController.dispose();
+    _notesController.dispose();
+    _dateController.dispose();
+    super.dispose();
+  }
+
+  // --- DATA FETCHING ---
+
+  Future<void> _fetchBankAccounts() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final companyId = userDoc.data()?['companyId'];
+      if (companyId == null) return;
+
+      final doc = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(companyId)
+          .get();
+
+      if (doc.exists && doc.data()!.containsKey('Bank Accounts')) {
+        final accounts = doc.data()!['Bank Accounts'] as List<dynamic>;
+        Map<String, String> loadedBanks = {};
+
+        for (var acc in accounts) {
+          final String name = acc['name'] ?? acc['bankName'] ?? 'Unknown Bank';
+          final String rawLast4 =
+              acc['last4']?.toString() ?? acc['number']?.toString() ?? '';
+          final String last4 = rawLast4.isNotEmpty
+              ? BankAccountService.extractLast4(rawLast4)
+              : '';
+          final String key = "$name-$last4";
+          final String label = last4.isNotEmpty ? "$name (****$last4)" : name;
+          loadedBanks[key] = label;
+        }
+
+        setState(() {
+          _bankAccounts = loadedBanks;
+          _bankAccounts["Cash-"] = "Cash";
+
+          // Pre-fill the bank account if it exists
+          String? savedBank = widget.expenseData['BankAccount'];
+          if (savedBank != null && _bankAccounts.containsKey(savedBank)) {
+            _selectedBankAccount = savedBank;
+          } else if (_bankAccounts.isNotEmpty) {
+            _selectedBankAccount = _bankAccounts.keys.first;
+          }
+        });
+      } else {
+        setState(() {
+          _bankAccounts = {"Cash-": "Cash"};
+          _selectedBankAccount = "Cash-";
+        });
+      }
+    } catch (e) {
+      debugPrint("Failed to load bank accounts: $e");
+    } finally {
+      if (mounted) setState(() => _isLoadingBanks = false);
+    }
+  }
+
+  Future<void> _fetchTeamMembers() async {
+    try {
+      final members = await TeamMemberService.getTeamMembers();
+      if (mounted) {
+        setState(() {
+          _teamMembers = members;
+          
+          // Pre-fill member if exists
+          String? savedMemberId = widget.expenseData['TeamMemberId'];
+          if (savedMemberId != null) {
+            try {
+              _selectedTeamMember = members.firstWhere((m) => m.id == savedMemberId);
+            } catch (e) {
+              _selectedTeamMember = null;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("Failed to load team members: $e");
+    }
+  }
+
+  Future<void> _fetchTeams() async {
+    try {
+      final teams = await TeamMemberService.getTeams();
+      if (mounted) {
+        setState(() {
+          _teams = teams;
+
+          // Pre-fill team if exists
+          String? savedTeamId = widget.expenseData['TeamId'];
+          if (savedTeamId != null) {
+            try {
+              _selectedTeam = teams.firstWhere((t) => t.id == savedTeamId);
+            } catch (e) {
+              _selectedTeam = null;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("Failed to load teams: $e");
+    }
+  }
+
+  // --- TELEGRAM ATTACHMENT LOGIC ---
+
   Future<String?> uploadToTelegram(String filePath) async {
     try {
       await dotenv.load(fileName: ".env.local");
@@ -112,10 +315,13 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     }
   }
 
-  // ✅ Upload file and update state
   Future<void> _uploadFile(String filePath, String fileName) async {
     try {
-      setState(() => _isUploading = true);
+      setState(() {
+        _isUploading = true;
+        _fileName = fileName;
+        _filePath = filePath;
+      });
 
       final fileId = await uploadToTelegram(filePath);
 
@@ -131,7 +337,11 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       _showMinimalToast("File uploaded successfully!");
     } catch (e) {
       debugPrint('Error uploading file: $e');
-      setState(() => _isUploading = false);
+      setState(() {
+        _isUploading = false;
+        _fileName = null;
+        _filePath = null;
+      });
 
       if (mounted) {
         _showMinimalToast("Failed to upload file: $e", isError: true);
@@ -139,50 +349,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     }
   }
 
-  // ✅ Check if file is an image by extension
-  bool _isImageFile(String filePath) {
-    final extension = filePath.toLowerCase().split('.').last;
-    return ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(extension);
-  }
-
-  // ✅ Get file icon based on file path
-  IconData _getFileIcon(String? filePath) {
-    if (filePath == null) return Icons.insert_drive_file;
-
-    final extension = filePath.toLowerCase().split('.').last;
-    switch (extension) {
-      case 'pdf':
-        return Icons.picture_as_pdf;
-      case 'doc':
-      case 'docx':
-        return Icons.description;
-      case 'xls':
-      case 'xlsx':
-        return Icons.table_chart;
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-      case 'webp':
-        return Icons.image;
-      case 'mp4':
-      case 'avi':
-      case 'mov':
-        return Icons.video_file;
-      case 'mp3':
-      case 'wav':
-      case 'flac':
-        return Icons.audio_file;
-      case 'zip':
-      case 'rar':
-      case 'tar':
-        return Icons.archive;
-      default:
-        return Icons.insert_drive_file;
-    }
-  }
-
-  // ✅ Show file picker for adding attachments
   Future<void> _showFilePicker() async {
     try {
       await showModalBottomSheet(
@@ -247,47 +413,13 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                   "Choose PDF / Document",
                   style: GoogleFonts.inter(color: Colors.white),
                 ),
-                subtitle: Text(
-                  "PDF, Word, Excel, and more",
-                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
-                ),
                 onTap: () async {
                   Navigator.pop(context);
                   final result = await FilePicker.platform.pickFiles(
                     type: FileType.custom,
                     allowedExtensions: [
-                      'pdf',
-                      'doc',
-                      'docx',
-                      'xls',
-                      'xlsx',
-                      'txt',
-                      'csv',
+                      'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv',
                     ],
-                    allowMultiple: false,
-                  );
-                  if (result != null && result.files.single.path != null) {
-                    await _uploadFile(
-                      result.files.single.path!,
-                      result.files.single.name,
-                    );
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.folder_open, color: Colors.white),
-                title: Text(
-                  "Any File",
-                  style: GoogleFonts.inter(color: Colors.white),
-                ),
-                subtitle: Text(
-                  "Browse all file types",
-                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
-                ),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final result = await FilePicker.platform.pickFiles(
-                    type: FileType.any,
                     allowMultiple: false,
                   );
                   if (result != null && result.files.single.path != null) {
@@ -310,64 +442,16 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     }
   }
 
-  void _loadUserCountryCode() {
-    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
-    _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
-    setState(() => _isLoadingCountry = false);
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUserCountryCode();
-
-    // 2. PRE-FILL DATA FROM FIREBASE
-    _amountController = TextEditingController(
-      text: widget.expenseData['Amount']?.toString() ?? "",
-    );
-    _titleController = TextEditingController(
-      text: widget.expenseData['Title'] ?? "",
-    );
-    _notesController = TextEditingController(
-      text: widget.expenseData['Description'] ?? "",
-    );
-
-    _attachmentFileId = widget.expenseData['AttachmentFileId'] as String?;
-
-    String fetchedCategory =
-        widget.expenseData['Category']?.toString().toLowerCase() ?? 'marketing';
-    _selectedCategory = categories.containsKey(fetchedCategory)
-        ? fetchedCategory
-        : 'marketing';
-
-    String fetchedType =
-        widget.expenseData['Type']?.toString().toLowerCase() ?? 'one_time';
-    _selectedType = types.containsKey(fetchedType) ? fetchedType : 'one_time';
-
-    if (widget.expenseData['Date'] is Timestamp) {
-      _selectedDate = (widget.expenseData['Date'] as Timestamp).toDate();
-    } else {
-      _selectedDate = DateTime.now();
-    }
-  }
-
-  @override
-  void dispose() {
-    CurrencyPreferenceService.currencyNotifier.removeListener(
-      _onCurrencyChanged,
-    );
-    _amountController.dispose();
-    _titleController.dispose();
-    _notesController.dispose();
-    super.dispose();
-  }
-
-  void _onCurrencyChanged() {
-    if (mounted) {
-      setState(() {
-        _userCountryCode =
-            CurrencyPreferenceService.getCurrencyPreferenceSync();
-      });
+  IconData _getFileIcon(String? filePath) {
+    if (filePath == null) return Icons.insert_drive_file;
+    final extension = filePath.toLowerCase().split('.').last;
+    switch (extension) {
+      case 'pdf': return Icons.picture_as_pdf;
+      case 'doc': case 'docx': return Icons.description;
+      case 'xls': case 'xlsx': return Icons.table_chart;
+      case 'jpg': case 'jpeg': case 'png': case 'gif': return Icons.image;
+      case 'mp4': case 'avi': case 'mov': return Icons.video_file;
+      default: return Icons.insert_drive_file;
     }
   }
 
@@ -417,42 +501,15 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
     final double? amount = double.tryParse(_amountController.text.trim());
     if (amount == null || amount <= 0) {
-      _showMinimalToast(
-        "Please enter a valid amount greater than 0.",
-        isError: true,
-      );
+      _showMinimalToast("Please enter a valid amount.", isError: true);
       return;
     }
-
     if (_titleController.text.trim().isEmpty) {
       _showMinimalToast("Please enter a title.", isError: true);
       return;
     }
-
-    if (_titleController.text.trim().length < 3) {
-      _showMinimalToast(
-        "Title must be at least 3 characters long.",
-        isError: true,
-      );
-      return;
-    }
-
-    if (_titleController.text.trim().length > 50) {
-      _showMinimalToast("Title must not exceed 50 characters.", isError: true);
-      return;
-    }
-
-    if (_notesController.text.trim().isNotEmpty &&
-        _notesController.text.trim().length > 500) {
-      _showMinimalToast(
-        "Description must not exceed 500 characters.",
-        isError: true,
-      );
-      return;
-    }
-
-    if (_selectedDate.isAfter(DateTime.now())) {
-      _showMinimalToast("Date cannot be in the future.", isError: true);
+    if (_selectedBankAccount == null) {
+      _showMinimalToast("Please select a payment method.", isError: true);
       return;
     }
 
@@ -481,6 +538,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       final expenseRef = FirebaseFirestore.instance
           .collection('expenses')
           .doc(widget.expenseId);
+          
       batch.update(expenseRef, {
         "Amount": newAmount,
         "Title": _titleController.text.trim(),
@@ -490,6 +548,12 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         "Type": _selectedType,
         "Time": FieldValue.serverTimestamp(),
         "AttachmentFileId": _attachmentFileId ?? '',
+        "BankAccount": _selectedBankAccount,
+        "ExpenseType": _expenseType,
+        "TeamId": _selectedTeam?.id,
+        "TeamName": _selectedTeam?.teamName,
+        "TeamMemberId": _selectedTeamMember?.id,
+        "TeamMemberName": _selectedTeamMember?.fullName,
       });
 
       if (diff != 0) {
@@ -514,9 +578,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -596,23 +658,42 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
                         const SizedBox(height: 24),
 
+                        if (!_isLoadingBanks && _bankAccounts.isNotEmpty) ...[
+                          _buildSelectField(
+                            label: "Payment Method",
+                            currentValue: _selectedBankAccount ?? "",
+                            items: _bankAccounts,
+                            icon: Icons.account_balance,
+                            onChanged: (val) {
+                              FocusScope.of(context).unfocus();
+                              setState(() => _selectedBankAccount = val!);
+                            },
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+
                         _buildDateSelector(),
-
                         const SizedBox(height: 24),
-
                         _buildTextArea("Description / Notes", _notesController),
-
-                        const SizedBox(height: 32),
-
-                        _buildSectionLabel("LINKED MEMBER (OPTIONAL)"),
+                        const SizedBox(height: 24),
+                        _buildSectionLabel("EXPENSE TYPE"),
+                        const SizedBox(height: 8),
+                        _buildExpenseTypeSelector(),
+                        const SizedBox(height: 24),
+                        
+                        _buildSectionLabel("LINK MEMBER (OPTIONAL)"),
                         const SizedBox(height: 16),
-                        _buildTeamSelector(),
-
-                        const SizedBox(height: 32),
+                        if (_expenseType == "member") ...[
+                          _buildTeamSelector(),
+                          const SizedBox(height: 32),
+                        ] else ...[
+                          _buildTeamSelector(),
+                          const SizedBox(height: 32),
+                        ],
 
                         _buildSectionLabel("ATTACHMENT"),
                         const SizedBox(height: 16),
-                        _buildExistingAttachment(),
+                        _buildAttachmentZone(),
 
                         const SizedBox(height: 40),
                       ],
@@ -676,43 +757,37 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   }
 
   Widget _buildAmountInput() {
-    return Center(
-      child: IntrinsicWidth(
-        child: TextField(
-          controller: _amountController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          textAlign: TextAlign.center,
-          onTapOutside: (event) => FocusScope.of(context).unfocus(),
-          textInputAction: TextInputAction.next,
-          style: GoogleFonts.inter(
-            color: Colors.white,
+    return SizedBox(
+      width: double.infinity,
+      child: TextField(
+        controller: _amountController,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        textAlign: TextAlign.center,
+        onTapOutside: (event) => FocusScope.of(context).unfocus(),
+        textInputAction: TextInputAction.next,
+        style: GoogleFonts.inter(
+          color: Colors.white,
+          fontSize: 56,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -2,
+        ),
+        cursorColor: const Color(0xFF30D158),
+        decoration: InputDecoration(
+          hintText: "0.00",
+          hintStyle: GoogleFonts.inter(
+            color: Colors.white12,
             fontSize: 56,
             fontWeight: FontWeight.w600,
-            height: 1.0,
-            letterSpacing: -2,
           ),
-          cursorColor: const Color(0xFF30D158),
-          decoration: InputDecoration(
-            hintText: "0.00",
-            hintStyle: GoogleFonts.inter(
-              color: Colors.white12,
-              fontSize: 56,
-              fontWeight: FontWeight.w600,
-              height: 1.0,
-              letterSpacing: -2,
-            ),
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.zero,
-            prefixText: _isLoadingCountry
-                ? '₹ '
-                : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
-            prefixStyle: GoogleFonts.inter(
-              color: Colors.white38,
-              fontSize: 56,
-              fontWeight: FontWeight.w500,
-              height: 1.0,
-              letterSpacing: -2,
-            ),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
+          prefixText: _isLoadingCountry
+              ? '₹'
+              : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
+          prefixStyle: GoogleFonts.inter(
+            color: Colors.white38,
+            fontSize: 32,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -734,7 +809,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       child: TextField(
         controller: controller,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
-        textInputAction: TextInputAction.done,
+        textInputAction: TextInputAction.next,
         style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
         decoration: InputDecoration(
           labelText: label,
@@ -814,24 +889,15 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 size: 20,
               ),
               hintText: "Select date",
-              labelText: "Date",
-              labelStyle: GoogleFonts.inter(
-                color: Colors.white38,
-                fontSize: 13,
-              ),
               hintStyle: GoogleFonts.inter(color: Colors.white12),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
-              floatingLabelBehavior: FloatingLabelBehavior.auto,
               suffixIcon: const Icon(
                 Icons.calendar_month,
                 color: Colors.white38,
               ),
             ),
-            controller: TextEditingController(
-              text:
-                  "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
-            ),
+            controller: _dateController,
             onTap: () {
               FocusScope.of(context).unfocus();
               _showShadCalendar();
@@ -887,6 +953,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                         if (date != null) {
                           setState(() {
                             _selectedDate = date;
+                            _dateController.text =
+                                "${date.day}/${date.month}/${date.year}";
                           });
                           Navigator.pop(context);
                         }
@@ -955,57 +1023,446 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     );
   }
 
-  Widget _buildTeamSelector() {
-    return SizedBox(
-      height: 48,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
+  Widget _buildExpenseTypeSelector() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
+      child: Row(
         children: [
-          _buildAvatar("https://i.pravatar.cc/150?img=68", isSelected: true),
-          const SizedBox(width: 12),
-          _buildAvatar("https://i.pravatar.cc/150?img=47"),
-          const SizedBox(width: 12),
-          _buildAvatar("https://i.pravatar.cc/150?img=12"),
-          const SizedBox(width: 12),
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _expenseType = "team";
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: _expenseType == "team"
+                      ? const Color(0xFF30D158).withValues(alpha: 0.2)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  "Team Expense",
+                  style: GoogleFonts.inter(
+                    color: _expenseType == "team"
+                        ? const Color(0xFF30D158)
+                        : Colors.white70,
+                    fontSize: 14,
+                    fontWeight: _expenseType == "team"
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
             ),
-            child: const Icon(Icons.add, color: Colors.white, size: 20),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _expenseType = "member";
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: _expenseType == "member"
+                      ? const Color(0xFF0A84FF).withValues(alpha: 0.2)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  "Member Expense",
+                  style: GoogleFonts.inter(
+                    color: _expenseType == "member"
+                        ? const Color(0xFF0A84FF)
+                        : Colors.white70,
+                    fontSize: 14,
+                    fontWeight: _expenseType == "member"
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildAvatar(String url, {bool isSelected = false}) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: isSelected
-            ? Border.all(color: Colors.white, width: 2)
-            : Border.all(color: Colors.transparent),
-        image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
-      ),
-      child: isSelected
-          ? Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.5),
-                shape: BoxShape.circle,
+  // 🔥 CLEANED UP UI: Shows ONLY avatar and name (Matches Add Expenses)
+  Widget _buildTeamSelector() {
+    final isTeamExpense = _expenseType == "team";
+    final items = isTeamExpense ? _teams : _teamMembers;
+
+    if (items.isEmpty) {
+      return Container(
+        height: 96,
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        ),
+        child: Center(
+          child: Text(
+            isTeamExpense ? "No teams available" : "No team members available",
+            style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 96,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: items.length + 1, // +1 for "None" option
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            // "None" option to deselect
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedTeam = null;
+                    _selectedTeamMember = null;
+                  });
+                },
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                        color:
+                            (isTeamExpense
+                                ? _selectedTeam == null
+                                : _selectedTeamMember == null)
+                            ? Colors.white.withValues(alpha: 0.1)
+                            : Colors.transparent,
+                      ),
+                      child: Icon(
+                        isTeamExpense
+                            ? Icons.group_outlined
+                            : Icons.person_outline,
+                        color:
+                            (isTeamExpense
+                                ? _selectedTeam == null
+                                : _selectedTeamMember == null)
+                            ? Colors.white
+                            : Colors.white38,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "None",
+                      style: GoogleFonts.inter(
+                        color:
+                            (isTeamExpense
+                                ? _selectedTeam == null
+                                : _selectedTeamMember == null)
+                            ? Colors.white
+                            : Colors.white38,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: const Icon(Icons.check, color: Colors.white, size: 18),
-            )
-          : null,
+            );
+          }
+
+          if (isTeamExpense) {
+            final team = _teams[index - 1];
+            final isSelected = _selectedTeam?.id == team.id;
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedTeam = isSelected ? null : team;
+                    _selectedTeamMember = null;
+                  });
+                },
+                child: _buildTeamAvatar(team, isSelected),
+              ),
+            );
+          } else {
+            final member = _teamMembers[index - 1];
+            final isSelected = _selectedTeamMember?.id == member.id;
+            final avatarUrl = TeamMemberService.getMemberAvatarUrl(member);
+
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedTeamMember = isSelected ? null : member;
+                    _selectedTeam = null;
+                  });
+                },
+                child: _buildMemberAvatarWithName(
+                  member,
+                  avatarUrl,
+                  isSelected,
+                ),
+              ),
+            );
+          }
+        },
+      ),
     );
   }
 
-  Widget _buildExistingAttachment() {
-    if (_attachmentFileId != null && _attachmentFileId!.isNotEmpty) {
+  Widget _buildTeamAvatar(Team team, bool isSelected) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.start,
+      children: [
+        Container(
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: isSelected
+                ? Border.all(color: Colors.white, width: 2)
+                : Border.all(color: Colors.transparent),
+          ),
+          child: Stack(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: _getTeamColor(team.color).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _getTeamIcon(team),
+                  color: _getTeamColor(team.color),
+                  size: 22,
+                ),
+              ),
+              if (isSelected)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF30D158),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      color: Colors.white,
+                      size: 10,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: 70,
+          child: Text(
+            team.teamName,
+            style: GoogleFonts.inter(
+              color: isSelected ? Colors.white : Colors.white70,
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color _getTeamColor(String? colorName) {
+    switch (colorName?.toLowerCase()) {
+      case 'blue': return const Color(0xFF0A84FF);
+      case 'orange': return const Color(0xFFFF9F0A);
+      case 'purple': return const Color(0xFFA259FF);
+      case 'green': return const Color(0xFF30D158);
+      case 'red': return const Color(0xFFFF453A);
+      default: return const Color(0xFF0A84FF);
+    }
+  }
+
+  IconData _getTeamIcon(Team team) {
+    if (team.iconCodePoint != null && team.iconFontFamily != null) {
+      switch (int.tryParse(team.iconCodePoint!)) {
+        case 0xe3af: return Icons.work;
+        case 0xe0af: return Icons.business;
+        case 0xe7fd: return Icons.group;
+        case 0xe226: return Icons.code;
+        case 0xe86c: return Icons.design_services;
+        case 0xe85d: return Icons.computer;
+        case 0xe53b: return Icons.build;
+        case 0xe251: return Icons.lightbulb;
+        case 0xe7f1: return Icons.trending_up;
+        case 0xe8b6: return Icons.people;
+        default: return Icons.group;
+      }
+    }
+    return Icons.group;
+  }
+
+  Widget _buildMemberAvatarWithName(
+    TeamMember member,
+    String? avatarUrl,
+    bool isSelected,
+  ) {
+    return SizedBox(
+      width: 76,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.start,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: isSelected
+                  ? Border.all(color: Colors.white, width: 2)
+                  : Border.all(color: Colors.transparent),
+            ),
+            child: Stack(
+              children: [
+                _buildMemberAvatarWithTelegram(
+                  member.fullName,
+                  52,
+                  avatarUrl ?? '',
+                ),
+                if (isSelected)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF30D158),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 10,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            member.fullName,
+            style: GoogleFonts.inter(
+              color: isSelected ? Colors.white : Colors.white70,
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMemberAvatarWithTelegram(
+    String name,
+    double size,
+    String avatarUrl,
+  ) {
+    if (avatarUrl.startsWith('telegram:')) {
+      final telegramFileId = TeamMemberService.getTelegramFileId(avatarUrl);
+      if (telegramFileId != null) {
+        return FutureBuilder<String>(
+          future: TeamMemberService.getTelegramImageUrl(telegramFileId),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141416),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.1),
+                  ),
+                ),
+                child: Center(
+                  child: SizedBox(
+                    width: size * 0.3,
+                    height: size * 0.3,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white38,
+                    ),
+                  ),
+                ),
+              );
+            } else if (snapshot.hasError || !snapshot.hasData) {
+              return AvatarWidget(
+                name: name,
+                size: size,
+                imageUrl: null,
+                fontSize: size * 0.4,
+              );
+            } else {
+              return AvatarWidget(
+                name: name,
+                size: size,
+                imageUrl: snapshot.data!,
+                fontSize: size * 0.4,
+              );
+            }
+          },
+        );
+      }
+    }
+
+    return AvatarWidget(
+      name: name,
+      size: size,
+      imageUrl: avatarUrl.isNotEmpty && !avatarUrl.contains('ui-avatars.com')
+          ? avatarUrl
+          : null,
+      fontSize: size * 0.4,
+    );
+  }
+
+  // --- ATTACHMENT ZONE (Matches Add Expense exactly) ---
+  Widget _buildAttachmentZone() {
+    if (_attachmentFileId != null && _attachmentFileId!.isNotEmpty && _fileName == null) {
+      // Existing attachment from firebase without a new file picked yet
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
@@ -1016,149 +1473,17 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             color: const Color(0xFF30D158).withValues(alpha: 0.3),
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF30D158).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.receipt,
-                    color: Color(0xFF30D158),
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Receipt attached",
-                        style: GoogleFonts.inter(
-                          color: const Color(0xFF30D158),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        "Stored in Telegram",
-                        style: GoogleFonts.inter(
-                          color: Colors.white38,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(
-                    _isUploading ? Icons.hourglass_empty : Icons.close,
-                    color: Colors.white38,
-                    size: 20,
-                  ),
-                  onPressed: _isUploading
-                      ? null
-                      : () async {
-                          try {
-                            setState(() => _isUploading = true);
-
-                            final user = FirebaseAuth.instance.currentUser;
-                            if (user == null) {
-                              throw Exception('User not authenticated');
-                            }
-
-                            final userDoc = await FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(user.uid)
-                                .get();
-
-                            final companyId = userDoc.data()?['companyId'];
-                            if (companyId == null) {
-                              throw Exception('Company not found');
-                            }
-
-                            final batch = FirebaseFirestore.instance.batch();
-
-                            final expenseRef = FirebaseFirestore.instance
-                                .collection('expenses')
-                                .doc(widget.expenseId);
-                            batch.update(expenseRef, {
-                              "AttachmentFileId": FieldValue.delete(),
-                              "AttachmentFileName": FieldValue.delete(),
-                              "AttachmentFilePath": FieldValue.delete(),
-                            });
-
-                            await batch.commit();
-
-                            if (mounted) {
-                              _showMinimalToast(
-                                "Attachment removed successfully",
-                              );
-                              setState(() {
-                                _isUploading = false;
-                                _attachmentFileId = null;
-                              });
-                            }
-                          } catch (e) {
-                            if (mounted) {
-                              _showMinimalToast(
-                                "Failed to remove attachment",
-                                isError: true,
-                              );
-                              setState(() => _isUploading = false);
-                            }
-                          }
-                        },
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Container(
-              height: 150,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Center(
-                child: Text(
-                  "Receipt preview",
-                  style: TextStyle(color: Colors.white38, fontSize: 12),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // No attachment - show add attachment button
-    return GestureDetector(
-      onTap: _isUploading ? null : _showFilePicker,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141416),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-        ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: const Color(0xFF30D158).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(
-                Icons.description,
-                color: Colors.white,
+                Icons.receipt,
+                color: Color(0xFF30D158),
                 size: 20,
               ),
             ),
@@ -1168,30 +1493,128 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "No receipt attached",
+                    "Receipt attached",
                     style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF30D158),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   Text(
-                    "Tap to upload",
+                    "Stored in Telegram",
                     style: GoogleFonts.inter(
                       color: Colors.white38,
-                      fontSize: 12,
+                      fontSize: 11,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(
-              _isUploading
-                  ? Icons.hourglass_empty
-                  : Icons.add_photo_alternate_outlined,
-              color: Colors.white54,
-              size: 20,
+            IconButton(
+              icon: Icon(
+                _isUploading ? Icons.hourglass_empty : Icons.close,
+                color: Colors.white38,
+                size: 20,
+              ),
+              onPressed: _isUploading
+                  ? null
+                  : () async {
+                      try {
+                        setState(() => _isUploading = true);
+
+                        final batch = FirebaseFirestore.instance.batch();
+                        final expenseRef = FirebaseFirestore.instance
+                            .collection('expenses')
+                            .doc(widget.expenseId);
+                            
+                        batch.update(expenseRef, {
+                          "AttachmentFileId": FieldValue.delete(),
+                        });
+
+                        await batch.commit();
+
+                        if (mounted) {
+                          _showMinimalToast("Attachment removed successfully");
+                          setState(() {
+                            _isUploading = false;
+                            _attachmentFileId = null;
+                            _fileName = null;
+                          });
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          _showMinimalToast(
+                            "Failed to remove attachment",
+                            isError: true,
+                          );
+                          setState(() => _isUploading = false);
+                        }
+                      }
+                    },
             ),
+          ],
+        ),
+      );
+    }
+
+    // New attachment zone UI matching Add Expense
+    return GestureDetector(
+      onTap: _isUploading ? null : _showFilePicker,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _isUploading
+                ? const Color(0xFF0A84FF).withValues(alpha: 0.3)
+                : Colors.white.withValues(alpha: 0.1),
+          ),
+        ),
+        child: Row(
+          children: [
+            if (_isUploading)
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: const Color(0xFF0A84FF),
+                  strokeWidth: 2,
+                ),
+              )
+            else
+              Icon(
+                _fileName != null
+                    ? _getFileIcon(_fileName!)
+                    : Icons.attach_file,
+                color: Colors.white38,
+              ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _isUploading
+                    ? "Uploading to Telegram..."
+                    : _fileName ?? "Upload attachment (any file)",
+                style: TextStyle(
+                  color: _isUploading
+                      ? const Color(0xFF0A84FF)
+                      : Colors.white70,
+                  fontSize: _isUploading ? 12 : 14,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (_fileName != null && !_isUploading)
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.redAccent),
+                onPressed: () {
+                  setState(() {
+                    _fileName = null;
+                    _filePath = null;
+                    _attachmentFileId = null;
+                  });
+                },
+              ),
           ],
         ),
       ),
