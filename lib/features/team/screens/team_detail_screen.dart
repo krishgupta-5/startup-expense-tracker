@@ -2,17 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'edit_team_screen.dart';
 import 'add_member_screen.dart';
-// NOTE: Make sure member_detail_screen exists or comment out the navigation to it
 import 'member_detail_screen.dart';
 import '../../../widgets/avatar_widget.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
+import '../../../services/telegram_service.dart'; // T-06/T-07/T-21
 
 class TeamDetailScreen extends StatefulWidget {
   final String teamId;
@@ -30,9 +27,7 @@ class TeamDetailScreen extends StatefulWidget {
 
 class _TeamDetailScreenState extends State<TeamDetailScreen> {
   String _userCountryCode = '+1'; // Default to USD
-
-  // Cache for Telegram photos to avoid repeated fetching
-  static final Map<String, String> _telegramPhotoCache = {};
+  // T-07/T-21: Telegram cache moved to TelegramService (6-hour TTL)
 
   @override
   void initState() {
@@ -130,7 +125,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
               return Column(
                 children: [
-                  // 1. Header (Now uses real-time data)
+                  // T-18: teamData is the LIVE snapshot (not widget.initialTeamData),
+                  // so EditTeamScreen always receives fresh data after a name/budget change.
                   _buildHeader(context, teamName, teamData),
 
                   // 2. Real-time Content (Stream for Members Data)
@@ -688,7 +684,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     // Check if it's a Telegram photo
     if (telegramFileId != null && telegramFileId.isNotEmpty) {
       return FutureBuilder<String>(
-        future: getTelegramImageUrl(telegramFileId),
+        future: TelegramService.getImageUrl(telegramFileId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             // Show loading indicator while fetching Telegram photo
@@ -743,37 +739,4 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     }
   }
 
-  // Telegram photo fetching methods with caching
-  Future<String> getTelegramImageUrl(String fileId) async {
-    // Check cache first
-    if (_telegramPhotoCache.containsKey(fileId)) {
-      return _telegramPhotoCache[fileId]!;
-    }
-
-    try {
-      await dotenv.load(fileName: ".env.local");
-      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
-      if (botToken == null) {
-        throw Exception('Telegram bot token not found in environment');
-      }
-
-      final res = await http.get(
-        Uri.parse(
-          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
-        ),
-      );
-
-      final data = jsonDecode(res.body);
-      final path = data['result']['file_path'];
-      final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
-
-      // Cache the result
-      _telegramPhotoCache[fileId] = imageUrl;
-
-      return imageUrl;
-    } catch (e) {
-      debugPrint('Error getting Telegram image URL: $e');
-      rethrow;
-    }
-  }
 }

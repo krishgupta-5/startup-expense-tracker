@@ -9,9 +9,7 @@ import 'team_detail_screen.dart';
 import '../../../widgets/avatar_widget.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../../../services/telegram_service.dart'; // T-06/T-07/T-21
 
 class TeamScreen extends StatefulWidget {
   const TeamScreen({super.key});
@@ -31,21 +29,29 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   String _selectedOrder = "A-Z"; // Default order
 
   // Refresh state
-  bool _needsRefresh = false;
+  // T-22: _needsRefresh removed — was always false (never set to true).
+  // didChangeAppLifecycleState now calls _refreshData() directly on resume.
   String _userCountryCode = '+1'; // Default to USD
-  final bool _isLoadingCountry = false; 
 
   // Cache for the last sort future to prevent rebuilding on every stream tick
   Future<List<Map<String, dynamic>>>? _sortedTeamsFuture;
   List<Map<String, dynamic>>? _lastTeamsData;
+  // T-09: fingerprint-based invalidation catches name/budget changes, not just length
+  String _lastTeamsFingerprint = '';
+
+  /// Lightweight content fingerprint so sort cache invalidation detects
+  /// field-level changes in addition to list-length changes.
+  String _teamsFingerprint(List<Map<String, dynamic>> teams) =>
+      teams
+          .map((t) => '${t['id']}:${t['teamName']}:${t['monthlyBudget']}')
+          .join('|');
 
   void _rebuildSortFuture(List<Map<String, dynamic>> teams) {
     _lastTeamsData = teams;
+    _lastTeamsFingerprint = _teamsFingerprint(teams);
     _sortedTeamsFuture = _filterAndSortTeams(teams);
   }
-
-  // Cache for Telegram photos to avoid repeated fetching
-  static final Map<String, String> _telegramPhotoCache = {};
+  // T-07/T-21: Telegram URL cache moved to TelegramService (6-hour TTL)
 
   @override
   void initState() {
@@ -87,10 +93,10 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _needsRefresh) {
-      setState(() {
-        _needsRefresh = false;
-      });
+    // T-22: Previously checked _needsRefresh (always false — dead code).
+    // Now triggers a sort-cache reset whenever the user returns from background.
+    if (state == AppLifecycleState.resumed) {
+      _refreshData();
     }
   }
 
@@ -178,14 +184,21 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     }
 
     if (_selectedSortOption == "Team Size") {
+      // T-08: ONE query for all members instead of N queries (one per team).
+      // Reduces Firestore reads from O(teams) to O(1) on every sort trigger.
+      final user = FirebaseAuth.instance.currentUser;
       final teamSizes = <String, int>{};
 
-      for (final team in filteredTeams) {
-        final membersSnapshot = await FirebaseFirestore.instance
+      if (user != null) {
+        final allMembersSnap = await FirebaseFirestore.instance
             .collection('members')
-            .where('teamId', isEqualTo: team['id'])
+            .where('uid', isEqualTo: user.uid)
             .get();
-        teamSizes[team['id'] as String] = membersSnapshot.docs.length;
+
+        for (final doc in allMembersSnap.docs) {
+          final tId = doc.data()['teamId'] as String?;
+          if (tId != null) teamSizes[tId] = (teamSizes[tId] ?? 0) + 1;
+        }
       }
 
       filteredTeams.sort((a, b) {
@@ -206,7 +219,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                 : nameB.compareTo(nameA);
 
           case "Monthly Amount":
-            // FIX: Safely cast to double to prevent int-parsing crashes
             final costA = (a['monthlyBudget'] ?? 0).toDouble();
             final costB = (b['monthlyBudget'] ?? 0).toDouble();
             return _selectedOrder == "Low-High"
@@ -346,11 +358,12 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
           return _buildEmptyState("You don't have any teams yet.");
         }
 
-        // Only rebuild sort future if team data actually changed
+        // T-09: Fingerprint-based invalidation — catches name/budget changes
+        // in addition to list-length changes.
         final newTeams = snapshot.data!;
+        final newFingerprint = _teamsFingerprint(newTeams);
         if (_sortedTeamsFuture == null ||
-            _lastTeamsData == null ||
-            _lastTeamsData!.length != newTeams.length) {
+            _lastTeamsFingerprint != newFingerprint) {
           _rebuildSortFuture(newTeams);
         }
 
@@ -601,16 +614,14 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildTeamCard(BuildContext context, Map<String, dynamic> teamData) {
-    final name = teamData['teamName'] ?? 'Unnamed Team';
-    // FIX: Safely cast to double
-    final double rawCost = (teamData['monthlyBudget'] ?? 0).toDouble(); 
-    
-    final cost = _isLoadingCountry
-        ? CurrencyFormatter.formatByCountry(rawCost, '+1')
-        : CurrencyFormatter.formatByCountry(rawCost, _userCountryCode);
-    final color = _getColorFromName(teamData['color'] ?? 'blue');
-    final icon = _getIconFromData(teamData);
-    final teamId = teamData['id'] as String;
+    final String name = teamData['teamName'] ?? 'Unnamed Team';
+    final double rawCost = (teamData['monthlyBudget'] ?? 0).toDouble();
+    // T-20: removed dead _isLoadingCountry branch (always false)
+    final String cost =
+        CurrencyFormatter.formatByCountry(rawCost, _userCountryCode);
+    final Color color = _getColorFromName(teamData['color'] ?? 'blue');
+    final IconData icon = _getIconFromData(teamData);
+    final String teamId = teamData['id'] as String;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -622,193 +633,150 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
               builder: (context) =>
                   TeamDetailScreen(teamId: teamId, initialTeamData: teamData),
             ),
-          ).then((_) {
-            _refreshData();
-          });
+          ).then((_) => _refreshData());
         },
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF141416),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-          ),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        // T-05: ONE StreamBuilder per card — previously _buildMemberCount and
+        // _buildAvatarPile each opened their own stream, doubling subscriptions.
+        // With 10 teams that was 20 open Firestore listeners; now it's 10.
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('members')
+              .where('teamId', isEqualTo: teamId)
+              .snapshots(),
+          builder: (context, membersSnapshot) {
+            final membersDocs = membersSnapshot.data?.docs ?? [];
+            final int memberCount = membersDocs.length;
+            final String memberCountStr =
+                membersSnapshot.connectionState == ConnectionState.waiting
+                    ? 'Loading...'
+                    : (memberCount == 1
+                        ? '1 Member'
+                        : '$memberCount Members');
+
+            // Extract avatar data for the first 3 members from the SAME
+            // snapshot — zero extra Firestore reads.
+            final List<Map<String, dynamic>> avatarInfos = membersDocs
+                .take(3)
+                .map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final String? tgId = data['telegramFileId'] as String?;
+                  final String? url = data['avatarUrl'] as String?;
+                  // Legacy: avatarUrl can hold a Telegram fileId (not a URL)
+                  final String? legacyTgId = (url != null &&
+                          url.isNotEmpty &&
+                          !url.startsWith('http') &&
+                          !url.contains('ui-avatars.com'))
+                      ? url
+                      : null;
+                  return <String, dynamic>{
+                    'name': data['fullName'] ?? 'Unnamed',
+                    'avatarUrl': url ?? '',
+                    'telegramFileId':
+                        (tgId != null && tgId.isNotEmpty) ? tgId : legacyTgId,
+                    'memberId': doc.id,
+                  };
+                })
+                .toList();
+
+            return Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF141416),
+                borderRadius: BorderRadius.circular(20),
+                border:
+                    Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              ),
+              child: Column(
                 children: [
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(icon, color: color, size: 20),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(icon, color: color, size: 20),
+                          ),
+                          const SizedBox(width: 16),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                memberCountStr,
+                                style: GoogleFonts.inter(
+                                  color: Colors.white54,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 16),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      const Icon(
+                        Icons.chevron_right,
+                        color: Colors.white24,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Divider(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    height: 1,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildAvatarRow(avatarInfos),
+                      Row(
                         children: [
                           Text(
-                            name,
+                            "Monthly: ",
+                            style: GoogleFonts.inter(
+                              color: Colors.white38,
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            cost,
                             style: GoogleFonts.inter(
                               color: Colors.white,
-                              fontSize: 16,
+                              fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          _buildMemberCount(teamData),
                         ],
                       ),
                     ],
                   ),
-                  const Icon(
-                    Icons.chevron_right,
-                    color: Colors.white24,
-                    size: 20,
-                  ),
                 ],
               ),
-              const SizedBox(height: 20),
-              Divider(color: Colors.white.withValues(alpha: 0.04), height: 1),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildAvatarPile(teamData),
-                  Row(
-                    children: [
-                      Text(
-                        "Monthly: ",
-                        style: GoogleFonts.inter(
-                          color: Colors.white38,
-                          fontSize: 12,
-                        ),
-                      ),
-                      Text(
-                        cost,
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildMemberCount(Map<String, dynamic> teamData) {
-    final teamId = teamData['id'] as String;
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('members')
-          .where('teamId', isEqualTo: teamId)
-          .snapshots(),
-      builder: (context, membersSnapshot) {
-        if (membersSnapshot.hasError) {
-          return Text(
-            "Error loading members",
-            style: GoogleFonts.inter(
-              color: Colors.redAccent,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          );
-        }
-
-        if (membersSnapshot.connectionState == ConnectionState.waiting) {
-          return Text(
-            "Loading...",
-            style: GoogleFonts.inter(
-              color: Colors.white38,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          );
-        }
-
-        final memberCount = membersSnapshot.data?.docs.length ?? 0;
-        final memberCountStr = memberCount == 1
-            ? "1 Member"
-            : "$memberCount Members";
-
-        return Text(
-          memberCountStr,
-          style: GoogleFonts.inter(
-            color: Colors.white54,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildAvatarPile(Map<String, dynamic> teamData) {
-    final teamId = teamData['id'] as String;
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('members')
-          .where('teamId', isEqualTo: teamId)
-          .snapshots(),
-      builder: (context, membersSnapshot) {
-        if (membersSnapshot.hasError) {
-          return Text(
-            "Error",
-            style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 12),
-          );
-        }
-
-        final membersDocs = membersSnapshot.data?.docs ?? [];
-        final List<String> avatars = [];
-        final List<String> names = [];
-        final List<String> memberIds = [];
-
-        for (var memberDoc in membersDocs) {
-          final memberData = memberDoc.data() as Map<String, dynamic>;
-          final String name = memberData['fullName'] ?? 'Unnamed';
-          final String? avatarUrl = memberData['avatarUrl'];
-          final String? telegramFileId = memberData['telegramFileId'];
-
-          names.add(name);
-          memberIds.add(memberDoc.id);
-
-          if (telegramFileId != null && telegramFileId.isNotEmpty) {
-            avatars.add('telegram:$telegramFileId'); 
-          } else if (avatarUrl != null &&
-              avatarUrl.isNotEmpty &&
-              !avatarUrl.startsWith('http') &&
-              !avatarUrl.contains('ui-avatars.com')) {
-            avatars.add('telegram:$avatarUrl');
-          } else if (avatarUrl != null && avatarUrl.isNotEmpty) {
-            avatars.add(avatarUrl);
-          } else {
-            avatars.add(''); 
-          }
-        }
-
-        return _buildAvatarWidget(names, avatars, memberIds);
-      },
-    );
-  }
-
-  Widget _buildAvatarWidget(
-    List<String> names,
-    List<String> avatars,
-    List<String> memberIds,
-  ) {
-    if (names.isEmpty) {
+  // T-05: Replaces _buildAvatarWidget + _buildMemberAvatar + _buildAvatarPile.
+  // Receives pre-loaded data from the single StreamBuilder in _buildTeamCard.
+  Widget _buildAvatarRow(List<Map<String, dynamic>> avatarInfos) {
+    if (avatarInfos.isEmpty) {
       return Text(
         "No members yet",
         style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
@@ -816,16 +784,21 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     }
 
     return SizedBox(
-      height: 28, 
-      width: 100, 
+      height: 28,
+      width: 100,
       child: Stack(
-        children: List.generate((names.length > 3 ? 3 : names.length), (index) {
+        children: List.generate(avatarInfos.length, (index) {
+          final info = avatarInfos[index];
           return Positioned(
-            left: index * 20.0, 
-            child: _buildMemberAvatar(
-              names[index],
-              avatars[index],
-              memberIds[index],
+            left: index * 20.0,
+            child: GestureDetector(
+              onTap: () => _showMemberProfile(info['memberId'] as String),
+              child: _buildMemberAvatarWithTelegram(
+                info['name'] as String,
+                28,
+                info['avatarUrl'] as String,
+                info['telegramFileId'] as String?,
+              ),
             ),
           );
         }),
@@ -833,26 +806,17 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildMemberAvatar(String name, String avatarUrl, String? memberId) {
-    return GestureDetector(
-      onTap: () {
-        if (memberId != null) {
-          _showMemberProfile(memberId);
-        }
-      },
-      child: _buildMemberAvatarWithTelegram(name, 28, avatarUrl),
-    );
-  }
-
+  // T-06/T-07: Uses TelegramService.getImageUrl which loads the bot token
+  // once (not per call) and caches URLs with a 6-hour TTL.
   Widget _buildMemberAvatarWithTelegram(
     String name,
     double size,
     String avatarUrl,
+    String? telegramFileId,
   ) {
-    if (avatarUrl.startsWith('telegram:')) {
-      final telegramFileId = avatarUrl.substring(9); 
+    if (telegramFileId != null && telegramFileId.isNotEmpty) {
       return FutureBuilder<String>(
-        future: getTelegramImageUrl(telegramFileId),
+        future: TelegramService.getImageUrl(telegramFileId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Container(
@@ -932,37 +896,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
         ),
       ),
     );
-  }
-
-  Future<String> getTelegramImageUrl(String fileId) async {
-    if (_telegramPhotoCache.containsKey(fileId)) {
-      return _telegramPhotoCache[fileId]!;
-    }
-
-    try {
-      await dotenv.load(fileName: ".env.local");
-      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
-      if (botToken == null) {
-        throw Exception('Telegram bot token not found in environment');
-      }
-
-      final res = await http.get(
-        Uri.parse(
-          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
-        ),
-      );
-
-      final data = jsonDecode(res.body);
-      final path = data['result']['file_path'];
-      final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
-
-      _telegramPhotoCache[fileId] = imageUrl;
-
-      return imageUrl;
-    } catch (e) {
-      debugPrint('Error getting Telegram image URL: $e');
-      rethrow;
-    }
   }
 
 }

@@ -330,31 +330,25 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
 
                         for (var doc in allDocs) {
                           final data = doc.data() as Map<String, dynamic>;
-                          final String category =
-                              data['Category']?.toString().toLowerCase() ?? '';
                           final String title = data['Title']?.toString() ?? '';
 
-                          // Filter: Must be a salary expense AND match the member's ID
-                          if (category == 'salary' &&
-                              data['memberId'] == widget.memberId) {
-                            final double amt = data['Amount'] is int
-                                ? (data['Amount'] as int).toDouble()
-                                : (data['Amount'] as double? ?? 0.0);
+                          // T-12: server-side query already filters memberId +
+                          // Category=salary, so no client-side guard needed here.
+                          final double amt =
+                              (data['Amount'] as num?)?.toDouble() ?? 0.0;
 
-                            totalPaid += amt;
-                            memberPayments.add({
-                              "id": doc.id, // Store doc ID for the details page
-                              "rawData":
-                                  data, // Store raw map for the details page
-                              "rawDate": data['Date'] as Timestamp?,
-                              "date": _formatDate(data['Date'] as Timestamp?),
-                              "amt": _formatCurrency(amt),
-                              "status": "Completed",
-                              "title": title.contains("Advance")
-                                  ? "Advance Payout"
-                                  : "Salary Payout",
-                            });
-                          }
+                          totalPaid += amt;
+                          memberPayments.add({
+                            "id": doc.id,
+                            "rawData": data,
+                            "rawDate": data['Date'] as Timestamp?,
+                            "date": _formatDate(data['Date'] as Timestamp?),
+                            "amt": _formatCurrency(amt),
+                            "status": "Completed",
+                            "title": title.contains("Advance")
+                                ? "Advance Payout"
+                                : "Salary Payout",
+                          });
                         }
 
                         // Sort newest first

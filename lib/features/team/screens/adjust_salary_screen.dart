@@ -125,9 +125,17 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
       return;
     }
 
+    // T-16: Skip write when the user hasn't changed the salary amount.
+    // Prevents a pointless Firestore write and a spurious salary_history entry.
+    if (newSalary == widget.currentSalary) {
+      _showMinimalToast("No changes detected — salary is already this amount.");
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
+      // Update the member's monthlyCost and salary fields
       await FirebaseFirestore.instance
           .collection('members')
           .doc(widget.memberId)
@@ -136,6 +144,23 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
             'salary': newSalary, // Keep in sync with monthlyCost
             'lastSalaryUpdateDate': _effectiveDate,
             'lastSalaryUpdateReason': _reasonController.text.trim(),
+          });
+
+      // T-04: Write salary history record for full audit trail
+      // (raised, cut, promotion, annual review — all permanently logged)
+      await FirebaseFirestore.instance
+          .collection('members')
+          .doc(widget.memberId)
+          .collection('salary_history')
+          .add({
+            'previousSalary': widget.currentSalary,
+            'newSalary': newSalary,
+            'delta': newSalary - widget.currentSalary,
+            'reason': _reasonController.text.trim().isNotEmpty
+                ? _reasonController.text.trim()
+                : 'No reason provided',
+            'effectiveDate': _effectiveDate,
+            'changedAt': FieldValue.serverTimestamp(),
           });
 
       if (mounted) {
@@ -151,12 +176,16 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
         setState(() => _isLoading = false);
       }
     }
+
   }
 
   @override
   Widget build(BuildContext context) {
     // Format date for display
-    String dateStr = _effectiveDate.difference(DateTime.now()).inDays == 0
+    // T-17: DateUtils.isSameDay compares calendar day correctly regardless
+    // of time-of-day. The old difference().inDays == 0 could return 0 for
+    // dates that differ only by a few minutes spanning midnight.
+    String dateStr = DateUtils.isSameDay(_effectiveDate, DateTime.now())
         ? "Immediately"
         : "${_effectiveDate.day}/${_effectiveDate.month}/${_effectiveDate.year}";
 

@@ -6,12 +6,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:io';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
+import '../../../services/telegram_service.dart'; // T-06/T-07/T-21
 
 class AddMemberScreen extends StatefulWidget {
   final String teamId;
@@ -34,11 +32,11 @@ class _AddMemberScreenState extends State<AddMemberScreen>
 
   String _userCountryCode = '+1'; // Default to USD
 
-  // Cache for Telegram photos to avoid repeated fetching
-  static final Map<String, String> _telegramPhotoCache = {};
+  // T-07/T-21: Telegram cache moved to TelegramService (6-hour TTL)
 
   // 2. DATA LISTS
-  late String _selectedTeamId;
+  // T-23: _selectedTeamId removed — always equalled widget.teamId with no UI to
+  // change it. All references now use widget.teamId directly.
 
   final Map<String, String> types = {
     'full_time': 'Full-time',
@@ -65,7 +63,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     _jobTitleController = TextEditingController();
     _costController = TextEditingController();
 
-    _selectedTeamId = widget.teamId;
+    // (T-23: _selectedTeamId assignment removed — use widget.teamId directly)
   }
 
   @override
@@ -157,21 +155,27 @@ class _AddMemberScreenState extends State<AddMemberScreen>
 
       await FirebaseFirestore.instance.collection('members').add({
         "uid": FirebaseAuth.instance.currentUser!.uid,
-        "teamId": _selectedTeamId,
+        "teamId": widget.teamId,
         "fullName": _nameController.text.trim(),
         "email": _emailController.text.trim(),
         "jobTitle": _jobTitleController.text.trim(),
         "joiningDate": _joiningDate,
         "employmentType": _employmentType,
         "monthlyCost": cost,
-        "salary": cost, // Mirror field used by delete/financial calculations
+        // T-15: 'salary' mirrors 'monthlyCost'. Both fields are kept in sync
+        // by adjust_salary_screen._updateSalary(). monthlyCost is the canonical
+        // value used for all financial calculations.
+        "salary": cost,
         "createdAt": FieldValue.serverTimestamp(),
-        "avatarUrl": _telegramFileId ?? "",
+        // T-14: avatarUrl is intentionally left empty when the photo is stored
+        // via Telegram. Use telegramFileId to fetch the resolved HTTPS URL.
+        // (Historically avatarUrl held the raw fileId — now distinct fields.)
+        "avatarUrl": "",
         "telegramFileId": _telegramFileId ?? "",
         "status": "Active",
       });
 
-      debugPrint("Member added successfully with teamId: $_selectedTeamId");
+      debugPrint("Member added successfully with teamId: ${widget.teamId}");
 
       if (mounted) {
         Navigator.pop(context);
@@ -220,72 +224,6 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     );
   }
 
-  // --- TELEGRAM IMAGE UPLOAD METHODS ---
-  Future<String?> uploadToTelegram(String filePath) async {
-    try {
-      await dotenv.load(fileName: ".env.local");
-      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
-
-      if (botToken == null) {
-        throw Exception('Telegram bot token not found in environment');
-      }
-
-      final uri = Uri.parse("https://api.telegram.org/bot$botToken/sendPhoto");
-
-      var request = http.MultipartRequest('POST', uri);
-      request.fields['chat_id'] = '-1003885930746';
-
-      request.files.add(await http.MultipartFile.fromPath('photo', filePath));
-
-      final response = await request.send();
-
-      if (response.statusCode == 200) {
-        final res = await http.Response.fromStream(response);
-        final data = jsonDecode(res.body);
-
-        // Take highest quality image
-        return data['result']['photo'].last['file_id'];
-      } else {
-        throw Exception("Upload failed: ${response.statusCode}");
-      }
-    } catch (e) {
-      debugPrint('Error uploading to Telegram: $e');
-      return null;
-    }
-  }
-
-  Future<String> getTelegramImageUrl(String fileId) async {
-    // Check cache first
-    if (_telegramPhotoCache.containsKey(fileId)) {
-      return _telegramPhotoCache[fileId]!;
-    }
-
-    try {
-      await dotenv.load(fileName: ".env.local");
-      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
-      if (botToken == null) {
-        throw Exception('Telegram bot token not found in environment');
-      }
-
-      final res = await http.get(
-        Uri.parse(
-          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
-        ),
-      );
-
-      final data = jsonDecode(res.body);
-      final path = data['result']['file_path'];
-      final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
-
-      // Cache the result
-      _telegramPhotoCache[fileId] = imageUrl;
-
-      return imageUrl;
-    } catch (e) {
-      debugPrint('Error getting Telegram image URL: $e');
-      rethrow;
-    }
-  }
 
   Future<void> _showImagePicker() async {
     FocusScope.of(context).unfocus(); // Dismiss keyboard if open
@@ -440,7 +378,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     try {
       setState(() => _isLoading = true);
 
-      final fileId = await uploadToTelegram(imageFile.path);
+      // T-21: Use TelegramService.uploadPhoto — single implementation
+      final fileId = await TelegramService.uploadPhoto(imageFile.path);
 
       if (fileId == null) {
         throw Exception('Failed to upload image to Telegram');
@@ -684,7 +623,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
               children: [
                 if (_telegramFileId != null)
                   FutureBuilder<String>(
-                    future: getTelegramImageUrl(_telegramFileId!),
+                    future: TelegramService.getImageUrl(_telegramFileId!),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const CircularProgressIndicator(

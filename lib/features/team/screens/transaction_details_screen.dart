@@ -46,20 +46,11 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
 
         final account = bankAccounts.firstWhere(
           (account) => account['id']?.toString() == bankAccountId,
-          orElse: () {
-            // Try to match by bank name and last4 for company array accounts
-            if (bankAccountId.startsWith('company_array_')) {
-              // Extract bank name and last4 from the available accounts
-              for (var acc in bankAccounts) {
-                if (acc['id']?.toString().startsWith('company_array_') ==
-                    true) {
-                  return acc; // Return the first company array account as fallback
-                }
-              }
-            }
-            return <String, dynamic>{};
-          },
+          orElse: () => <String, dynamic>{},
         );
+        // T-10: removed incorrect fallback that returned the first
+        // company_array_ account found — it was showing the wrong bank
+        // for transactions paid from a different account with the same prefix.
 
         if (account.isNotEmpty) {
           setState(() {
@@ -186,7 +177,15 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                               widget.formattedDate,
                             ),
                             _buildDivider(),
-                            _buildDetailRow("Category", "Salary"),
+                            // T-11: Read Category from the transaction doc
+                            // instead of hardcoding "Salary" for all payments.
+                            _buildDetailRow(
+                              "Category",
+                              widget.transactionData['Category'] as String? ??
+                                  widget.transactionData['category']
+                                      as String? ??
+                                  'Salary',
+                            ),
                             _buildDivider(),
                             _buildDetailRow(
                               "Description",
