@@ -616,9 +616,10 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   ) {
     final title = DataHelpers.safeParseString(tx['Title']);
     final amount = DataHelpers.safeParseDouble(tx['Amount']);
+    final isFunding = tx['isFunding'] == true;
     final formattedAmount = _isLoadingCountry
-        ? DataHelpers.formatCurrency(amount)
-        : CurrencyFormatter.formatByCountry(amount, _userCountryCode);
+        ? "${isFunding ? '+' : ''}₹${DataHelpers.formatCurrency(amount)}"
+        : "${isFunding ? '+' : ''}${CurrencyFormatter.formatByCountry(amount, _userCountryCode)}";
     // Format category to capitalize first letter or match your style
     final String rawCategory = DataHelpers.safeParseString(tx['Category']);
     final category = rawCategory.isNotEmpty
@@ -717,7 +718,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                 child: Text(
                   formattedAmount,
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: isFunding ? const Color(0xFF30D158) : Colors.white,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     fontFeatures: [

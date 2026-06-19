@@ -32,7 +32,6 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   String _userCountryCode = '+1'; // Default to USD
   bool _isLoadingCountry = true;
 
-<<<<<<< HEAD
   // Linked member state
   String? _linkedMemberName;
   String? _linkedMemberImageUrl;
@@ -40,8 +39,6 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   bool _isLoadingLinkedMember = true;
   bool _isFundingTransaction = false;
 
-  // ✅ Get Telegram file URL
-=======
   // Holds the latest live expense data from the StreamBuilder
   // Used so that the Edit sheet always opens with up-to-date values.
   Map<String, dynamic> _currentExpenseData = {};
@@ -57,7 +54,6 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   }
 
   // ✅ Get Telegram file URL (uses cached token)
->>>>>>> a64d60d2630e528a81c9640965c945f29cc3f003
   Future<String> getTelegramImageUrl(String fileId) async {
     try {
       final botToken = await _getBotToken();
@@ -495,12 +491,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                             _buildDivider(),
                             _buildDetailRow('Type', type),
                             _buildDivider(),
-<<<<<<< HEAD
                             _buildLinkedMemberRow(),
-=======
-                            // Show actual linked member or team from the expense data
-                            _buildLinkedEntityRow(expenseData),
->>>>>>> a64d60d2630e528a81c9640965c945f29cc3f003
                           ],
                         ),
                       ),
@@ -1093,7 +1084,6 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     );
   }
 
-<<<<<<< HEAD
   // Generate consistent color from name for fallback avatar
   Color _generateColorFromName(String name) {
     final int hash = name.hashCode;
@@ -1287,28 +1277,6 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         ),
       ],
     );
-=======
-
-
-  /// Shows the actual linked team member or team name from the expense document.
-  /// Falls back to "None" if neither field is set.
-  Widget _buildLinkedEntityRow(Map<String, dynamic> expenseData) {
-    final teamMemberName = expenseData['TeamMemberName'] as String?;
-    final teamName = expenseData['TeamName'] as String?;
-
-    String label = 'Linked';
-    String value = 'None';
-
-    if (teamMemberName != null && teamMemberName.isNotEmpty) {
-      label = 'Linked Member';
-      value = teamMemberName;
-    } else if (teamName != null && teamName.isNotEmpty) {
-      label = 'Linked Team';
-      value = teamName;
-    }
-
-    return _buildDetailRow(label, value);
->>>>>>> a64d60d2630e528a81c9640965c945f29cc3f003
   }
 
   Widget _buildDivider() {

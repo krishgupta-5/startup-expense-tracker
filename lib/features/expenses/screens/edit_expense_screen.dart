@@ -49,7 +49,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   String? _filePath;
   bool _isUploading = false;
 
-  // Data Lists
   final categories = {
     'marketing': 'Marketing',
     'infrastructure': 'Infrastructure',
@@ -63,10 +62,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     'contractors': 'Contractors',
     'legal': 'Legal',
     'others': 'Others',
-    'travel': 'Travel',
-    'meals': 'Meals',
-    'contractors': 'Contractors',
-    'legal': 'Legal',
   };
   
   final types = {
@@ -87,7 +82,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   late String _selectedType;
   String? _selectedBankAccount;
   late DateTime _selectedDate;
-  late TextEditingController _dateController; // Proper lifecycle controller
 
   @override
   void initState() {
@@ -942,16 +936,12 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 color: Colors.white38,
                 size: 20,
               ),
-<<<<<<< HEAD
-              hintText: "Select date",
-=======
               hintText: 'Select date',
               labelText: 'Date',
               labelStyle: GoogleFonts.inter(
                 color: Colors.white38,
                 fontSize: 13,
               ),
->>>>>>> a64d60d2630e528a81c9640965c945f29cc3f003
               hintStyle: GoogleFonts.inter(color: Colors.white12),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -960,11 +950,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 color: Colors.white38,
               ),
             ),
-<<<<<<< HEAD
-=======
             // Use the persistent _dateController — avoids creating a new
             // TextEditingController (and leaking it) on every build call.
->>>>>>> a64d60d2630e528a81c9640965c945f29cc3f003
             controller: _dateController,
             onTap: () {
               FocusScope.of(context).unfocus();
@@ -1094,7 +1081,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     );
   }
 
-<<<<<<< HEAD
   Widget _buildExpenseTypeSelector() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -1166,76 +1152,13 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 ),
               ),
             ),
-=======
-  // Shows the bank account selector (mirrors add_expense_screen behaviour)
-  Widget _buildBankSelector() {
-    if (_isLoadingBanks) {
-      return Container(
-        height: 52,
-        decoration: BoxDecoration(
-          color: const Color(0xFF141416),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-        ),
-        child: const Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white38),
-          ),
-        ),
-      );
-    }
-    if (_bankAccounts.isEmpty) {
-      return Container(
-        height: 52,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141416),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-        ),
-        child: Center(
-          child: Text(
-            'No payment methods available',
-            style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
-          ),
-        ),
-      );
-    }
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: double.infinity),
-      child: ShadSelect<String>(
-        placeholder: Text(
-          'Select Payment Method',
-          style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
-        ),
-        initialValue: _selectedBankAccount,
-        options: [
-          ..._bankAccounts.entries.map(
-            (e) => ShadOption(value: e.key, child: Text(e.value)),
->>>>>>> a64d60d2630e528a81c9640965c945f29cc3f003
           ),
         ],
-        selectedOptionBuilder: (context, value) => Text(
-          _bankAccounts[value] ?? 'Select',
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        onChanged: (val) {
-          FocusScope.of(context).unfocus();
-          setState(() => _selectedBankAccount = val);
-        },
       ),
     );
   }
 
-<<<<<<< HEAD
+
   // 🔥 CLEANED UP UI: Shows ONLY avatar and name (Matches Add Expenses)
   Widget _buildTeamSelector() {
     final isTeamExpense = _expenseType == "team";
@@ -1364,57 +1287,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             );
           }
         },
-=======
-  // Shows the linked member/team name from the expense — read-only in edit
-  Widget _buildLinkedMemberDisplay() {
-    final teamMemberName =
-        widget.expenseData['TeamMemberName'] as String?;
-    final teamName = widget.expenseData['TeamName'] as String?;
-    final linkedEntity = teamMemberName ?? teamName;
-
-    return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.person_outline, color: Colors.white38, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              linkedEntity != null && linkedEntity.isNotEmpty
-                  ? linkedEntity
-                  : 'No member/team linked',
-              style: GoogleFonts.inter(
-                color: linkedEntity != null && linkedEntity.isNotEmpty
-                    ? Colors.white70
-                    : Colors.white24,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          if (linkedEntity != null && linkedEntity.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                teamMemberName != null ? 'Member' : 'Team',
-                style: GoogleFonts.inter(
-                  color: Colors.white38,
-                  fontSize: 11,
-                ),
-              ),
-            ),
-        ],
->>>>>>> a64d60d2630e528a81c9640965c945f29cc3f003
       ),
     );
   }
@@ -1660,156 +1532,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             color: const Color(0xFF30D158).withValues(alpha: 0.3),
           ),
         ),
-<<<<<<< HEAD
-=======
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF30D158).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.receipt,
-                    color: Color(0xFF30D158),
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Receipt attached",
-                        style: GoogleFonts.inter(
-                          color: const Color(0xFF30D158),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        "Stored in Telegram",
-                        style: GoogleFonts.inter(
-                          color: Colors.white38,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(
-                    _isUploading ? Icons.hourglass_empty : Icons.close,
-                    color: Colors.white38,
-                    size: 20,
-                  ),
-                  onPressed: _isUploading
-                      ? null
-                      : () async {
-                          try {
-                            setState(() => _isUploading = true);
 
-                            final user = FirebaseAuth.instance.currentUser;
-                            if (user == null) {
-                              throw Exception('User not authenticated');
-                            }
-
-                            final userDoc = await FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(user.uid)
-                                .get();
-
-                            final companyId = userDoc.data()?['companyId'];
-                            if (companyId == null) {
-                              throw Exception('Company not found');
-                            }
-
-                            final batch = FirebaseFirestore.instance.batch();
-
-                            final expenseRef = FirebaseFirestore.instance
-                                .collection('expenses')
-                                .doc(widget.expenseId);
-                            batch.update(expenseRef, {
-                              "AttachmentFileId": FieldValue.delete(),
-                              "AttachmentFileName": FieldValue.delete(),
-                              "AttachmentFilePath": FieldValue.delete(),
-                            });
-
-                            await batch.commit();
-
-                            if (mounted) {
-                              _showMinimalToast(
-                                "Attachment removed successfully",
-                              );
-                              setState(() {
-                                _isUploading = false;
-                                _attachmentFileId = null;
-                              });
-                            }
-                          } catch (e) {
-                            if (mounted) {
-                              _showMinimalToast(
-                                "Failed to remove attachment",
-                                isError: true,
-                              );
-                              setState(() => _isUploading = false);
-                            }
-                          }
-                        },
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // Receipt preview: show file-ID confirmation instead of empty box
-            Container(
-              height: 60,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.cloud_done_outlined,
-                      color: Color(0xFF30D158),
-                      size: 18,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'File stored in Telegram',
-                      style: GoogleFonts.inter(
-                        color: Colors.white54,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // No attachment - show add attachment button
-    return GestureDetector(
-      onTap: _isUploading ? null : _showFilePicker,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF141416),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-        ),
->>>>>>> a64d60d2630e528a81c9640965c945f29cc3f003
         child: Row(
           children: [
             Container(

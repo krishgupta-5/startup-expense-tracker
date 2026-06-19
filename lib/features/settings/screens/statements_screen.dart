@@ -213,17 +213,22 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
           .map((doc) {
             final data = doc.data(); // Standard dynamic map
             final amount = double.tryParse(data['Amount'].toString()) ?? 0.0;
-            totalAmount += amount;
+            final isFunding = data['isFunding'] == true;
+            if (!isFunding) {
+              totalAmount += amount;
+            }
 
             final date = (data['Date'] as Timestamp).toDate();
             final dateStr = "${date.day}/${date.month}/${date.year}";
+
+            final amountStr = getPdfCurrencySymbol(amount);
 
             return [
               dateStr,
               data['Title']?.toString() ?? 'Unknown',
               data['Category']?.toString().toUpperCase() ?? 'N/A',
               _getBankAccountDisplay(data), // Using the new helper!
-              getPdfCurrencySymbol(amount),
+              isFunding ? '+$amountStr' : amountStr,
             ];
           })
           .cast<List<String>>()

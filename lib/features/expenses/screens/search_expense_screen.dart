@@ -562,6 +562,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
 
     final title = data['Title'] ?? 'Unnamed Expense';
     final amount = DataHelpers.safeParseDouble(data['Amount']);
+    final isFunding = data['isFunding'] == true;
 
     final rawCategory = data['Category']?.toString() ?? 'General';
     final category = rawCategory.isNotEmpty
@@ -644,9 +645,9 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,
               child: Text(
-                "-${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${amount.toStringAsFixed(2)}",
+                "${isFunding ? '+' : ''}${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${amount.toStringAsFixed(2)}",
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: isFunding ? const Color(0xFF30D158) : Colors.white,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                   fontFeatures: [const FontFeature.tabularFigures()],
