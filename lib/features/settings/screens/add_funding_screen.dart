@@ -28,43 +28,45 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
 
   // Current funding & target runway from Firestore
   double _currentFunding = 0.0;
+  double _inputAmount = 0.0;
   String _currentTargetRunway = '';
 
+  // Re-introduced elegant, premium colors and icons for the selectable chips
   final Map<String, Map<String, dynamic>> _fundingSources = {
     'self_funded': {
       'label': 'Self Funded',
       'icon': Icons.person_outline,
-      'color': const Color(0xFF30D158),
+      'color': const Color(0xFF30D158), // Green
     },
     'bank_loan': {
       'label': 'Bank Loan',
       'icon': Icons.account_balance_outlined,
-      'color': const Color(0xFF5E5CE6),
+      'color': const Color(0xFF0A84FF), // iOS Blue
     },
     'angel_investor': {
       'label': 'Angel Investor',
       'icon': Icons.favorite_outline,
-      'color': const Color(0xFFFF375F),
+      'color': const Color(0xFFFF375F), // Rose Pink
     },
     'vc_funding': {
       'label': 'VC Funding',
       'icon': Icons.rocket_launch_outlined,
-      'color': const Color(0xFFFF9F0A),
+      'color': const Color(0xFFFF9F0A), // Sunset Orange
     },
     'grant': {
       'label': 'Grant',
       'icon': Icons.workspace_premium_outlined,
-      'color': const Color(0xFF32ADE6),
+      'color': const Color(0xFF32ADE6), // Cyan
     },
     'revenue': {
       'label': 'Revenue',
       'icon': Icons.trending_up,
-      'color': const Color(0xFF00BFA5),
+      'color': const Color(0xFF00BFA5), // Teal
     },
     'other': {
       'label': 'Other',
       'icon': Icons.more_horiz,
-      'color': const Color(0xFFBF5AF2),
+      'color': const Color(0xFF8E8E93), // Slate Gray
     },
   };
 
@@ -73,6 +75,16 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
     super.initState();
     _userCountryCode = UserCountryService.getUserCountryCodeSync();
     _loadCurrentData();
+
+    // Listen to amount changes for real-time projection
+    _amountController.addListener(() {
+      setState(() {
+        _inputAmount = double.tryParse(
+              _amountController.text.replaceAll(RegExp(r'[^\d.]'), ''),
+            ) ??
+            0.0;
+      });
+    });
   }
 
   @override
@@ -99,9 +111,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
           _currentFunding = _toDouble(
             data['Funding'] ?? data['funding'] ?? 0,
           );
-          _currentTargetRunway =
-              data['Target Runway']?.toString() ?? '';
-          _targetRunwayController.text = _currentTargetRunway;
+          _currentTargetRunway = data['Target Runway']?.toString() ?? '';
         });
       }
     } catch (e) {
@@ -114,8 +124,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
     if (value is double) return value;
     if (value is int) return value.toDouble();
     if (value is String) {
-      return double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), '')) ??
-          fallback;
+      return double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), '')) ?? fallback;
     }
     return fallback;
   }
@@ -128,9 +137,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
           children: [
             Icon(
               isError ? Icons.error_outline : Icons.check_circle_outline,
-              color: isError
-                  ? const Color(0xFFFF453A)
-                  : const Color(0xFF30D158),
+              color: isError ? const Color(0xFFFF453A) : const Color(0xFF30D158),
               size: 18,
             ),
             const SizedBox(width: 12),
@@ -170,18 +177,14 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception("User not authenticated");
 
-      final amount = double.parse(
-        _amountController.text.trim().replaceAll(RegExp(r'[^\d.]'), ''),
-      );
+      final amount = _inputAmount;
       final sourceData = _fundingSources[_selectedSource]!;
       final sourceLabel = sourceData['label'] as String;
       final newTotalFunding = _currentFunding + amount;
       final now = DateTime.now();
 
       // 1. Save the funding transaction to funding_transactions collection
-      await FirebaseFirestore.instance
-          .collection('funding_transactions')
-          .add({
+      await FirebaseFirestore.instance.collection('funding_transactions').add({
         'uid': user.uid,
         'amount': amount,
         'source': sourceLabel,
@@ -192,12 +195,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
         'newTotalFunding': newTotalFunding,
       });
 
-      // 2. Also create an expense transaction so it shows in expenses history
+      // 2. Create an expense transaction so it shows in expenses history
       final expenseId = const Uuid().v4();
-      await FirebaseFirestore.instance
-          .collection('expenses')
-          .doc(expenseId)
-          .set({
+      await FirebaseFirestore.instance.collection('expenses').doc(expenseId).set({
         'uid': user.uid,
         'Amount': amount,
         'Title': 'Funding: $sourceLabel',
@@ -219,9 +219,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
         'Funding': newTotalFunding,
       };
 
-      // 4. Optionally update Target Runway
-      if (_updateTargetRunway &&
-          _targetRunwayController.text.trim().isNotEmpty) {
+      if (_updateTargetRunway && _targetRunwayController.text.trim().isNotEmpty) {
         updateData['Target Runway'] = _targetRunwayController.text.trim();
       }
 
@@ -248,8 +246,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currencySymbol =
-        CurrencyFormatter.getCurrencySymbol(_userCountryCode);
+    final currencySymbol = CurrencyFormatter.getCurrencySymbol(_userCountryCode);
 
     return Scaffold(
       backgroundColor: const Color(0xFF09090B),
@@ -271,31 +268,56 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const SizedBox(height: 16),
-
-                          // Current funding display
-                          _buildCurrentFundingCard(currencySymbol),
                           const SizedBox(height: 32),
+
+                          // Current & Projected Funding
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildReadOnlyMetric(
+                                  "CURRENT FUNDING",
+                                  CurrencyFormatter.formatByCountry(
+                                    _currentFunding,
+                                    _userCountryCode,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: _buildReadOnlyMetric(
+                                  "NEW TOTAL",
+                                  CurrencyFormatter.formatByCountry(
+                                    _currentFunding + _inputAmount,
+                                    _userCountryCode,
+                                  ),
+                                  highlight: _inputAmount > 0,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 40),
 
                           // Amount input
-                          _buildSectionLabel("FUNDING AMOUNT"),
-                          const SizedBox(height: 12),
+                          _buildSectionLabel("ADD FUNDING AMOUNT"),
                           _buildAmountInput(currencySymbol),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 40),
 
                           // Source selector
                           _buildSectionLabel("FUNDING SOURCE"),
-                          const SizedBox(height: 12),
                           _buildSourceSelector(),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 40),
 
                           // Notes
                           _buildSectionLabel("NOTES (OPTIONAL)"),
-                          const SizedBox(height: 12),
-                          _buildNotesInput(),
-                          const SizedBox(height: 32),
+                          _buildInputGroup(
+                            "e.g., Seed round from XYZ Ventures",
+                            _notesController,
+                            maxLines: 3,
+                          ),
+                          const SizedBox(height: 40),
 
                           // Target Runway toggle
+                          _buildSectionLabel("PLANNING"),
                           _buildTargetRunwaySection(),
 
                           const SizedBox(height: 100),
@@ -326,10 +348,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: const Color(0xFF141416),
                 borderRadius: BorderRadius.circular(14),
-                border:
-                    Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
               ),
               child: const Icon(
                 Icons.arrow_back,
@@ -353,81 +374,66 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
   }
 
   Widget _buildSectionLabel(String text) {
-    return Text(
-      text.toUpperCase(),
-      style: GoogleFonts.inter(
-        color: Colors.white24,
-        fontSize: 10,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.5,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Text(
+        text.toUpperCase(),
+        style: GoogleFonts.inter(
+          color: Colors.white54,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.5,
+        ),
       ),
     );
   }
 
-  Widget _buildCurrentFundingCard(String currencySymbol) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF30D158).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  Icons.account_balance_wallet_outlined,
-                  color: Color(0xFF30D158),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "CURRENT TOTAL FUNDING",
-                    style: GoogleFonts.inter(
-                      color: Colors.white38,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    CurrencyFormatter.formatByCountry(
-                      _currentFunding,
-                      _userCountryCode,
-                    ),
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+  Widget _buildReadOnlyMetric(String label, String value, {bool highlight = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            color: highlight ? const Color(0xFF30D158) : Colors.white38,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.2,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: highlight 
+                ? const Color(0xFF30D158).withValues(alpha: 0.3) 
+                : Colors.white.withValues(alpha: 0.04)
+            ),
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: GoogleFonts.inter(
+                color: highlight ? const Color(0xFF30D158) : Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildAmountInput(String currencySymbol) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
         borderRadius: BorderRadius.circular(16),
@@ -440,7 +446,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             currencySymbol,
             style: GoogleFonts.inter(
               color: Colors.white38,
-              fontSize: 28,
+              fontSize: 24,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -448,13 +454,12 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
           Expanded(
             child: TextFormField(
               controller: _amountController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               textInputAction: TextInputAction.next,
               onTapOutside: (event) => FocusScope.of(context).unfocus(),
               style: GoogleFonts.inter(
                 color: Colors.white,
-                fontSize: 28,
+                fontSize: 32,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.5,
               ),
@@ -463,14 +468,14 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                 hintText: "0",
                 hintStyle: GoogleFonts.inter(
                   color: Colors.white12,
-                  fontSize: 28,
+                  fontSize: 32,
                   fontWeight: FontWeight.w600,
                 ),
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(vertical: 16),
                 errorStyle: GoogleFonts.inter(
                   color: const Color(0xFFFF453A),
-                  fontSize: 12,
+                  fontSize: 11,
                   height: 0.8,
                 ),
               ),
@@ -479,11 +484,11 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
               ],
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
-                  return 'Enter the funding amount';
+                  return 'Amount required';
                 }
                 final parsed = double.tryParse(value.trim());
                 if (parsed == null || parsed <= 0) {
-                  return 'Enter a valid amount';
+                  return 'Invalid amount';
                 }
                 return null;
               },
@@ -496,8 +501,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
 
   Widget _buildSourceSelector() {
     return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+      spacing: 12,
+      runSpacing: 12,
       children: _fundingSources.entries.map((entry) {
         final key = entry.key;
         final data = entry.value;
@@ -508,17 +513,18 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
           onTap: () => setState(() => _selectedSource = key),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
+              // Elegant Tinted Glass Effect
               color: isSelected
-                  ? color.withValues(alpha: 0.15)
+                  ? color.withValues(alpha: 0.1)
                   : const Color(0xFF141416),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: isSelected
-                    ? color.withValues(alpha: 0.5)
+                    ? color.withValues(alpha: 0.3)
                     : Colors.white.withValues(alpha: 0.04),
-                width: isSelected ? 1.5 : 1,
+                width: 1,
               ),
             ),
             child: Row(
@@ -526,7 +532,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
               children: [
                 Icon(
                   data['icon'] as IconData,
-                  color: isSelected ? color : Colors.white38,
+                  color: isSelected ? color : Colors.white24,
                   size: 16,
                 ),
                 const SizedBox(width: 8),
@@ -546,7 +552,12 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
     );
   }
 
-  Widget _buildNotesInput() {
+  Widget _buildInputGroup(
+    String hint,
+    TextEditingController controller, {
+    int maxLines = 1,
+    bool isNumber = false,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
@@ -555,24 +566,26 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
         border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
       child: TextField(
-        controller: _notesController,
-        maxLines: 3,
-        textInputAction: TextInputAction.done,
-        onTapOutside: (event) => FocusScope.of(context).unfocus(),
+        controller: controller,
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        maxLines: maxLines,
+        onTapOutside: (_) => FocusScope.of(context).unfocus(),
         style: GoogleFonts.inter(
           color: Colors.white,
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
         ),
         cursorColor: Colors.white,
         decoration: InputDecoration(
-          hintText: "e.g., Seed round from XYZ Ventures...",
+          hintText: hint,
           hintStyle: GoogleFonts.inter(
-            color: Colors.white12,
+            color: Colors.white24,
             fontSize: 14,
+            fontWeight: FontWeight.w400,
           ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          isDense: true,
         ),
       ),
     );
@@ -582,7 +595,6 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Toggle
         GestureDetector(
           onTap: () => setState(() => _updateTargetRunway = !_updateTargetRunway),
           child: Container(
@@ -590,50 +602,32 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFF141416),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: _updateTargetRunway
-                    ? const Color(0xFF5E5CE6).withValues(alpha: 0.3)
-                    : Colors.white.withValues(alpha: 0.04),
-              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
             ),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF5E5CE6).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.timeline,
-                    color: Color(0xFF5E5CE6),
-                    size: 18,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Update Target Runway",
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Update Target Runway",
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        "Set a new target runway in months",
-                        style: GoogleFonts.inter(
-                          color: Colors.white38,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w400,
-                        ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "Current Target: ${_currentTargetRunway.isNotEmpty ? '$_currentTargetRunway months' : 'Not set'}",
+                      style: GoogleFonts.inter(
+                        color: Colors.white38,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
@@ -642,7 +636,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(13),
                     color: _updateTargetRunway
-                        ? const Color(0xFF5E5CE6)
+                        ? Colors.white
                         : Colors.white.withValues(alpha: 0.1),
                   ),
                   child: AnimatedAlign(
@@ -655,9 +649,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                       width: 22,
                       height: 22,
                       margin: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white,
+                        color: _updateTargetRunway ? Colors.black : Colors.white,
                       ),
                     ),
                   ),
@@ -673,14 +667,11 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
           secondChild: Padding(
             padding: const EdgeInsets.only(top: 16),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               decoration: BoxDecoration(
                 color: const Color(0xFF141416),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.04),
-                ),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
               ),
               child: Row(
                 children: [
@@ -689,26 +680,22 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                       controller: _targetRunwayController,
                       keyboardType: TextInputType.number,
                       textInputAction: TextInputAction.done,
-                      onTapOutside: (event) =>
-                          FocusScope.of(context).unfocus(),
+                      onTapOutside: (_) => FocusScope.of(context).unfocus(),
                       style: GoogleFonts.inter(
                         color: Colors.white,
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
                       ),
                       cursorColor: Colors.white,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: InputDecoration(
-                        hintText: "e.g., 18",
+                        hintText: "Enter months (e.g., 18)",
                         hintStyle: GoogleFonts.inter(
-                          color: Colors.white12,
-                          fontSize: 15,
+                          color: Colors.white24,
+                          fontSize: 14,
                         ),
                         border: InputBorder.none,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
                   ),
@@ -716,7 +703,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                     "months",
                     style: GoogleFonts.inter(
                       color: Colors.white38,
-                      fontSize: 14,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -750,7 +737,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.white,
             foregroundColor: Colors.black,
-            disabledBackgroundColor: Colors.white54,
+            disabledBackgroundColor: Colors.white.withValues(alpha: 0.2),
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -758,8 +745,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
           ),
           child: _isLoading
               ? const SizedBox(
-                  height: 24,
-                  width: 24,
+                  height: 20,
+                  width: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     color: Colors.black,

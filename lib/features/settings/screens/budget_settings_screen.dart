@@ -17,12 +17,12 @@ class BudgetSettingsScreen extends StatefulWidget {
 class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   final _budgetController = TextEditingController();
+  
   bool _isLoading = false;
   bool _isLoadingData = true;
   String _userCountryCode = '+1'; // Default to USD
   double _currentBudget = 0.0;
 
-  // Removed 'all' - only specific allocatable categories remain
   final Map<String, String> _allCategories = {
     'marketing': 'Marketing',
     'infrastructure': 'Infrastructure',
@@ -71,8 +71,7 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
   }
 
   Future<void> _loadUserCountryCode() async {
-    final currencyCode =
-        await CurrencyPreferenceService.getCurrencyPreference();
+    final currencyCode = await CurrencyPreferenceService.getCurrencyPreference();
     if (mounted) {
       setState(() {
         _userCountryCode = currencyCode;
@@ -128,6 +127,43 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
     }
   }
 
+  void _showMinimalToast(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: isError ? const Color(0xFFFF453A) : const Color(0xFF30D158),
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF141416),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        duration: const Duration(seconds: 3),
+        elevation: 0,
+      ),
+    );
+  }
+
   Future<void> _saveBudget() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -148,16 +184,18 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       final companyId = userDoc.data()?['companyId'];
       if (companyId == null) return;
 
-      final budgetAmount = double.tryParse(_budgetController.text) ?? 0.0;
+      final budgetAmount = double.tryParse(
+        _budgetController.text.trim().replaceAll(RegExp(r'[^\d.]'), '')
+      ) ?? 0.0;
 
       // Update budget in company document
       await FirebaseFirestore.instance
           .collection('companies')
           .doc(companyId)
           .update({
-            'budgets.$_selectedCategory': budgetAmount,
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+        'budgets.$_selectedCategory': budgetAmount,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
       if (mounted) {
         setState(() {
@@ -165,274 +203,332 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
           _isLoading = false;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Budget updated successfully',
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            backgroundColor: const Color(0xFF30D158),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        _showMinimalToast('Budget updated successfully');
       }
     } catch (e) {
       debugPrint('Error saving budget: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Failed to update budget',
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            backgroundColor: const Color(0xFFFF453A),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        _showMinimalToast('Failed to update budget', isError: true);
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: const Color(0xFF09090B),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF09090B),
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
+    final currencySymbol = CurrencyFormatter.getCurrencySymbol(_userCountryCode);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF09090B),
+      resizeToAvoidBottomInset: true,
+      body: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(context),
+              Expanded(
+                child: _isLoadingData
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white38),
+                        ),
+                      )
+                    : GestureDetector(
+                        onTap: () => FocusScope.of(context).unfocus(),
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 32),
+
+                                // Category Selection
+                                _buildSectionLabel("EXPENSE CATEGORY"),
+                                _buildCategorySelector(),
+                                const SizedBox(height: 32),
+
+                                // Current Budget Display
+                                _buildReadOnlyMetric(
+                                  "CURRENT ALLOCATION",
+                                  CurrencyFormatter.formatByCountry(
+                                    _currentBudget,
+                                    _userCountryCode,
+                                  ),
+                                  highlight: _currentBudget > 0,
+                                ),
+                                const SizedBox(height: 32),
+
+                                // Budget Amount Input
+                                _buildSectionLabel("UPDATE MONTHLY LIMIT"),
+                                _buildAmountInput(currencySymbol),
+
+                                const SizedBox(height: 100),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+              if (!_isLoadingData) _buildSubmitButton(),
+            ],
           ),
-          title: Text(
-            'Budget Settings',
+        ),
+      ),
+    );
+  }
+
+  // --- WIDGET BUILDERS ---
+
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF141416),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              ),
+              child: const Icon(
+                Icons.arrow_back,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ),
+          Text(
+            "Budget Settings",
             style: GoogleFonts.inter(
               color: Colors.white,
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
           ),
+          const SizedBox(width: 44),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        text.toUpperCase(),
+        style: GoogleFonts.inter(
+          color: Colors.white54,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.5,
         ),
-        body: _isLoadingData
-            ? const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white38),
+      ),
+    );
+  }
+
+  Widget _buildCategorySelector() {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: double.infinity),
+      // Removed outer container to eliminate the double box issue
+      child: ShadSelect<String>(
+        placeholder: Text(
+          'Select category',
+          style: GoogleFonts.inter(color: Colors.white24, fontSize: 15),
+        ),
+        initialValue: _selectedCategory,
+        onChanged: (value) {
+          if (value != null) {
+            setState(() {
+              _selectedCategory = value;
+              _budgetController.clear();
+            });
+            _loadCurrentBudget(); 
+          }
+        },
+        selectedOptionBuilder: (context, value) {
+          return Text(
+            _allCategories[value] ?? 'Select category',
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          );
+        },
+        options: _allCategories.entries.map((entry) {
+          return ShadOption(
+            value: entry.key,
+            child: Text(
+              entry.value,
+              style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildReadOnlyMetric(String label, String value, {bool highlight = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            color: highlight ? const Color(0xFF30D158) : Colors.white38,
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          // Refined padding to closely match the inputs
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: highlight 
+                ? const Color(0xFF30D158).withValues(alpha: 0.3) 
+                : Colors.white.withValues(alpha: 0.04)
+            ),
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: GoogleFonts.inter(
+                color: highlight ? const Color(0xFF30D158) : Colors.white,
+                // Reduced from 20 to 18 to match standard elegant typography
+                fontSize: 18, 
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAmountInput(String currencySymbol) {
+    return Container(
+      // Refined vertical padding to match the ReadOnlyMetric and Select
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2), 
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            currencySymbol,
+            style: GoogleFonts.inter(
+              color: Colors.white54,
+              fontSize: 18, // Normalized size 
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextFormField(
+              controller: _budgetController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              textInputAction: TextInputAction.done,
+              onTapOutside: (event) => FocusScope.of(context).unfocus(),
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 18, // Normalized size
+                fontWeight: FontWeight.w600,
+              ),
+              cursorColor: Colors.white,
+              decoration: InputDecoration(
+                hintText: "0.00",
+                hintStyle: GoogleFonts.inter(
+                  color: Colors.white12,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
                 ),
-              )
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Category Selection
-                      Text(
-                        'Expense Category',
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          minWidth: double.infinity,
-                        ),
-                        child: ShadSelect<String>(
-                          placeholder: const Text('Select category'),
-                          initialValue: _selectedCategory,
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() {
-                                _selectedCategory = value;
-                                _budgetController.clear();
-                              });
-                              _loadCurrentBudget(); // Fetch the newly selected category's budget
-                            }
-                          },
-                          selectedOptionBuilder: (context, value) {
-                            return Text(
-                              _allCategories[value] ?? 'Select category',
-                              style: GoogleFonts.inter(
-                                color: Colors.white,
-                                fontSize: 16,
-                              ),
-                            );
-                          },
-                          options: _allCategories.entries.map((entry) {
-                            return ShadOption(
-                              value: entry.key,
-                              child: Text(
-                                entry.value,
-                                style: GoogleFonts.inter(color: Colors.white),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Budget Input
-                      Text(
-                        'Monthly Budget',
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.1),
-                          ),
-                        ),
-                        child: TextFormField(
-                          controller: _budgetController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
-                          decoration: InputDecoration(
-                            prefixText: CurrencyFormatter.getCurrencySymbol(
-                              _userCountryCode,
-                            ),
-                            prefixStyle: GoogleFonts.inter(
-                              color: Colors.white54,
-                              fontSize: 16,
-                            ),
-                            hintText: '0.00',
-                            hintStyle: GoogleFonts.inter(
-                              color: Colors.white38,
-                              fontSize: 16,
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.all(16),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter a budget amount';
-                            }
-                            final amount = double.tryParse(value);
-                            if (amount == null || amount < 0) {
-                              return 'Please enter a valid amount';
-                            }
-                            return null;
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Current Budget Display
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        child: _currentBudget >= 0
-                            ? Container(
-                                key: ValueKey<double>(_currentBudget),
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF30D158,
-                                  ).withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: const Color(
-                                      0xFF30D158,
-                                    ).withValues(alpha: 0.2),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.info_outline,
-                                      color: Color(0xFF30D158),
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        'Currently Allocated: ${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${_currentBudget.toStringAsFixed(2)}',
-                                        style: GoogleFonts.inter(
-                                          color: const Color(0xFF30D158),
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : const SizedBox.shrink(),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // Save Button
-                      SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _saveBudget,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0A84FF),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            disabledBackgroundColor: const Color(
-                              0xFF0A84FF,
-                            ).withValues(alpha: 0.5),
-                          ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white,
-                                    ),
-                                  ),
-                                )
-                              : Text(
-                                  'Save Budget',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                        ),
-                      ),
-                    ],
-                  ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                errorStyle: GoogleFonts.inter(
+                  color: const Color(0xFFFF453A),
+                  fontSize: 11,
+                  height: 0.8,
                 ),
               ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
+              ],
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Amount required';
+                }
+                final parsed = double.tryParse(value.trim());
+                if (parsed == null || parsed < 0) {
+                  return 'Invalid amount';
+                }
+                return null;
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF09090B),
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 56,
+        child: ElevatedButton(
+          onPressed: _isLoading ? null : _saveBudget,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            disabledBackgroundColor: Colors.white.withValues(alpha: 0.2),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: _isLoading
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.black,
+                  ),
+                )
+              : Text(
+                  "Save Budget",
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+        ),
       ),
     );
   }
@@ -446,11 +542,5 @@ class DataHelpers {
     if (value is int) return value.toDouble();
     if (value is String) return double.tryParse(value) ?? 0.0;
     return 0.0;
-  }
-
-  static String safeParseString(dynamic value) {
-    if (value == null) return '';
-    if (value is String) return value;
-    return value.toString();
   }
 }
