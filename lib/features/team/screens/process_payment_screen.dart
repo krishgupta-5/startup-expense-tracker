@@ -171,10 +171,17 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
       // 2. Update Company Total Expenses + Member Total Expenses (Fix #2)
       final batch = FirebaseFirestore.instance.batch();
 
-      // 2a. Update company's totalExpenses
+      // 2a. Look up companyId from user document, fallback to user.uid
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final companyId = userDoc.data()?['companyId'] ?? user.uid;
+
+      // Update company's totalExpenses
       final companyDoc = await FirebaseFirestore.instance
           .collection('companies')
-          .doc(user.uid)
+          .doc(companyId)
           .get();
 
       if (companyDoc.exists && companyDoc.data() != null) {
@@ -185,7 +192,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
 
         final companyRef = FirebaseFirestore.instance
             .collection('companies')
-            .doc(user.uid);
+            .doc(companyId);
         batch.update(companyRef, {"totalExpenses": newTotalExpenses});
       }
 

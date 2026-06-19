@@ -240,6 +240,19 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
         maxHeight: 1200, // Limit initial image height
       );
       if (image != null) {
+        // Check file size immediately — reject before the user can proceed
+        final imageFile = File(image.path);
+        final imageSizeBytes = await imageFile.length();
+        final imageSizeMB = imageSizeBytes / (1024 * 1024);
+        if (imageSizeMB > _maxImageSizeMB) {
+          if (mounted) {
+            _showErrorDialog(
+              'Image too large',
+              'Images larger than ${_maxImageSizeMB}MB are not supported to control costs. Please choose a smaller image.',
+            );
+          }
+          return;
+        }
         setState(() {
           _capturedImagePath = image.path;
         });
@@ -549,24 +562,30 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
               ),
             ),
           ),
-          GestureDetector(
-            onTap: _toggleFlash,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _flashOn
-                    ? Colors.white
-                    : Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          // Flash button: hidden when reviewing a still image (no effect)
+          if (_capturedImagePath == null)
+            GestureDetector(
+              onTap: _toggleFlash,
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _flashOn
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.1),
+                  ),
+                ),
+                child: Icon(
+                  _flashOn ? Icons.flash_on : Icons.flash_off,
+                  color: _flashOn ? Colors.black : Colors.white,
+                  size: 20,
+                ),
               ),
-              child: Icon(
-                _flashOn ? Icons.flash_on : Icons.flash_off,
-                color: _flashOn ? Colors.black : Colors.white,
-                size: 20,
-              ),
-            ),
-          ),
+            )
+          else
+            const SizedBox(width: 44), // Maintain layout balance
         ],
       ),
     );
@@ -944,9 +963,15 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                   onTap: () async {
                     if (_isProcessing) {
                       _showErrorDialog(
-                        "Processing in progress",
-                        "Please wait for the current operation to complete.",
+                        'Processing in progress',
+                        'Please wait for the current operation to complete.',
                       );
+                      return;
+                    }
+
+                    // If extraction failed, retry instead of proceeding
+                    if (!hasData && _capturedImagePath != null) {
+                      await _processScannedImage(_capturedImagePath!);
                       return;
                     }
 
@@ -955,7 +980,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                     try {
                       _navigateToAddExpense();
                     } catch (e) {
-                      _showErrorDialog("Navigation Error", e.toString());
+                      _showErrorDialog('Navigation Error', e.toString());
                     } finally {
                       setState(() => _isProcessing = false);
                     }
@@ -963,12 +988,12 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                   child: Container(
                     height: 52,
                     decoration: BoxDecoration(
-                      color: Colors.white, // Standard Save/Proceed Button
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Center(
                       child: Text(
-                        "Proceed",
+                        hasData ? 'Proceed' : 'Retry Scan',
                         style: GoogleFonts.inter(
                           color: Colors.black,
                           fontSize: 15,

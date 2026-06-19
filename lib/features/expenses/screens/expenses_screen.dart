@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -32,6 +33,9 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   String _userCountryCode = '+1'; // Default to USD
   bool _isLoadingCountry = true;
 
+  StreamSubscription? _companySubscription;
+  StreamSubscription? _expensesSubscription;
+
   late AnimationController _shimmerController;
 
   // OVERRIDE wantKeepAlive to return true
@@ -61,6 +65,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     CurrencyPreferenceService.currencyNotifier.removeListener(
       _onCurrencyChanged,
     );
+    _companySubscription?.cancel();
+    _expensesSubscription?.cancel();
     _shimmerController.dispose();
     super.dispose();
   }
@@ -105,44 +111,58 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         return;
       }
 
-      // Load company funding data
-      final companyDoc = await FirebaseFirestore.instance
+      // Cancel any existing listeners
+      await _companySubscription?.cancel();
+      await _expensesSubscription?.cancel();
+
+      // Listen to company document in real time
+      _companySubscription = FirebaseFirestore.instance
           .collection('companies')
           .doc(companyId)
-          .get();
+          .snapshots()
+          .listen((companyDoc) {
+        if (companyDoc.exists && mounted) {
+          final companyData = companyDoc.data() as Map<String, dynamic>;
+          setState(() {
+            _totalFunding = DataHelpers.safeParseDouble(companyData['Funding']);
+          });
+        }
+      });
 
-      if (companyDoc.exists) {
-        final companyData = companyDoc.data() as Map<String, dynamic>;
-        _totalFunding = DataHelpers.safeParseDouble(companyData['Funding']);
-        _totalExpenses = DataHelpers.safeParseDouble(
-          companyData['totalExpenses'],
-        );
-      }
-
-      // Only fetch expenses for display and burn calculation
-      final expensesSnapshot = await FirebaseFirestore.instance
+      // Listen to user's expenses in real time
+      _expensesSubscription = FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: user.uid)
-          .get();
+          .snapshots()
+          .listen((expensesSnapshot) {
+        if (mounted) {
+          double totalRealSpent = 0.0;
+          // Convert expenses to format expected by FinancialCalculator
+          List<Map<String, dynamic>> expenses = [];
+          for (var doc in expensesSnapshot.docs) {
+            final data = doc.data();
+            if (data['isFunding'] != true) {
+              final amt = DataHelpers.safeParseDouble(data['Amount'] ?? data['amount']);
+              totalRealSpent += amt;
+              expenses.add({
+                'amount': amt,
+                'date': data['Date'] ?? data['date'],
+                'type': data['Type'] ?? data['type'] ?? 'one_time',
+              });
+            }
+          }
 
-      // Convert expenses to format expected by FinancialCalculator
-      List<Map<String, dynamic>> expenses = [];
-      for (var doc in expensesSnapshot.docs) {
-        final data = doc.data();
-        expenses.add({
-          'amount': DataHelpers.safeParseDouble(data['Amount']),
-          'date': data['Date'],
-          'type': data['Type'] ?? 'one_time',
-        });
-      }
-
-      // Calculate average daily burn using rolling window (last 30 days)
-      final rollingMonthlyBurn = FinancialCalculator.rollingAverageMonthlyBurn(
-        expenses,
-      );
-      _avgDaily = rollingMonthlyBurn / 30; // Convert to daily average
-
-      if (mounted) setState(() => _isLoading = false);
+          // Calculate average daily burn using rolling window (last 30 days)
+          final rollingMonthlyBurn = FinancialCalculator.rollingAverageMonthlyBurn(
+            expenses,
+          );
+          setState(() {
+            _totalExpenses = totalRealSpent;
+            _avgDaily = rollingMonthlyBurn / 30; // Convert to daily average
+            _isLoading = false;
+          });
+        }
+      });
     } catch (e) {
       debugPrint('Error loading metrics: $e');
       if (mounted) setState(() => _isLoading = false);
@@ -160,6 +180,36 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         letterSpacing: 1.2,
       ),
     );
+  }
+
+  // --- CATEGORY ICON HELPER ---
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'marketing':
+        return Icons.campaign_outlined;
+      case 'infrastructure':
+        return Icons.dns_outlined;
+      case 'office':
+        return Icons.business_outlined;
+      case 'software':
+        return Icons.code_outlined;
+      case 'hardware':
+        return Icons.computer_outlined;
+      case 'transport':
+        return Icons.directions_car_outlined;
+      case 'design':
+        return Icons.palette_outlined;
+      case 'travel':
+        return Icons.flight_outlined;
+      case 'meals':
+        return Icons.restaurant_outlined;
+      case 'contractors':
+        return Icons.build_outlined;
+      case 'legal':
+        return Icons.gavel_outlined;
+      default:
+        return Icons.receipt_long_outlined;
+    }
   }
 
   @override
@@ -211,15 +261,15 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                           const SizedBox(width: 16),
                           _buildFlatMetric(
                             "Spent",
-                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${_totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
-                            "+${(_totalExpenses > 0 ? '0' : '0')}%", // Placeholder logic
+                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${_totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}" ,
+                            "${_totalFunding > 0 ? (_totalExpenses / _totalFunding * 100).toStringAsFixed(1) : '0'}% used",
                             Colors.white,
                           ),
                           const SizedBox(width: 16),
                           _buildFlatMetric(
                             "Avg. Daily",
-                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${_avgDaily.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
-                            "-${(_avgDaily > 0 ? '0' : '0')}%", // Placeholder logic
+                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${_avgDaily.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}" ,
+                            "30-day rolling avg",
                             Colors.white54, // Muted grey
                           ),
                         ],
@@ -247,7 +297,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                         MaterialPageRoute(
                           builder: (context) => const SearchExpenseScreen(),
                         ),
-                      );
+                      ).then((_) => _loadMetricsData());
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -335,7 +385,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   ) {
     return Container(
       width: 140,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
         color: const Color(0xFF141416), // Solid Matte Grey
         borderRadius: BorderRadius.circular(20),
@@ -348,14 +398,19 @@ class _ExpensesScreenState extends State<ExpensesScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  color: Colors.white38,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+              Expanded(
+                child: Text(
+                  label,
+                  style: GoogleFonts.inter(
+                    color: Colors.white38,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 4),
               // Tiny dot indicator
               Container(
                 width: 6,
@@ -385,12 +440,16 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                 ),
               ),
               const SizedBox(height: 6),
-              Text(
-                badge,
-                style: GoogleFonts.inter(
-                  color: accent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  badge,
+                  style: GoogleFonts.inter(
+                    color: accent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -566,6 +625,13 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         ? '${rawCategory[0].toUpperCase()}${rawCategory.substring(1)}'
         : 'General';
 
+    // Parse date for display in the row
+    String dateStr = '';
+    if (tx['Date'] is Timestamp) {
+      final d = (tx['Date'] as Timestamp).toDate();
+      dateStr = '${d.day}/${d.month}/${d.year}';
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: GestureDetector(
@@ -593,8 +659,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                     color: Colors.white.withValues(alpha: 0.08),
                   ),
                 ),
-                child: const Icon(
-                  Icons.receipt_long_outlined,
+                child: Icon(
+                  _getCategoryIcon(rawCategory),
                   color: Colors.white54,
                   size: 20,
                 ),
@@ -617,13 +683,27 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      category,
-                      style: GoogleFonts.inter(
-                        color: Colors.white38,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          category,
+                          style: GoogleFonts.inter(
+                            color: Colors.white38,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (dateStr.isNotEmpty) ...[  
+                          Text(
+                            ' · $dateStr',
+                            style: GoogleFonts.inter(
+                              color: Colors.white24,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
@@ -690,7 +770,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   Widget _buildSkeletonMetricCard() {
     return Container(
       width: 140,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
         color: const Color(0xFF141416),
         borderRadius: BorderRadius.circular(20),

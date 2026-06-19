@@ -141,7 +141,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   void _loadUserCountryCode() {
-    CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
+    // NOTE: listener is already registered in initState — do NOT add it again here
     _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
     setState(() => _isLoadingCountry = false);
   }
@@ -243,22 +243,30 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         }
 
         setState(() {
-          _bankAccounts = loadedBanks;
-          // Add "Cash" option at the beginning
-          _bankAccounts["Cash-"] = "Cash";
+          // Build an ordered map: Cash first, then bank accounts
+          final Map<String, String> orderedBanks = {'Cash-': 'Cash'};
+          orderedBanks.addAll(loadedBanks);
+          _bankAccounts = orderedBanks;
           if (_bankAccounts.isNotEmpty) {
-            _selectedBankAccount = _bankAccounts.keys.first;
+            _selectedBankAccount = _bankAccounts.keys.first; // Cash is first
           }
         });
       } else {
         // No bank accounts found, still provide Cash option
         setState(() {
-          _bankAccounts = {"Cash-": "Cash"};
-          _selectedBankAccount = "Cash-";
+          _bankAccounts = {'Cash-': 'Cash'};
+          _selectedBankAccount = 'Cash-';
         });
       }
     } catch (e) {
-      debugPrint("Failed to load bank accounts: $e");
+      debugPrint('Failed to load bank accounts: $e');
+      // Fallback: always provide Cash so the form remains usable
+      if (mounted) {
+        setState(() {
+          _bankAccounts = {'Cash-': 'Cash'};
+          _selectedBankAccount = 'Cash-';
+        });
+      }
     } finally {
       if (mounted) setState(() => _isLoadingBanks = false);
     }
@@ -340,52 +348,93 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final id = const Uuid().v4();
-      await FirebaseFirestore.instance.collection('expenses').doc(id).set({
-        "uid": FirebaseAuth.instance.currentUser!.uid,
-        "Amount": amount,
-        "Title": _titleController.text.trim(),
-        "Description": _descriptionController.text.trim(),
-        "Date": _selectedDate,
-        "Category": _selectedCategory,
-        "Type": _selectedType,
-        "BankAccount": _selectedBankAccount,
-        "AttachmentFileId": _attachmentFileId ?? '',
-        "ExpenseType": _expenseType, // "team" or "member"
-        "TeamId": _selectedTeam?.id,
-        "TeamName": _selectedTeam?.teamName,
-        "TeamMemberId": _selectedTeamMember?.id,
-        "TeamMemberName": _selectedTeamMember?.fullName,
-        "Time": FieldValue.serverTimestamp(),
-      });
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        _showMinimalToast('User not logged in', isError: true);
+        return;
+      }
 
-      // Update appropriate budget based on expense type
-      if (_expenseType == "team") {
-        if (_selectedTeam != null) {
-          await _updateTeamBudget(amount);
-        }
-      } else if (_expenseType == "member" && _selectedTeamMember != null) {
-        try {
-          await _updateMemberSalary(_selectedTeamMember!.id, amount);
-        } catch (e) {
-          // Handle salary validation error - delete the expense and show error
-          await FirebaseFirestore.instance
-              .collection('expenses')
-              .doc(id)
-              .delete();
-          if (e.toString().contains('exceeds remaining salary')) {
+      // Fetch companyId once upfront
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final companyId = userDoc.data()?['companyId'] as String?;
+      if (companyId == null) {
+        _showMinimalToast('Company not found', isError: true);
+        return;
+      }
+
+      // Member salary validation (must happen before we write anything)
+      if (_expenseType == 'member' && _selectedTeamMember != null) {
+        final memberDoc = await FirebaseFirestore.instance
+            .collection('members')
+            .doc(_selectedTeamMember!.id)
+            .get();
+        if (memberDoc.exists) {
+          final mData = memberDoc.data() as Map<String, dynamic>;
+          final salary = (mData['salary'] as num?)?.toDouble() ?? 0.0;
+          final usedExpenses =
+              (mData['totalExpenses'] as num?)?.toDouble() ?? 0.0;
+          if (usedExpenses + amount > salary) {
             _showMinimalToast(
-              "Expense amount exceeds remaining salary for ${_selectedTeamMember!.fullName}",
+              'Expense amount exceeds remaining salary for ${_selectedTeamMember!.fullName}',
               isError: true,
             );
-            return; // Don't proceed with navigation
+            return;
           }
-          rethrow; // Re-throw other errors
         }
-      } else {
-        // Fallback to original behavior for team expenses without team
-        await _updateFundsAfterExpense(amount);
       }
+
+      final id = const Uuid().v4();
+      final batch = FirebaseFirestore.instance.batch();
+
+      // 1. Write expense document (with companyId)
+      final expenseRef =
+          FirebaseFirestore.instance.collection('expenses').doc(id);
+      batch.set(expenseRef, {
+        'uid': user.uid,
+        'companyId': companyId,
+        'Amount': amount,
+        'Title': _titleController.text.trim(),
+        'Description': _descriptionController.text.trim(),
+        'Date': _selectedDate,
+        'Category': _selectedCategory,
+        'Type': _selectedType,
+        'BankAccount': _selectedBankAccount,
+        'AttachmentFileId': _attachmentFileId ?? '',
+        'ExpenseType': _expenseType,
+        'TeamId': _selectedTeam?.id,
+        'TeamName': _selectedTeam?.teamName,
+        'TeamMemberId': _selectedTeamMember?.id,
+        'TeamMemberName': _selectedTeamMember?.fullName,
+        'Time': FieldValue.serverTimestamp(),
+      });
+
+      // 2. Increment company totalExpenses atomically
+      final companyRef =
+          FirebaseFirestore.instance.collection('companies').doc(companyId);
+      batch.update(companyRef, {
+        'totalExpenses': FieldValue.increment(amount),
+      });
+
+      // 3. Increment team usedBudget or member salary atomically
+      if (_expenseType == 'team' && _selectedTeam != null) {
+        final teamRef = FirebaseFirestore.instance
+            .collection('teams')
+            .doc(_selectedTeam!.id);
+        batch.update(teamRef, {'usedBudget': FieldValue.increment(amount)});
+      } else if (_expenseType == 'member' && _selectedTeamMember != null) {
+        final memberRef = FirebaseFirestore.instance
+            .collection('members')
+            .doc(_selectedTeamMember!.id);
+        batch.update(memberRef, {
+          'totalExpenses': FieldValue.increment(amount),
+          'remainingSalary': FieldValue.increment(-amount),
+        });
+      }
+
+      await batch.commit();
 
       if (mounted) Navigator.pop(context);
     } on FirebaseException catch (e) {
@@ -477,103 +526,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  Future<void> _updateTeamBudget(double expenseAmount) async {
-    try {
-      if (_selectedTeam == null) return;
 
-      // Update team's used budget
-      final teamDoc = await FirebaseFirestore.instance
-          .collection('teams')
-          .doc(_selectedTeam!.id)
-          .get();
 
-      if (teamDoc.exists) {
-        final currentUsedBudget = teamDoc.data()?['usedBudget'] ?? 0.0;
-        final newUsedBudget = currentUsedBudget + expenseAmount;
-
-        await FirebaseFirestore.instance
-            .collection('teams')
-            .doc(_selectedTeam!.id)
-            .update({'usedBudget': newUsedBudget});
-      }
-    } catch (e) {
-      debugPrint("Error updating team budget: $e");
-    }
-  }
-
-  Future<void> _updateMemberSalary(
-    String memberId,
-    double expenseAmount,
-  ) async {
-    try {
-      // Get current member data to check salary
-      final memberDoc = await FirebaseFirestore.instance
-          .collection('members')
-          .doc(memberId)
-          .get();
-
-      if (memberDoc.exists) {
-        final data = memberDoc.data() as Map<String, dynamic>;
-        final currentSalary = (data['salary'] as num?)?.toDouble() ?? 0.0;
-        final currentExpenses =
-            (data['totalExpenses'] as num?)?.toDouble() ?? 0.0;
-        final newExpenses = currentExpenses + expenseAmount;
-
-        // Check if expense exceeds remaining salary
-        if (newExpenses > currentSalary) {
-          throw Exception('Expense amount exceeds remaining salary');
-        }
-
-        // Update member's total expenses
-        await FirebaseFirestore.instance
-            .collection('members')
-            .doc(memberId)
-            .update({
-              'totalExpenses': newExpenses,
-              'remainingSalary': currentSalary - newExpenses,
-            });
-      }
-    } catch (e) {
-      debugPrint("Error updating member salary: $e");
-      rethrow; // Re-throw to show error message to user
-    }
-  }
-
-  Future<void> _updateFundsAfterExpense(double expenseAmount) async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-
-      final companyId = userDoc.data()?['companyId'];
-      if (companyId == null) return;
-
-      final companyDoc = await FirebaseFirestore.instance
-          .collection('companies')
-          .doc(companyId)
-          .get();
-
-      if (companyDoc.exists && companyDoc.data() != null) {
-        final data = companyDoc.data()!;
-
-        final currentTotalExpenses =
-            double.tryParse(data["totalExpenses"]?.toString() ?? "0") ?? 0.0;
-
-        final newTotalExpenses = currentTotalExpenses + expenseAmount;
-
-        await FirebaseFirestore.instance
-            .collection('companies')
-            .doc(companyId) // Fixed: update companyId doc, not user.uid doc
-            .update({"totalExpenses": newTotalExpenses});
-      }
-    } catch (e) {
-      debugPrint("Error updating totalExpenses: $e");
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -677,15 +631,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         const SizedBox(height: 8),
                         _buildExpenseTypeSelector(),
                         const SizedBox(height: 24),
-                        _buildSectionLabel("LINK MEMBER (OPTIONAL)"),
+                        _buildSectionLabel(
+                          _expenseType == 'member'
+                              ? 'LINK MEMBER (OPTIONAL)'
+                              : 'LINK TEAM (OPTIONAL)',
+                        ),
                         const SizedBox(height: 16),
-                        if (_expenseType == "member") ...[
-                          _buildTeamSelector(),
-                          const SizedBox(height: 32),
-                        ] else ...[
-                          _buildTeamSelector(),
-                          const SizedBox(height: 32),
-                        ],
+                        _buildTeamSelector(),
+                        const SizedBox(height: 32),
                         _buildSectionLabel("ATTACHMENT"),
                         const SizedBox(height: 16),
                         _buildAttachmentZone(),
@@ -1745,11 +1698,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   Future<void> _autoUploadAndScroll() async {
     if (widget.imagePath == null) return;
 
-    // Wait a moment for the widget to be fully built
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Auto-upload the scanned image so the user doesn't have to re-pick it
+    final imageName = widget.imagePath!.split('/').last;
+    await _uploadFile(widget.imagePath!, imageName);
 
-    // Scroll to attachment section
-    if (_scrollController.hasClients) {
+    // Wait a moment for the widget to settle after upload
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    // Scroll to attachment section so user sees the uploaded receipt
+    if (mounted && _scrollController.hasClients) {
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 800),
