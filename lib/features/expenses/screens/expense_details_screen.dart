@@ -31,45 +31,51 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   String _userCountryCode = '+1'; // Default to USD
   bool _isLoadingCountry = true;
 
-  // ✅ Get Telegram file URL
+  // Holds the latest live expense data from the StreamBuilder
+  // Used so that the Edit sheet always opens with up-to-date values.
+  Map<String, dynamic> _currentExpenseData = {};
+
+  // Cache the Telegram bot token so dotenv.load is only called once
+  String? _telegramBotToken;
+
+  Future<String?> _getBotToken() async {
+    if (_telegramBotToken != null) return _telegramBotToken;
+    await dotenv.load(fileName: '.env.local');
+    _telegramBotToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
+    return _telegramBotToken;
+  }
+
+  // ✅ Get Telegram file URL (uses cached token)
   Future<String> getTelegramImageUrl(String fileId) async {
     try {
-      await dotenv.load(fileName: ".env.local");
-      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
-
-      if (botToken == null) {
-        throw Exception('Telegram bot token not found in environment');
-      }
+      final botToken = await _getBotToken();
+      if (botToken == null) throw Exception('Telegram bot token not found');
 
       final res = await http.get(
         Uri.parse(
-          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
+          'https://api.telegram.org/bot$botToken/getFile?file_id=$fileId',
         ),
       );
 
       final data = jsonDecode(res.body);
       final path = data['result']['file_path'];
 
-      return "https://api.telegram.org/file/bot$botToken/$path";
+      return 'https://api.telegram.org/file/bot$botToken/$path';
     } catch (e) {
       debugPrint('Error getting Telegram image URL: $e');
       rethrow;
     }
   }
 
-  // ✅ Get Telegram file info
+  // ✅ Get Telegram file info (uses cached token)
   Future<Map<String, dynamic>?> getTelegramFileInfo(String fileId) async {
     try {
-      await dotenv.load(fileName: ".env.local");
-      final botToken = dotenv.env['TELEGRAM_BOT_TOKEN'];
-
-      if (botToken == null) {
-        throw Exception('Telegram bot token not found in environment');
-      }
+      final botToken = await _getBotToken();
+      if (botToken == null) throw Exception('Telegram bot token not found');
 
       final res = await http.get(
         Uri.parse(
-          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
+          'https://api.telegram.org/bot$botToken/getFile?file_id=$fileId',
         ),
       );
 
@@ -250,6 +256,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
         final updatedExpenseData =
             snapshot.data!.data() as Map<String, dynamic>;
+        // Keep _currentExpenseData in sync so the Edit sheet uses live data
+        _currentExpenseData = updatedExpenseData;
         return _buildExpenseDetails(context, updatedExpenseData);
       },
     );
@@ -359,13 +367,10 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                             _buildDivider(),
                             _buildDetailRow("Time", timeStr),
                             _buildDivider(),
-                            _buildDetailRow("Type", type),
+                            _buildDetailRow('Type', type),
                             _buildDivider(),
-                            // Placeholder for linked member since we haven't added users yet
-                            _buildTeamRow(
-                              "Linked Member",
-                              "https://i.pravatar.cc/150?img=68",
-                            ),
+                            // Show actual linked member or team from the expense data
+                            _buildLinkedEntityRow(expenseData),
                           ],
                         ),
                       ),
@@ -450,6 +455,31 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
       final id = const Uuid().v4();
       final amount = DataHelpers.safeParseDouble(expenseData['Amount']);
+      final expenseType = expenseData['ExpenseType'] as String?;
+      final teamId = expenseData['TeamId'] as String?;
+      final teamMemberId = expenseData['TeamMemberId'] as String?;
+
+      // If it is a member expense, validate remaining salary first
+      if (expenseType == 'member' && teamMemberId != null) {
+        final memberDoc = await FirebaseFirestore.instance
+            .collection('members')
+            .doc(teamMemberId)
+            .get();
+        if (memberDoc.exists) {
+          final data = memberDoc.data() as Map<String, dynamic>;
+          final salary = (data['salary'] as num?)?.toDouble() ?? 0.0;
+          final totalExpenses = (data['totalExpenses'] as num?)?.toDouble() ?? 0.0;
+          if (totalExpenses + amount > salary) {
+            if (context.mounted) {
+              _showMinimalToast(
+                "Cannot duplicate: Expense amount exceeds remaining salary for ${data['fullName'] ?? 'member'}",
+                isError: true,
+              );
+            }
+            return;
+          }
+        }
+      }
 
       // Use batch for atomic operations
       final batch = FirebaseFirestore.instance.batch();
@@ -468,6 +498,11 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         "Category": expenseData['Category'] ?? 'general',
         "Type": expenseData['Type'] ?? 'one_time',
         "Time": FieldValue.serverTimestamp(),
+        if (expenseType != null) "ExpenseType": expenseType,
+        if (teamId != null) "TeamId": teamId,
+        if (expenseData['TeamName'] != null) "TeamName": expenseData['TeamName'],
+        if (teamMemberId != null) "TeamMemberId": teamMemberId,
+        if (expenseData['TeamMemberName'] != null) "TeamMemberName": expenseData['TeamMemberName'],
       });
 
       // Update totalExpenses atomically
@@ -475,6 +510,18 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           .collection('companies')
           .doc(companyId);
       batch.update(companyRef, {"totalExpenses": FieldValue.increment(amount)});
+
+      // Update team budget or member salary atomically
+      if (expenseType == 'team' && teamId != null) {
+        final teamRef = FirebaseFirestore.instance.collection('teams').doc(teamId);
+        batch.update(teamRef, {"usedBudget": FieldValue.increment(amount)});
+      } else if (expenseType == 'member' && teamMemberId != null) {
+        final memberRef = FirebaseFirestore.instance.collection('members').doc(teamMemberId);
+        batch.update(memberRef, {
+          "totalExpenses": FieldValue.increment(amount),
+          "remainingSalary": FieldValue.increment(-amount),
+        });
+      }
 
       // Commit batch atomically
       await batch.commit();
@@ -493,9 +540,11 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
   Future<void> _deleteExpense() async {
     try {
-      final expenseAmount = DataHelpers.safeParseDouble(
-        widget.expenseData['Amount'],
-      );
+      final currentData = _currentExpenseData.isNotEmpty ? _currentExpenseData : widget.expenseData;
+      final expenseAmount = DataHelpers.safeParseDouble(currentData['Amount']);
+      final expenseType = currentData['ExpenseType'] as String?;
+      final teamId = currentData['TeamId'] as String?;
+      final teamMemberId = currentData['TeamMemberId'] as String?;
 
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
@@ -521,13 +570,39 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           .doc(widget.expenseId);
       batch.delete(expenseRef);
 
-      // Update totalExpenses atomically
+      // Atomically decrement company totalExpenses.
+      // Guard against going negative by running a transaction instead.
       final companyRef = FirebaseFirestore.instance
           .collection('companies')
           .doc(companyId);
-      batch.update(companyRef, {
-        "totalExpenses": FieldValue.increment(-expenseAmount),
+
+      // We still need a read to clamp — use a transaction for this one write.
+      // For the rest of the batch writes we use increment which is safe.
+      await FirebaseFirestore.instance.runTransaction((txn) async {
+        final snap = await txn.get(companyRef);
+        final current = DataHelpers.safeParseDouble(
+          snap.data()?['totalExpenses'],
+        );
+        final newVal = (current - expenseAmount).clamp(0.0, double.infinity);
+        txn.update(companyRef, {'totalExpenses': newVal});
       });
+
+      // Update team budget or member salary atomically
+      if (expenseType == 'team' && teamId != null) {
+        final teamRef =
+            FirebaseFirestore.instance.collection('teams').doc(teamId);
+        batch.update(teamRef, {
+          'usedBudget': FieldValue.increment(-expenseAmount),
+        });
+      } else if (expenseType == 'member' && teamMemberId != null) {
+        final memberRef = FirebaseFirestore.instance
+            .collection('members')
+            .doc(teamMemberId);
+        batch.update(memberRef, {
+          'totalExpenses': FieldValue.increment(-expenseAmount),
+          'remainingSalary': FieldValue.increment(expenseAmount),
+        });
+      }
 
       await batch.commit();
 
@@ -722,18 +797,26 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                       MaterialPageRoute(
                         builder: (context) => EditExpenseScreen(
                           expenseId: widget.expenseId,
-                          expenseData: widget.expenseData,
+                          // Use the live-streamed data, fall back to constructor data
+                          expenseData: _currentExpenseData.isNotEmpty
+                              ? _currentExpenseData
+                              : widget.expenseData,
                         ),
                       ),
                     );
                   },
                 ),
-                _buildActionOption(
+                 _buildActionOption(
                   icon: Icons.copy_rounded,
                   label: "Duplicate",
                   onTap: () {
                     Navigator.pop(bottomSheetContext); // Close sheet
-                    _duplicateExpense(context, widget.expenseData);
+                    _duplicateExpense(
+                      context,
+                      _currentExpenseData.isNotEmpty
+                          ? _currentExpenseData
+                          : widget.expenseData,
+                    );
                   },
                 ),
                 const SizedBox(height: 16),
@@ -880,32 +963,26 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     );
   }
 
-  Widget _buildTeamRow(String label, String imageUrl) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            color: Colors.white54,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-            image: DecorationImage(
-              image: NetworkImage(imageUrl),
-              fit: BoxFit.cover,
-            ),
-          ),
-        ),
-      ],
-    );
+
+
+  /// Shows the actual linked team member or team name from the expense document.
+  /// Falls back to "None" if neither field is set.
+  Widget _buildLinkedEntityRow(Map<String, dynamic> expenseData) {
+    final teamMemberName = expenseData['TeamMemberName'] as String?;
+    final teamName = expenseData['TeamName'] as String?;
+
+    String label = 'Linked';
+    String value = 'None';
+
+    if (teamMemberName != null && teamMemberName.isNotEmpty) {
+      label = 'Linked Member';
+      value = teamMemberName;
+    } else if (teamName != null && teamName.isNotEmpty) {
+      label = 'Linked Team';
+      value = teamName;
+    }
+
+    return _buildDetailRow(label, value);
   }
 
   Widget _buildDivider() {

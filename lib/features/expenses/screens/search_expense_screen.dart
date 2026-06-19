@@ -55,8 +55,13 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     'infrastructure': 'Infrastructure',
     'office': 'Office',
     'software': 'Software',
+    'hardware': 'Hardware',
     'transport': 'Transport',
     'design': 'Design',
+    'travel': 'Travel',
+    'meals': 'Meals',
+    'contractors': 'Contractors',
+    'legal': 'Legal',
     'others': 'Others',
   };
 
@@ -95,7 +100,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     Query query = FirebaseFirestore.instance
         .collection('expenses')
         .where('uid', isEqualTo: user.uid)
-        .orderBy('Date', descending: true)
+        // Use _sortOrder to control ascending/descending direction
+        .orderBy('Date', descending: _sortOrder == 'newest')
         .limit(_pageSize);
 
     // Apply date filters
@@ -158,12 +164,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
       query = query.where('Category', isEqualTo: _selectedCategoryKey);
     }
 
-    // Apply search filter with proper range query
-    if (_searchQuery.isNotEmpty) {
-      query = query
-          .where('Title', isGreaterThanOrEqualTo: _searchQuery)
-          .where('Title', isLessThanOrEqualTo: '$_searchQuery\uf8ff');
-    }
+    // Title filter is applied client-side for case-insensitive matching
+    // (Firestore range queries are case-sensitive, so we filter after fetch)
 
     // Apply pagination
     if (_lastDocument != null) {
@@ -379,12 +381,12 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
 
   Widget _buildFirebaseResults() {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return _buildEmptyState("User not logged in");
+    if (user == null) return _buildEmptyState('User not logged in');
 
     final query = _buildExpensesQuery();
 
-    return FutureBuilder<QuerySnapshot>(
-      future: query.get(),
+    return StreamBuilder<QuerySnapshot>(
+      stream: query.snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -396,27 +398,38 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
         }
 
         if (snapshot.hasError) {
-          return _buildEmptyState("Failed to load data");
+          return _buildEmptyState('Failed to load data');
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          String notFoundMessage = _getNotFoundMessage();
-          return _buildEmptyState(notFoundMessage);
+          return _buildEmptyState(_getNotFoundMessage());
         }
 
-        final docs = snapshot.data!.docs;
+        // Client-side case-insensitive title filter
+        final allDocs = snapshot.data!.docs;
+        final filteredDocs = _searchQuery.isEmpty
+            ? allDocs
+            : allDocs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final title = (data['Title'] ?? '').toString().toLowerCase();
+                return title.contains(_searchQuery.toLowerCase());
+              }).toList();
+
+        if (filteredDocs.isEmpty) {
+          return _buildEmptyState(_getNotFoundMessage());
+        }
 
         // Update pagination state
-        if (docs.length < _pageSize) {
+        if (allDocs.length < _pageSize) {
           _hasMore = false;
         }
 
         return ListView.builder(
           padding: const EdgeInsets.all(24),
           physics: const BouncingScrollPhysics(),
-          itemCount: docs.length,
+          itemCount: filteredDocs.length,
           itemBuilder: (context, index) {
-            return _buildTransactionRow(docs[index]);
+            return _buildTransactionRow(filteredDocs[index]);
           },
         );
       },

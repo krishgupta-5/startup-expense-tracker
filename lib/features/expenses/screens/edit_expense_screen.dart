@@ -12,6 +12,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../../utils/data_helpers.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
+import '../../../services/bank_account_service.dart';
 
 class EditExpenseScreen extends StatefulWidget {
   final String expenseId;
@@ -45,10 +46,15 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   final categories = {
     'marketing': 'Marketing',
     'infrastructure': 'Infrastructure',
-    'office': 'Office',
+    'office': 'Office Rent',
     'software': 'Software',
+    'hardware': 'Hardware',
     'transport': 'Transport',
     'design': 'Design',
+    'travel': 'Travel',
+    'meals': 'Meals',
+    'contractors': 'Contractors',
+    'legal': 'Legal',
     'others': 'Others',
   };
   final types = {
@@ -57,9 +63,15 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     'subscription': 'Subscription',
   };
 
+  // Bank account state
+  Map<String, String> _bankAccounts = {};
+  String? _selectedBankAccount;
+  bool _isLoadingBanks = true;
+
   late String _selectedCategory;
   late String _selectedType;
   late DateTime _selectedDate;
+  late TextEditingController _dateController; // Proper lifecycle controller
 
   // ✅ Upload file to Telegram
   Future<String?> uploadToTelegram(String filePath) async {
@@ -344,10 +356,83 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         widget.expenseData['Type']?.toString().toLowerCase() ?? 'one_time';
     _selectedType = types.containsKey(fetchedType) ? fetchedType : 'one_time';
 
+    // Initialize date BEFORE the controller that references it
     if (widget.expenseData['Date'] is Timestamp) {
       _selectedDate = (widget.expenseData['Date'] as Timestamp).toDate();
     } else {
       _selectedDate = DateTime.now();
+    }
+
+    _dateController = TextEditingController(
+      text: '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
+    );
+
+    _fetchBankAccounts();
+  }
+
+  Future<void> _fetchBankAccounts() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final companyId = userDoc.data()?['companyId'];
+      if (companyId == null) return;
+
+      final doc = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(companyId)
+          .get();
+
+      if (doc.exists && doc.data()!.containsKey('Bank Accounts')) {
+        final accounts = doc.data()!['Bank Accounts'] as List<dynamic>;
+        final Map<String, String> orderedBanks = {'Cash-': 'Cash'};
+        for (var acc in accounts) {
+          final String name =
+              acc['name'] ?? acc['bankName'] ?? 'Unknown Bank';
+          final String rawLast4 =
+              acc['last4']?.toString() ?? acc['number']?.toString() ?? '';
+          final String last4 = rawLast4.isNotEmpty
+              ? BankAccountService.extractLast4(rawLast4)
+              : '';
+          final String key = '$name-$last4';
+          final String label =
+              last4.isNotEmpty ? '$name (****$last4)' : name;
+          orderedBanks[key] = label;
+        }
+        if (mounted) {
+          setState(() {
+            _bankAccounts = orderedBanks;
+            // Try to pre-select the bank that was saved with this expense
+            final savedBank =
+                widget.expenseData['BankAccount']?.toString() ?? '';
+            _selectedBankAccount = _bankAccounts.containsKey(savedBank)
+                ? savedBank
+                : _bankAccounts.keys.first;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _bankAccounts = {'Cash-': 'Cash'};
+            _selectedBankAccount = 'Cash-';
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to load bank accounts: $e');
+      if (mounted) {
+        setState(() {
+          _bankAccounts = {'Cash-': 'Cash'};
+          _selectedBankAccount = 'Cash-';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingBanks = false);
     }
   }
 
@@ -359,6 +444,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     _amountController.dispose();
     _titleController.dispose();
     _notesController.dispose();
+    _dateController.dispose();
     super.dispose();
   }
 
@@ -476,27 +562,77 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       );
       final double diff = newAmount - oldAmount;
 
+      final expenseType = widget.expenseData['ExpenseType'] as String?;
+      final teamId = widget.expenseData['TeamId'] as String?;
+      final teamMemberId = widget.expenseData['TeamMemberId'] as String?;
+
+      if (diff != 0 && expenseType == 'member' && teamMemberId != null) {
+        final memberDoc = await FirebaseFirestore.instance
+            .collection('members')
+            .doc(teamMemberId)
+            .get();
+        if (memberDoc.exists) {
+          final data = memberDoc.data() as Map<String, dynamic>;
+          final salary = (data['salary'] as num?)?.toDouble() ?? 0.0;
+          final currentExpenses = (data['totalExpenses'] as num?)?.toDouble() ?? 0.0;
+          final newMemberExpenses = currentExpenses + diff;
+          if (newMemberExpenses > salary) {
+            if (mounted) {
+              _showMinimalToast(
+                "Cannot update: Expense amount exceeds remaining salary for ${data['fullName'] ?? 'member'}",
+                isError: true,
+              );
+              setState(() => _isLoading = false);
+            }
+            return;
+          }
+        }
+      }
+
       final batch = FirebaseFirestore.instance.batch();
 
       final expenseRef = FirebaseFirestore.instance
           .collection('expenses')
           .doc(widget.expenseId);
       batch.update(expenseRef, {
-        "Amount": newAmount,
-        "Title": _titleController.text.trim(),
-        "Description": _notesController.text.trim(),
-        "Date": _selectedDate,
-        "Category": _selectedCategory,
-        "Type": _selectedType,
-        "Time": FieldValue.serverTimestamp(),
-        "AttachmentFileId": _attachmentFileId ?? '',
+        'Amount': newAmount,
+        'Title': _titleController.text.trim(),
+        'Description': _notesController.text.trim(),
+        'Date': _selectedDate,
+        'Category': _selectedCategory,
+        'Type': _selectedType,
+        'Time': FieldValue.serverTimestamp(),
+        'AttachmentFileId': _attachmentFileId ?? '',
+        if (_selectedBankAccount != null) 'BankAccount': _selectedBankAccount,
       });
 
       if (diff != 0) {
+        final companyDoc = await FirebaseFirestore.instance
+            .collection('companies')
+            .doc(companyId)
+            .get();
+        double currentTotal = 0.0;
+        if (companyDoc.exists) {
+          currentTotal = DataHelpers.safeParseDouble(companyDoc.data()?['totalExpenses']);
+        }
+        double newTotal = currentTotal + diff;
+        if (newTotal < 0) newTotal = 0.0;
+
         final companyRef = FirebaseFirestore.instance
             .collection('companies')
             .doc(companyId);
-        batch.update(companyRef, {"totalExpenses": FieldValue.increment(diff)});
+        batch.update(companyRef, {"totalExpenses": newTotal});
+
+        if (expenseType == 'team' && teamId != null) {
+          final teamRef = FirebaseFirestore.instance.collection('teams').doc(teamId);
+          batch.update(teamRef, {"usedBudget": FieldValue.increment(diff)});
+        } else if (expenseType == 'member' && teamMemberId != null) {
+          final memberRef = FirebaseFirestore.instance.collection('members').doc(teamMemberId);
+          batch.update(memberRef, {
+            "totalExpenses": FieldValue.increment(diff),
+            "remainingSalary": FieldValue.increment(-diff),
+          });
+        }
       }
 
       await batch.commit();
@@ -554,11 +690,11 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
                         const SizedBox(height: 40),
 
-                        _buildSectionLabel("EXPENSE DETAILS"),
+                        _buildSectionLabel('EXPENSE DETAILS'),
                         const SizedBox(height: 8),
                         _buildTextInput(
-                          "Expense Title",
-                          "e.g. Client Lunch",
+                          'Expense Title',
+                          'e.g. Client Lunch',
                           _titleController,
                         ),
 
@@ -568,7 +704,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                           children: [
                             Expanded(
                               child: _buildSelectField(
-                                label: "Category",
+                                label: 'Category',
                                 currentValue: _selectedCategory,
                                 items: categories,
                                 icon: Icons.pie_chart_outline,
@@ -581,7 +717,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                             const SizedBox(width: 16),
                             Expanded(
                               child: _buildSelectField(
-                                label: "Type",
+                                label: 'Type',
                                 currentValue: _selectedType,
                                 items: types,
                                 icon: Icons.repeat,
@@ -600,13 +736,19 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
                         const SizedBox(height: 24),
 
-                        _buildTextArea("Description / Notes", _notesController),
+                        _buildTextArea('Description / Notes', _notesController),
 
                         const SizedBox(height: 32),
 
-                        _buildSectionLabel("LINKED MEMBER (OPTIONAL)"),
+                        _buildSectionLabel('PAYMENT METHOD'),
+                        const SizedBox(height: 8),
+                        _buildBankSelector(),
+
+                        const SizedBox(height: 32),
+
+                        _buildSectionLabel('LINKED MEMBER (OPTIONAL)'),
                         const SizedBox(height: 16),
-                        _buildTeamSelector(),
+                        _buildLinkedMemberDisplay(),
 
                         const SizedBox(height: 32),
 
@@ -795,7 +937,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel("DATE"),
+        _buildSectionLabel('DATE'),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -813,8 +955,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 color: Colors.white38,
                 size: 20,
               ),
-              hintText: "Select date",
-              labelText: "Date",
+              hintText: 'Select date',
+              labelText: 'Date',
               labelStyle: GoogleFonts.inter(
                 color: Colors.white38,
                 fontSize: 13,
@@ -828,10 +970,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 color: Colors.white38,
               ),
             ),
-            controller: TextEditingController(
-              text:
-                  "${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}",
-            ),
+            // Use the persistent _dateController — avoids creating a new
+            // TextEditingController (and leaking it) on every build call.
+            controller: _dateController,
             onTap: () {
               FocusScope.of(context).unfocus();
               _showShadCalendar();
@@ -888,6 +1029,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                           setState(() {
                             _selectedDate = date;
                           });
+                          // Update the persistent controller so the field reflects the new date
+                          _dateController.text =
+                              '${date.day}/${date.month}/${date.year}';
                           Navigator.pop(context);
                         }
                       },
@@ -955,52 +1099,123 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     );
   }
 
-  Widget _buildTeamSelector() {
-    return SizedBox(
-      height: 48,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          _buildAvatar("https://i.pravatar.cc/150?img=68", isSelected: true),
-          const SizedBox(width: 12),
-          _buildAvatar("https://i.pravatar.cc/150?img=47"),
-          const SizedBox(width: 12),
-          _buildAvatar("https://i.pravatar.cc/150?img=12"),
-          const SizedBox(width: 12),
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-            ),
-            child: const Icon(Icons.add, color: Colors.white, size: 20),
+  // Shows the bank account selector (mirrors add_expense_screen behaviour)
+  Widget _buildBankSelector() {
+    if (_isLoadingBanks) {
+      return Container(
+        height: 52,
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white38),
+          ),
+        ),
+      );
+    }
+    if (_bankAccounts.isEmpty) {
+      return Container(
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        ),
+        child: Center(
+          child: Text(
+            'No payment methods available',
+            style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
+          ),
+        ),
+      );
+    }
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: double.infinity),
+      child: ShadSelect<String>(
+        placeholder: Text(
+          'Select Payment Method',
+          style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
+        ),
+        initialValue: _selectedBankAccount,
+        options: [
+          ..._bankAccounts.entries.map(
+            (e) => ShadOption(value: e.key, child: Text(e.value)),
           ),
         ],
+        selectedOptionBuilder: (context, value) => Text(
+          _bankAccounts[value] ?? 'Select',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        onChanged: (val) {
+          FocusScope.of(context).unfocus();
+          setState(() => _selectedBankAccount = val);
+        },
       ),
     );
   }
 
-  Widget _buildAvatar(String url, {bool isSelected = false}) {
+  // Shows the linked member/team name from the expense — read-only in edit
+  Widget _buildLinkedMemberDisplay() {
+    final teamMemberName =
+        widget.expenseData['TeamMemberName'] as String?;
+    final teamName = widget.expenseData['TeamName'] as String?;
+    final linkedEntity = teamMemberName ?? teamName;
+
     return Container(
-      width: 48,
-      height: 48,
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: isSelected
-            ? Border.all(color: Colors.white, width: 2)
-            : Border.all(color: Colors.transparent),
-        image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
+        color: const Color(0xFF141416),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
       ),
-      child: isSelected
-          ? Container(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.5),
-                shape: BoxShape.circle,
+      child: Row(
+        children: [
+          const Icon(Icons.person_outline, color: Colors.white38, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              linkedEntity != null && linkedEntity.isNotEmpty
+                  ? linkedEntity
+                  : 'No member/team linked',
+              style: GoogleFonts.inter(
+                color: linkedEntity != null && linkedEntity.isNotEmpty
+                    ? Colors.white70
+                    : Colors.white24,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
               ),
-              child: const Icon(Icons.check, color: Colors.white, size: 18),
-            )
-          : null,
+            ),
+          ),
+          if (linkedEntity != null && linkedEntity.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                teamMemberName != null ? 'Member' : 'Team',
+                style: GoogleFonts.inter(
+                  color: Colors.white38,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1119,16 +1334,31 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
               ],
             ),
             const SizedBox(height: 12),
+            // Receipt preview: show file-ID confirmation instead of empty box
             Container(
-              height: 150,
+              height: 60,
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Center(
-                child: Text(
-                  "Receipt preview",
-                  style: TextStyle(color: Colors.white38, fontSize: 12),
+              child: Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.cloud_done_outlined,
+                      color: Color(0xFF30D158),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'File stored in Telegram',
+                      style: GoogleFonts.inter(
+                        color: Colors.white54,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

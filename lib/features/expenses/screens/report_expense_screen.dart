@@ -384,7 +384,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
           'Title': data['Title'] ?? 'Unknown',
           'Category': category,
           'Amount': amount,
-          'BankAccount': bankAccountName,
+          'BankAccount': bankAccountName, // already resolved display name
         });
       }
 
@@ -430,9 +430,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
 
       // Prepare Transactions Table Data
       final List<List<String>> transactionsTableData = filteredData.map((data) {
-        final bankAccountId = data['BankAccount']?.toString() ?? '';
-        final bankAccountDisplay =
-            bankAccountNames[bankAccountId] ?? bankAccountId;
+        // BankAccount is already a resolved display name (e.g. "Chase ****1234")
+        final bankAccountDisplay = data['BankAccount']?.toString() ?? 'Not specified';
 
         return [
           _formatDate(data['Date']),
@@ -652,6 +651,43 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
     }
   }
 
+  // Builds a Firestore stream filtered to the currently selected period
+  // so we don't download every expense document on every rebuild.
+  Stream<QuerySnapshot> _buildExpenseStream(String? uid) {
+    DateTime now = DateTime.now();
+    DateTime startDate;
+    DateTime endDate = now;
+
+    if (_selectedPeriod == 'weekly') {
+      startDate = now.subtract(const Duration(days: 6));
+    } else if (_selectedPeriod == 'monthly') {
+      startDate = now.subtract(const Duration(days: 29));
+    } else if (_selectedPeriod == 'quarterly') {
+      startDate = now.subtract(const Duration(days: 89));
+    } else if (_selectedPeriod == 'yearly') {
+      startDate = now.subtract(const Duration(days: 364));
+    } else if (_selectedPeriod == 'custom' &&
+        _customStartDate != null &&
+        _customEndDate != null) {
+      startDate = _customStartDate!;
+      endDate = _customEndDate!;
+    } else {
+      startDate = now.subtract(const Duration(days: 6));
+    }
+
+    startDate = DateTime(startDate.year, startDate.month, startDate.day);
+    endDate =
+        DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+
+    return FirebaseFirestore.instance
+        .collection('expenses')
+        .where('uid', isEqualTo: uid)
+        .where('Date', isGreaterThanOrEqualTo: startDate)
+        .where('Date', isLessThanOrEqualTo: endDate)
+        .orderBy('Date', descending: true)
+        .snapshots();
+  }
+
   // --- PREMIUM SECTION LABEL HELPER ---
   Widget _buildSectionLabel(String text) {
     return Text(
@@ -682,10 +718,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                   _buildHeader(context),
                   Expanded(
                     child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance
-                          .collection('expenses')
-                          .where('uid', isEqualTo: currentUser?.uid)
-                          .snapshots(),
+                      stream: _buildExpenseStream(currentUser?.uid),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
@@ -1266,7 +1299,55 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
     if (data.isEmpty) return const SizedBox.shrink();
 
     double maxVal = data.reduce(max);
-    if (maxVal == 0) maxVal = 1;
+
+    // Show a clear empty state when there are no expenses for the period
+    if (maxVal == 0) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionLabel(
+            isDailyChart ? 'EXPENSE TREND (LAST 7 DAYS)' : 'EXPENSE TREND',
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            height: 240,
+            decoration: BoxDecoration(
+              color: const Color(0xFF141416),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.bar_chart_outlined,
+                  color: Colors.white.withValues(alpha: 0.15),
+                  size: 48,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No expenses for this period',
+                  style: GoogleFonts.inter(
+                    color: Colors.white38,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Try selecting a different date range or category',
+                  style: GoogleFonts.inter(
+                    color: Colors.white24,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
