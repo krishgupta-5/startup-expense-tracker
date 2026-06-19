@@ -29,9 +29,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   String _selectedOrder = "A-Z"; // Default order
 
   // Refresh state
-  bool _needsRefresh = false;
+  // T-22: _needsRefresh removed — was always false (never set to true).
+  // didChangeAppLifecycleState now calls _refreshData() directly on resume.
   String _userCountryCode = '+1'; // Default to USD
-  // T-20: _isLoadingCountry removed — was always false (dead code)
 
   // Cache for the last sort future to prevent rebuilding on every stream tick
   Future<List<Map<String, dynamic>>>? _sortedTeamsFuture;
@@ -93,10 +93,10 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _needsRefresh) {
-      setState(() {
-        _needsRefresh = false;
-      });
+    // T-22: Previously checked _needsRefresh (always false — dead code).
+    // Now triggers a sort-cache reset whenever the user returns from background.
+    if (state == AppLifecycleState.resumed) {
+      _refreshData();
     }
   }
 

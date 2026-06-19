@@ -35,7 +35,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
   // T-07/T-21: Telegram cache moved to TelegramService (6-hour TTL)
 
   // 2. DATA LISTS
-  late String _selectedTeamId;
+  // T-23: _selectedTeamId removed — always equalled widget.teamId with no UI to
+  // change it. All references now use widget.teamId directly.
 
   final Map<String, String> types = {
     'full_time': 'Full-time',
@@ -62,7 +63,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     _jobTitleController = TextEditingController();
     _costController = TextEditingController();
 
-    _selectedTeamId = widget.teamId;
+    // (T-23: _selectedTeamId assignment removed — use widget.teamId directly)
   }
 
   @override
@@ -154,21 +155,27 @@ class _AddMemberScreenState extends State<AddMemberScreen>
 
       await FirebaseFirestore.instance.collection('members').add({
         "uid": FirebaseAuth.instance.currentUser!.uid,
-        "teamId": _selectedTeamId,
+        "teamId": widget.teamId,
         "fullName": _nameController.text.trim(),
         "email": _emailController.text.trim(),
         "jobTitle": _jobTitleController.text.trim(),
         "joiningDate": _joiningDate,
         "employmentType": _employmentType,
         "monthlyCost": cost,
-        "salary": cost, // Mirror field used by delete/financial calculations
+        // T-15: 'salary' mirrors 'monthlyCost'. Both fields are kept in sync
+        // by adjust_salary_screen._updateSalary(). monthlyCost is the canonical
+        // value used for all financial calculations.
+        "salary": cost,
         "createdAt": FieldValue.serverTimestamp(),
-        "avatarUrl": _telegramFileId ?? "",
+        // T-14: avatarUrl is intentionally left empty when the photo is stored
+        // via Telegram. Use telegramFileId to fetch the resolved HTTPS URL.
+        // (Historically avatarUrl held the raw fileId — now distinct fields.)
+        "avatarUrl": "",
         "telegramFileId": _telegramFileId ?? "",
         "status": "Active",
       });
 
-      debugPrint("Member added successfully with teamId: $_selectedTeamId");
+      debugPrint("Member added successfully with teamId: ${widget.teamId}");
 
       if (mounted) {
         Navigator.pop(context);

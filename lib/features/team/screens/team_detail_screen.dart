@@ -125,7 +125,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
               return Column(
                 children: [
-                  // 1. Header (Now uses real-time data)
+                  // T-18: teamData is the LIVE snapshot (not widget.initialTeamData),
+                  // so EditTeamScreen always receives fresh data after a name/budget change.
                   _buildHeader(context, teamName, teamData),
 
                   // 2. Real-time Content (Stream for Members Data)

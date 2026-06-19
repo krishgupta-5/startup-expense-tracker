@@ -125,6 +125,13 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
       return;
     }
 
+    // T-16: Skip write when the user hasn't changed the salary amount.
+    // Prevents a pointless Firestore write and a spurious salary_history entry.
+    if (newSalary == widget.currentSalary) {
+      _showMinimalToast("No changes detected — salary is already this amount.");
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -175,7 +182,10 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
   @override
   Widget build(BuildContext context) {
     // Format date for display
-    String dateStr = _effectiveDate.difference(DateTime.now()).inDays == 0
+    // T-17: DateUtils.isSameDay compares calendar day correctly regardless
+    // of time-of-day. The old difference().inDays == 0 could return 0 for
+    // dates that differ only by a few minutes spanning midnight.
+    String dateStr = DateUtils.isSameDay(_effectiveDate, DateTime.now())
         ? "Immediately"
         : "${_effectiveDate.day}/${_effectiveDate.month}/${_effectiveDate.year}";
 

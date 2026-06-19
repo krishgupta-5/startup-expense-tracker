@@ -102,33 +102,41 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
       return;
     }
 
-    if (_budgetController.text.trim().isNotEmpty) {
-      final double? budget = double.tryParse(_budgetController.text.trim());
-      if (budget == null || budget < 0) {
-        _showErrorSnackBar("Please enter a valid budget amount.");
-        return;
-      }
+    // T-19: Budget is now required. Without it, team_detail_screen compares
+    // totalCost against 0 and always shows "Over Budget" for a fresh team.
+    if (_budgetController.text.trim().isEmpty) {
+      _showErrorSnackBar("Please enter a monthly budget for this team.");
+      return;
+    }
 
-      if (budget > 999999.99) {
-        _showErrorSnackBar("Budget amount is too high.");
-        return;
-      }
+    final double? budget = double.tryParse(
+      _budgetController.text.trim().replaceAll(',', ''),
+    );
+    if (budget == null || budget <= 0) {
+      _showErrorSnackBar("Please enter a valid budget amount greater than 0.");
+      return;
+    }
+
+    if (budget > 999999.99) {
+      _showErrorSnackBar("Budget amount is too high.");
+      return;
     }
 
     setState(() => _isLoading = true);
 
     try {
       final id = const Uuid().v4();
-      final double budget = _budgetController.text.trim().isEmpty
-          ? 0.0
-          : double.tryParse(_budgetController.text.trim())!;
+      // budget is guaranteed non-null and > 0 by the validation above
+      final double validBudget = double.parse(
+        _budgetController.text.trim().replaceAll(',', ''),
+      );
 
       // Storing to a new 'teams' collection
       await FirebaseFirestore.instance.collection('teams').doc(id).set({
         "uid": FirebaseAuth.instance.currentUser!.uid,
         "teamName": _nameController.text.trim(),
         "description": _descController.text.trim(),
-        "monthlyBudget": budget,
+        "monthlyBudget": validBudget,
         "color": _selectedColor,
         // Save icon data safely so we can rebuild it later
         "iconCodePoint": _selectedIcon.codePoint,
@@ -288,10 +296,10 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
 
                       const SizedBox(height: 32),
 
-                      // Budget
+                      // Budget (required — T-19)
                       _buildTextInput(
-                        "MONTHLY BUDGET",
-                        "0.00",
+                        "MONTHLY BUDGET *",
+                        "e.g. 5000",
                         _budgetController,
                         maxLines: 1,
                         isNumber: true,
