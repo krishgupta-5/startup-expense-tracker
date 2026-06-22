@@ -1,6 +1,0 @@
-Update AI analysis, team management, and UI screens
-
-- **AI Enhancements**: Refactored system prompts and response structures in `main.py` for `/analyze-statement`. Cleaned up debug prints and optimized layout in `ai_screen.dart`.
-- **Team Management**: Introduced `team_expense_history_screen.dart` to track team expenses. Enhanced team detail screens (`team_detail_screen.dart`, `member_detail_screen.dart`) with new empty states, `tabularFigures` for numerical alignment, and improved bottom sheet action menus.
-- **UI & Experience Polishing**: Replaced scattered text styles with consistent `GoogleFonts.inter` usage across settings and expense screens. Implemented `shimmer` loading effects for image fetching and processing states. Improved scroll constraints in `runway_estimation_screen.dart`.
-- **Dependencies**: Added `shimmer: ^3.0.0` to `pubspec.yaml` to handle loading placeholders.
