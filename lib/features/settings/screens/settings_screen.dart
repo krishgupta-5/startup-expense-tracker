@@ -764,7 +764,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
               ),
-              if (trailing != null) trailing,
+              ?trailing,
               if (trailing == null)
                 const Icon(
                   Icons.chevron_right,

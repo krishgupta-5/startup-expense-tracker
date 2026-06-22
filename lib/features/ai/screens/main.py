@@ -113,6 +113,36 @@ def generate_ai_section(data: dict):
                     .to_dict()
                 )
 
+            if "TeamName" in expense_df.columns:
+                metrics["team_breakdown"] = (
+                    expense_df[expense_df["TeamName"] != "general"]
+                    .groupby("TeamName")["Amount"]
+                    .sum()
+                    .to_dict()
+                )
+
+            if "TeamMemberName" in expense_df.columns:
+                metrics["member_breakdown"] = (
+                    expense_df[expense_df["TeamMemberName"] != "none"]
+                    .groupby("TeamMemberName")["Amount"]
+                    .sum()
+                    .to_dict()
+                )
+
+            if "ExpenseType" in expense_df.columns:
+                metrics["expense_type_breakdown"] = (
+                    expense_df.groupby("ExpenseType")["Amount"]
+                    .sum()
+                    .to_dict()
+                )
+
+            if "PaymentMethod" in expense_df.columns:
+                metrics["payment_method_breakdown"] = (
+                    expense_df.groupby("PaymentMethod")["Amount"]
+                    .sum()
+                    .to_dict()
+                )
+
     # ---------------------------
     # REVENUE CALCULATIONS
     # ---------------------------
@@ -178,24 +208,32 @@ def generate_ai_section(data: dict):
     # ---------------------------
     # LLM PROMPT
     # ---------------------------
-    prompt = f"""
-You are an AI CFO advisor for startups.
-
-Section:
-{section_name}
-
-Calculated Business Metrics:
-{metrics}
-
-Give:
-
+    
+    if section_name.lower() == "main":
+        prompt_instruction = """Give:
 1. Main financial insight
 2. Risk explanation
 3. Cost optimization suggestion
 4. Growth recommendation
 5. Future warning
 
-Keep it concise and actionable.
+Keep it concise and actionable."""
+    else:
+        prompt_instruction = f"""Provide a highly targeted and deep analysis focused STRICTLY on '{section_name}'. 
+Do not provide a generic overview. 
+Use bullet points and bold text to highlight key takeaways, risks, and optimization recommendations.
+Keep it concise, actionable, and formatted in Markdown."""
+
+    prompt = f"""
+You are an AI CFO advisor for startups.
+
+Section to Analyze:
+{section_name}
+
+Calculated Business Metrics:
+{metrics}
+
+{prompt_instruction}
 """
 
     result = call_llm(prompt)

@@ -619,11 +619,13 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         "Category": expenseData['Category'] ?? 'general',
         "Type": expenseData['Type'] ?? 'one_time',
         "Time": FieldValue.serverTimestamp(),
-        if (expenseType != null) "ExpenseType": expenseType,
-        if (teamId != null) "TeamId": teamId,
+        "ExpenseType": expenseType,
+        "TeamId": teamId,
         if (expenseData['TeamName'] != null) "TeamName": expenseData['TeamName'],
-        if (teamMemberId != null) "TeamMemberId": teamMemberId,
+        "TeamMemberId": teamMemberId,
         if (expenseData['TeamMemberName'] != null) "TeamMemberName": expenseData['TeamMemberName'],
+        if (expenseData['BankAccount'] != null) "BankAccount": expenseData['BankAccount'],
+        if (expenseData['memberId'] != null) "memberId": expenseData['memberId'],
       });
 
       // Update totalExpenses atomically

@@ -124,31 +124,32 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
   Future<void> _downloadReport(String reportType) async {
     setState(() => _isDownloading = true);
 
-    // Use currency service for PDF formatting with fallback for unsupported symbols
+    // PDF-safe currency formatter: Unicode symbols may not render in the
+    // default PDF font, so we use ASCII-safe fallbacks for ALL currencies.
     String getPdfCurrencySymbol(double amount) {
       final userCurrencyCode =
           CurrencyPreferenceService.getCurrencyPreferenceSync();
-      final formattedAmount = CurrencyFormatter.formatByCountry(
-        amount,
-        userCurrencyCode,
-      );
 
-      // Handle currency symbols that might not render properly in PDF
       switch (userCurrencyCode) {
-        case '+91': // INR - ₹ might not render in PDF
+        case '+1': // USD
+          return '\$${amount.toStringAsFixed(2)}';
+        case '+91': // INR - ₹ doesn't render in PDF
           return 'Rs.${amount.toStringAsFixed(2)}';
-        case '+971': // AED - د.إ might not render in PDF
-          return 'AED ${amount.toStringAsFixed(2)}';
-        case '+49': // EUR - € might not render in PDF
-        case '+33': // EUR - € might not render in PDF
-          return 'EUR ${amount.toStringAsFixed(2)}';
-        case '+81': // JPY - ¥ might not render in PDF
+        case '+44': // GBP - £ may not render in PDF
+          return 'GBP ${amount.toStringAsFixed(2)}';
+        case '+61': // AUD
+          return 'A\$${amount.toStringAsFixed(2)}';
+        case '+81': // JPY - ¥ doesn't render in PDF
           return 'JPY ${amount.toStringAsFixed(0)}';
-        case '+65': // SGD - S$ might not render in PDF
-          return 'SGD ${amount.toStringAsFixed(2)}';
+        case '+49': // EUR (Germany) - € doesn't render in PDF
+        case '+33': // EUR (France)
+          return 'EUR ${amount.toStringAsFixed(2)}';
+        case '+971': // AED - د.إ doesn't render in PDF
+          return 'AED ${amount.toStringAsFixed(2)}';
+        case '+65': // SGD
+          return 'S\$${amount.toStringAsFixed(2)}';
         default:
-          // For USD, GBP, AUD - symbols usually work fine in PDF
-          return formattedAmount;
+          return '\$${amount.toStringAsFixed(2)}';
       }
     }
 
@@ -208,31 +209,104 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
       final pdf = pw.Document();
       double totalAmount = 0;
 
-      // Map Firestore data to PDF table rows
-      final List<List<String>> tableData = expenses
-          .map((doc) {
-            final data = doc.data(); // Standard dynamic map
-            final amount = double.tryParse(data['Amount'].toString()) ?? 0.0;
-            final isFunding = data['isFunding'] == true;
-            if (!isFunding) {
-              totalAmount += amount;
-            }
+      // Helper to build a single table cell
+      pw.Widget buildCell(
+        String text, {
+        pw.Alignment alignment = pw.Alignment.centerLeft,
+        PdfColor? textColor,
+        pw.FontWeight fontWeight = pw.FontWeight.normal,
+      }) {
+        return pw.Container(
+          height: 30,
+          alignment: alignment,
+          padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: pw.Text(
+            text,
+            style: pw.TextStyle(
+              fontSize: 10,
+              color: textColor ?? PdfColors.black,
+              fontWeight: fontWeight,
+            ),
+          ),
+        );
+      }
 
-            final date = (data['Date'] as Timestamp).toDate();
-            final dateStr = "${date.day}/${date.month}/${date.year}";
+      // Build table rows with per-row green for funding
+      final List<pw.TableRow> tableRows = [
+        // Header row
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+          children: [
+            'Date', 'Title', 'Category', 'Account', 'Amount',
+          ].asMap().entries.map((entry) {
+            return buildCell(
+              entry.value,
+              alignment: entry.key == 4
+                  ? pw.Alignment.centerRight
+                  : pw.Alignment.centerLeft,
+              textColor: PdfColors.white,
+              fontWeight: pw.FontWeight.bold,
+            );
+          }).toList(),
+        ),
+        // Data rows
+        ...expenses.map((doc) {
+          final data = doc.data();
+          final amount = double.tryParse(data['Amount'].toString()) ?? 0.0;
+          final category = data['Category']?.toString().toLowerCase() ?? '';
+          final isFunding = data['isFunding'] == true || category == 'funding';
+          if (!isFunding) {
+            totalAmount += amount;
+          }
 
-            final amountStr = getPdfCurrencySymbol(amount);
+          final date = (data['Date'] as Timestamp).toDate();
+          final dateStr = "${date.day}/${date.month}/${date.year}";
+          final amountStr = getPdfCurrencySymbol(amount);
+          final displayAmount = isFunding ? '+$amountStr' : amountStr;
+          final rowColor = isFunding
+              ? const PdfColor(0.16, 0.55, 0.25) // green700
+              : PdfColors.black;
 
-            return [
-              dateStr,
-              data['Title']?.toString() ?? 'Unknown',
-              data['Category']?.toString().toUpperCase() ?? 'N/A',
-              _getBankAccountDisplay(data), // Using the new helper!
-              isFunding ? '+$amountStr' : amountStr,
-            ];
-          })
-          .cast<List<String>>()
-          .toList();
+          return pw.TableRow(
+            decoration: pw.BoxDecoration(
+              color: isFunding
+                  ? const PdfColor(0.91, 0.98, 0.92) // light green tint
+                  : null,
+              border: const pw.Border(
+                bottom: pw.BorderSide(
+                  color: PdfColors.grey300,
+                  width: 0.5,
+                ),
+              ),
+            ),
+            children: [
+              buildCell(dateStr, textColor: rowColor),
+              buildCell(
+                data['Title']?.toString() ?? 'Unknown',
+                textColor: rowColor,
+              ),
+              buildCell(
+                data['Category']?.toString().toUpperCase() ?? 'N/A',
+                textColor: rowColor,
+              ),
+              buildCell(
+                _getBankAccountDisplay(data),
+                textColor: rowColor,
+              ),
+              buildCell(
+                displayAmount,
+                alignment: pw.Alignment.centerRight,
+                textColor: isFunding
+                    ? const PdfColor(0.13, 0.55, 0.13) // green
+                    : PdfColors.black,
+                fontWeight: isFunding
+                    ? pw.FontWeight.bold
+                    : pw.FontWeight.normal,
+              ),
+            ],
+          );
+        }),
+      ];
 
       pdf.addPage(
         pw.MultiPage(
@@ -265,31 +339,16 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
               ),
               pw.SizedBox(height: 20),
 
-              // PDF Table
-              pw.TableHelper.fromTextArray(
-                headers: ['Date', 'Title', 'Category', 'Account', 'Amount'],
-                data: tableData,
-                border: null,
-                headerStyle: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.white,
-                ),
-                headerDecoration: const pw.BoxDecoration(
-                  color: PdfColors.blueGrey800,
-                ),
-                cellHeight: 30,
-                cellAlignments: {
-                  0: pw.Alignment.centerLeft,
-                  1: pw.Alignment.centerLeft,
-                  2: pw.Alignment.centerLeft,
-                  3: pw.Alignment.centerLeft,
-                  4: pw.Alignment.centerRight,
+              // PDF Table with per-row funding colors
+              pw.Table(
+                columnWidths: {
+                  0: const pw.FixedColumnWidth(70),
+                  1: const pw.FlexColumnWidth(2.5),
+                  2: const pw.FixedColumnWidth(80),
+                  3: const pw.FlexColumnWidth(2),
+                  4: const pw.FixedColumnWidth(100),
                 },
-                rowDecoration: const pw.BoxDecoration(
-                  border: pw.Border(
-                    bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
-                  ),
-                ),
+                children: tableRows,
               ),
               pw.SizedBox(height: 20),
 

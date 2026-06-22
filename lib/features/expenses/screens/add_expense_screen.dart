@@ -16,6 +16,7 @@ import '../../../services/currency_formatter.dart';
 import '../../../services/bank_account_service.dart';
 import '../../../services/team_member_service.dart';
 import '../../../widgets/avatar_widget.dart';
+import '../../../shared/widgets/error_popup.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   // ✅ Accept prefill data from scan screen
@@ -168,45 +169,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     super.dispose();
   }
 
-  // --- UNIFIED MINIMAL TOAST ---
-  void _showMinimalToast(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              isError ? Icons.error_outline : Icons.check_circle_outline,
-              color: isError
-                  ? const Color(0xFFFF453A)
-                  : const Color(0xFF30D158),
-              size: 18,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF141416),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(24),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-        ),
-        duration: const Duration(seconds: 3),
-        elevation: 0,
-      ),
-    );
-  }
+
 
   Future<void> _fetchBankAccounts() async {
     try {
@@ -298,50 +261,180 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
+  // --- Budget Exceeded Confirmation Dialog ---
+  Future<bool> _showBudgetExceededDialog({
+    required String title,
+    required String message,
+    required String details,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF9F0A).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: Color(0xFFFF9F0A),
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              message,
+              style: GoogleFonts.inter(
+                color: Colors.white70,
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF453A).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFFFF453A).withValues(alpha: 0.2),
+                ),
+              ),
+              child: Text(
+                details,
+                style: GoogleFonts.inter(
+                  color: const Color(0xFFFF453A),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              "Cancel",
+              style: GoogleFonts.inter(
+                color: Colors.white54,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF9F0A),
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            child: Text(
+              "Add Anyway",
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   Future<void> _uploadExpense() async {
     FocusScope.of(context).unfocus(); // Dismiss keyboard
 
     if (_amountController.text.trim().isEmpty) {
-      _showMinimalToast("Please enter an amount.", isError: true);
+      ErrorPopup.showValidation(
+        context: context,
+        message: "Please enter an amount.",
+      );
       return;
     }
     final double? amount = double.tryParse(_amountController.text.trim());
     if (amount == null || amount <= 0) {
-      _showMinimalToast(
-        "Please enter a valid amount greater than 0.",
-        isError: true,
+      ErrorPopup.showValidation(
+        context: context,
+        message: "Please enter a valid amount greater than 0.",
       );
       return;
     }
     if (_titleController.text.trim().isEmpty) {
-      _showMinimalToast("Please enter a title.", isError: true);
+      ErrorPopup.showValidation(
+        context: context,
+        message: "Please enter a title.",
+      );
       return;
     }
     if (_titleController.text.trim().length < 3) {
-      _showMinimalToast(
-        "Title must be at least 3 characters long.",
-        isError: true,
+      ErrorPopup.showValidation(
+        context: context,
+        message: "Title must be at least 3 characters long.",
       );
       return;
     }
     if (_titleController.text.trim().length > 50) {
-      _showMinimalToast("Title must not exceed 50 characters.", isError: true);
+      ErrorPopup.showValidation(
+        context: context,
+        message: "Title must not exceed 50 characters.",
+      );
       return;
     }
     if (_descriptionController.text.trim().isNotEmpty &&
         _descriptionController.text.trim().length > 500) {
-      _showMinimalToast(
-        "Description must not exceed 500 characters.",
-        isError: true,
+      ErrorPopup.showValidation(
+        context: context,
+        message: "Description must not exceed 500 characters.",
       );
       return;
     }
     if (_selectedDate.isAfter(DateTime.now())) {
-      _showMinimalToast("Date cannot be in the future.", isError: true);
+      ErrorPopup.showValidation(
+        context: context,
+        message: "Date cannot be in the future.",
+      );
       return;
     }
     if (_selectedBankAccount == null) {
-      _showMinimalToast("Please select a bank account or cash.", isError: true);
+      ErrorPopup.showValidation(
+        context: context,
+        message: "Please select a bank account or cash.",
+      );
       return;
     }
 
@@ -350,7 +443,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        _showMinimalToast('User not logged in', isError: true);
+        ErrorPopup.showAuth(
+          context: context,
+          message: 'User not logged in',
+        );
         return;
       }
 
@@ -361,11 +457,60 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           .get();
       final companyId = userDoc.data()?['companyId'] as String?;
       if (companyId == null) {
-        _showMinimalToast('Company not found', isError: true);
+        ErrorPopup.showError(
+          context: context,
+          message: 'Company not found',
+          title: "System Error",
+        );
         return;
       }
 
-      // Member salary validation (must happen before we write anything)
+      final currencyCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+
+      // --- Team budget validation (warn but don't block) ---
+      // Compare Total Monthly Cost (sum of member salaries) + this expense
+      // against the team's monthlyBudget.
+      if (_expenseType == 'team' && _selectedTeam != null) {
+        final teamDoc = await FirebaseFirestore.instance
+            .collection('teams')
+            .doc(_selectedTeam!.id)
+            .get();
+        if (teamDoc.exists) {
+          final tData = teamDoc.data() as Map<String, dynamic>;
+          final monthlyBudget =
+              (tData['monthlyBudget'] as num?)?.toDouble() ?? 0.0;
+
+          // Calculate Total Monthly Cost from all team members
+          final membersSnapshot = await FirebaseFirestore.instance
+              .collection('members')
+              .where('teamId', isEqualTo: _selectedTeam!.id)
+              .get();
+          double totalMonthlyCost = 0.0;
+          for (var doc in membersSnapshot.docs) {
+            final mData = doc.data();
+            totalMonthlyCost +=
+                (mData['monthlyCost'] as num?)?.toDouble() ?? 0.0;
+          }
+
+          final remaining = monthlyBudget - totalMonthlyCost;
+
+          if (monthlyBudget > 0 && totalMonthlyCost + amount > monthlyBudget) {
+            ErrorPopup.show(
+              context: context,
+              title: "Exceeds Team Budget",
+              message:
+                  "This expense exceeds the monthly budget for ${_selectedTeam!.teamName}.\n\n"
+                  "Monthly Budget: ${CurrencyFormatter.formatByCountry(monthlyBudget, currencyCode)}\n"
+                  "Total Monthly Cost: ${CurrencyFormatter.formatByCountry(totalMonthlyCost, currencyCode)}\n"
+                  "This expense: ${CurrencyFormatter.formatByCountry(amount, currencyCode)}",
+              type: ErrorType.warning,
+            );
+          }
+        }
+      }
+
+      // --- Member salary validation (warn but don't block) ---
+      // Compare expense against the member's monthlyCost (salary).
       if (_expenseType == 'member' && _selectedTeamMember != null) {
         final memberDoc = await FirebaseFirestore.instance
             .collection('members')
@@ -373,15 +518,19 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             .get();
         if (memberDoc.exists) {
           final mData = memberDoc.data() as Map<String, dynamic>;
-          final salary = (mData['salary'] as num?)?.toDouble() ?? 0.0;
-          final usedExpenses =
-              (mData['totalExpenses'] as num?)?.toDouble() ?? 0.0;
-          if (usedExpenses + amount > salary) {
-            _showMinimalToast(
-              'Expense amount exceeds remaining salary for ${_selectedTeamMember!.fullName}',
-              isError: true,
+          final monthlyCost =
+              (mData['monthlyCost'] as num?)?.toDouble() ?? 0.0;
+
+          if (monthlyCost > 0 && amount > monthlyCost) {
+            ErrorPopup.show(
+              context: context,
+              title: "Exceeds Member Salary",
+              message:
+                  "This expense exceeds ${_selectedTeamMember!.fullName}'s monthly salary.\n\n"
+                  "Monthly Salary: ${CurrencyFormatter.formatByCountry(monthlyCost, currencyCode)}\n"
+                  "This expense: ${CurrencyFormatter.formatByCountry(amount, currencyCode)}",
+              type: ErrorType.warning,
             );
-            return;
           }
         }
       }
@@ -399,15 +548,20 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         'Title': _titleController.text.trim(),
         'Description': _descriptionController.text.trim(),
         'Date': _selectedDate,
-        'Category': _selectedCategory,
+        'Category': _expenseType == 'member' ? 'salary' : _selectedCategory,
         'Type': _selectedType,
         'BankAccount': _selectedBankAccount,
         'AttachmentFileId': _attachmentFileId ?? '',
         'ExpenseType': _expenseType,
-        'TeamId': _selectedTeam?.id,
+        'TeamId': _expenseType == 'member'
+            ? _selectedTeamMember?.teamId
+            : _selectedTeam?.id,
         'TeamName': _selectedTeam?.teamName,
         'TeamMemberId': _selectedTeamMember?.id,
         'TeamMemberName': _selectedTeamMember?.fullName,
+        // Add memberId so member expenses show in payment history
+        if (_expenseType == 'member' && _selectedTeamMember != null)
+          'memberId': _selectedTeamMember!.id,
         'Time': FieldValue.serverTimestamp(),
       });
 
@@ -417,20 +571,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       batch.update(companyRef, {
         'totalExpenses': FieldValue.increment(amount),
       });
-
-      // 3. Increment team usedBudget or member salary atomically
+      // 3. If team expense, add to team's tracked expenses
+      //    (does NOT affect member salary cycles)
       if (_expenseType == 'team' && _selectedTeam != null) {
         final teamRef = FirebaseFirestore.instance
             .collection('teams')
             .doc(_selectedTeam!.id);
-        batch.update(teamRef, {'usedBudget': FieldValue.increment(amount)});
-      } else if (_expenseType == 'member' && _selectedTeamMember != null) {
-        final memberRef = FirebaseFirestore.instance
-            .collection('members')
-            .doc(_selectedTeamMember!.id);
-        batch.update(memberRef, {
-          'totalExpenses': FieldValue.increment(amount),
-          'remainingSalary': FieldValue.increment(-amount),
+        batch.update(teamRef, {
+          'teamExpenses': FieldValue.increment(amount),
         });
       }
 
@@ -439,9 +587,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       if (mounted) Navigator.pop(context);
     } on FirebaseException catch (e) {
       if (mounted) {
-        _showMinimalToast(
-          e.message ?? 'Failed to upload expense',
-          isError: true,
+        ErrorPopup.showError(
+          context: context,
+          message: e.message ?? 'Failed to upload expense',
+          title: "Database Error",
         );
       }
     } finally {
@@ -1568,7 +1717,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     } catch (e) {
       debugPrint("File pick error: $e");
       if (mounted) {
-        _showMinimalToast("Could not open file picker.", isError: true);
+        ErrorPopup.showError(
+          context: context,
+          title: "File Picker Error",
+          message: "Could not open file picker.",
+        );
       }
     }
   }
@@ -1679,7 +1832,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         _attachmentFileId = fileId;
       });
 
-      _showMinimalToast("File uploaded successfully!");
+      ErrorPopup.showSuccess(
+        context: context,
+        message: "File uploaded successfully!",
+      );
     } catch (e) {
       debugPrint('Error uploading file: $e');
       setState(() {
@@ -1689,7 +1845,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       });
 
       if (mounted) {
-        _showMinimalToast("Failed to upload file: $e", isError: true);
+        ErrorPopup.showError(
+          context: context,
+          title: "Upload Failed",
+          message: "Failed to upload file: $e",
+        );
       }
     }
   }

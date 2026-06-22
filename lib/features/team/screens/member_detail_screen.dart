@@ -232,6 +232,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                     joinedDateObj,
                                     status,
                                     name,
+                                    teamId,
                                     teamName,
                                   ),
                                 ],
@@ -558,6 +559,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     DateTime joinedDate,
     String status,
     String memberName,
+    String teamId,
     String teamName,
   ) {
     bool isPaused = status == "Paused";
@@ -721,6 +723,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                       builder: (context) => ProcessPaymentScreen(
                         memberId: widget.memberId,
                         memberName: memberName,
+                        teamId: teamId,
                         teamName: teamName,
                         defaultAmount: cost,
                         isAdvance: isAdvance,

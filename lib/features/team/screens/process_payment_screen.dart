@@ -13,6 +13,7 @@ import '../../../services/currency_preference_service.dart';
 class ProcessPaymentScreen extends StatefulWidget {
   final String memberId;
   final String memberName;
+  final String teamId;
   final String teamName;
   final double defaultAmount;
   final bool isAdvance;
@@ -21,6 +22,7 @@ class ProcessPaymentScreen extends StatefulWidget {
     super.key,
     required this.memberId,
     required this.memberName,
+    required this.teamId,
     required this.teamName,
     required this.defaultAmount,
     required this.isAdvance,
@@ -151,6 +153,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
         "Amount": amount,
         "Title": expenseTitle,
         "Description": expenseDesc,
+        "TeamId": widget.teamId,
         "TeamName": widget.teamName,
         "Date": DateTime.now(),
         "Category": "salary",

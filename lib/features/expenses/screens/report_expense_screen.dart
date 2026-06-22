@@ -268,6 +268,70 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
 
     setState(() => _isDownloading = true);
 
+    // PDF-safe currency formatter: Unicode symbols may not render in the
+    // default PDF font, so we use ASCII-safe fallbacks for ALL currencies.
+    String getPdfCurrencySymbol(double amount) {
+      final userCurrencyCode =
+          CurrencyPreferenceService.getCurrencyPreferenceSync();
+
+      switch (userCurrencyCode) {
+        case '+1': // USD
+          return '\$${amount.toStringAsFixed(2)}';
+        case '+91': // INR - ₹ doesn't render in PDF
+          return 'Rs.${amount.toStringAsFixed(2)}';
+        case '+44': // GBP - £ may not render in PDF
+          return 'GBP ${amount.toStringAsFixed(2)}';
+        case '+61': // AUD
+          return 'A\$${amount.toStringAsFixed(2)}';
+        case '+81': // JPY - ¥ doesn't render in PDF
+          return 'JPY ${amount.toStringAsFixed(0)}';
+        case '+49': // EUR (Germany) - € doesn't render in PDF
+        case '+33': // EUR (France)
+          return 'EUR ${amount.toStringAsFixed(2)}';
+        case '+971': // AED - د.إ doesn't render in PDF
+          return 'AED ${amount.toStringAsFixed(2)}';
+        case '+65': // SGD
+          return 'S\$${amount.toStringAsFixed(2)}';
+        default:
+          return '\$${amount.toStringAsFixed(2)}';
+      }
+    }
+
+    // Resolve bank account display name from raw Firestore value.
+    // Handles both stable-ID lookups and legacy "BankName-Last4" format.
+    String resolveBankAccountDisplay(
+      String rawValue,
+      Map<String, String> idToName,
+    ) {
+      if (rawValue.isEmpty) return 'Not specified';
+
+      // 1. Try stable ID lookup first
+      if (idToName.containsKey(rawValue)) {
+        return idToName[rawValue]!;
+      }
+
+      // 2. Handle Cash special values
+      if (rawValue == 'Cash-' || rawValue == 'Cash') {
+        return 'Cash';
+      }
+
+      // 3. Parse legacy "BankName-Last4" format
+      if (rawValue.contains('-')) {
+        final parts = rawValue.split('-');
+        if (parts.length >= 2) {
+          final bankName = parts.sublist(0, parts.length - 1).join('-');
+          final rawLast4 = parts.last;
+          final last4 = rawLast4.isNotEmpty
+              ? BankAccountService.extractLast4(rawLast4)
+              : '';
+          return last4.isNotEmpty ? '$bankName ****$last4' : bankName;
+        }
+      }
+
+      // 4. Return as-is (cleaned for PDF safety)
+      return rawValue.replaceAll(RegExp(r'[^\w\s\-\.\*]'), '');
+    }
+
     try {
       DateTime now = DateTime.now();
       DateTime startDate;
@@ -355,19 +419,22 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
         }
 
         final amount = DataHelpers.safeParseDouble(data['Amount']);
+        final isFunding = data['isFunding'] == true || category == 'funding';
 
         DateTime docDate = (data['Date'] as Timestamp).toDate();
 
-        // Add to Totals
-        totalAmount += amount;
-        categoryBreakdown[category] =
-            (categoryBreakdown[category] ?? 0.0) + amount;
+        // Only count expenses (not funding) in totals
+        if (!isFunding) {
+          totalAmount += amount;
+          categoryBreakdown[category] =
+              (categoryBreakdown[category] ?? 0.0) + amount;
+        }
 
         // Add to Trend
         String trendKey = isDailyChart
             ? _formatShortDate(docDate)
             : _formatMonthYear(docDate);
-        if (trendData.containsKey(trendKey)) {
+        if (!isFunding && trendData.containsKey(trendKey)) {
           trendData[trendKey] = trendData[trendKey]! + amount;
         }
 
@@ -376,15 +443,18 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             data['bankAccount']?.toString() ??
             data['BankAccount']?.toString() ??
             '';
-        final bankAccountName =
-            bankAccountNames[bankAccountId] ?? 'Not specified';
+        final bankAccountName = resolveBankAccountDisplay(
+          bankAccountId,
+          bankAccountNames,
+        );
 
         filteredData.add({
           'Date': docDate,
           'Title': data['Title'] ?? 'Unknown',
           'Category': category,
           'Amount': amount,
-          'BankAccount': bankAccountName, // already resolved display name
+          'BankAccount': bankAccountName,
+          'isFunding': isFunding,
         });
       }
 
@@ -412,7 +482,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
         String displayCat = e.key.isEmpty ? "OTHER" : e.key.toUpperCase();
         return [
           displayCat,
-          "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ${e.value.toStringAsFixed(2)}",
+          getPdfCurrencySymbol(e.value),
           "${(pct * 100).toStringAsFixed(1)}%",
         ];
       }).toList();
@@ -423,24 +493,103 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
           .map(
             (e) => [
               e.key,
-              "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ${e.value.toStringAsFixed(2)}",
+              getPdfCurrencySymbol(e.value),
             ],
           )
           .toList();
 
-      // Prepare Transactions Table Data
-      final List<List<String>> transactionsTableData = filteredData.map((data) {
-        // BankAccount is already a resolved display name (e.g. "Chase ****1234")
-        final bankAccountDisplay = data['BankAccount']?.toString() ?? 'Not specified';
+      // Build transactions table manually for per-row funding color support
+      // Column widths: Date, Title, Category, Bank Account, Amount
+      final List<double> colWidths = [70, 130, 80, 120, 130];
+      final double tableWidth = colWidths.reduce((a, b) => a + b);
 
-        return [
-          _formatDate(data['Date']),
-          data['Title'].toString(),
-          data['Category'].toString().toUpperCase(),
-          bankAccountDisplay,
-          "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ${DataHelpers.safeParseDouble(data['Amount']).toStringAsFixed(2)}",
-        ];
-      }).toList();
+      // Helper to build a single table cell
+      pw.Widget buildCell(
+        String text, {
+        pw.Alignment alignment = pw.Alignment.centerLeft,
+        PdfColor? textColor,
+        pw.FontWeight fontWeight = pw.FontWeight.normal,
+      }) {
+        return pw.Container(
+          height: 30,
+          alignment: alignment,
+          padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: pw.Text(
+            text,
+            style: pw.TextStyle(
+              fontSize: 10,
+              color: textColor ?? PdfColors.black,
+              fontWeight: fontWeight,
+            ),
+          ),
+        );
+      }
+
+      // Build transaction rows with per-row green for funding
+      final List<pw.TableRow> transactionRows = [
+        // Header row
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+          children: [
+            'Date', 'Title', 'Category', 'Bank Account', 'Amount',
+          ].asMap().entries.map((entry) {
+            return buildCell(
+              entry.value,
+              alignment: entry.key == 4
+                  ? pw.Alignment.centerRight
+                  : pw.Alignment.centerLeft,
+              textColor: PdfColors.white,
+              fontWeight: pw.FontWeight.bold,
+            );
+          }).toList(),
+        ),
+        // Data rows
+        ...filteredData.map((data) {
+          final isFunding = data['isFunding'] == true ||
+              (data['Category']?.toString().toLowerCase() == 'funding');
+          final amount = DataHelpers.safeParseDouble(data['Amount']);
+          final amountStr = getPdfCurrencySymbol(amount);
+          final displayAmount = isFunding ? '+$amountStr' : amountStr;
+          final bankAccountDisplay =
+              data['BankAccount']?.toString() ?? 'Not specified';
+          final rowColor = isFunding
+              ? const PdfColor(0.16, 0.55, 0.25) // green700
+              : PdfColors.black;
+
+          return pw.TableRow(
+            decoration: pw.BoxDecoration(
+              color: isFunding
+                  ? const PdfColor(0.91, 0.98, 0.92) // light green tint
+                  : null,
+              border: const pw.Border(
+                bottom: pw.BorderSide(
+                  color: PdfColors.grey300,
+                  width: 0.5,
+                ),
+              ),
+            ),
+            children: [
+              buildCell(_formatDate(data['Date']), textColor: rowColor),
+              buildCell(data['Title'].toString(), textColor: rowColor),
+              buildCell(
+                data['Category'].toString().toUpperCase(),
+                textColor: rowColor,
+              ),
+              buildCell(bankAccountDisplay, textColor: rowColor),
+              buildCell(
+                displayAmount,
+                alignment: pw.Alignment.centerRight,
+                textColor: isFunding
+                    ? const PdfColor(0.13, 0.55, 0.13) // green
+                    : PdfColors.black,
+                fontWeight: isFunding
+                    ? pw.FontWeight.bold
+                    : pw.FontWeight.normal,
+              ),
+            ],
+          );
+        }),
+      ];
 
       pdf.addPage(
         pw.MultiPage(
@@ -499,7 +648,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                         ),
                         pw.SizedBox(height: 4),
                         pw.Text(
-                          "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ${totalAmount.toStringAsFixed(2)}",
+                          getPdfCurrencySymbol(totalAmount),
                           style: pw.TextStyle(
                             fontSize: 18,
                             fontWeight: pw.FontWeight.bold,
@@ -525,7 +674,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                         ),
                         pw.SizedBox(height: 4),
                         pw.Text(
-                          "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ${averageDaily.toStringAsFixed(2)}",
+                          getPdfCurrencySymbol(averageDaily),
                           style: pw.TextStyle(
                             fontSize: 18,
                             fontWeight: pw.FontWeight.bold,
@@ -608,30 +757,15 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                 ),
               ),
               pw.SizedBox(height: 10),
-              pw.TableHelper.fromTextArray(
-                headers: [
-                  'Date',
-                  'Title',
-                  'Category',
-                  'Bank Account',
-                  'Amount',
-                ],
-                data: transactionsTableData,
-                headerStyle: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.white,
-                ),
-                headerDecoration: const pw.BoxDecoration(
-                  color: PdfColors.blueGrey800,
-                ),
-                cellHeight: 30,
-                cellAlignments: {
-                  0: pw.Alignment.centerLeft,
-                  1: pw.Alignment.centerLeft,
-                  2: pw.Alignment.centerLeft,
-                  3: pw.Alignment.centerLeft,
-                  4: pw.Alignment.centerRight,
+              pw.Table(
+                columnWidths: {
+                  0: const pw.FixedColumnWidth(70),
+                  1: const pw.FlexColumnWidth(2.5),
+                  2: const pw.FixedColumnWidth(80),
+                  3: const pw.FlexColumnWidth(2),
+                  4: const pw.FixedColumnWidth(100),
                 },
+                children: transactionRows,
               ),
             ];
           },

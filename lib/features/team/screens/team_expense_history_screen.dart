@@ -7,30 +7,29 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-import 'transaction_details_screen.dart'; // Make sure to import the new screen
+import 'transaction_details_screen.dart';
 import '../../../../services/currency_formatter.dart';
 import '../../../../services/currency_preference_service.dart';
 import '../../../../services/bank_account_service.dart';
 
-class PaymentHistoryScreen extends StatefulWidget {
-  final DateTime joiningDate;
-  final double salary;
-  final String memberName;
-  final String memberId;
+class TeamExpenseHistoryScreen extends StatefulWidget {
+  final String teamId;
+  final String teamName;
+  final double? monthlyBudget;
 
-  const PaymentHistoryScreen({
+  const TeamExpenseHistoryScreen({
     super.key,
-    required this.joiningDate,
-    required this.salary,
-    required this.memberName,
-    required this.memberId,
+    required this.teamId,
+    required this.teamName,
+    this.monthlyBudget,
   });
 
   @override
-  State<PaymentHistoryScreen> createState() => _PaymentHistoryScreenState();
+  State<TeamExpenseHistoryScreen> createState() =>
+      _TeamExpenseHistoryScreenState();
 }
 
-class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
+class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
   bool _isDownloading = false;
 
   // Helper to format currency
@@ -61,7 +60,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     return "${months[dt.month - 1]} ${dt.day.toString().padLeft(2, '0')}, ${dt.year}";
   }
 
-  // --- PAYMENT HISTORY DOWNLOAD LOGIC ---
+  // --- TEAM EXPENSE HISTORY DOWNLOAD LOGIC ---
   Future<void> _downloadPaymentHistory() async {
     setState(() => _isDownloading = true);
 
@@ -74,21 +73,19 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         userCurrencyCode,
       );
 
-      // Handle currency symbols that might not render properly in PDF
       switch (userCurrencyCode) {
-        case '+91': // INR - ₹ might not render in PDF
+        case '+91':
           return 'Rs.${amount.toStringAsFixed(2)}';
-        case '+971': // AED - د.إ might not render in PDF
+        case '+971':
           return 'AED ${amount.toStringAsFixed(2)}';
-        case '+49': // EUR - € might not render in PDF
-        case '+33': // EUR - € might not render in PDF
+        case '+49':
+        case '+33':
           return 'EUR ${amount.toStringAsFixed(2)}';
-        case '+81': // JPY - ¥ might not render in PDF
+        case '+81':
           return 'JPY ${amount.toStringAsFixed(0)}';
-        case '+65': // SGD - S$ might not render in PDF
+        case '+65':
           return 'SGD ${amount.toStringAsFixed(2)}';
         default:
-          // For USD, GBP, AUD - symbols usually work fine in PDF
           return formattedAmount;
       }
     }
@@ -97,17 +94,17 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception("User not logged in");
 
-      // Fetch all payment data for this member
+      // Fetch all expense data for this team
       final querySnapshot = await FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: user.uid)
-          .where('memberId', isEqualTo: widget.memberId)
+          .where('TeamId', isEqualTo: widget.teamId)
           .get();
 
       final payments = querySnapshot.docs;
 
       if (payments.isEmpty) {
-        _showMessage("No payment history found for this member.");
+        _showMessage("No expense history found for this team.");
         setState(() => _isDownloading = false);
         return;
       }
@@ -135,19 +132,22 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
             final dateStr = "${date.day}/${date.month}/${date.year}";
 
             final title = data['Title']?.toString() ?? 'Unknown';
+            final memberName = data['TeamMemberName']?.toString();
             final category = data['Category']?.toString() ?? '';
-            final paymentType = title.contains("Advance")
-                ? "Advance"
-                : category.toLowerCase() == 'salary'
-                    ? "Salary"
-                    : title;
+            
+            String details = title;
+            if (memberName != null && memberName.isNotEmpty) {
+              details = "$title ($memberName)";
+            } else if (category.isNotEmpty) {
+              details = "$title - $category";
+            }
 
-            // Format bank account like transaction details
+            // Format bank account
             String paymentMethod = _getBankAccountDisplay(data);
 
             return [
               dateStr,
-              paymentType,
+              details,
               paymentMethod,
               getPdfCurrencySymbol(amount),
             ];
@@ -168,7 +168,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     pw.Text(
-                      "PAYMENT HISTORY REPORT",
+                      "TEAM EXPENSE REPORT",
                       style: pw.TextStyle(
                         fontSize: 24,
                         fontWeight: pw.FontWeight.bold,
@@ -176,19 +176,20 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                     ),
                     pw.SizedBox(height: 8),
                     pw.Text(
-                      "Member: ${widget.memberName}",
+                      "Team: ${widget.teamName}",
                       style: const pw.TextStyle(
                         fontSize: 16,
                         color: PdfColors.grey700,
                       ),
                     ),
-                    pw.Text(
-                      "Joining Date: ${_formatDate(Timestamp.fromDate(widget.joiningDate))}",
-                      style: const pw.TextStyle(
-                        fontSize: 14,
-                        color: PdfColors.grey700,
+                    if (widget.monthlyBudget != null && widget.monthlyBudget! > 0)
+                      pw.Text(
+                        "Monthly Budget: ${getPdfCurrencySymbol(widget.monthlyBudget!)}",
+                        style: const pw.TextStyle(
+                          fontSize: 14,
+                          color: PdfColors.grey700,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -196,7 +197,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
 
               // PDF Table
               pw.TableHelper.fromTextArray(
-                headers: ['Date', 'Type', 'Payment Method', 'Amount'],
+                headers: ['Date', 'Details', 'Payment Method', 'Amount'],
                 data: tableData,
                 border: null,
                 headerStyle: pw.TextStyle(
@@ -228,7 +229,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                   crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
                     pw.Text(
-                      "Total Payments: ${payments.length}",
+                      "Total Expenses: ${payments.length}",
                       style: pw.TextStyle(
                         fontSize: 16,
                         fontWeight: pw.FontWeight.bold,
@@ -253,10 +254,10 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
       // Print / Share / Download the PDF
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => pdf.save(),
-        name: '${widget.memberName}_Payment_History.pdf',
+        name: '${widget.teamName.replaceAll(' ', '_')}_Expenses.pdf',
       );
     } catch (e) {
-      _showMessage("Error generating payment history: $e");
+      _showMessage("Error generating expense history: $e");
     } finally {
       setState(() => _isDownloading = false);
     }
@@ -302,8 +303,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                       stream: FirebaseFirestore.instance
                           .collection('expenses')
                           .where('uid', isEqualTo: currentUser?.uid)
-                          // Fix #7: Filter server-side — avoids reading all expenses
-                          .where('memberId', isEqualTo: widget.memberId)
+                          .where('TeamId', isEqualTo: widget.teamId)
                           .snapshots(),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
@@ -318,7 +318,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                         if (snapshot.hasError) {
                           return Center(
                             child: Text(
-                              "Error loading payment history.",
+                              "Error loading expense history.",
                               style: GoogleFonts.inter(color: Colors.redAccent),
                             ),
                           );
@@ -326,38 +326,33 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
 
                         // Extract and filter data
                         final allDocs = snapshot.data?.docs ?? [];
-                        List<Map<String, dynamic>> memberPayments = [];
-                        double totalPaid = 0.0;
+                        List<Map<String, dynamic>> teamExpenses = [];
+                        double totalSpent = 0.0;
 
                         for (var doc in allDocs) {
                           final data = doc.data() as Map<String, dynamic>;
                           final String title = data['Title']?.toString() ?? '';
-                          final String category =
-                              data['Category']?.toString() ?? '';
+                          final String memberName =
+                              data['TeamMemberName']?.toString() ?? '';
 
-                          // T-12: server-side query already filters memberId,
-                          // so no client-side guard needed here.
                           final double amt =
                               (data['Amount'] as num?)?.toDouble() ?? 0.0;
 
-                          totalPaid += amt;
-                          memberPayments.add({
+                          totalSpent += amt;
+                          teamExpenses.add({
                             "id": doc.id,
                             "rawData": data,
                             "rawDate": data['Date'] as Timestamp?,
                             "date": _formatDate(data['Date'] as Timestamp?),
                             "amt": _formatCurrency(amt),
                             "status": "Completed",
-                            "title": title.contains("Advance")
-                                ? "Advance Payout"
-                                : category.toLowerCase() == 'salary'
-                                    ? "Salary Payout"
-                                    : title,
+                            "title": title,
+                            "subtitle": memberName.isNotEmpty ? memberName : null,
                           });
                         }
 
                         // Sort newest first
-                        memberPayments.sort((a, b) {
+                        teamExpenses.sort((a, b) {
                           final Timestamp? dateA = a["rawDate"];
                           final Timestamp? dateB = b["rawDate"];
                           if (dateA == null || dateB == null) return 0;
@@ -368,26 +363,25 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                           physics: const BouncingScrollPhysics(),
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start, // Align to left
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const SizedBox(height: 32),
 
                               // --- SUMMARY CARD ---
                               _buildSummaryCard(
-                                memberPayments.length,
-                                totalPaid,
+                                teamExpenses.length,
+                                totalSpent,
                               ),
 
                               const SizedBox(height: 32),
 
-                              // --- PAYMENT LIST ---
-                              if (memberPayments.isEmpty)
+                              // --- EXPENSE LIST ---
+                              if (teamExpenses.isEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 40),
                                   child: Center(
                                     child: Text(
-                                      "No payments processed yet.\nClick 'Pay Salary' to log the first payment.",
+                                      "No team expenses yet.\nClick '+' to add an expense for this team.",
                                       textAlign: TextAlign.center,
                                       style: GoogleFonts.inter(
                                         color: Colors.white38,
@@ -398,7 +392,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                                   ),
                                 )
                               else
-                                _buildPaymentList(memberPayments, context),
+                                _buildExpenseList(teamExpenses, context),
 
                               const SizedBox(height: 40),
                             ],
@@ -436,7 +430,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05), // White Glass
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
@@ -449,7 +443,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
           ),
 
           Text(
-            "Payment History",
+            "Expense History",
             style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 16,
@@ -463,7 +457,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05), // White Glass
+                color: Colors.white.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
               ),
@@ -475,7 +469,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     );
   }
 
-  Widget _buildSummaryCard(int paymentCount, double totalPaid) {
+  Widget _buildSummaryCard(int expenseCount, double totalSpent) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -488,7 +482,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "TOTAL PAID (ALL TIME)",
+            "TOTAL SPENT (ALL TIME)",
             style: GoogleFonts.inter(
               color: Colors.white54,
               fontSize: 11,
@@ -498,14 +492,13 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            _formatCurrency(totalPaid),
+            _formatCurrency(totalSpent),
             style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 32,
               fontWeight: FontWeight.w600,
               letterSpacing: -1,
               fontFeatures: [
-                // Enable font features for better symbol support
                 const FontFeature.enable('liga'),
                 const FontFeature.enable('clig'),
               ],
@@ -521,9 +514,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  paymentCount == 0
-                      ? "No payments yet"
-                      : "$paymentCount payment(s) completed",
+                  expenseCount == 0
+                      ? "No expenses yet"
+                      : "$expenseCount expense(s) logged",
                   style: GoogleFonts.inter(
                     color: const Color(0xFF30D158),
                     fontSize: 10,
@@ -538,33 +531,32 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     );
   }
 
-  Widget _buildPaymentList(
-    List<Map<String, dynamic>> payments,
+  Widget _buildExpenseList(
+    List<Map<String, dynamic>> expenses,
     BuildContext context,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle("ALL PAYMENTS"),
+        _buildSectionTitle("ALL EXPENSES"),
         const SizedBox(height: 16),
         Column(
-          children: payments.map((payment) {
-            bool isAdvance = payment['title'] == "Advance Payout";
+          children: expenses.map((expense) {
+            final hasSubtitle = expense['subtitle'] != null;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: GestureDetector(
                 onTap: () {
-                  // Navigate to the details screen
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => TransactionDetailsScreen(
-                        transactionId: payment['id'],
-                        transactionData: payment['rawData'],
-                        formattedDate: payment['date'],
-                        formattedAmount: payment['amt'],
-                        displayTitle: payment['title'],
+                        transactionId: expense['id'],
+                        transactionData: expense['rawData'],
+                        formattedDate: expense['date'],
+                        formattedAmount: expense['amt'],
+                        displayTitle: expense['title'],
                       ),
                     ),
                   );
@@ -592,13 +584,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                               color: Colors.white.withValues(alpha: 0.05),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Icon(
-                              isAdvance
-                                  ? Icons.fast_forward
-                                  : Icons.arrow_outward,
-                              color: isAdvance
-                                  ? const Color(0xFF5E5CE6)
-                                  : Colors.white54,
+                            child: const Icon(
+                              Icons.arrow_outward,
+                              color: Colors.white54,
                               size: 16,
                             ),
                           ),
@@ -607,7 +595,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                payment['title'],
+                                expense['title'],
                                 style: GoogleFonts.inter(
                                   color: Colors.white,
                                   fontSize: 14,
@@ -615,8 +603,19 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                                 ),
                               ),
                               const SizedBox(height: 2),
+                              if (hasSubtitle) ...[
+                                Text(
+                                  expense['subtitle'],
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white54,
+                                    fontSize: 11,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                              ],
                               Text(
-                                payment['date'],
+                                expense['date'],
                                 style: GoogleFonts.inter(
                                   color: Colors.white38,
                                   fontSize: 11,
@@ -630,13 +629,12 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            payment['amt'],
+                            expense['amt'],
                             style: GoogleFonts.inter(
                               color: Colors.white,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               fontFeatures: [
-                                // Enable font features for better symbol support
                                 const FontFeature.enable('liga'),
                                 const FontFeature.enable('clig'),
                               ],
@@ -655,7 +653,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              payment['status'],
+                              expense['status'],
                               style: GoogleFonts.inter(
                                 color: const Color(0xFF30D158),
                                 fontSize: 9,
@@ -692,18 +690,15 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   }
 
   String _getBankAccountDisplay(Map<String, dynamic> transactionData) {
-    // Check for bank account ID
     final bankAccountId =
         transactionData['bankAccount'] as String? ??
         transactionData['BankAccount'] as String?;
 
     if (bankAccountId != null) {
-      // Check if it's a cash transaction (either "Cash-" or "Cash")
       if (bankAccountId == 'Cash-' || bankAccountId == 'Cash') {
         return 'Cash';
       }
 
-      // For bank accounts, try to format them properly
       if (bankAccountId.contains('-')) {
         final parts = bankAccountId.split('-');
         if (parts.length >= 2) {
@@ -716,11 +711,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         }
       }
 
-      // Ensure PDF-safe text by removing any problematic characters
       return bankAccountId.replaceAll(RegExp(r'[^\w\s\-\.\*]'), '');
     }
 
-    // Check if it's a cash payment
     final paymentMethod = transactionData['PaymentMethod'] as String?;
     if (paymentMethod == 'cash') {
       return 'Cash';

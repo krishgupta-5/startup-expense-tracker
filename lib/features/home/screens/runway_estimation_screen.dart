@@ -136,8 +136,8 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             currentBalance = _formatCurrency(
               availableBalance < 0 ? 0 : availableBalance,
             );
-            monthlyBurn = CurrencyFormatter.getCurrencySymbol(_userCountryCode) + '0';
-            netBurn = CurrencyFormatter.getCurrencySymbol(_userCountryCode) + '0';
+            monthlyBurn = '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0';
+            netBurn = '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0';
             zeroCashDate = availableBalance <= 0
                 ? (fundingAmount == 0 ? 'Awaiting funding' : 'Funds depleted')
                 : 'Add expenses to track';
