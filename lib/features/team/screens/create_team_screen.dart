@@ -109,8 +109,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
       return;
     }
 
-    final double? budget = double.tryParse(
-      _budgetController.text.trim().replaceAll(',', ''),
+    final double? budget = CurrencyFormatter.parse(
+      _budgetController.text.trim(),
     );
     if (budget == null || budget <= 0) {
       _showErrorSnackBar("Please enter a valid budget amount greater than 0.");
@@ -127,9 +127,9 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
     try {
       final id = const Uuid().v4();
       // budget is guaranteed non-null and > 0 by the validation above
-      final double validBudget = double.parse(
-        _budgetController.text.trim().replaceAll(',', ''),
-      );
+      final double validBudget = CurrencyFormatter.parse(
+        _budgetController.text.trim(),
+      )!;
 
       // Storing to a new 'teams' collection
       await FirebaseFirestore.instance.collection('teams').doc(id).set({
@@ -380,7 +380,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
             textInputAction: textInputAction,
             onTapOutside: (event) => FocusScope.of(context).unfocus(),
             keyboardType: isNumber
-                ? const TextInputType.numberWithOptions(decimal: true)
+                ? TextInputType.text
                 : TextInputType.text,
             style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
             maxLines: maxLines,

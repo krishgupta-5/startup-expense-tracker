@@ -115,7 +115,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
   Future<void> _processPayment() async {
     FocusScope.of(context).unfocus();
 
-    final double? amount = double.tryParse(_amountController.text.trim());
+    final double? amount = CurrencyFormatter.parse(_amountController.text.trim());
 
     if (amount == null || amount <= 0) {
       _showErrorSnackBar("Please enter a valid amount.");
@@ -385,7 +385,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
       child: TextField(
         controller: _amountController,
         readOnly: false, // Always editable — salary can differ month-to-month
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        keyboardType: TextInputType.text,
         textAlign: TextAlign.center,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         style: GoogleFonts.inter(

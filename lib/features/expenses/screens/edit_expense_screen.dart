@@ -511,7 +511,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   Future<void> _updateExpense() async {
     FocusScope.of(context).unfocus();
 
-    final double? amount = double.tryParse(_amountController.text.trim());
+    final double? amount = CurrencyFormatter.parse(_amountController.text.trim());
     if (amount == null || amount <= 0) {
       _showMinimalToast("Please enter a valid amount.", isError: true);
       return;
@@ -559,7 +559,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       final companyId = userDoc.data()?['companyId'];
       if (companyId == null) throw Exception('Company not found');
 
-      final double newAmount = double.tryParse(_amountController.text.trim())!;
+      final double newAmount = CurrencyFormatter.parse(_amountController.text.trim())!;
       final double oldAmount = DataHelpers.safeParseDouble(
         widget.expenseData['Amount'],
       );
@@ -858,7 +858,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       width: double.infinity,
       child: TextField(
         controller: _amountController,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        keyboardType: TextInputType.text,
         textAlign: TextAlign.center,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         textInputAction: TextInputAction.next,

@@ -669,7 +669,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                       _buildSectionLabel("FINANCIAL OVERVIEW"),
                       _buildReadOnlyMetric(
                         "FUNDS LEFT (${CurrencyFormatter.getCurrencySymbol(_userCountryCode)})",
-                        CurrencyFormatter.formatByCountry(_availableFunds, _userCountryCode),
+                        CurrencyFormatter.formatByCountryCompact(_availableFunds, _userCountryCode),
                       ),
                       const SizedBox(height: 16),
                       _buildInputGroup(
@@ -983,7 +983,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                               (account['totalSpent'] as num) > 0) ...[
                             const SizedBox(height: 4),
                             Text(
-                              'Spent: ${CurrencyFormatter.formatByCountry((account['totalSpent'] as num).toDouble(), _userCountryCode)}',
+                              'Spent: ${CurrencyFormatter.formatByCountryCompact((account['totalSpent'] as num).toDouble(), _userCountryCode)}',
                               style: GoogleFonts.inter(
                                 color: const Color(0xFFFF453A),
                                 fontSize: 11,

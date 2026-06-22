@@ -102,9 +102,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
     setState(() => _isLoading = true);
 
     try {
-      final double budget =
-          double.tryParse(_budgetController.text.trim()) ?? 0.0;
-
+      final double budget = CurrencyFormatter.parse(_budgetController.text.trim()) ?? 0.0;
+      
       await FirebaseFirestore.instance
           .collection('teams')
           .doc(widget.teamId)
@@ -521,7 +520,7 @@ class _EditTeamScreenState extends State<EditTeamScreen>
         controller: _budgetController,
         textInputAction: TextInputAction.next,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        keyboardType: TextInputType.text,
         cursorColor: Colors.white,
         style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
         decoration: InputDecoration(

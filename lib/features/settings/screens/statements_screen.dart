@@ -8,8 +8,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 // Ensure these paths match your project structure
-import '../../../../services/currency_formatter.dart';
 import '../../../../services/currency_preference_service.dart';
+import '../../../../services/currency_formatter.dart';
 import '../../../../services/bank_account_service.dart';
 import '../../../../utils/expense_expansion_helper.dart';
 
@@ -130,28 +130,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
     String getPdfCurrencySymbol(double amount) {
       final userCurrencyCode =
           CurrencyPreferenceService.getCurrencyPreferenceSync();
-
-      switch (userCurrencyCode) {
-        case '+1': // USD
-          return '\$${amount.toStringAsFixed(2)}';
-        case '+91': // INR - ₹ doesn't render in PDF
-          return 'Rs.${amount.toStringAsFixed(2)}';
-        case '+44': // GBP - £ may not render in PDF
-          return 'GBP ${amount.toStringAsFixed(2)}';
-        case '+61': // AUD
-          return 'A\$${amount.toStringAsFixed(2)}';
-        case '+81': // JPY - ¥ doesn't render in PDF
-          return 'JPY ${amount.toStringAsFixed(0)}';
-        case '+49': // EUR (Germany) - € doesn't render in PDF
-        case '+33': // EUR (France)
-          return 'EUR ${amount.toStringAsFixed(2)}';
-        case '+971': // AED - د.إ doesn't render in PDF
-          return 'AED ${amount.toStringAsFixed(2)}';
-        case '+65': // SGD
-          return 'S\$${amount.toStringAsFixed(2)}';
-        default:
-          return '\$${amount.toStringAsFixed(2)}';
-      }
+      return CurrencyFormatter.formatCompactPdfSafe(amount, countryCode: userCurrencyCode);
     }
 
     try {

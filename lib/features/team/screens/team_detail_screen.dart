@@ -340,7 +340,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
-                    CurrencyFormatter.formatByCountry(totalCost, _userCountryCode),
+                    CurrencyFormatter.formatByCountryCompact(totalCost, _userCountryCode),
                     style: GoogleFonts.inter(
                       color: Colors.white,
                       fontSize: 48,
@@ -427,7 +427,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     final String role = member['jobTitle'] ?? 'No Role';
     final double rawCost = (member['monthlyCost'] ?? 0.0).toDouble();
     final String salary =
-        "${CurrencyFormatter.formatByCountry(rawCost, _userCountryCode)}/mo";
+        "${CurrencyFormatter.formatByCountryCompact(rawCost, _userCountryCode)}/mo";
 
     final String status = member['status'] ?? 'Active';
     final bool isPaused = status == 'Paused';

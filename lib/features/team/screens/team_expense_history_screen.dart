@@ -36,7 +36,7 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
   String _formatCurrency(double amount) {
     final userCurrencyCode =
         CurrencyPreferenceService.getCurrencyPreferenceSync();
-    return CurrencyFormatter.formatByCountry(amount, userCurrencyCode);
+    return CurrencyFormatter.formatByCountryCompact(amount, userCurrencyCode);
   }
 
   // Helper to format Firestore Timestamp
@@ -68,26 +68,7 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
     String getPdfCurrencySymbol(double amount) {
       final userCurrencyCode =
           CurrencyPreferenceService.getCurrencyPreferenceSync();
-      final formattedAmount = CurrencyFormatter.formatByCountry(
-        amount,
-        userCurrencyCode,
-      );
-
-      switch (userCurrencyCode) {
-        case '+91':
-          return 'Rs.${amount.toStringAsFixed(2)}';
-        case '+971':
-          return 'AED ${amount.toStringAsFixed(2)}';
-        case '+49':
-        case '+33':
-          return 'EUR ${amount.toStringAsFixed(2)}';
-        case '+81':
-          return 'JPY ${amount.toStringAsFixed(0)}';
-        case '+65':
-          return 'SGD ${amount.toStringAsFixed(2)}';
-        default:
-          return formattedAmount;
-      }
+      return CurrencyFormatter.formatCompactPdfSafe(amount, countryCode: userCurrencyCode);
     }
 
     try {

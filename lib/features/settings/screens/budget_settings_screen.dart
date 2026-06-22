@@ -184,8 +184,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       final companyId = userDoc.data()?['companyId'];
       if (companyId == null) return;
 
-      final budgetAmount = double.tryParse(
-        _budgetController.text.trim().replaceAll(RegExp(r'[^\d.]'), '')
+      final budgetAmount = CurrencyFormatter.parse(
+        _budgetController.text.trim()
       ) ?? 0.0;
 
       // Update budget in company document
@@ -254,7 +254,7 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                                 // Current Budget Display
                                 _buildReadOnlyMetric(
                                   "CURRENT ALLOCATION",
-                                  CurrencyFormatter.formatByCountry(
+                                  CurrencyFormatter.formatByCountryCompact(
                                     _currentBudget,
                                     _userCountryCode,
                                   ),
@@ -445,7 +445,7 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
           Expanded(
             child: TextFormField(
               controller: _budgetController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: TextInputType.text,
               textInputAction: TextInputAction.done,
               onTapOutside: (event) => FocusScope.of(context).unfocus(),
               style: GoogleFonts.inter(
@@ -469,14 +469,12 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                   height: 0.8,
                 ),
               ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
-              ],
+              // Allowed characters are handled by CurrencyFormatter.parse
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Amount required';
                 }
-                final parsed = double.tryParse(value.trim());
+                final parsed = CurrencyFormatter.parse(value.trim());
                 if (parsed == null || parsed < 0) {
                   return 'Invalid amount';
                 }

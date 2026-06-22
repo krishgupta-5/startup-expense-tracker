@@ -148,7 +148,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   void _loadUserCountryCode() {
-    // NOTE: listener is already registered in initState — do NOT add it again here
     _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
     setState(() => _isLoadingCountry = false);
   }
@@ -176,7 +175,45 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     super.dispose();
   }
 
-
+  // --- UNIFIED MINIMAL TOAST ---
+  void _showMinimalToast(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: isError
+                  ? const Color(0xFFFF453A)
+                  : const Color(0xFF30D158),
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF141416),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        duration: const Duration(seconds: 4),
+        elevation: 0,
+      ),
+    );
+  }
 
   Future<void> _fetchBankAccounts() async {
     try {
@@ -393,7 +430,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       );
       return;
     }
-    final double? amount = double.tryParse(_amountController.text.trim());
+    final double? amount = CurrencyFormatter.parse(_amountController.text.trim());
     if (amount == null || amount <= 0) {
       ErrorPopup.showValidation(
         context: context,
@@ -430,7 +467,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       );
       return;
     }
-    final isRecurringOrSub = _selectedType == "recurring" || _selectedType == "subscription";
+    final isRecurringOrSub =
+        _selectedType == "recurring" || _selectedType == "subscription";
     if (!isRecurringOrSub && _selectedDate.isAfter(DateTime.now())) {
       ErrorPopup.showValidation(
         context: context,
@@ -443,7 +481,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     if (isRecurringOrSub && !_isOngoing) {
       final tenureText = _tenureController.text.trim();
       if (tenureText.isEmpty) {
-        _showMinimalToast("Please enter a tenure for the recurring expense.", isError: true);
+        _showMinimalToast(
+          "Please enter a tenure for the recurring expense.",
+          isError: true,
+        );
         return;
       }
       recurringTenure = int.tryParse(tenureText);
@@ -488,11 +529,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final currencyCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+      final currencyCode =
+          CurrencyPreferenceService.getCurrencyPreferenceSync();
 
       // --- Team budget validation (warn but don't block) ---
-      // Compare Total Monthly Cost (sum of member salaries) + this expense
-      // against the team's monthlyBudget.
       if (_expenseType == 'team' && _selectedTeam != null) {
         final teamDoc = await FirebaseFirestore.instance
             .collection('teams')
@@ -503,7 +543,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           final monthlyBudget =
               (tData['monthlyBudget'] as num?)?.toDouble() ?? 0.0;
 
-          // Calculate Total Monthly Cost from all team members
           final membersSnapshot = await FirebaseFirestore.instance
               .collection('members')
               .where('teamId', isEqualTo: _selectedTeam!.id)
@@ -514,8 +553,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             totalMonthlyCost +=
                 (mData['monthlyCost'] as num?)?.toDouble() ?? 0.0;
           }
-
-          final remaining = monthlyBudget - totalMonthlyCost;
 
           if (monthlyBudget > 0 && totalMonthlyCost + amount > monthlyBudget) {
             ErrorPopup.show(
@@ -533,7 +570,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       }
 
       // --- Member salary validation (warn but don't block) ---
-      // Compare expense against the member's monthlyCost (salary).
       if (_expenseType == 'member' && _selectedTeamMember != null) {
         final memberDoc = await FirebaseFirestore.instance
             .collection('members')
@@ -541,8 +577,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             .get();
         if (memberDoc.exists) {
           final mData = memberDoc.data() as Map<String, dynamic>;
-          final monthlyCost =
-              (mData['monthlyCost'] as num?)?.toDouble() ?? 0.0;
+          final monthlyCost = (mData['monthlyCost'] as num?)?.toDouble() ?? 0.0;
 
           if (monthlyCost > 0 && amount > monthlyCost) {
             ErrorPopup.show(
@@ -562,8 +597,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       final batch = FirebaseFirestore.instance.batch();
 
       // 1. Write expense document (with companyId)
-      final expenseRef =
-          FirebaseFirestore.instance.collection('expenses').doc(id);
+      final expenseRef = FirebaseFirestore.instance
+          .collection('expenses')
+          .doc(id);
       batch.set(expenseRef, {
         'uid': user.uid,
         'companyId': companyId,
@@ -582,31 +618,27 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         'TeamName': _selectedTeam?.teamName,
         'TeamMemberId': _selectedTeamMember?.id,
         'TeamMemberName': _selectedTeamMember?.fullName,
-        // Add memberId so member expenses show in payment history
         if (_expenseType == 'member' && _selectedTeamMember != null)
           'memberId': _selectedTeamMember!.id,
         'Time': FieldValue.serverTimestamp(),
         if (isRecurringOrSub) ...{
           'recurrenceFrequency': _recurrenceFrequency,
           'recurringTenureMonths': recurringTenure,
-        }
+        },
       });
 
       // 2. Increment company totalExpenses atomically
-      final companyRef =
-          FirebaseFirestore.instance.collection('companies').doc(companyId);
-      batch.update(companyRef, {
-        'totalExpenses': FieldValue.increment(amount),
-      });
+      final companyRef = FirebaseFirestore.instance
+          .collection('companies')
+          .doc(companyId);
+      batch.update(companyRef, {'totalExpenses': FieldValue.increment(amount)});
+
       // 3. If team expense, add to team's tracked expenses
-      //    (does NOT affect member salary cycles)
       if (_expenseType == 'team' && _selectedTeam != null) {
         final teamRef = FirebaseFirestore.instance
             .collection('teams')
             .doc(_selectedTeam!.id);
-        batch.update(teamRef, {
-          'teamExpenses': FieldValue.increment(amount),
-        });
+        batch.update(teamRef, {'teamExpenses': FieldValue.increment(amount)});
       }
 
       await batch.commit();
@@ -626,16 +658,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   // ── Budget Warning Helpers ───────────────────────────────────────────────────
-
-  /// Returns true if the expense should be saved (no budget set, within budget,
-  /// or user explicitly chose "Add Anyway" despite exceeding the budget).
   Future<bool> _checkBudgetAndWarn({
     required String companyId,
     required String userId,
     required double newAmount,
   }) async {
     try {
-      // 1. Fetch category budget
       final companyDoc = await FirebaseFirestore.instance
           .collection('companies')
           .doc(companyId)
@@ -646,14 +674,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
       if (budget <= 0) return true; // No budget set → proceed silently
 
-      // 2. Sum this month's spending for the category
       final now = DateTime.now();
       final startOfMonth = DateTime(now.year, now.month, 1);
       final expensesSnapshot = await FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: userId)
-          .where('Date',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
+          .where(
+            'Date',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth),
+          )
           .get();
 
       double currentSpending = 0.0;
@@ -669,7 +698,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       final projectedTotal = currentSpending + newAmount;
       if (projectedTotal <= budget) return true; // Still within budget
 
-      // 3. Over budget — show warning dialog
       if (!mounted) return false;
       final proceed = await showDialog<bool>(
         context: context,
@@ -723,7 +751,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Row(
               children: [
                 Container(
@@ -769,10 +796,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            // Breakdown rows
             _dialogRow('Monthly Budget', fmt(budget), Colors.white54),
             const SizedBox(height: 10),
-            _dialogRow('Spent This Month', fmt(currentSpending), Colors.white54),
+            _dialogRow(
+              'Spent This Month',
+              fmt(currentSpending),
+              Colors.white54,
+            ),
             const SizedBox(height: 10),
             _dialogRow(
               'This Expense',
@@ -793,10 +823,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               isTotal: true,
             ),
             const SizedBox(height: 8),
-            // Over-limit badge
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: const Color(0xFFFF453A).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
@@ -807,8 +835,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.arrow_upward_rounded,
-                      color: Color(0xFFFF453A), size: 13),
+                  const Icon(
+                    Icons.arrow_upward_rounded,
+                    color: Color(0xFFFF453A),
+                    size: 13,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     '${fmt(overBy)} over limit',
@@ -822,7 +853,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               ),
             ),
             const SizedBox(height: 28),
-            // Action buttons
             Row(
               children: [
                 Expanded(
@@ -856,12 +886,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       decoration: BoxDecoration(
-                        color:
-                            const Color(0xFFFF9F0A).withValues(alpha: 0.15),
+                        color: const Color(0xFFFF9F0A).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                          color:
-                              const Color(0xFFFF9F0A).withValues(alpha: 0.4),
+                          color: const Color(0xFFFF9F0A).withValues(alpha: 0.4),
                         ),
                       ),
                       child: Text(
@@ -990,9 +1018,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1073,7 +1098,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
                         AnimatedCrossFade(
                           duration: const Duration(milliseconds: 300),
-                          crossFadeState: (_selectedType == 'recurring' || _selectedType == 'subscription')
+                          crossFadeState:
+                              (_selectedType == 'recurring' ||
+                                  _selectedType == 'subscription')
                               ? CrossFadeState.showFirst
                               : CrossFadeState.showSecond,
                           firstChild: _buildRecurringDetailsCard(),
@@ -1211,7 +1238,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       width: double.infinity,
       child: TextField(
         controller: _amountController,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        keyboardType: TextInputType.text,
         textAlign: TextAlign.center,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         textInputAction: TextInputAction.next,
@@ -1814,7 +1841,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   child: SizedBox(
                     width: size * 0.3,
                     height: size * 0.3,
-                    child: CircularProgressIndicator(
+                    child: const CircularProgressIndicator(
                       strokeWidth: 2,
                       color: Colors.white38,
                     ),
@@ -1871,11 +1898,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         child: Row(
           children: [
             if (_isUploading)
-              SizedBox(
+              const SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
-                  color: const Color(0xFF0A84FF),
+                  color: Color(0xFF0A84FF),
                   strokeWidth: 2,
                 ),
               )
@@ -2255,7 +2282,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       margin: const EdgeInsets.only(top: 24),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416).withValues(alpha: 0.6), // Glassy background
+        color: const Color(
+          0xFF141416,
+        ).withValues(alpha: 0.6), // Glassy background
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
@@ -2295,7 +2324,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     ShadSelect<String>(
                       placeholder: Text(
                         'Select Frequency',
-                        style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
+                        style: GoogleFonts.inter(
+                          color: Colors.white24,
+                          fontSize: 14,
+                        ),
                       ),
                       initialValue: _recurrenceFrequency,
                       options: [
@@ -2334,7 +2366,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         Switch(
                           value: _isOngoing,
                           activeThumbColor: const Color(0xFF30D158),
-                          activeTrackColor: const Color(0xFF30D158).withValues(alpha: 0.2),
+                          activeTrackColor: const Color(
+                            0xFF30D158,
+                          ).withValues(alpha: 0.2),
                           inactiveThumbColor: Colors.white54,
                           inactiveTrackColor: Colors.white10,
                           onChanged: (val) {
@@ -2363,7 +2397,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           // If not ongoing, show tenure field
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 250),
-            crossFadeState: !_isOngoing ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+            crossFadeState: !_isOngoing
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
             firstChild: Padding(
               padding: const EdgeInsets.only(top: 20),
               child: _buildRecurringInputField(

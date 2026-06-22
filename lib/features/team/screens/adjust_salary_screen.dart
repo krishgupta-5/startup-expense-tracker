@@ -107,8 +107,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
       return;
     }
 
-    final String cleanInput = _salaryController.text.trim().replaceAll(',', '');
-    final double? newSalary = double.tryParse(cleanInput);
+    final double? newSalary = CurrencyFormatter.parse(_salaryController.text.trim());
 
     if (newSalary == null) {
       _showMinimalToast("Please enter a valid salary amount.", isError: true);
@@ -227,9 +226,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                             child: TextField(
                               controller: _salaryController,
                               keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
+                                  TextInputType.text,
                               textAlign: TextAlign.center,
                               cursorColor: Colors.white,
                               style: GoogleFonts.inter(

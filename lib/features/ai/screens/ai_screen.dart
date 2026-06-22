@@ -826,7 +826,7 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
                   ),
                 ),
                 if (content != null) _buildFormattedContent(content), 
-                if (child != null) child,
+                ?child,
               ],
             ),
           ),

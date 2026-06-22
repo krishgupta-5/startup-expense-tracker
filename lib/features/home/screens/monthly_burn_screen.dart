@@ -491,8 +491,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                       child: Text(
                         grossBurn > 0
                             ? (_isLoadingCountry
-                                  ? "₹${grossBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                                  : CurrencyFormatter.formatByCountry(
+                                  ? CurrencyFormatter.formatCompact(grossBurn, countryCode: '+91')
+                                  : CurrencyFormatter.formatByCountryCompact(
                                       grossBurn,
                                       _userCountryCode,
                                     ))
@@ -553,8 +553,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                       child: Text(
                         netBurn > 0
                             ? (_isLoadingCountry
-                                  ? "₹${netBurn.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                                  : CurrencyFormatter.formatByCountry(
+                                  ? CurrencyFormatter.formatCompact(netBurn, countryCode: '+91')
+                                  : CurrencyFormatter.formatByCountryCompact(
                                       netBurn,
                                       _userCountryCode,
                                     ))
@@ -701,8 +701,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         Flexible(
           child: Text(
             _isLoadingCountry
-                ? "₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                : CurrencyFormatter.formatByCountry(amount, _userCountryCode),
+                ? CurrencyFormatter.formatCompact(amount, countryCode: '+91')
+                : CurrencyFormatter.formatByCountryCompact(amount, _userCountryCode),
             style: GoogleFonts.inter(
               color: isActive ? Colors.white : Colors.white54,
               fontSize: 9,
@@ -896,8 +896,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                                   alignment: Alignment.centerLeft,
                                   child: Text(
                                     _isLoadingCountry
-                                        ? "₹${_toDouble(team['cost']).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}"
-                                        : CurrencyFormatter.formatByCountry(
+                                        ? CurrencyFormatter.formatCompact(_toDouble(team['cost']), countryCode: '+91')
+                                        : CurrencyFormatter.formatByCountryCompact(
                                             _toDouble(team['cost']),
                                             _userCountryCode,
                                           ),
@@ -955,8 +955,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
 
   String _formatCurrencyForForecast(double amount) {
     return _isLoadingCountry
-        ? '₹${amount.round().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}'
-        : CurrencyFormatter.formatByCountry(amount, _userCountryCode);
+        ? CurrencyFormatter.formatCompact(amount, countryCode: '+91')
+        : CurrencyFormatter.formatByCountryCompact(amount, _userCountryCode);
   }
 
   Widget _buildForecastComparisonSection() {

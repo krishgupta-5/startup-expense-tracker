@@ -34,6 +34,13 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   String _userCountryCode = '+1'; // Default to USD
   bool _isLoadingCountry = true;
 
+  String _formatCurrency(double amount) {
+    if (_isLoadingCountry) {
+      return CurrencyFormatter.formatCompact(amount, countryCode: '+91');
+    }
+    return CurrencyFormatter.formatByCountryCompact(amount, _userCountryCode);
+  }
+
   StreamSubscription? _companySubscription;
   StreamSubscription? _expensesSubscription;
 
@@ -270,21 +277,21 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                         children: [
                           _buildFlatMetric(
                             "Budget Left",
-                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${(_totalFunding - _totalExpenses).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}",
+                            _formatCurrency(_totalFunding > 0 ? (_totalFunding - _totalExpenses) : 0),
                             "${_totalFunding > 0 ? ((_totalFunding - _totalExpenses) / _totalFunding * 100).toStringAsFixed(0) : '0'}%",
                             const Color(0xFF30D158),
                           ),
                           const SizedBox(width: 16),
                           _buildFlatMetric(
                             "Spent",
-                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${_totalExpenses.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}" ,
+                            _formatCurrency(_totalExpenses),
                             "${_totalFunding > 0 ? (_totalExpenses / _totalFunding * 100).toStringAsFixed(1) : '0'}% used",
                             Colors.white,
                           ),
                           const SizedBox(width: 16),
                           _buildFlatMetric(
                             "Avg. Daily",
-                            "${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${_avgDaily.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}" ,
+                            _formatCurrency(_avgDaily),
                             "30-day rolling avg",
                             Colors.white54, // Muted grey
                           ),
@@ -684,9 +691,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     final title = DataHelpers.safeParseString(tx['Title']);
     final amount = DataHelpers.safeParseDouble(tx['Amount']);
     final isFunding = tx['isFunding'] == true;
-    final formattedAmount = _isLoadingCountry
-        ? "${isFunding ? '+' : ''}₹${DataHelpers.formatCurrency(amount)}"
-        : "${isFunding ? '+' : ''}${CurrencyFormatter.formatByCountry(amount, _userCountryCode)}";
+    final formattedAmount = "${isFunding ? '+' : ''}${_formatCurrency(amount)}";
     // Format category to capitalize first letter or match your style
     final String rawCategory = DataHelpers.safeParseString(tx['Category']);
     final category = rawCategory.isNotEmpty

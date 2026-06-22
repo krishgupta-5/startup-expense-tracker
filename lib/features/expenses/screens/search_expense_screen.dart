@@ -742,7 +742,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,
               child: Text(
-                "${isFunding ? '+' : ''}${_isLoadingCountry ? '₹' : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${amount.toStringAsFixed(2)}",
+                "${isFunding ? '+' : ''}${_isLoadingCountry ? CurrencyFormatter.formatByCountryCompact(amount, '+91') : CurrencyFormatter.formatByCountryCompact(amount, _userCountryCode)}",
                 style: GoogleFonts.inter(
                   color: isFunding ? const Color(0xFF30D158) : Colors.white,
                   fontSize: 15,

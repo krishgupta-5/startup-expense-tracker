@@ -478,13 +478,13 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                             // FIXED: FITTED BOX FOR LARGE NUMBERS
                             FittedBox(
                               fit: BoxFit.scaleDown,
-                              child: Text(
-                                _isLoadingCountry
-                                    ? "₹${DataHelpers.formatCurrency(amount)}"
-                                    : CurrencyFormatter.formatByCountry(
-                                        amount,
-                                        _userCountryCode,
-                                      ),
+                                child: Text(
+                                  _isLoadingCountry
+                                      ? CurrencyFormatter.formatCompact(amount, countryCode: '+91')
+                                      : CurrencyFormatter.formatByCountryCompact(
+                                          amount,
+                                          _userCountryCode,
+                                        ),
                                 style: GoogleFonts.inter(
                                   color: Colors.white,
                                   fontSize: 48,

@@ -37,7 +37,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   String _formatCurrency(double amount) {
     final userCurrencyCode =
         CurrencyPreferenceService.getCurrencyPreferenceSync();
-    return CurrencyFormatter.formatByCountry(amount, userCurrencyCode);
+    return CurrencyFormatter.formatByCountryCompact(amount, userCurrencyCode);
   }
 
   // Helper to format Firestore Timestamp
@@ -69,28 +69,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     String getPdfCurrencySymbol(double amount) {
       final userCurrencyCode =
           CurrencyPreferenceService.getCurrencyPreferenceSync();
-      final formattedAmount = CurrencyFormatter.formatByCountry(
-        amount,
-        userCurrencyCode,
-      );
-
-      // Handle currency symbols that might not render properly in PDF
-      switch (userCurrencyCode) {
-        case '+91': // INR - ₹ might not render in PDF
-          return 'Rs.${amount.toStringAsFixed(2)}';
-        case '+971': // AED - د.إ might not render in PDF
-          return 'AED ${amount.toStringAsFixed(2)}';
-        case '+49': // EUR - € might not render in PDF
-        case '+33': // EUR - € might not render in PDF
-          return 'EUR ${amount.toStringAsFixed(2)}';
-        case '+81': // JPY - ¥ might not render in PDF
-          return 'JPY ${amount.toStringAsFixed(0)}';
-        case '+65': // SGD - S$ might not render in PDF
-          return 'SGD ${amount.toStringAsFixed(2)}';
-        default:
-          // For USD, GBP, AUD - symbols usually work fine in PDF
-          return formattedAmount;
-      }
+      return CurrencyFormatter.formatCompactPdfSafe(amount, countryCode: userCurrencyCode);
     }
 
     try {

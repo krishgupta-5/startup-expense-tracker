@@ -618,7 +618,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     final double rawCost = (teamData['monthlyBudget'] ?? 0).toDouble();
     // T-20: removed dead _isLoadingCountry branch (always false)
     final String cost =
-        CurrencyFormatter.formatByCountry(rawCost, _userCountryCode);
+        CurrencyFormatter.formatByCountryCompact(rawCost, _userCountryCode);
     final Color color = _getColorFromName(teamData['color'] ?? 'blue');
     final IconData icon = _getIconFromData(teamData);
     final String teamId = teamData['id'] as String;

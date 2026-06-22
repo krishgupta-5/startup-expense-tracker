@@ -78,8 +78,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
 
   String _formatCurrency(double amount) {
     return _isLoadingCountry
-        ? CurrencyFormatter.formatByCountry(amount, '+1')
-        : CurrencyFormatter.formatByCountry(amount, _userCountryCode);
+        ? CurrencyFormatter.formatByCountryCompact(amount, '+1')
+        : CurrencyFormatter.formatByCountryCompact(amount, _userCountryCode);
   }
 
   String _formatDate(DateTime date) {
@@ -272,30 +272,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
     // PDF-safe currency formatter: Unicode symbols may not render in the
     // default PDF font, so we use ASCII-safe fallbacks for ALL currencies.
     String getPdfCurrencySymbol(double amount) {
-      final userCurrencyCode =
-          CurrencyPreferenceService.getCurrencyPreferenceSync();
-
-      switch (userCurrencyCode) {
-        case '+1': // USD
-          return '\$${amount.toStringAsFixed(2)}';
-        case '+91': // INR - ₹ doesn't render in PDF
-          return 'Rs.${amount.toStringAsFixed(2)}';
-        case '+44': // GBP - £ may not render in PDF
-          return 'GBP ${amount.toStringAsFixed(2)}';
-        case '+61': // AUD
-          return 'A\$${amount.toStringAsFixed(2)}';
-        case '+81': // JPY - ¥ doesn't render in PDF
-          return 'JPY ${amount.toStringAsFixed(0)}';
-        case '+49': // EUR (Germany) - € doesn't render in PDF
-        case '+33': // EUR (France)
-          return 'EUR ${amount.toStringAsFixed(2)}';
-        case '+971': // AED - د.إ doesn't render in PDF
-          return 'AED ${amount.toStringAsFixed(2)}';
-        case '+65': // SGD
-          return 'S\$${amount.toStringAsFixed(2)}';
-        default:
-          return '\$${amount.toStringAsFixed(2)}';
-      }
+      return CurrencyFormatter.formatCompactPdfSafe(amount);
     }
 
     // Resolve bank account display name from raw Firestore value.
@@ -1584,9 +1561,10 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
-                              data[index] >= 1000
-                                  ? "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${(data[index] / 1000).toStringAsFixed(1)}k"
-                                  : "${_isLoadingCountry ? CurrencyFormatter.getCurrencySymbol('+1') : CurrencyFormatter.getCurrencySymbol(_userCountryCode)}${data[index].toStringAsFixed(0)}",
+                              CurrencyFormatter.formatByCountryCompact(
+                                  data[index],
+                                  _isLoadingCountry ? '+1' : _userCountryCode,
+                                ),
                               style: GoogleFonts.inter(
                                 color: Colors.white54,
                                 fontSize: 9,

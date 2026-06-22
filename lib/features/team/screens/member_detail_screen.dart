@@ -150,8 +150,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               final String status = memberData['status'] ?? "Active";
               final double cost = (memberData['monthlyCost'] ?? 0.0).toDouble();
               final String salary = _isLoadingCountry
-                  ? CurrencyFormatter.formatByCountry(cost, '+1')
-                  : CurrencyFormatter.formatByCountry(cost, _userCountryCode);
+                  ? CurrencyFormatter.formatByCountryCompact(cost, '+1')
+                  : CurrencyFormatter.formatByCountryCompact(cost, _userCountryCode);
               final String empType = _formatEmploymentType(
                 memberData['employmentType'] ?? "",
               );
@@ -876,8 +876,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               "rawDate": data['Date'] as Timestamp?,
               "date": _formatDate(data['Date'] as Timestamp?),
               "amt": _isLoadingCountry
-                  ? CurrencyFormatter.formatByCountry(amt, '+1')
-                  : CurrencyFormatter.formatByCountry(amt, _userCountryCode),
+                  ? CurrencyFormatter.formatByCountryCompact(amt, '+1')
+                  : CurrencyFormatter.formatByCountryCompact(amt, _userCountryCode),
               "title": title.contains("Advance")
                   ? "Advance Payout"
                   : "Salary Payout",

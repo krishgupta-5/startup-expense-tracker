@@ -76,7 +76,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   }
 
   String _formatCurrency(double amount) {
-    return CurrencyFormatter.formatByCountry(amount, _userCountryCode);
+    return CurrencyFormatter.formatByCountryCompact(amount, _userCountryCode);
   }
 
   Future<void> _fetchRunwayData() async {

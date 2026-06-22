@@ -129,7 +129,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
       return;
     }
 
-    final double? cost = double.tryParse(_costController.text.trim());
+    final double? cost = CurrencyFormatter.parse(_costController.text.trim());
     if (cost == null || cost < 0) {
       _showErrorSnackBar("Please enter a valid monthly cost.");
       return;
@@ -151,7 +151,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     setState(() => _isLoading = true);
 
     try {
-      final double cost = double.parse(_costController.text.trim());
+      final double cost = CurrencyFormatter.parse(_costController.text.trim())!;
 
       await FirebaseFirestore.instance.collection('members').add({
         "uid": FirebaseAuth.instance.currentUser!.uid,
@@ -781,9 +781,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                   controller: _costController,
                   textInputAction: TextInputAction.done,
                   onTapOutside: (event) => FocusScope.of(context).unfocus(),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
+                  keyboardType: TextInputType.text,
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontSize: 20,

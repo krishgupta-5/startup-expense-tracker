@@ -508,7 +508,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                     child: Text(
                       isLoading
                           ? '--'
-                          : CurrencyFormatter.formatByCountry(
+                          : CurrencyFormatter.formatByCountryCompact(
                               _totalExpensesAmount,
                               _userCountryCode,
                             ),
@@ -686,7 +686,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             child: Text(
               isLoading
                   ? '--'
-                  : CurrencyFormatter.formatByCountry(
+                  : CurrencyFormatter.formatByCountryCompact(
                       _availableAmount,
                       _userCountryCode,
                     ),
@@ -760,7 +760,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         item['status'] == 'active' || item['status'] == 'completed';
 
     final formattedAmount =
-        '+${CurrencyFormatter.formatByCountry(amount.toDouble(), _userCountryCode)}';
+        '+${CurrencyFormatter.formatByCountryCompact(amount.toDouble(), _userCountryCode)}';
 
     return Row(
       children: [
@@ -916,16 +916,16 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     String formattedAmount;
     Color amountColor;
 
-    String cleanAmount = amount.abs().toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (match) => '${match[1]},',
+    final cleanAmount = CurrencyFormatter.formatByCountryCompact(
+      amount.abs().toDouble(),
+      _userCountryCode,
     );
 
     if (isNegative) {
-      formattedAmount = '-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount';
+      formattedAmount = '-$cleanAmount';
       amountColor = const Color(0xFFFF453A);
     } else {
-      formattedAmount = '+${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount';
+      formattedAmount = '+$cleanAmount';
       amountColor = isActive ? const Color(0xFF30D158) : Colors.white;
     }
 
@@ -1014,9 +1014,9 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         .where((item) => item['amount'] < 0)
         .fold<int>(0, (total, item) => total + (item['amount'] as int));
 
-    final formattedOutflow = totalOutflow.abs().toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (match) => '${match[1]},',
+    final formattedOutflow = CurrencyFormatter.formatByCountryCompact(
+      totalOutflow.abs().toDouble(),
+      _userCountryCode,
     );
 
     return Column(
@@ -1063,7 +1063,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                             fit: BoxFit.scaleDown,
                             alignment: Alignment.centerRight,
                             child: Text(
-                              '-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$formattedOutflow',
+                              '-$formattedOutflow',
                               style: GoogleFonts.inter(
                                 color: const Color(0xFFFF453A),
                                 fontSize: 16,
@@ -1085,13 +1085,11 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     final amount = item['amount'] as int;
     final isPositive = amount >= 0;
 
-    final cleanAmount = amount.abs().toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (match) => '${match[1]},',
+    final formattedAmount = CurrencyFormatter.formatByCountryCompact(
+      amount.abs().toDouble(),
+      _userCountryCode,
     );
-    final formattedAmount = isPositive
-        ? '+${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount'
-        : '-${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}$cleanAmount';
+    final displayAmount = isPositive ? '+$formattedAmount' : '-$formattedAmount';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -1126,7 +1124,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,
               child: Text(
-                formattedAmount,
+                displayAmount,
                 style: GoogleFonts.inter(
                   color: isPositive
                       ? const Color(0xFF30D158)

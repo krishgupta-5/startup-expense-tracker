@@ -105,9 +105,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _formatCurrency(double amount) {
     if (_isLoadingCountry) {
-      return "₹${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (match) => '${match[1]},')}";
+      return CurrencyFormatter.formatCompact(amount, countryCode: '+91');
     }
-    return CurrencyFormatter.formatByCountry(amount, _userCountryCode);
+    return CurrencyFormatter.formatByCountryCompact(amount, _userCountryCode);
   }
 
   Future<String> getTelegramImageUrl(String fileId) async {
