@@ -83,98 +83,16 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     }
   }
 
+  // Pagination cursor (assigned in setState to trigger rebuilds on filter change)
+  // ignore: unused_field
+  DocumentSnapshot? _lastDocument;
+
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
-  // 4. PAGINATION STATE
-  DocumentSnapshot? _lastDocument;
-  static const int _pageSize = 20;
-  bool _hasMore = true;
-
-  Query _buildExpensesQuery() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) throw Exception('User not authenticated');
-
-    Query query = FirebaseFirestore.instance
-        .collection('expenses')
-        .where('uid', isEqualTo: user.uid)
-        // Use _sortOrder to control ascending/descending direction
-        .orderBy('Date', descending: _sortOrder == 'newest')
-        .limit(_pageSize);
-
-    // Apply date filters
-    if (_exactDate != null) {
-      final startOfDay = DateTime(
-        _exactDate!.year,
-        _exactDate!.month,
-        _exactDate!.day,
-      );
-      final endOfDay = startOfDay
-          .add(const Duration(days: 1))
-          .subtract(const Duration(milliseconds: 1));
-      query = query
-          .where('Date', isGreaterThanOrEqualTo: startOfDay)
-          .where('Date', isLessThan: endOfDay);
-    } else if (_selectedMonthKey != 'all') {
-      final monthMap = {
-        'Jan': 1,
-        'Feb': 2,
-        'Mar': 3,
-        'Apr': 4,
-        'May': 5,
-        'Jun': 6,
-        'Jul': 7,
-        'Aug': 8,
-        'Sep': 9,
-        'Oct': 10,
-        'Nov': 11,
-        'Dec': 12,
-      };
-      final month = monthMap[_selectedMonthKey];
-      if (month != null) {
-        final year = int.tryParse(_selectedYear) ?? DateTime.now().year;
-        final startOfMonth = DateTime(year, month);
-        final endOfMonth = DateTime(
-          year,
-          month + 1,
-          0,
-        ).subtract(const Duration(milliseconds: 1));
-        query = query
-            .where('Date', isGreaterThanOrEqualTo: startOfMonth)
-            .where('Date', isLessThan: endOfMonth);
-      }
-    } else {
-      // When "all" months is selected, still apply year filter
-      final year = int.tryParse(_selectedYear) ?? DateTime.now().year;
-      final startOfYear = DateTime(year, 1, 1);
-      final endOfYear = DateTime(
-        year + 1,
-        1,
-        1,
-      ).subtract(const Duration(milliseconds: 1));
-      query = query
-          .where('Date', isGreaterThanOrEqualTo: startOfYear)
-          .where('Date', isLessThan: endOfYear);
-    }
-
-    // Apply category filter
-    if (_selectedCategoryKey != 'all') {
-      query = query.where('Category', isEqualTo: _selectedCategoryKey);
-    }
-
-    // Title filter is applied client-side for case-insensitive matching
-    // (Firestore range queries are case-sensitive, so we filter after fetch)
-
-    // Apply pagination
-    if (_lastDocument != null) {
-      query = query.startAfterDocument(_lastDocument!);
-    }
-
-    return query;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -270,7 +188,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                               null; // Clear exact date if user clicks a month
                           _lastDocument =
                               null; // Reset pagination when filter changes
-                          _hasMore = true;
                         });
                       },
                       child: AnimatedContainer(
@@ -327,7 +244,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                         setState(() {
                           _selectedCategoryKey = key;
                           _lastDocument = null; // Reset pagination
-                          _hasMore = true;
                         });
                       },
                       child: AnimatedContainer(
@@ -384,10 +300,16 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return _buildEmptyState('User not logged in');
 
-    // Calculate the upper bound date for expansion
-    DateTime maxDateLimit = DateTime.now().add(const Duration(days: 365)); // Default maximum future buffer
+    // Calculate the upper bound date for expansion.
+    // Always capped at DateTime.now() so recurring expenses never generate
+    // phantom future occurrences that appear as "unwanted entries" in the list.
+    final now = DateTime.now();
+    DateTime maxDateLimit = now;
     if (_exactDate != null) {
-      maxDateLimit = _exactDate!.add(const Duration(days: 1));
+      final endOfDay = _exactDate!
+          .add(const Duration(days: 1))
+          .subtract(const Duration(milliseconds: 1));
+      maxDateLimit = endOfDay.isBefore(now) ? endOfDay : now;
     } else if (_selectedMonthKey != 'all') {
       final monthMap = {
         'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
@@ -395,12 +317,16 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
       };
       final month = monthMap[_selectedMonthKey];
       if (month != null) {
-        final year = int.tryParse(_selectedYear) ?? DateTime.now().year;
-        maxDateLimit = DateTime(year, month + 1, 1).subtract(const Duration(milliseconds: 1));
+        final year = int.tryParse(_selectedYear) ?? now.year;
+        final endOfMonth = DateTime(year, month + 1, 1)
+            .subtract(const Duration(milliseconds: 1));
+        maxDateLimit = endOfMonth.isBefore(now) ? endOfMonth : now;
       }
     } else {
-      final year = int.tryParse(_selectedYear) ?? DateTime.now().year;
-      maxDateLimit = DateTime(year + 1, 1, 1).subtract(const Duration(milliseconds: 1));
+      final year = int.tryParse(_selectedYear) ?? now.year;
+      final endOfYear = DateTime(year + 1, 1, 1)
+          .subtract(const Duration(milliseconds: 1));
+      maxDateLimit = endOfYear.isBefore(now) ? endOfYear : now;
     }
 
     return StreamBuilder<QuerySnapshot>(
@@ -435,11 +361,12 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
           };
         }).toList();
 
-        // Expand recurring expenses up to the filter's end date limit
+        // Expand recurring expenses up to the filter's end date limit (capped at today).
+        // allowFuture is intentionally omitted (defaults to false) so the helper's
+        // DateTime.now() guard is always enforced — no phantom future rows.
         final expanded = ExpenseExpansionHelper.expandExpenses(
           mappedExpenses,
           maxDate: maxDateLimit,
-          allowFuture: true,
         );
 
         // Filter by Date inside Dart
@@ -519,8 +446,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
           }
         });
 
-        // Set hasMore to false since we handle all documents client-side
-        _hasMore = false;
 
         return ListView.builder(
           padding: const EdgeInsets.all(24),
@@ -612,7 +537,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                 setState(() {
                   _searchQuery = val;
                   _lastDocument = null; // Reset pagination when search changes
-                  _hasMore = true;
                 });
               },
             ),
@@ -849,7 +773,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                           date.month,
                         ); // 1 = Jan, etc.
                         _lastDocument = null;
-                        _hasMore = true;
                       });
                       Navigator.pop(context);
                     }
@@ -940,7 +863,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                           _selectedYear = year;
                           _exactDate = null;
                           _lastDocument = null;
-                          _hasMore = true;
                         });
                         Navigator.pop(context);
                       },
@@ -1027,7 +949,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                         setState(() {
                           _sortOrder = option.toLowerCase();
                           _lastDocument = null;
-                          _hasMore = true;
                         });
                         Navigator.pop(context);
                       },

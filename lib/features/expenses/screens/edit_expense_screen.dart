@@ -46,7 +46,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   // Attachment state
   String? _attachmentFileId;
   String? _fileName;
-  String? _filePath;
   bool _isUploading = false;
 
   final categories = {
@@ -332,7 +331,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       setState(() {
         _isUploading = true;
         _fileName = fileName;
-        _filePath = filePath;
       });
 
       final fileId = await uploadToTelegram(filePath);
@@ -352,7 +350,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       setState(() {
         _isUploading = false;
         _fileName = null;
-        _filePath = null;
       });
 
       if (mounted) {
@@ -1719,7 +1716,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 onPressed: () {
                   setState(() {
                     _fileName = null;
-                    _filePath = null;
                     _attachmentFileId = null;
                   });
                 },

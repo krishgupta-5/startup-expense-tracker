@@ -39,7 +39,6 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
 
   // Telegram photo variables
   String? _telegramFileId;
-  String? _fileName;
 
   // Cache for Telegram photos to avoid repeated fetching
   static final Map<String, String> _telegramPhotoCache = {};
@@ -448,7 +447,6 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
   Future<void> _uploadImageToTelegram(File imageFile) async {
     try {
       setState(() => _isLoading = true);
-      _fileName = imageFile.path.split('/').last;
 
       final fileId = await uploadToTelegram(imageFile.path);
 
@@ -467,7 +465,6 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
       debugPrint("Error uploading image to Telegram: $e");
       if (mounted) {
         setState(() => _isLoading = false);
-        _fileName = null;
         _showErrorSnackBar("Failed to upload image to Telegram");
       }
     }

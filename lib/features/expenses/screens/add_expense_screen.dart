@@ -47,7 +47,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   // ✅ File picker state
   String? _fileName;
-  String? _filePath;
   bool _isUploading = false;
 
   final categories = {
@@ -305,120 +304,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
-  // --- Budget Exceeded Confirmation Dialog ---
-  Future<bool> _showBudgetExceededDialog({
-    required String title,
-    required String message,
-    required String details,
-  }) async {
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1C1E),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF9F0A).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.warning_amber_rounded,
-                color: Color(0xFFFF9F0A),
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              message,
-              style: GoogleFonts.inter(
-                color: Colors.white70,
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF453A).withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFFF453A).withValues(alpha: 0.2),
-                ),
-              ),
-              child: Text(
-                details,
-                style: GoogleFonts.inter(
-                  color: const Color(0xFFFF453A),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  height: 1.4,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              "Cancel",
-              style: GoogleFonts.inter(
-                color: Colors.white54,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF9F0A),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            ),
-            child: Text(
-              "Add Anyway",
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
-  }
 
   Future<void> _uploadExpense() async {
     FocusScope.of(context).unfocus(); // Dismiss keyboard
@@ -489,7 +374,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       }
       recurringTenure = int.tryParse(tenureText);
       if (recurringTenure == null || recurringTenure <= 0) {
-        _showMinimalToast("Tenure must be a positive number.", isError: true);
+        ErrorPopup.showValidation(context: context, message: "Tenure must be a positive number.");
         return;
       }
     }
@@ -505,7 +390,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     // ─── Pre-fetch user + companyId (reused for budget check and save) ────────
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      _showMinimalToast('User not logged in', isError: true);
+      ErrorPopup.showAuth(context: context, message: 'User not logged in');
       return;
     }
     final userDoc = await FirebaseFirestore.instance
@@ -514,7 +399,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         .get();
     final companyId = userDoc.data()?['companyId'] as String?;
     if (companyId == null) {
-      _showMinimalToast('Company not found', isError: true);
+      if (!mounted) return;
+      ErrorPopup.showError(context: context, title: 'System Error', message: 'Company not found');
       return;
     }
 
@@ -555,6 +441,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           }
 
           if (monthlyBudget > 0 && totalMonthlyCost + amount > monthlyBudget) {
+            if (!mounted) return;
             ErrorPopup.show(
               context: context,
               title: "Exceeds Team Budget",
@@ -580,6 +467,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           final monthlyCost = (mData['monthlyCost'] as num?)?.toDouble() ?? 0.0;
 
           if (monthlyCost > 0 && amount > monthlyCost) {
+            if (!mounted) return;
             ErrorPopup.show(
               context: context,
               title: "Exceeds Member Salary",
@@ -1312,6 +1200,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         ConstrainedBox(
           constraints: const BoxConstraints(minWidth: double.infinity),
           child: ShadSelect<String>(
+            // ValueKey forces the widget to be fully recreated whenever
+            // currentValue changes (e.g. after bank accounts load async),
+            // so initialValue is always seeded with the correct value.
+            key: ValueKey(currentValue),
             placeholder: Text(
               'Select $label',
               style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
@@ -1934,7 +1826,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 onPressed: () {
                   setState(() {
                     _fileName = null;
-                    _filePath = null;
                     _attachmentFileId = null;
                   });
                 },
@@ -2169,7 +2060,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       setState(() {
         _isUploading = true;
         _fileName = fileName;
-        _filePath = filePath;
       });
 
       final fileId = await uploadToTelegram(filePath);
@@ -2183,6 +2073,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         _attachmentFileId = fileId;
       });
 
+      if (!mounted) return;
       ErrorPopup.showSuccess(
         context: context,
         message: "File uploaded successfully!",
@@ -2192,7 +2083,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       setState(() {
         _isUploading = false;
         _fileName = null;
-        _filePath = null;
       });
 
       if (mounted) {

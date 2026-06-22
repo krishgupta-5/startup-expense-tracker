@@ -10,7 +10,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/user_country_service.dart';
 import '../../../services/bank_account_service.dart';
-import '../../../services/financial_calculator.dart';
 import '../../home/screens/add_bank_account_screen.dart';
 
 class CompanyDetailsScreen extends StatefulWidget {
@@ -37,8 +36,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   double _fundingAmount = 0.0;
   double _absoluteTotalExpenses = 0.0;
   double get _availableFunds => _fundingAmount - _absoluteTotalExpenses;
-  String? _runwayValue;
-  List<Map<String, dynamic>> _allExpensesForCalc = [];
 
   // Real-time stream subscriptions
   StreamSubscription<DocumentSnapshot>? _companySubscription;
@@ -105,7 +102,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         if (mounted) {
           setState(() {
             _fundingAmount = _toDouble(funding);
-            _updateRunwayValue();
           });
         }
       }
@@ -120,78 +116,17 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       if (mounted) {
         double absoluteTotal = 0.0;
 
-        final expensesList = snapshot.docs
-            .where((doc) => doc.data()['isFunding'] != true)
-            .map((doc) {
+        for (final doc in snapshot.docs) {
           final data = doc.data();
-          final amount = _toDouble(data['Amount'] ?? data['amount']);
-          final date = data['Date'] as Timestamp?;
-
-          absoluteTotal += amount;
-
-          return {
-            'amount': amount,
-            'date': date,
-            'type': data['Type'] ?? data['type'] ?? 'one_time',
-            'recurrenceFrequency': data['recurrenceFrequency'] ?? data['loanRateType'] ?? 'monthly',
-            'recurringTenureMonths': data['recurringTenureMonths'] ?? data['loanTenureMonths'],
-          };
-        }).toList();
+          if (data['isFunding'] == true) continue;
+          absoluteTotal += _toDouble(data['Amount'] ?? data['amount']);
+        }
 
         setState(() {
           _absoluteTotalExpenses = absoluteTotal;
-          _allExpensesForCalc = expensesList;
-          _updateRunwayValue();
         });
       }
     });
-  }
-
-  void _updateRunwayValue() {
-    if (_fundingAmount <= 0) {
-      _runwayValue = "0.0";
-      return;
-    }
-
-    final availableBalance = _availableFunds;
-    if (availableBalance <= 0) {
-      _runwayValue = "0.0";
-      return;
-    }
-
-    double actualMonthlyBurn = FinancialCalculator.currentMonthBurn(
-      _allExpensesForCalc,
-    );
-
-    if (actualMonthlyBurn == 0 && _allExpensesForCalc.isNotEmpty) {
-      actualMonthlyBurn = _calculateAverageMonthlyBurn();
-    }
-
-    if (actualMonthlyBurn <= 0) {
-      _runwayValue = "0.0";
-    } else {
-      _runwayValue = (availableBalance / actualMonthlyBurn).toStringAsFixed(2);
-    }
-  }
-
-  double _calculateAverageMonthlyBurn() {
-    if (_allExpensesForCalc.isEmpty) return 0.0;
-    Map<String, double> monthlyTotals = {};
-
-    for (var expense in _allExpensesForCalc) {
-      final expenseDate = expense['date'] as Timestamp?;
-      if (expenseDate != null) {
-        final expenseDateTime = expenseDate.toDate();
-        final monthKey =
-            "${expenseDateTime.year}-${expenseDateTime.month.toString().padLeft(2, '0')}";
-        monthlyTotals[monthKey] =
-            (monthlyTotals[monthKey] ?? 0.0) + (expense['amount'] as double);
-      }
-    }
-
-    if (monthlyTotals.isEmpty) return 0.0;
-    double total = monthlyTotals.values.fold(0.0, (s, item) => s + item);
-    return total / monthlyTotals.length;
   }
 
   Widget _buildReadOnlyMetric(String label, String value) {

@@ -512,9 +512,6 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
           .toList();
 
       // Build transactions table manually for per-row funding color support
-      // Column widths: Date, Title, Category, Bank Account, Amount
-      final List<double> colWidths = [70, 130, 80, 120, 130];
-      final double tableWidth = colWidths.reduce((a, b) => a + b);
 
       // Helper to build a single table cell
       pw.Widget buildCell(

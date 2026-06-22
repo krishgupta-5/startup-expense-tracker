@@ -349,12 +349,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // Calculate current month burn using FinancialCalculator
+    // IMPORTANT: allExpenses are already expanded, so mark as 'one_time'
+    // to prevent currentMonthBurn() from re-applying recurring scaling.
     final expensesForCalculation = allExpenses
         .map(
           (expense) => {
             'amount': expense['amount'] as double,
             'date': expense['date'],
-            'type': expense['type'] ?? 'one_time',
+            'type': 'one_time', // Already expanded — no double-counting
             'recurrenceFrequency': expense['recurrenceFrequency'],
             'recurringTenureMonths': expense['recurringTenureMonths'],
           },

@@ -110,12 +110,15 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
         final availableBalance = fundingAmount - realTotalExpenses;
 
         // Calculate current month burn using FinancialCalculator with proper scaling
+        // IMPORTANT: allExpenses are already expanded by ExpenseExpansionHelper,
+        // so each virtual occurrence is a separate entry. We must mark them as
+        // 'one_time' here so currentMonthBurn() doesn't re-apply recurring scaling.
         final expensesForCalculation = allExpenses
             .map(
               (expense) => {
                 'amount': expense['amount'] as double,
                 'date': expense['date'],
-                'type': expense['type'] ?? 'one_time',
+                'type': 'one_time', // Already expanded — no double-counting
                 'recurrenceFrequency': expense['recurrenceFrequency'],
                 'recurringTenureMonths': expense['recurringTenureMonths'],
               },
@@ -175,7 +178,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
           runwayMonths = availableBalance / actualMonthlyBurn;
           currentBalance = _formatCurrency(availableBalance);
           monthlyBurn = _formatCurrency(actualMonthlyBurn);
-          netBurn = _formatCurrency(actualMonthlyBurn);
+          netBurn = _formatCurrency(realTotalExpenses);
           zeroCashDate = calculatedZeroCashDate;
           monthlyProjections = projections;
           isLoading = false;
