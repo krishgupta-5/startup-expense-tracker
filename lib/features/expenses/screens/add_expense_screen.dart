@@ -83,9 +83,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   String? _selectedBankAccount;
   DateTime _selectedDate = DateTime.now();
 
+  // Recurring Details State
+  String _recurrenceFrequency = "monthly";
+  bool _isOngoing = true;
+  late TextEditingController _tenureController;
+
   @override
   void initState() {
     super.initState();
+    _tenureController = TextEditingController();
     _loadUserCountryCode();
     CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
     _scrollController = ScrollController();
@@ -165,6 +171,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     _titleController.dispose();
     _descriptionController.dispose();
     _dateController.dispose();
+    _tenureController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -423,13 +430,29 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       );
       return;
     }
-    if (_selectedDate.isAfter(DateTime.now())) {
+    final isRecurringOrSub = _selectedType == "recurring" || _selectedType == "subscription";
+    if (!isRecurringOrSub && _selectedDate.isAfter(DateTime.now())) {
       ErrorPopup.showValidation(
         context: context,
         message: "Date cannot be in the future.",
       );
       return;
     }
+
+    int? recurringTenure;
+    if (isRecurringOrSub && !_isOngoing) {
+      final tenureText = _tenureController.text.trim();
+      if (tenureText.isEmpty) {
+        _showMinimalToast("Please enter a tenure for the recurring expense.", isError: true);
+        return;
+      }
+      recurringTenure = int.tryParse(tenureText);
+      if (recurringTenure == null || recurringTenure <= 0) {
+        _showMinimalToast("Tenure must be a positive number.", isError: true);
+        return;
+      }
+    }
+
     if (_selectedBankAccount == null) {
       ErrorPopup.showValidation(
         context: context,
@@ -438,33 +461,33 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       return;
     }
 
+    // ─── Pre-fetch user + companyId (reused for budget check and save) ────────
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showMinimalToast('User not logged in', isError: true);
+      return;
+    }
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+    final companyId = userDoc.data()?['companyId'] as String?;
+    if (companyId == null) {
+      _showMinimalToast('Company not found', isError: true);
+      return;
+    }
+
+    // ─── Budget Warning Check ─────────────────────────────────────────────────
+    final shouldProceed = await _checkBudgetAndWarn(
+      companyId: companyId,
+      userId: user.uid,
+      newAmount: amount,
+    );
+    if (!shouldProceed) return;
+
     setState(() => _isLoading = true);
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        ErrorPopup.showAuth(
-          context: context,
-          message: 'User not logged in',
-        );
-        return;
-      }
-
-      // Fetch companyId once upfront
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      final companyId = userDoc.data()?['companyId'] as String?;
-      if (companyId == null) {
-        ErrorPopup.showError(
-          context: context,
-          message: 'Company not found',
-          title: "System Error",
-        );
-        return;
-      }
-
       final currencyCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
 
       // --- Team budget validation (warn but don't block) ---
@@ -563,6 +586,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         if (_expenseType == 'member' && _selectedTeamMember != null)
           'memberId': _selectedTeamMember!.id,
         'Time': FieldValue.serverTimestamp(),
+        if (isRecurringOrSub) ...{
+          'recurrenceFrequency': _recurrenceFrequency,
+          'recurringTenureMonths': recurringTenure,
+        }
       });
 
       // 2. Increment company totalExpenses atomically
@@ -596,6 +623,294 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  // ── Budget Warning Helpers ───────────────────────────────────────────────────
+
+  /// Returns true if the expense should be saved (no budget set, within budget,
+  /// or user explicitly chose "Add Anyway" despite exceeding the budget).
+  Future<bool> _checkBudgetAndWarn({
+    required String companyId,
+    required String userId,
+    required double newAmount,
+  }) async {
+    try {
+      // 1. Fetch category budget
+      final companyDoc = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(companyId)
+          .get();
+      final budgets =
+          (companyDoc.data()?['budgets'] as Map<String, dynamic>?) ?? {};
+      final budget = (budgets[_selectedCategory] as num?)?.toDouble() ?? 0.0;
+
+      if (budget <= 0) return true; // No budget set → proceed silently
+
+      // 2. Sum this month's spending for the category
+      final now = DateTime.now();
+      final startOfMonth = DateTime(now.year, now.month, 1);
+      final expensesSnapshot = await FirebaseFirestore.instance
+          .collection('expenses')
+          .where('uid', isEqualTo: userId)
+          .where('Date',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
+          .get();
+
+      double currentSpending = 0.0;
+      for (final doc in expensesSnapshot.docs) {
+        final data = doc.data();
+        if (data['isFunding'] == true) continue;
+        final cat = (data['Category'] as String?)?.toLowerCase().trim() ?? '';
+        if (cat == _selectedCategory.toLowerCase().trim()) {
+          currentSpending += (data['Amount'] as num?)?.toDouble() ?? 0.0;
+        }
+      }
+
+      final projectedTotal = currentSpending + newAmount;
+      if (projectedTotal <= budget) return true; // Still within budget
+
+      // 3. Over budget — show warning dialog
+      if (!mounted) return false;
+      final proceed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _buildBudgetWarningDialog(
+          budget: budget,
+          currentSpending: currentSpending,
+          newAmount: newAmount,
+          projectedTotal: projectedTotal,
+        ),
+      );
+      return proceed ?? false;
+    } catch (e) {
+      debugPrint('Budget check error: $e');
+      return true; // On error, don't block the user
+    }
+  }
+
+  Widget _buildBudgetWarningDialog({
+    required double budget,
+    required double currentSpending,
+    required double newAmount,
+    required double projectedTotal,
+  }) {
+    final symbol = CurrencyFormatter.getCurrencySymbol(_userCountryCode);
+    final overBy = projectedTotal - budget;
+    final categoryLabel = categories[_selectedCategory] ?? _selectedCategory;
+    String fmt(double v) =>
+        CurrencyFormatter.formatByCountry(v, _userCountryCode);
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Container(
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141416),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: const Color(0xFFFF9F0A).withValues(alpha: 0.3),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFF9F0A).withValues(alpha: 0.08),
+              blurRadius: 40,
+              spreadRadius: 0,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF9F0A).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFFFF9F0A).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Color(0xFFFF9F0A),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Budget Exceeded',
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        categoryLabel,
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFFFF9F0A),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            // Breakdown rows
+            _dialogRow('Monthly Budget', fmt(budget), Colors.white54),
+            const SizedBox(height: 10),
+            _dialogRow('Spent This Month', fmt(currentSpending), Colors.white54),
+            const SizedBox(height: 10),
+            _dialogRow(
+              'This Expense',
+              '+$symbol${newAmount.toStringAsFixed(2)}',
+              const Color(0xFFFF453A),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Divider(
+                color: Colors.white.withValues(alpha: 0.06),
+                height: 1,
+              ),
+            ),
+            _dialogRow(
+              'Projected Total',
+              fmt(projectedTotal),
+              Colors.white,
+              isTotal: true,
+            ),
+            const SizedBox(height: 8),
+            // Over-limit badge
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF453A).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: const Color(0xFFFF453A).withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.arrow_upward_rounded,
+                      color: Color(0xFFFF453A), size: 13),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${fmt(overBy)} over limit',
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFFFF453A),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(false),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          color: Colors.white54,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(true),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color:
+                            const Color(0xFFFF9F0A).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color:
+                              const Color(0xFFFF9F0A).withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Text(
+                        'Add Anyway',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFFFF9F0A),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dialogRow(
+    String label,
+    String value,
+    Color valueColor, {
+    bool isTotal = false,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            color: isTotal ? Colors.white : Colors.white54,
+            fontSize: isTotal ? 14 : 13,
+            fontWeight: isTotal ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            color: valueColor,
+            fontSize: isTotal ? 16 : 13,
+            fontWeight: isTotal ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildExpenseTypeSelector() {
@@ -754,6 +1069,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                               ),
                             ),
                           ],
+                        ),
+
+                        AnimatedCrossFade(
+                          duration: const Duration(milliseconds: 300),
+                          crossFadeState: (_selectedType == 'recurring' || _selectedType == 'subscription')
+                              ? CrossFadeState.showFirst
+                              : CrossFadeState.showSecond,
+                          firstChild: _buildRecurringDetailsCard(),
+                          secondChild: const SizedBox.shrink(),
                         ),
 
                         const SizedBox(height: 24),
@@ -1916,6 +2240,175 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 ),
         ),
       ),
+    );
+  }
+
+  Widget _buildRecurringDetailsCard() {
+    final Map<String, String> frequencies = {
+      'daily': 'Daily',
+      'weekly': 'Weekly',
+      'monthly': 'Monthly',
+      'yearly': 'Yearly',
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(top: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416).withValues(alpha: 0.6), // Glassy background
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.repeat_on_outlined,
+                color: Color(0xFF0A84FF),
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                "RECURRENCE DETAILS",
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF0A84FF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Frequency selector row & Ongoing switch row
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionLabel("FREQUENCY"),
+                    const SizedBox(height: 8),
+                    ShadSelect<String>(
+                      placeholder: Text(
+                        'Select Frequency',
+                        style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
+                      ),
+                      initialValue: _recurrenceFrequency,
+                      options: [
+                        ...frequencies.entries.map(
+                          (e) => ShadOption(value: e.key, child: Text(e.value)),
+                        ),
+                      ],
+                      selectedOptionBuilder: (context, value) => Text(
+                        frequencies[value] ?? "Monthly",
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _recurrenceFrequency = val;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionLabel("ONGOING EXPENSE"),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Switch(
+                          value: _isOngoing,
+                          activeThumbColor: const Color(0xFF30D158),
+                          activeTrackColor: const Color(0xFF30D158).withValues(alpha: 0.2),
+                          inactiveThumbColor: Colors.white54,
+                          inactiveTrackColor: Colors.white10,
+                          onChanged: (val) {
+                            setState(() {
+                              _isOngoing = val;
+                            });
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _isOngoing ? "Ongoing" : "Fixed Term",
+                          style: GoogleFonts.inter(
+                            color: Colors.white70,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // If not ongoing, show tenure field
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 250),
+            crossFadeState: !_isOngoing ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+            firstChild: Padding(
+              padding: const EdgeInsets.only(top: 20),
+              child: _buildRecurringInputField(
+                label: "TENURE (MONTHS / OCCURRENCES)",
+                placeholder: "e.g. 12",
+                controller: _tenureController,
+              ),
+            ),
+            secondChild: const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecurringInputField({
+    required String label,
+    required String placeholder,
+    required TextEditingController controller,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel(label),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          ),
+          child: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+            decoration: InputDecoration(
+              hintText: placeholder,
+              hintStyle: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

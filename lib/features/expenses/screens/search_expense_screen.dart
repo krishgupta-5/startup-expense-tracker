@@ -6,6 +6,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:startup_expense_tracker/services/user_country_service.dart';
 import '../../../utils/data_helpers.dart';
+import '../../../utils/expense_expansion_helper.dart';
 import '../../../services/currency_formatter.dart';
 import 'expense_details_screen.dart';
 
@@ -383,10 +384,30 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return _buildEmptyState('User not logged in');
 
-    final query = _buildExpensesQuery();
+    // Calculate the upper bound date for expansion
+    DateTime maxDateLimit = DateTime.now().add(const Duration(days: 365)); // Default maximum future buffer
+    if (_exactDate != null) {
+      maxDateLimit = _exactDate!.add(const Duration(days: 1));
+    } else if (_selectedMonthKey != 'all') {
+      final monthMap = {
+        'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+        'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
+      };
+      final month = monthMap[_selectedMonthKey];
+      if (month != null) {
+        final year = int.tryParse(_selectedYear) ?? DateTime.now().year;
+        maxDateLimit = DateTime(year, month + 1, 1).subtract(const Duration(milliseconds: 1));
+      }
+    } else {
+      final year = int.tryParse(_selectedYear) ?? DateTime.now().year;
+      maxDateLimit = DateTime(year + 1, 1, 1).subtract(const Duration(milliseconds: 1));
+    }
 
     return StreamBuilder<QuerySnapshot>(
-      stream: query.snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('expenses')
+          .where('uid', isEqualTo: user.uid)
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -405,31 +426,108 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
           return _buildEmptyState(_getNotFoundMessage());
         }
 
-        // Client-side case-insensitive title filter
-        final allDocs = snapshot.data!.docs;
-        final filteredDocs = _searchQuery.isEmpty
-            ? allDocs
-            : allDocs.where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
+        // Map documents
+        final mappedExpenses = snapshot.data!.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return {
+            ...data,
+            'id': doc.id,
+          };
+        }).toList();
+
+        // Expand recurring expenses up to the filter's end date limit
+        final expanded = ExpenseExpansionHelper.expandExpenses(
+          mappedExpenses,
+          maxDate: maxDateLimit,
+          allowFuture: true,
+        );
+
+        // Filter by Date inside Dart
+        final filteredByDate = expanded.where((data) {
+          final dateVal = data['Date'] ?? data['date'];
+          DateTime? dt;
+          if (dateVal is Timestamp) {
+            dt = dateVal.toDate();
+          } else if (dateVal is DateTime) {
+            dt = dateVal;
+          }
+          if (dt == null) return false;
+
+          // Apply Date Filters
+          if (_exactDate != null) {
+            final startOfDay = DateTime(_exactDate!.year, _exactDate!.month, _exactDate!.day);
+            final endOfDay = startOfDay.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
+            return dt.isAfter(startOfDay.subtract(const Duration(seconds: 1))) && dt.isBefore(endOfDay);
+          } else if (_selectedMonthKey != 'all') {
+            final monthMap = {
+              'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+              'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
+            };
+            final month = monthMap[_selectedMonthKey];
+            if (month != null) {
+              final year = int.tryParse(_selectedYear) ?? DateTime.now().year;
+              final startOfMonth = DateTime(year, month);
+              final endOfMonth = DateTime(year, month + 1, 0, 23, 59, 59);
+              return dt.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) && dt.isBefore(endOfMonth.add(const Duration(seconds: 1)));
+            }
+          } else {
+            final year = int.tryParse(_selectedYear) ?? DateTime.now().year;
+            final startOfYear = DateTime(year, 1, 1);
+            final endOfYear = DateTime(year, 12, 31, 23, 59, 59);
+            return dt.isAfter(startOfYear.subtract(const Duration(seconds: 1))) && dt.isBefore(endOfYear.add(const Duration(seconds: 1)));
+          }
+          return true;
+        }).toList();
+
+        // Client-side case-insensitive title search filter
+        final searchFiltered = _searchQuery.isEmpty
+            ? filteredByDate
+            : filteredByDate.where((data) {
                 final title = (data['Title'] ?? '').toString().toLowerCase();
                 return title.contains(_searchQuery.toLowerCase());
               }).toList();
 
-        if (filteredDocs.isEmpty) {
+        if (searchFiltered.isEmpty) {
           return _buildEmptyState(_getNotFoundMessage());
         }
 
-        // Update pagination state
-        if (allDocs.length < _pageSize) {
-          _hasMore = false;
-        }
+        // Sort based on _sortOrder
+        searchFiltered.sort((a, b) {
+          final aDateVal = a['Date'] ?? a['date'];
+          final bDateVal = b['Date'] ?? b['date'];
+          DateTime? aDt;
+          if (aDateVal is Timestamp) {
+            aDt = aDateVal.toDate();
+          } else if (aDateVal is DateTime) {
+            aDt = aDateVal;
+          }
+          DateTime? bDt;
+          if (bDateVal is Timestamp) {
+            bDt = bDateVal.toDate();
+          } else if (bDateVal is DateTime) {
+            bDt = bDateVal;
+          }
+
+          if (aDt == null && bDt == null) return 0;
+          if (aDt == null) return 1;
+          if (bDt == null) return -1;
+
+          if (_sortOrder == 'newest') {
+            return bDt.compareTo(aDt);
+          } else {
+            return aDt.compareTo(bDt);
+          }
+        });
+
+        // Set hasMore to false since we handle all documents client-side
+        _hasMore = false;
 
         return ListView.builder(
           padding: const EdgeInsets.all(24),
           physics: const BouncingScrollPhysics(),
-          itemCount: filteredDocs.length,
+          itemCount: searchFiltered.length,
           itemBuilder: (context, index) {
-            return _buildTransactionRow(filteredDocs[index]);
+            return _buildTransactionRow(searchFiltered[index]);
           },
         );
       },
@@ -556,9 +654,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     );
   }
 
-  Widget _buildTransactionRow(QueryDocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final id = doc.id;
+  Widget _buildTransactionRow(Map<String, dynamic> data) {
+    final id = data['id'] as String? ?? '';
 
     final title = data['Title'] ?? 'Unnamed Expense';
     final amount = DataHelpers.safeParseDouble(data['Amount']);

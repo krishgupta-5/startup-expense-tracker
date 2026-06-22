@@ -9,6 +9,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../utils/data_helpers.dart';
+import '../../../utils/expense_expansion_helper.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/bank_account_service.dart';
@@ -368,10 +369,20 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
       final querySnapshot = await FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: user.uid)
-          .where('Date', isGreaterThanOrEqualTo: startDate)
-          .where('Date', isLessThanOrEqualTo: endDate)
-          .orderBy('Date', descending: true)
           .get();
+
+      final mappedExpenses = querySnapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          ...data,
+          'id': doc.id,
+        };
+      }).toList();
+
+      final expanded = ExpenseExpansionHelper.expandExpenses(
+        mappedExpenses,
+        maxDate: endDate,
+      );
 
       // 3. Aggregate Data for the PDF
       List<Map<String, dynamic>> filteredData = [];
@@ -408,9 +419,22 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
         }
       }
 
+      // Sort expanded expenses descending by date
+      expanded.sort((a, b) {
+        final aDateVal = a['Date'] ?? a['date'];
+        final bDateVal = b['Date'] ?? b['date'];
+        DateTime? aDt = aDateVal is Timestamp ? aDateVal.toDate() : aDateVal as DateTime?;
+        DateTime? bDt = bDateVal is Timestamp ? bDateVal.toDate() : bDateVal as DateTime?;
+        if (aDt == null && bDt == null) return 0;
+        if (aDt == null) return 1;
+        if (bDt == null) return -1;
+        return bDt.compareTo(aDt);
+      });
+
       // Filter and Sort Firestore Data
-      for (var doc in querySnapshot.docs) {
-        final data = doc.data();
+      for (final data in expanded) {
+        if (data['isFunding'] == true) continue;
+
         final category = (data['Category']?.toString() ?? 'other')
             .toLowerCase();
 
@@ -421,7 +445,19 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
         final amount = DataHelpers.safeParseDouble(data['Amount']);
         final isFunding = data['isFunding'] == true || category == 'funding';
 
-        DateTime docDate = (data['Date'] as Timestamp).toDate();
+        final dateVal = data['Date'] ?? data['date'];
+        DateTime docDate;
+        if (dateVal is Timestamp) {
+          docDate = dateVal.toDate();
+        } else if (dateVal is DateTime) {
+          docDate = dateVal;
+        } else {
+          docDate = now;
+        }
+
+        if (docDate.isBefore(startDate) || docDate.isAfter(endDate)) {
+          continue;
+        }
 
         // Only count expenses (not funding) in totals
         if (!isFunding) {
@@ -816,9 +852,6 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
     return FirebaseFirestore.instance
         .collection('expenses')
         .where('uid', isEqualTo: uid)
-        .where('Date', isGreaterThanOrEqualTo: startDate)
-        .where('Date', isLessThanOrEqualTo: endDate)
-        .orderBy('Date', descending: true)
         .snapshots();
   }
 
@@ -963,10 +996,32 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                             );
 
                             final docs = snapshot.data?.docs ?? [];
-                            for (var doc in docs) {
+                            final rawList = docs.map((doc) {
                               final data = doc.data() as Map<String, dynamic>;
-                              final Timestamp? ts = data['Date'] as Timestamp?;
-                              final DateTime docDate = ts?.toDate() ?? now;
+                              return {
+                                ...data,
+                                'id': doc.id,
+                              };
+                            }).toList();
+
+                            final expanded = ExpenseExpansionHelper.expandExpenses(
+                              rawList,
+                              maxDate: endDate,
+                            );
+
+                            for (final data in expanded) {
+                              if (data['isFunding'] == true) continue;
+
+                              final dateVal = data['Date'] ?? data['date'];
+                              DateTime docDate;
+                              if (dateVal is Timestamp) {
+                                docDate = dateVal.toDate();
+                              } else if (dateVal is DateTime) {
+                                docDate = dateVal;
+                              } else {
+                                docDate = now;
+                              }
+
                               final String category =
                                   (data['Category']?.toString() ?? 'other')
                                       .toLowerCase();

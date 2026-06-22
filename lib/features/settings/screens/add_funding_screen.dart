@@ -8,6 +8,7 @@ import 'dart:math'; // Added for the shake sine wave math
 
 import '../../../services/currency_formatter.dart';
 import '../../../services/user_country_service.dart';
+import '../../../services/financial_calculator.dart';
 
 class AddFundingScreen extends StatefulWidget {
   const AddFundingScreen({super.key});
@@ -21,6 +22,15 @@ class _AddFundingScreenState extends State<AddFundingScreen> with SingleTickerPr
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _targetRunwayController = TextEditingController();
+
+  // Bank Loan controllers & state
+  final TextEditingController _lenderBankController = TextEditingController();
+  final TextEditingController _interestController = TextEditingController();
+  final TextEditingController _tenureController = TextEditingController();
+  final TextEditingController _emiController = TextEditingController();
+  String _loanRateType = 'reducing'; // 'flat' or 'reducing'
+  bool _userEditedEmi = false;
+  DateTime _selectedEmiDate = DateTime.now().add(const Duration(days: 30));
 
   bool _isLoading = false;
   bool _updateTargetRunway = false;
@@ -95,6 +105,21 @@ class _AddFundingScreenState extends State<AddFundingScreen> with SingleTickerPr
             ) ??
             0.0;
       });
+      if (_selectedSource == 'bank_loan') {
+        _recalculateEmi();
+      }
+    });
+
+    _interestController.addListener(() {
+      if (_selectedSource == 'bank_loan') {
+        _recalculateEmi();
+      }
+    });
+
+    _tenureController.addListener(() {
+      if (_selectedSource == 'bank_loan') {
+        _recalculateEmi();
+      }
     });
   }
 
@@ -104,8 +129,34 @@ class _AddFundingScreenState extends State<AddFundingScreen> with SingleTickerPr
     _amountController.dispose();
     _notesController.dispose();
     _targetRunwayController.dispose();
+    _interestController.dispose();
+    _tenureController.dispose();
+    _emiController.dispose();
+    _lenderBankController.dispose();
     super.dispose();
   }
+
+  void _recalculateEmi() {
+    if (_userEditedEmi) return;
+
+    final principal = _inputAmount;
+    final rate = double.tryParse(_interestController.text) ?? 0.0;
+    final tenure = int.tryParse(_tenureController.text) ?? 0;
+
+    double emi = 0.0;
+    if (_loanRateType == 'flat') {
+      emi = FinancialCalculator.calculateFlatRateEmi(principal, rate, tenure);
+    } else {
+      emi = FinancialCalculator.calculateReducingRateEmi(principal, rate, tenure);
+    }
+
+    if (emi > 0) {
+      _emiController.text = emi.toStringAsFixed(2);
+    } else {
+      _emiController.text = '';
+    }
+  }
+
 
   Future<void> _loadCurrentData() async {
     try {
@@ -186,6 +237,17 @@ class _AddFundingScreenState extends State<AddFundingScreen> with SingleTickerPr
       // Check mandatory fields
       if (_inputAmount <= 0) _errorFields.add("ADD FUNDING AMOUNT");
       if (_notesController.text.trim().isEmpty) _errorFields.add("NOTES");
+
+      if (_selectedSource == 'bank_loan') {
+        final rateVal = double.tryParse(_interestController.text) ?? 0.0;
+        final tenureVal = int.tryParse(_tenureController.text) ?? 0;
+        final emiVal = double.tryParse(_emiController.text.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0;
+
+        if (_lenderBankController.text.trim().isEmpty) _errorFields.add("LENDER BANK NAME");
+        if (rateVal <= 0) _errorFields.add("INTEREST RATE (% P.A.)");
+        if (tenureVal <= 0) _errorFields.add("TENURE (MONTHS)");
+        if (emiVal <= 0) _errorFields.add("EMI AMOUNT");
+      }
     });
 
     if (_errorFields.isNotEmpty) {
@@ -207,6 +269,13 @@ class _AddFundingScreenState extends State<AddFundingScreen> with SingleTickerPr
       final newTotalFunding = _currentFunding + amount;
       final now = DateTime.now();
 
+      final isBankLoan = _selectedSource == 'bank_loan';
+      final loanLenderBank = isBankLoan ? _lenderBankController.text.trim() : null;
+      final loanInterestRate = isBankLoan ? (double.tryParse(_interestController.text) ?? 0.0) : null;
+      final loanRateType = isBankLoan ? _loanRateType : null;
+      final loanTenureMonths = isBankLoan ? (int.tryParse(_tenureController.text) ?? 0) : null;
+      final loanEmiAmount = isBankLoan ? (double.tryParse(_emiController.text.replaceAll(RegExp(r'[^\d.]'), '')) ?? 0.0) : null;
+
       // 1. Save the funding transaction
       await FirebaseFirestore.instance.collection('funding_transactions').add({
         'uid': user.uid,
@@ -217,6 +286,15 @@ class _AddFundingScreenState extends State<AddFundingScreen> with SingleTickerPr
         'createdAt': FieldValue.serverTimestamp(),
         'previousFunding': _currentFunding,
         'newTotalFunding': newTotalFunding,
+        if (isBankLoan) ...{
+          'isBankLoan': true,
+          'loanLenderBank': loanLenderBank,
+          'loanInterestRate': loanInterestRate,
+          'loanRateType': loanRateType,
+          'loanTenureMonths': loanTenureMonths,
+          'loanEmiAmount': loanEmiAmount,
+          'loanEmiStartDate': Timestamp.fromDate(_selectedEmiDate),
+        }
       });
 
       // 2. Create an expense transaction
@@ -236,9 +314,46 @@ class _AddFundingScreenState extends State<AddFundingScreen> with SingleTickerPr
         'fundingSource': sourceLabel,
         'fundingSourceKey': _selectedSource,
         'Time': FieldValue.serverTimestamp(),
+        if (isBankLoan) ...{
+          'isBankLoan': true,
+          'loanLenderBank': loanLenderBank,
+          'loanInterestRate': loanInterestRate,
+          'loanRateType': loanRateType,
+          'loanTenureMonths': loanTenureMonths,
+          'loanEmiAmount': loanEmiAmount,
+          'loanEmiStartDate': Timestamp.fromDate(_selectedEmiDate),
+        }
       });
 
-      // 3. Update the total Funding in companies collection
+      // 3. If it's a bank loan, automatically create a recurring expense for the EMI repayments
+      if (isBankLoan && loanEmiAmount != null && loanEmiAmount > 0) {
+        final emiExpenseId = const Uuid().v4();
+        final String companyId = user.uid;
+
+        await FirebaseFirestore.instance.collection('expenses').doc(emiExpenseId).set({
+          'uid': user.uid,
+          'companyId': companyId,
+          'Amount': loanEmiAmount,
+          'Title': 'EMI: $loanLenderBank Loan Repayment',
+          'Description': 'Monthly EMI repayment for $loanLenderBank loan of amount $amount',
+          'Date': Timestamp.fromDate(_selectedEmiDate),
+          'Category': 'others',
+          'Type': 'recurring',
+          'BankAccount': null,
+          'AttachmentFileId': '',
+          'ExpenseType': 'others',
+          'isFunding': false,
+          'isEmiRepayment': true,
+          'loanLenderBank': loanLenderBank,
+          'loanInterestRate': loanInterestRate,
+          'loanRateType': loanRateType,
+          'loanTenureMonths': loanTenureMonths,
+          'loanEmiStartDate': Timestamp.fromDate(_selectedEmiDate),
+          'Time': FieldValue.serverTimestamp(),
+        });
+      }
+
+      // 4. Update the total Funding in companies collection
       final Map<String, dynamic> updateData = {
         'Funding': newTotalFunding,
       };
@@ -327,6 +442,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> with SingleTickerPr
                         _buildSectionLabel("FUNDING SOURCE"),
                         _buildSourceSelector(),
                         const SizedBox(height: 40),
+
+                        // Bank Loan Details Section
+                        _buildBankLoanDetailsSection(),
 
                         // Notes (Animated internally)
                         _buildInputGroup(
@@ -545,7 +663,20 @@ class _AddFundingScreenState extends State<AddFundingScreen> with SingleTickerPr
         final color = data['color'] as Color;
 
         return GestureDetector(
-          onTap: () => setState(() => _selectedSource = key),
+          onTap: () {
+            setState(() {
+              _selectedSource = key;
+              if (key != 'bank_loan') {
+                _userEditedEmi = false;
+                _lenderBankController.clear();
+                _interestController.clear();
+                _tenureController.clear();
+                _emiController.clear();
+              } else {
+                _recalculateEmi();
+              }
+            });
+          },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -584,6 +715,375 @@ class _AddFundingScreenState extends State<AddFundingScreen> with SingleTickerPr
         );
       }).toList(),
     );
+  }
+
+  Widget _buildBankLoanDetailsSection() {
+    return AnimatedCrossFade(
+      firstChild: const SizedBox.shrink(),
+      secondChild: Padding(
+        padding: const EdgeInsets.only(bottom: 40),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: const Color(0xFF0A84FF).withValues(alpha: 0.15),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.account_balance_outlined,
+                    color: Color(0xFF0A84FF),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    "LOAN DETAILS",
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFF0A84FF),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Lender Bank Name Field
+              _buildBankLoanInputField(
+                "LENDER BANK NAME",
+                "e.g. HDFC Bank, Chase, etc.",
+                _lenderBankController,
+                isText: true,
+              ),
+              const SizedBox(height: 20),
+
+              // EMI Date Selector Row
+              _buildEmiDatePickerRow(),
+              const SizedBox(height: 20),
+
+              // Rate & Rate type Row
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildBankLoanInputField(
+                      "INTEREST RATE (% P.A.)",
+                      "e.g. 10.5",
+                      _interestController,
+                      isDouble: true,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildMiniSectionLabel("RATE TYPE"),
+                        const SizedBox(height: 8),
+                        _buildRateTypeSelector(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Tenure & EMI Amount Row
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _buildBankLoanInputField(
+                      "TENURE (MONTHS)",
+                      "e.g. 24",
+                      _tenureController,
+                      isInteger: true,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildBankLoanInputField(
+                      "EMI AMOUNT",
+                      "Auto-calculated",
+                      _emiController,
+                      isDouble: true,
+                      onChanged: (val) {
+                        setState(() {
+                          _userEditedEmi = true;
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              if (_userEditedEmi) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _userEditedEmi = false;
+                        _recalculateEmi();
+                      });
+                    },
+                    icon: const Icon(Icons.refresh, size: 14, color: Color(0xFF0A84FF)),
+                    label: Text(
+                      "Reset to calculated EMI",
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFF0A84FF),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      crossFadeState: _selectedSource == 'bank_loan'
+          ? CrossFadeState.showSecond
+          : CrossFadeState.showFirst,
+      duration: const Duration(milliseconds: 300),
+    );
+  }
+
+  Widget _buildMiniSectionLabel(String text) {
+    final bool hasError = _errorFields.contains(text);
+    return Text(
+      text,
+      style: GoogleFonts.inter(
+        color: hasError ? const Color(0xFFFF453A) : Colors.white38,
+        fontSize: 10,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.0,
+      ),
+    );
+  }
+
+  Widget _buildBankLoanInputField(
+    String label,
+    String hint,
+    TextEditingController controller, {
+    bool isInteger = false,
+    bool isDouble = false,
+    bool isText = false,
+    ValueChanged<String>? onChanged,
+  }) {
+    final bool hasError = _errorFields.contains(label);
+
+    return AnimatedBuilder(
+      animation: _shakeController,
+      builder: (context, child) {
+        final offset = hasError ? sin(_shakeController.value * 3 * pi) * 8 : 0.0;
+        return Transform.translate(
+          offset: Offset(offset, 0),
+          child: child,
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildMiniSectionLabel(label),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: hasError
+                  ? const Color(0xFFFF453A).withValues(alpha: 0.05)
+                  : const Color(0xFF09090B),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: hasError
+                    ? const Color(0xFFFF453A).withValues(alpha: 0.5)
+                    : Colors.white.withValues(alpha: 0.04),
+              ),
+            ),
+            child: TextField(
+              controller: controller,
+              keyboardType: isText ? TextInputType.text : const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (val) {
+                if (hasError) {
+                  setState(() => _errorFields.remove(label));
+                }
+                if (onChanged != null) {
+                  onChanged(val);
+                }
+              },
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+              cursorColor: hasError ? const Color(0xFFFF453A) : Colors.white,
+              inputFormatters: [
+                if (isInteger) FilteringTextInputFormatter.digitsOnly,
+                if (isDouble) FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
+              ],
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: GoogleFonts.inter(
+                  color: Colors.white24,
+                  fontSize: 13,
+                ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                isDense: true,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRateTypeSelector() {
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFF09090B),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildRateTypeButton('reducing', 'Reducing'),
+          ),
+          Expanded(
+            child: _buildRateTypeButton('flat', 'Flat / Fixed'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRateTypeButton(String type, String label) {
+    final isSelected = _loanRateType == type;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _loanRateType = type;
+          _recalculateEmi();
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF141416) : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+          border: isSelected
+              ? Border.all(color: Colors.white.withValues(alpha: 0.04))
+              : null,
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            color: isSelected ? const Color(0xFF0A84FF) : Colors.white38,
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmiDatePickerRow() {
+    final formattedDate = "${_selectedEmiDate.day}/${_selectedEmiDate.month}/${_selectedEmiDate.year}";
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildMiniSectionLabel("EMI REPAYMENT START DATE"),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: _showEmiDatePicker,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF09090B),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_today_outlined,
+                      color: Colors.white38,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      formattedDate,
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const Icon(
+                  Icons.edit_outlined,
+                  color: Colors.white38,
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showEmiDatePicker() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedEmiDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFF0A84FF),
+              onPrimary: Colors.black,
+              surface: Color(0xFF141416),
+              onSurface: Colors.white,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF0A84FF),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && picked != _selectedEmiDate) {
+      setState(() {
+        _selectedEmiDate = picked;
+      });
+    }
   }
 
   Widget _buildInputGroup(
@@ -785,6 +1285,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> with SingleTickerPr
       ],
     );
   }
+
 
   Widget _buildSubmitButton() {
     return Container(

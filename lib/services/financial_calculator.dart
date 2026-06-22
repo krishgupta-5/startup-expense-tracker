@@ -5,6 +5,7 @@
 /// must go through this class to ensure consistency and audit safety.
 library;
 
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FinancialCalculator {
@@ -146,12 +147,29 @@ class FinancialCalculator {
       final amount = expense['amount'] as double? ?? 0.0;
       final Timestamp? ts = expense['date'];
 
-      if (type == 'recurring') {
+      if (type == 'recurring' || type == 'subscription') {
         final startDate = ts?.toDate();
+        final frequency = expense['recurrenceFrequency'] as String? ?? 'monthly';
+        final tenureMonths = expense['recurringTenureMonths'] as int?;
 
         if (startDate != null &&
             (startDate.isBefore(now) || startDate.isAtSameMomentAs(now))) {
-          total += amount;
+          if (tenureMonths != null) {
+            final endDate = DateTime(startDate.year, startDate.month + tenureMonths, startDate.day);
+            if (now.isAfter(endDate)) {
+              continue;
+            }
+          }
+
+          double monthlyAmount = amount;
+          if (frequency == 'weekly') {
+            monthlyAmount = amount * 4.33;
+          } else if (frequency == 'daily') {
+            monthlyAmount = amount * 30.44;
+          } else if (frequency == 'yearly') {
+            monthlyAmount = amount / 12.0;
+          }
+          total += monthlyAmount;
         }
       } else {
         final dt = ts?.toDate();
@@ -230,5 +248,39 @@ class FinancialCalculator {
   }) {
     if (total <= 0) return 0;
     return ((amount / total) * 100).round();
+  }
+
+  /// Calculate EMI for a Flat (Fixed) interest rate loan
+  ///
+  /// [principal] - Loan amount
+  /// [annualRatePercent] - Annual interest rate in percent (e.g., 12.0 for 12%)
+  /// [tenureMonths] - Number of months to repay the loan
+  static double calculateFlatRateEmi(
+    double principal,
+    double annualRatePercent,
+    int tenureMonths,
+  ) {
+    if (tenureMonths <= 0 || principal <= 0) return 0.0;
+    final totalInterest = principal * (annualRatePercent / 100) * (tenureMonths / 12);
+    return (principal + totalInterest) / tenureMonths;
+  }
+
+  /// Calculate EMI for a Reducing interest rate loan
+  ///
+  /// [principal] - Loan amount
+  /// [annualRatePercent] - Annual interest rate in percent (e.g., 12.0 for 12%)
+  /// [tenureMonths] - Number of months to repay the loan
+  static double calculateReducingRateEmi(
+    double principal,
+    double annualRatePercent,
+    int tenureMonths,
+  ) {
+    if (tenureMonths <= 0 || principal <= 0) return 0.0;
+    if (annualRatePercent <= 0) return principal / tenureMonths;
+
+    final monthlyRate = (annualRatePercent / 12) / 100;
+    final powFactor = math.pow(1 + monthlyRate, tenureMonths);
+
+    return (principal * monthlyRate * powFactor) / (powFactor - 1);
   }
 }

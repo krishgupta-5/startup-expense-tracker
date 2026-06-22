@@ -11,6 +11,7 @@ import 'package:printing/printing.dart';
 import '../../../../services/currency_formatter.dart';
 import '../../../../services/currency_preference_service.dart';
 import '../../../../services/bank_account_service.dart';
+import '../../../../utils/expense_expansion_helper.dart';
 
 class ExpensesExportScreen extends StatefulWidget {
   const ExpensesExportScreen({super.key});
@@ -188,16 +189,49 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
             "Annual Expenses - FY $startYear-${(startYear + 1).toString().substring(2)}";
       }
 
-      // 2. Fetch Data from Firestore
+      // 2. Fetch Data from Firestore and expand in memory
       final querySnapshot = await FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: user.uid)
-          .where('Date', isGreaterThanOrEqualTo: startDate)
-          .where('Date', isLessThanOrEqualTo: endDate)
-          .orderBy('Date', descending: true)
           .get();
 
-      final expenses = querySnapshot.docs;
+      final mappedExpenses = querySnapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          ...data,
+          'id': doc.id,
+        };
+      }).toList();
+
+      final expanded = ExpenseExpansionHelper.expandExpenses(
+        mappedExpenses,
+        maxDate: endDate,
+      );
+
+      final expenses = expanded.where((data) {
+        final dateVal = data['Date'] ?? data['date'];
+        DateTime? dt;
+        if (dateVal is Timestamp) {
+          dt = dateVal.toDate();
+        } else if (dateVal is DateTime) {
+          dt = dateVal;
+        }
+        if (dt == null) return false;
+        return dt.isAfter(startDate.subtract(const Duration(seconds: 1))) &&
+            dt.isBefore(endDate.add(const Duration(seconds: 1)));
+      }).toList();
+
+      // Sort descending by date
+      expenses.sort((a, b) {
+        final aDateVal = a['Date'] ?? a['date'];
+        final bDateVal = b['Date'] ?? b['date'];
+        DateTime? aDt = aDateVal is Timestamp ? aDateVal.toDate() : aDateVal as DateTime?;
+        DateTime? bDt = bDateVal is Timestamp ? bDateVal.toDate() : bDateVal as DateTime?;
+        if (aDt == null && bDt == null) return 0;
+        if (aDt == null) return 1;
+        if (bDt == null) return -1;
+        return bDt.compareTo(aDt);
+      });
 
       if (expenses.isEmpty) {
         _showMinimalToast("No expenses found for this period.", isError: true);
@@ -250,8 +284,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
           }).toList(),
         ),
         // Data rows
-        ...expenses.map((doc) {
-          final data = doc.data();
+        ...expenses.map((data) {
           final amount = double.tryParse(data['Amount'].toString()) ?? 0.0;
           final category = data['Category']?.toString().toLowerCase() ?? '';
           final isFunding = data['isFunding'] == true || category == 'funding';
@@ -259,7 +292,8 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
             totalAmount += amount;
           }
 
-          final date = (data['Date'] as Timestamp).toDate();
+          final dateVal = data['Date'] ?? data['date'];
+          final DateTime date = dateVal is Timestamp ? dateVal.toDate() : dateVal as DateTime;
           final dateStr = "${date.day}/${date.month}/${date.year}";
           final amountStr = getPdfCurrencySymbol(amount);
           final displayAmount = isFunding ? '+$amountStr' : amountStr;

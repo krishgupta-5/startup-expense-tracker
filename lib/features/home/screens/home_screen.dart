@@ -17,6 +17,7 @@ import '../../../services/financial_data_service.dart';
 import '../../../services/financial_calculator.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
+import '../../../utils/expense_expansion_helper.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(int)? onNavigateToTab;
@@ -40,13 +41,14 @@ class _HomeScreenState extends State<HomeScreen> {
   double _absoluteTotalExpenses = 0.0;
   double _currentMonthBurn = 0.0;
   double get _availableFunds => _fundingAmount - _absoluteTotalExpenses;
+  double _totalSalaries = 0.0;
 
   // Real-time calculated Pie Chart data
   Map<String, double> _realtimeCategoryBreakdown = {};
   
   List<Map<String, dynamic>> allExpenses = [];
 
-  Map<String, dynamic>? _financialData;
+
   bool _isPieChartLoading = true;
   bool _isMonthlyBurnLoading = true;
   bool _isFundsLoading = true;
@@ -212,37 +214,59 @@ class _HomeScreenState extends State<HomeScreen> {
         .snapshots()
         .listen((snapshot) {
       if (mounted) {
+        final now = DateTime.now();
         double currentMonthTotal = 0.0;
         double absoluteTotal = 0.0;
         Map<String, double> localCategoryBreakdown = {};
-        final now = DateTime.now();
 
-        final expensesList = snapshot.docs
-            .where((doc) => doc.data()['isFunding'] != true)
-            .map((doc) {
+        // Convert Firestore docs to maps first
+        final rawExpenses = snapshot.docs.map((doc) {
           final data = doc.data();
+          return {
+            ...data,
+            'id': doc.id,
+          };
+        }).toList();
+
+        // Expand recurring expenses up to now
+        final expandedExpenses = ExpenseExpansionHelper.expandExpenses(
+          rawExpenses,
+          maxDate: now,
+        );
+
+        final expensesList = <Map<String, dynamic>>[];
+        for (final data in expandedExpenses) {
+          if (data['isFunding'] == true) continue;
+
           final amount = _toDouble(data['Amount'] ?? data['amount']);
-          final date = data['Date'] as Timestamp?;
+          final dateVal = data['Date'] ?? data['date'];
+          DateTime? dt;
+          if (dateVal is Timestamp) {
+            dt = dateVal.toDate();
+          } else if (dateVal is DateTime) {
+            dt = dateVal;
+          }
           final category = (data['Category'] ?? data['category'] ?? 'others').toString().toLowerCase();
 
           absoluteTotal += amount;
 
-          if (date != null) {
-            final dt = date.toDate();
+          if (dt != null) {
             if (dt.month == now.month && dt.year == now.year) {
               currentMonthTotal += amount;
               localCategoryBreakdown[category] = (localCategoryBreakdown[category] ?? 0.0) + amount;
             }
           }
 
-          return {
-            'id': doc.id,
+          expensesList.add({
+            'id': data['id'] ?? data['expenseId'] ?? '',
             'amount': amount,
-            'date': date,
+            'date': dateVal is Timestamp ? dateVal : (dt != null ? Timestamp.fromDate(dt) : null),
             'category': category,
             'type': data['Type'] ?? data['type'] ?? 'one_time',
-          };
-        }).toList();
+            'recurrenceFrequency': data['recurrenceFrequency'] ?? data['loanRateType'] ?? 'monthly',
+            'recurringTenureMonths': data['recurringTenureMonths'] ?? data['loanTenureMonths'],
+          });
+        }
 
         // Sort in memory to keep newest first
         expensesList.sort((a, b) {
@@ -273,11 +297,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // 3. Listen to Team Members Collection (For Salary Burn Updates in Trend Chart)
     _teamMembersSubscription = FirebaseFirestore.instance
-        .collection('team_members')
+        .collection('members')
         .where('uid', isEqualTo: user.uid)
         .snapshots()
-        .listen((_) {
+        .listen((snapshot) {
+      double salariesTotal = 0.0;
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        salariesTotal += _toDouble(data['salary'] ?? data['Salary']);
+      }
       if (mounted) {
+        setState(() {
+          _totalSalaries = salariesTotal;
+          _updateRunwayValue();
+        });
         _handleRealtimeUpdate();
       }
     });
@@ -288,7 +321,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final financialData = await FinancialDataService.getMonthlyBurnData();
       if (mounted) {
         setState(() {
-          _financialData = financialData;
           final rawTrend = financialData['trendData'] as List? ?? [];
           _trendData = List<Map<String, dynamic>>.from(rawTrend);
           _isTrendLoading = false;
@@ -323,16 +355,18 @@ class _HomeScreenState extends State<HomeScreen> {
             'amount': expense['amount'] as double,
             'date': expense['date'],
             'type': expense['type'] ?? 'one_time',
+            'recurrenceFrequency': expense['recurrenceFrequency'],
+            'recurringTenureMonths': expense['recurringTenureMonths'],
           },
         )
         .toList();
 
     double actualMonthlyBurn = FinancialCalculator.currentMonthBurn(
       expensesForCalculation,
-    );
+    ) + _totalSalaries;
 
     if (actualMonthlyBurn == 0 && allExpenses.isNotEmpty) {
-      actualMonthlyBurn = _calculateAverageMonthlyBurn();
+      actualMonthlyBurn = _calculateAverageMonthlyBurn() + _totalSalaries;
     }
 
     if (actualMonthlyBurn <= 0) {
@@ -668,9 +702,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       child: _buildFlatMetricCard(
                         label: "Monthly Burn",
-                        value: _isMonthlyBurnLoading || _currentMonthBurn <= 0 
+                        value: _isMonthlyBurnLoading || (_currentMonthBurn + _totalSalaries) <= 0 
                                 ? null 
-                                : _formatCurrency(_currentMonthBurn),
+                                : _formatCurrency(_currentMonthBurn + _totalSalaries),
                         icon: Icons.local_fire_department_outlined,
                         isBurn: true,
                         isLoading: _isMonthlyBurnLoading,

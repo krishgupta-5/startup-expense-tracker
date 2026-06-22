@@ -12,6 +12,7 @@ import 'expense_details_screen.dart';
 import 'scan_expense_screen.dart';
 import 'report_expense_screen.dart';
 import '../../../utils/data_helpers.dart';
+import '../../../utils/expense_expansion_helper.dart';
 import '../../../services/financial_calculator.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
@@ -136,15 +137,30 @@ class _ExpensesScreenState extends State<ExpensesScreen>
           .snapshots()
           .listen((expensesSnapshot) {
         if (mounted) {
+          // Convert and map Firestore docs to maps first
+          final rawList = expensesSnapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              ...data,
+              'id': doc.id,
+            };
+          }).toList();
+
+          // Expand recurring/subscription transactions up to today
+          final expanded = ExpenseExpansionHelper.expandExpenses(
+            rawList,
+            maxDate: DateTime.now(),
+          );
+
           double totalRealSpent = 0.0;
           // Convert expenses to format expected by FinancialCalculator
           List<Map<String, dynamic>> expenses = [];
-          for (var doc in expensesSnapshot.docs) {
-            final data = doc.data();
+          for (final data in expanded) {
             if (data['isFunding'] != true) {
               final amt = DataHelpers.safeParseDouble(data['Amount'] ?? data['amount']);
               totalRealSpent += amt;
               expenses.add({
+                ...data,
                 'amount': amt,
                 'date': data['Date'] ?? data['date'],
                 'type': data['Type'] ?? data['type'] ?? 'one_time',
@@ -556,8 +572,6 @@ class _ExpensesScreenState extends State<ExpensesScreen>
       stream: FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: user.uid)
-          .orderBy('Date', descending: true)
-          .limit(5)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -598,10 +612,63 @@ class _ExpensesScreenState extends State<ExpensesScreen>
           );
         }
 
+        final mappedExpenses = snapshot.data!.docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return {
+            ...data,
+            'id': doc.id,
+          };
+        }).toList();
+
+        final expandedExpenses = ExpenseExpansionHelper.expandExpenses(
+          mappedExpenses,
+          maxDate: DateTime.now(),
+        );
+
+        // Sort descending by date
+        expandedExpenses.sort((a, b) {
+          final aDateVal = a['Date'] ?? a['date'];
+          final bDateVal = b['Date'] ?? b['date'];
+          DateTime? aDt;
+          if (aDateVal is Timestamp) {
+            aDt = aDateVal.toDate();
+          } else if (aDateVal is DateTime) {
+            aDt = aDateVal;
+          }
+          DateTime? bDt;
+          if (bDateVal is Timestamp) {
+            bDt = bDateVal.toDate();
+          } else if (bDateVal is DateTime) {
+            bDt = bDateVal;
+          }
+
+          if (aDt == null && bDt == null) return 0;
+          if (aDt == null) return 1;
+          if (bDt == null) return -1;
+          return bDt.compareTo(aDt);
+        });
+
+        final top5Expenses = expandedExpenses.take(5).toList();
+
+        if (top5Expenses.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 40),
+            child: Center(
+              child: Text(
+                "No recent transactions found.",
+                style: GoogleFonts.inter(
+                  color: Colors.white38,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          );
+        }
+
         return Column(
-          children: snapshot.data!.docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            final expenseId = doc.id; // Get the unique document ID
+          children: top5Expenses.map((data) {
+            final expenseId = data['id'] as String;
             return _buildTransactionItem(data, expenseId, context);
           }).toList(),
         );

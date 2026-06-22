@@ -10,6 +10,7 @@ import '../../../services/financial_calculator.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/bank_account_service.dart';
+import '../../../utils/expense_expansion_helper.dart';
 
 class FundsOverviewScreen extends StatefulWidget {
   const FundsOverviewScreen({super.key});
@@ -33,6 +34,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   List<Map<String, dynamic>> allExpenses = [];
   List<Map<String, dynamic>> bankAccounts = [];
   List<Map<String, dynamic>> cashFlowBreakdown = [];
+  double _totalSalaries = 0.0;
 
   String _userCountryCode = '+1'; // Default to USD
 
@@ -88,6 +90,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
       await Future.wait([
         _fetchFundsData(),
         _fetchAllExpenses(),
+        _fetchSalaries(),
       ]);
 
       // Compute totals from REAL loaded expenses — inside setState so rebuild always sees correct values
@@ -261,7 +264,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   }
 
   double _calculateCurrentMonthBurn() {
-    if (allExpenses.isEmpty) return 0;
+    if (allExpenses.isEmpty) return _totalSalaries;
     final now = DateTime.now();
     double currentMonthTotal = 0;
     for (var expense in allExpenses) {
@@ -273,7 +276,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         }
       }
     }
-    return currentMonthTotal;
+    return currentMonthTotal + _totalSalaries;
   }
 
 
@@ -282,34 +285,46 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // No orderBy — avoids needing a composite Firestore index.
-      // The index uid+Date(DESCENDING) exists, so we use it directly.
       final expensesSnapshot = await FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: user.uid)
-          .orderBy('Date', descending: true)
           .get();
 
-      allExpenses = expensesSnapshot.docs
-          .where((doc) {
-            final data = doc.data();
-            // Exclude funding entries from expense calculations
-            return data['isFunding'] != true;
-          })
-          .map((doc) {
+      final mappedExpenses = expensesSnapshot.docs.map((doc) {
         final data = doc.data();
+        return {
+          ...data,
+          'id': doc.id,
+        };
+      }).toList();
+
+      final expanded = ExpenseExpansionHelper.expandExpenses(
+        mappedExpenses,
+        maxDate: DateTime.now(),
+      );
+
+      allExpenses = expanded
+          .where((data) => data['isFunding'] != true)
+          .map((data) {
         final rawAmount =
             double.tryParse(data['Amount']?.toString() ?? '0') ?? 0.0;
+        final dateVal = data['Date'] ?? data['date'];
+        DateTime? dt;
+        if (dateVal is Timestamp) {
+          dt = dateVal.toDate();
+        } else if (dateVal is DateTime) {
+          dt = dateVal;
+        }
         return {
-          'id': doc.id,
+          'id': data['id'] ?? data['expenseId'] ?? '',
           'title': data['Title'] ?? data['Description'] ?? 'Unnamed Expense',
           'amount': rawAmount.toInt(),       // kept for UI compat
           'rawAmount': rawAmount,            // accurate double for calculations
           'category': data['Category'] ?? 'General',
-          'date': data['Date'] != null
-              ? _formatDate(data['Date'] as Timestamp)
-              : 'Unknown Date',
-          'timestamp': data['Date'] as Timestamp?,  // raw timestamp for filtering
+          'date': dateVal is Timestamp
+              ? _formatDate(dateVal)
+              : (dt != null ? _formatDate(Timestamp.fromDate(dt)) : 'Unknown Date'),
+          'timestamp': dateVal is Timestamp ? dateVal : (dt != null ? Timestamp.fromDate(dt) : null),  // raw timestamp for filtering
           'description': data['Description'] ?? '',
           'type': data['Type'] ?? 'one_time',
           'bankAccount':
@@ -321,6 +336,28 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
       }).toList();
     } catch (e) {
       log('Error fetching expenses: $e');
+    }
+  }
+
+  Future<void> _fetchSalaries() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final snapshot = await FirebaseFirestore.instance
+          .collection('members')
+          .where('uid', isEqualTo: user.uid)
+          .get();
+
+      double salariesTotal = 0.0;
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        salariesTotal += double.tryParse((data['salary'] ?? data['Salary'])?.toString() ?? '0') ?? 0.0;
+      }
+      setState(() {
+        _totalSalaries = salariesTotal;
+      });
+    } catch (e) {
+      log('Error fetching salaries: $e');
     }
   }
 
@@ -1333,7 +1370,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel("BANK ACCOUNTS"),
+        _buildSectionLabel("PAYMENT METHODS"),
         const SizedBox(height: 16),
         Container(
           width: double.infinity,
@@ -1421,6 +1458,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
 
   Widget _buildBankAccountItem(Map<String, dynamic> account) {
     final totalSpent = (account['totalSpent'] as num).toDouble();
+    final isCash = account['isCash'] == true;
 
     // Handle multiple possible field names for bank name
     final bankName =
@@ -1428,6 +1466,10 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         account['bankName']?.toString() ??
         account['bank_name']?.toString() ??
         'Unknown Bank';
+
+    // Cash uses orange accent; bank accounts use green
+    final accentColor =
+        isCash ? const Color(0xFFFF9F0A) : const Color(0xFF30D158);
 
     final cleanSpent = totalSpent
         .toStringAsFixed(0)
@@ -1445,15 +1487,15 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: const Color(0xFF30D158).withValues(alpha: 0.1),
+            color: accentColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: const Color(0xFF30D158).withValues(alpha: 0.3),
+              color: accentColor.withValues(alpha: 0.3),
             ),
           ),
-          child: const Icon(
-            Icons.account_balance,
-            color: Color(0xFF30D158),
+          child: Icon(
+            isCash ? Icons.payments_outlined : Icons.account_balance,
+            color: accentColor,
             size: 20,
           ),
         ),

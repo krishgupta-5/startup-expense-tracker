@@ -29,6 +29,7 @@ class ExpenseDetailsScreen extends StatefulWidget {
 }
 
 class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
+  String get _originalId => widget.expenseId.contains('_') ? widget.expenseId.split('_').first : widget.expenseId;
   String _userCountryCode = '+1'; // Default to USD
   bool _isLoadingCountry = true;
 
@@ -157,7 +158,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       // We need to read the live expense data
       final expenseDoc = await FirebaseFirestore.instance
           .collection('expenses')
-          .doc(widget.expenseId)
+          .doc(_originalId)
           .get();
 
       final expenseData = expenseDoc.data() ?? widget.expenseData;
@@ -338,7 +339,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('expenses')
-          .doc(widget.expenseId)
+          .doc(_originalId)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -387,8 +388,38 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
   Widget _buildExpenseDetails(
     BuildContext context,
-    Map<String, dynamic> expenseData,
+    Map<String, dynamic> rawExpenseData,
   ) {
+    final Map<String, dynamic> expenseData = Map<String, dynamic>.from(rawExpenseData);
+    if (widget.expenseId.contains('_')) {
+      final parts = widget.expenseId.split('_');
+      final index = int.tryParse(parts.last) ?? 0;
+      final frequency = (expenseData['recurrenceFrequency'] ?? 'monthly').toString().toLowerCase();
+      final dateVal = expenseData['Date'] ?? expenseData['date'];
+      if (dateVal != null) {
+        DateTime startDate;
+        if (dateVal is Timestamp) {
+          startDate = dateVal.toDate();
+        } else {
+          startDate = dateVal as DateTime;
+        }
+        DateTime occurrenceDate;
+        if (frequency == 'daily') {
+          occurrenceDate = DateTime(startDate.year, startDate.month, startDate.day + index, startDate.hour, startDate.minute, startDate.second);
+        } else if (frequency == 'weekly') {
+          occurrenceDate = DateTime(startDate.year, startDate.month, startDate.day + (index * 7), startDate.hour, startDate.minute, startDate.second);
+        } else if (frequency == 'monthly') {
+          occurrenceDate = DateTime(startDate.year, startDate.month + index, startDate.day, startDate.hour, startDate.minute, startDate.second);
+        } else if (frequency == 'yearly') {
+          occurrenceDate = DateTime(startDate.year + index, startDate.month, startDate.day, startDate.hour, startDate.minute, startDate.second);
+        } else {
+          occurrenceDate = DateTime(startDate.year, startDate.month + index, startDate.day, startDate.hour, startDate.minute, startDate.second);
+        }
+        expenseData['Date'] = Timestamp.fromDate(occurrenceDate);
+        expenseData['date'] = Timestamp.fromDate(occurrenceDate);
+      }
+    }
+
     // Safely extract data from Firebase
     final title = expenseData['Title'] ?? 'Unnamed Expense';
     final amount = DataHelpers.safeParseDouble(expenseData['Amount']);
@@ -397,6 +428,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     final rawType = expenseData['Type']?.toString() ?? 'one_time';
     final type = _formatType(rawType);
     final notes = expenseData['Description'] ?? 'No notes provided.';
+
+    final isRecurringOrSub = rawType == 'recurring' || rawType == 'subscription';
+    final frequency = expenseData['recurrenceFrequency']?.toString();
+    final tenure = expenseData['recurringTenureMonths'] as int?;
+    final frequencyStr = frequency != null ? _formatType(frequency) : 'Monthly';
+    final tenureStr = tenure != null ? "$tenure Months" : "Ongoing";
 
     // Format Date and Time
     String dateStr = 'Unknown Date';
@@ -490,6 +527,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                             _buildDetailRow("Time", timeStr),
                             _buildDivider(),
                             _buildDetailRow('Type', type),
+                            if (isRecurringOrSub) ...[
+                              _buildDivider(),
+                              _buildDetailRow('Frequency', frequencyStr),
+                              _buildDivider(),
+                              _buildDetailRow('Tenure', tenureStr),
+                            ],
                             _buildDivider(),
                             _buildLinkedMemberRow(),
                           ],
@@ -690,7 +733,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       // Delete expense document
       final expenseRef = FirebaseFirestore.instance
           .collection('expenses')
-          .doc(widget.expenseId);
+          .doc(_originalId);
       batch.delete(expenseRef);
 
       // Atomically decrement company totalExpenses.
@@ -919,7 +962,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => EditExpenseScreen(
-                          expenseId: widget.expenseId,
+                          expenseId: _originalId,
                           // Use the live-streamed data, fall back to constructor data
                           expenseData: _currentExpenseData.isNotEmpty
                               ? _currentExpenseData

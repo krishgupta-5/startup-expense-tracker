@@ -133,6 +133,8 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
             'amount': amount,
             'date': date,
             'type': data['Type'] ?? data['type'] ?? 'one_time',
+            'recurrenceFrequency': data['recurrenceFrequency'] ?? data['loanRateType'] ?? 'monthly',
+            'recurringTenureMonths': data['recurringTenureMonths'] ?? data['loanTenureMonths'],
           };
         }).toList();
 
@@ -844,7 +846,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              "LINKED BANK ACCOUNTS",
+              "LINKED PAYMENT METHODS",
               style: GoogleFonts.inter(
                 color: Colors.white24,
                 fontSize: 10,
@@ -914,21 +916,31 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF30D158).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFF30D158).withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.account_balance,
-                        color: Color(0xFF30D158),
-                        size: 20,
-                      ),
+                    Builder(
+                      builder: (context) {
+                        final isCash = account['isCash'] == true;
+                        final accentColor = isCash
+                            ? const Color(0xFFFF9F0A)
+                            : const Color(0xFF30D158);
+                        return Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: accentColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: accentColor.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Icon(
+                            isCash
+                                ? Icons.payments_outlined
+                                : Icons.account_balance,
+                            color: accentColor,
+                            size: 20,
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(width: 16),
                     Expanded(

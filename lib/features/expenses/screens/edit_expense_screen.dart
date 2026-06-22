@@ -83,6 +83,11 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   String? _selectedBankAccount;
   late DateTime _selectedDate;
 
+  // Recurring Details State
+  late String _recurrenceFrequency;
+  late bool _isOngoing;
+  late TextEditingController _tenureController;
+
   @override
   void initState() {
     super.initState();
@@ -110,6 +115,13 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     String fetchedType =
         widget.expenseData['Type']?.toString().toLowerCase() ?? 'one_time';
     _selectedType = types.containsKey(fetchedType) ? fetchedType : 'one_time';
+
+    _recurrenceFrequency = widget.expenseData['recurrenceFrequency']?.toString() ?? 'monthly';
+    final dynamic fetchedTenure = widget.expenseData['recurringTenureMonths'];
+    _isOngoing = fetchedTenure == null;
+    _tenureController = TextEditingController(
+      text: fetchedTenure?.toString() ?? '',
+    );
 
     if (widget.expenseData['Date'] is Timestamp) {
       _selectedDate = (widget.expenseData['Date'] as Timestamp).toDate();
@@ -152,6 +164,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     _titleController.dispose();
     _notesController.dispose();
     _dateController.dispose();
+    _tenureController.dispose();
     super.dispose();
   }
 
@@ -507,6 +520,26 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       _showMinimalToast("Please enter a title.", isError: true);
       return;
     }
+    final isRecurringOrSub = _selectedType == "recurring" || _selectedType == "subscription";
+    if (!isRecurringOrSub && _selectedDate.isAfter(DateTime.now())) {
+      _showMinimalToast("Date cannot be in the future.", isError: true);
+      return;
+    }
+
+    int? recurringTenure;
+    if (isRecurringOrSub && !_isOngoing) {
+      final tenureText = _tenureController.text.trim();
+      if (tenureText.isEmpty) {
+        _showMinimalToast("Please enter a tenure for the recurring expense.", isError: true);
+        return;
+      }
+      recurringTenure = int.tryParse(tenureText);
+      if (recurringTenure == null || recurringTenure <= 0) {
+        _showMinimalToast("Tenure must be a positive number.", isError: true);
+        return;
+      }
+    }
+
     if (_selectedBankAccount == null) {
       _showMinimalToast("Please select a payment method.", isError: true);
       return;
@@ -580,6 +613,13 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         "TeamName": _selectedTeam?.teamName,
         "TeamMemberId": _selectedTeamMember?.id,
         "TeamMemberName": _selectedTeamMember?.fullName,
+        if (isRecurringOrSub) ...{
+          'recurrenceFrequency': _recurrenceFrequency,
+          'recurringTenureMonths': recurringTenure,
+        } else ...{
+          'recurrenceFrequency': FieldValue.delete(),
+          'recurringTenureMonths': FieldValue.delete(),
+        }
       });
 
       if (diff != 0) {
@@ -702,6 +742,15 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                               ),
                             ),
                           ],
+                        ),
+
+                        AnimatedCrossFade(
+                          duration: const Duration(milliseconds: 300),
+                          crossFadeState: (_selectedType == 'recurring' || _selectedType == 'subscription')
+                              ? CrossFadeState.showFirst
+                              : CrossFadeState.showSecond,
+                          firstChild: _buildRecurringDetailsCard(),
+                          secondChild: const SizedBox.shrink(),
                         ),
 
                         const SizedBox(height: 24),
@@ -1722,6 +1771,175 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 ),
         ),
       ),
+    );
+  }
+
+  Widget _buildRecurringDetailsCard() {
+    final Map<String, String> frequencies = {
+      'daily': 'Daily',
+      'weekly': 'Weekly',
+      'monthly': 'Monthly',
+      'yearly': 'Yearly',
+    };
+
+    return Container(
+      margin: const EdgeInsets.only(top: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141416).withValues(alpha: 0.6), // Glassy background
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.repeat_on_outlined,
+                color: Color(0xFF0A84FF),
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                "RECURRENCE DETAILS",
+                style: GoogleFonts.inter(
+                  color: const Color(0xFF0A84FF),
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Frequency selector row & Ongoing switch row
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionLabel("FREQUENCY"),
+                    const SizedBox(height: 8),
+                    ShadSelect<String>(
+                      placeholder: Text(
+                        'Select Frequency',
+                        style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
+                      ),
+                      initialValue: _recurrenceFrequency,
+                      options: [
+                        ...frequencies.entries.map(
+                          (e) => ShadOption(value: e.key, child: Text(e.value)),
+                        ),
+                      ],
+                      selectedOptionBuilder: (context, value) => Text(
+                        frequencies[value] ?? "Monthly",
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _recurrenceFrequency = val;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionLabel("ONGOING EXPENSE"),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Switch(
+                          value: _isOngoing,
+                          activeThumbColor: const Color(0xFF30D158),
+                          activeTrackColor: const Color(0xFF30D158).withValues(alpha: 0.2),
+                          inactiveThumbColor: Colors.white54,
+                          inactiveTrackColor: Colors.white10,
+                          onChanged: (val) {
+                            setState(() {
+                              _isOngoing = val;
+                            });
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _isOngoing ? "Ongoing" : "Fixed Term",
+                          style: GoogleFonts.inter(
+                            color: Colors.white70,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // If not ongoing, show tenure field
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 250),
+            crossFadeState: !_isOngoing ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+            firstChild: Padding(
+              padding: const EdgeInsets.only(top: 20),
+              child: _buildRecurringInputField(
+                label: "TENURE (MONTHS / OCCURRENCES)",
+                placeholder: "e.g. 12",
+                controller: _tenureController,
+              ),
+            ),
+            secondChild: const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecurringInputField({
+    required String label,
+    required String placeholder,
+    required TextEditingController controller,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel(label),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF141416),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          ),
+          child: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+            decoration: InputDecoration(
+              hintText: placeholder,
+              hintStyle: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

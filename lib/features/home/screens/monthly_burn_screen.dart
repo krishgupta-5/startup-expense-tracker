@@ -175,7 +175,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
 
     // Listen to changes in the team_members collection
     _teamMembersSubscription = FirebaseFirestore.instance
-        .collection('team_members')
+        .collection('members')
         .where('uid', isEqualTo: user.uid)
         .snapshots()
         .listen((_) {

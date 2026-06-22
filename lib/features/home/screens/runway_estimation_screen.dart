@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/financial_calculator.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
+import '../../../utils/expense_expansion_helper.dart';
 
 class RunwayEstimationScreen extends StatefulWidget {
   const RunwayEstimationScreen({super.key});
@@ -114,19 +115,31 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
               (expense) => {
                 'amount': expense['amount'] as double,
                 'date': expense['date'],
-                'type':
-                    'one_time', // Default type since original data doesn't specify
+                'type': expense['type'] ?? 'one_time',
+                'recurrenceFrequency': expense['recurrenceFrequency'],
+                'recurringTenureMonths': expense['recurringTenureMonths'],
               },
             )
             .toList();
 
+        final teamMembersSnapshot = await FirebaseFirestore.instance
+            .collection('members')
+            .where('uid', isEqualTo: user.uid)
+            .get();
+
+        double salariesTotal = 0.0;
+        for (var doc in teamMembersSnapshot.docs) {
+          final data = doc.data();
+          salariesTotal += (double.tryParse((data['salary'] ?? data['Salary'])?.toString() ?? '0') ?? 0.0);
+        }
+
         final currentMonthBurnAmount = FinancialCalculator.currentMonthBurn(
           expensesForCalculation,
         );
-        double actualMonthlyBurn = currentMonthBurnAmount;
+        double actualMonthlyBurn = currentMonthBurnAmount + salariesTotal;
 
-        if (actualMonthlyBurn == 0 && allExpenses.isNotEmpty) {
-          actualMonthlyBurn = _calculateAverageMonthlyBurn();
+        if (actualMonthlyBurn == salariesTotal && allExpenses.isNotEmpty) {
+          actualMonthlyBurn = _calculateAverageMonthlyBurn() + salariesTotal;
         }
 
         // --- NO DATA / NEW ACCOUNT GRACEFUL HANDLING ---
@@ -197,19 +210,36 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
       final expensesSnapshot = await FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: user.uid)
-          .orderBy('Date', descending: true)
           .get();
 
-      allExpenses = expensesSnapshot.docs.map((doc) {
+      final mappedExpenses = expensesSnapshot.docs.map((doc) {
         final data = doc.data();
         return {
+          ...data,
           'id': doc.id,
+        };
+      }).toList();
+
+      final expanded = ExpenseExpansionHelper.expandExpenses(
+        mappedExpenses,
+        maxDate: DateTime.now(),
+      );
+
+      allExpenses = expanded
+          .where((data) => data['isFunding'] != true)
+          .map((data) {
+        final amountVal = data['Amount'] ?? data['amount'];
+        final amount = amountVal is num ? amountVal.toDouble() : double.tryParse(amountVal?.toString() ?? '0') ?? 0.0;
+        return {
+          'id': data['id'] ?? data['expenseId'] ?? '',
           'title': data['Title'] ?? 'Unnamed Expense',
-          'amount': (data['Amount'] as num).toDouble(),
+          'amount': amount,
           'category': data['Category'] ?? 'General',
-          'date': data['Date'],
+          'date': data['Date'] ?? data['date'],
           'description': data['Description'] ?? '',
           'type': data['Type'] ?? 'one_time',
+          'recurrenceFrequency': data['recurrenceFrequency'] ?? data['loanRateType'] ?? 'monthly',
+          'recurringTenureMonths': data['recurringTenureMonths'] ?? data['loanTenureMonths'],
         };
       }).toList();
     } catch (e) {

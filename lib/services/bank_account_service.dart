@@ -347,6 +347,7 @@ class BankAccountService {
   }
 
   /// 🔥 PRODUCTION FIX: Calculate spending for each bank account using stable ID matching
+  /// Also accumulates Cash expenses and returns a virtual "Cash" account entry.
   static Future<List<Map<String, dynamic>>> getBankAccountsWithSpending(
     List<Map<String, dynamic>> expenses,
   ) async {
@@ -357,6 +358,9 @@ class BankAccountService {
     for (var account in bankAccounts) {
       bankSpending[account['id']] = 0.0;
     }
+
+    // Track cash spending separately
+    double cashSpending = 0.0;
 
     // Calculate actual spending for each bank account from expenses
     for (var expense in expenses) {
@@ -372,31 +376,46 @@ class BankAccountService {
       );
 
       if (expenseBankAccount != null) {
-        // Try stable ID match first (new format)
-        final matchedAccount = bankAccounts.firstWhere(
-          (account) => account['id'] == expenseBankAccount,
-          orElse: () =>
-              _findAccountByLegacyKey(bankAccounts, expenseBankAccount),
-        );
+        // ✅ Identify Cash transactions and track them separately
+        final normalizedAccount = expenseBankAccount.trim().toLowerCase();
+        final isCashTransaction =
+            normalizedAccount == 'cash' || normalizedAccount == 'cash-';
 
-        debugPrint(
-          '🔍 DEBUG: Matched account for expense "$expenseTitle": ${matchedAccount['id']} (${matchedAccount['name']})',
-        );
-
-        if (matchedAccount['id'] != null) {
-          // 🔥 PRODUCTION FIX: Only count real outflows (positive amounts)
-          // Exclude refunds, revenue, and credits from "total spent"
+        if (isCashTransaction) {
+          // Accumulate cash spending separately
           if (amount > 0) {
-            bankSpending[matchedAccount['id']] =
-                (bankSpending[matchedAccount['id']] ?? 0.0) + amount;
+            cashSpending += amount;
             debugPrint(
-              '🔍 DEBUG: Added $amount to ${matchedAccount['name']} (total: ${bankSpending[matchedAccount['id']]})',
+              '🔍 DEBUG: Cash expense "$expenseTitle" - Added $amount (cash total: $cashSpending)',
             );
           }
         } else {
-          debugPrint(
-            '🔍 DEBUG: No matching account found for expense "$expenseTitle" with bankAccount: "$expenseBankAccount"',
+          // Try stable ID match first (new format)
+          final matchedAccount = bankAccounts.firstWhere(
+            (account) => account['id'] == expenseBankAccount,
+            orElse: () =>
+                _findAccountByLegacyKey(bankAccounts, expenseBankAccount),
           );
+
+          debugPrint(
+            '🔍 DEBUG: Matched account for expense "$expenseTitle": ${matchedAccount['id']} (${matchedAccount['name']})',
+          );
+
+          if (matchedAccount['id'] != null) {
+            // 🔥 PRODUCTION FIX: Only count real outflows (positive amounts)
+            // Exclude refunds, revenue, and credits from "total spent"
+            if (amount > 0) {
+              bankSpending[matchedAccount['id']] =
+                  (bankSpending[matchedAccount['id']] ?? 0.0) + amount;
+              debugPrint(
+                '🔍 DEBUG: Added $amount to ${matchedAccount['name']} (total: ${bankSpending[matchedAccount['id']]})',
+              );
+            }
+          } else {
+            debugPrint(
+              '🔍 DEBUG: No matching account found for expense "$expenseTitle" with bankAccount: "$expenseBankAccount"',
+            );
+          }
         }
       } else {
         debugPrint(
@@ -405,10 +424,30 @@ class BankAccountService {
       }
     }
 
-    // Return bank accounts with calculated spending
-    return bankAccounts.map((account) {
+    // Build result: bank accounts with calculated spending
+    final result = bankAccounts.map((account) {
       return {...account, 'totalSpent': bankSpending[account['id']] ?? 0.0};
     }).toList();
+
+    // ✅ Append a virtual "Cash" account entry if there is any cash spending
+    if (cashSpending > 0) {
+      debugPrint(
+        '🔍 DEBUG: Adding virtual Cash account with total spending: $cashSpending',
+      );
+      result.add({
+        'id': null,                    // null = no delete button shown in UI
+        'isCash': true,                // flag for special Cash UI treatment
+        'name': 'Cash',
+        'number': '',
+        'last4': '',
+        'maskedNumber': 'Cash Payments',
+        'totalSpent': cashSpending,
+        'isActive': true,
+        'legacyKey': 'Cash-',
+      });
+    }
+
+    return result;
   }
 
   /// 🔥 PRODUCTION FIX: Migrate expense bank account references to stable IDs

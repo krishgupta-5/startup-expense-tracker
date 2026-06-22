@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../utils/expense_expansion_helper.dart';
 import 'user_country_service.dart';
 
 class FinancialDataService {
@@ -63,7 +64,7 @@ class FinancialDataService {
         _getBudgetData(user.uid),
         _getRevenueForRange(user.uid, null, null),
         _firestore
-            .collection('team_members')
+            .collection('members')
             .where('uid', isEqualTo: user.uid)
             .get(),
       ]);
@@ -73,12 +74,35 @@ class FinancialDataService {
       final allRevenue = futures[2] as List<QueryDocumentSnapshot>;
       final teamMembersSnapshot = futures[3] as QuerySnapshot;
 
+      // Map Firestore docs to dynamic maps, adding doc.id as 'id'
+      final allExpensesMapped = allExpensesSnapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return {
+          ...data,
+          'id': doc.id,
+        };
+      }).toList();
+
+      // Expand recurring/subscription templates dynamically
+      final expandedExpenses = ExpenseExpansionHelper.expandExpenses(
+        allExpensesMapped,
+        maxDate: endOfMonth,
+      );
+
       // Filter in Dart
-      final currentMonthExpenses = allExpensesSnapshot.docs.where((doc) {
-        final date = (doc.data() as Map<String, dynamic>)['Date'] as Timestamp?;
-        return date != null &&
-            date.toDate().isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
-            date.toDate().isBefore(endOfMonth.add(const Duration(seconds: 1)));
+      final currentMonthExpenses = expandedExpenses.where((data) {
+        final dateVal = data['Date'] ?? data['date'];
+        DateTime? dt;
+        if (dateVal is Timestamp) {
+          dt = dateVal.toDate();
+        } else if (dateVal is DateTime) {
+          dt = dateVal;
+        }
+        final isFunding = data['isFunding'] == true;
+        return !isFunding &&
+            dt != null &&
+            dt.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
+            dt.isBefore(endOfMonth.add(const Duration(seconds: 1)));
       }).toList();
 
       final currentMonthRevenue = allRevenue.where((doc) {
@@ -88,15 +112,14 @@ class FinancialDataService {
             date.toDate().isBefore(endOfMonth.add(const Duration(seconds: 1)));
       }).fold(0.0, (total, doc) => total + (double.tryParse((doc.data() as Map<String, dynamic>)['Amount']?.toString() ?? '0') ?? 0));
 
-      final trendData = _calculateSixMonthTrend(allExpensesSnapshot.docs, teamMembersSnapshot.docs);
+      final trendData = _calculateSixMonthTrend(expandedExpenses, teamMembersSnapshot.docs);
 
       double totalExpenses = 0;
       double salariesTotal = 0;
       Map<String, double> categoryTotals = {};
       Map<String, double> vendorTotals = {};
 
-      for (var doc in currentMonthExpenses) {
-        final data = doc.data() as Map<String, dynamic>;
+      for (final data in currentMonthExpenses) {
         final amount = double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
         String category = data['Category']?.toString() ?? 'Other';
         if (category.toLowerCase() == 'salary') category = 'salaries';
@@ -109,7 +132,7 @@ class FinancialDataService {
 
       for (var doc in teamMembersSnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        salariesTotal += double.tryParse(data['salary']?.toString() ?? '0') ?? 0;
+        salariesTotal += double.tryParse((data['salary'] ?? data['Salary'])?.toString() ?? '0') ?? 0;
       }
 
       final result = {
@@ -150,9 +173,9 @@ class FinancialDataService {
     }
   }
 
-  // Compute 6-month trend synchronously from already-fetched docs (no extra Firestore calls)
+  // Compute 6-month trend synchronously from already-fetched maps (no extra Firestore calls)
   static List<Map<String, dynamic>> _calculateSixMonthTrend(
-    List<QueryDocumentSnapshot> allExpenseDocs,
+    List<Map<String, dynamic>> allExpenses,
     List<QueryDocumentSnapshot> teamMemberDocs,
   ) {
     final now = DateTime.now();
@@ -162,7 +185,7 @@ class FinancialDataService {
     double salariesTotal = 0;
     for (var doc in teamMemberDocs) {
       final data = doc.data() as Map<String, dynamic>;
-      salariesTotal += double.tryParse(data['salary']?.toString() ?? '0') ?? 0;
+      salariesTotal += double.tryParse((data['salary'] ?? data['Salary'])?.toString() ?? '0') ?? 0;
     }
 
     for (int i = 5; i >= 0; i--) {
@@ -170,9 +193,15 @@ class FinancialDataService {
       final monthEnd = DateTime(now.year, now.month - i + 1, 1);
 
       double expensesTotal = 0;
-      for (var doc in allExpenseDocs) {
-        final data = doc.data() as Map<String, dynamic>;
-        final date = (data['Date'] as Timestamp?)?.toDate();
+      for (var data in allExpenses) {
+        if (data['isFunding'] == true) continue;
+        final dateVal = data['Date'] ?? data['date'];
+        DateTime? date;
+        if (dateVal is Timestamp) {
+          date = dateVal.toDate();
+        } else if (dateVal is DateTime) {
+          date = dateVal;
+        }
         if (date == null) continue;
         if (date.isAfter(monthStart.subtract(const Duration(seconds: 1))) &&
             date.isBefore(monthEnd)) {
@@ -508,15 +537,34 @@ class FinancialDataService {
 
       Map<String, double> teamSpending = {};
 
+      final mappedExpenses = expensesSnapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return {
+          ...data,
+          'id': doc.id,
+        };
+      }).toList();
+
+      final expandedExpenses = ExpenseExpansionHelper.expandExpenses(
+        mappedExpenses,
+        maxDate: endOfMonth,
+      );
+
       // Process expenses and categorize by team
-      for (var doc in expensesSnapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>?;
-        if (data == null) continue;
+      for (final data in expandedExpenses) {
+        if (data['isFunding'] == true) continue;
 
         final amount = double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
         final category = data['Category']?.toString() ?? 'Other';
         final teamName = data['TeamName']?.toString();
-        final expenseDate = (data['Date'] as Timestamp?)?.toDate();
+        
+        final dateVal = data['Date'] ?? data['date'];
+        DateTime? expenseDate;
+        if (dateVal is Timestamp) {
+          expenseDate = dateVal.toDate();
+        } else if (dateVal is DateTime) {
+          expenseDate = dateVal;
+        }
 
         // Filter by date in code
         if (expenseDate != null &&
@@ -600,22 +648,45 @@ class FinancialDataService {
         'DEBUG: Fetching category spending from ${startOfMonth.toIso8601String()} to ${endOfMonth.toIso8601String()}',
       );
 
-      // Get expenses for current month
+      // Get all expenses for user to cover recurring ones starting in the past
       final expensesSnapshot = await _firestore
           .collection('expenses')
           .where('uid', isEqualTo: uid)
-          .where(
-            'Date',
-            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth),
-          )
-          .where('Date', isLessThanOrEqualTo: Timestamp.fromDate(endOfMonth))
           .get();
+
+      final mappedExpenses = expensesSnapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          ...data,
+          'id': doc.id,
+        };
+      }).toList();
+
+      final expandedExpenses = ExpenseExpansionHelper.expandExpenses(
+        mappedExpenses,
+        maxDate: endOfMonth,
+      );
 
       Map<String, double> categorySpending = {};
 
-      for (var doc in expensesSnapshot.docs) {
-        final data = doc.data();
+      for (final data in expandedExpenses) {
         if (data.isEmpty) continue;
+        if (data['isFunding'] == true) continue;
+
+        final dateVal = data['Date'] ?? data['date'];
+        DateTime? dt;
+        if (dateVal is Timestamp) {
+          dt = dateVal.toDate();
+        } else if (dateVal is DateTime) {
+          dt = dateVal;
+        }
+
+        // Filter by date range in Dart
+        if (dt == null ||
+            dt.isBefore(startOfMonth) ||
+            dt.isAfter(endOfMonth)) {
+          continue;
+        }
 
         final amount = double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
         String category =

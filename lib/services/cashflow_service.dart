@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../utils/expense_expansion_helper.dart';
 import 'currency_formatter.dart';
 
 /// Service for period-based cash flow calculations
@@ -32,10 +33,12 @@ class CashflowService {
       final Map<String, double> categoryTotals = {};
       double totalExpenses = 0;
 
-      for (var expense in expenses) {
+      for (final data in expenses) {
+        if (data['isFunding'] == true) continue;
+
         final amount =
-            double.tryParse(expense['Amount']?.toString() ?? '0') ?? 0;
-        final category = expense['Category']?.toString() ?? 'Other';
+            double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
+        final category = data['Category']?.toString() ?? 'Other';
 
         categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
         totalExpenses += amount;
@@ -131,10 +134,12 @@ class CashflowService {
         double totalExpenses = 0;
         final Map<String, double> categoryTotals = {};
 
-        for (var expense in expenses) {
+        for (final data in expenses) {
+          if (data['isFunding'] == true) continue;
+
           final amount =
-              double.tryParse(expense['Amount']?.toString() ?? '0') ?? 0;
-          final category = expense['Category']?.toString() ?? 'Other';
+              double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
+          final category = data['Category']?.toString() ?? 'Other';
 
           categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
           totalExpenses += amount;
@@ -237,8 +242,8 @@ class CashflowService {
     }
   }
 
-  /// Get expenses for a specific date range
-  static Future<List<QueryDocumentSnapshot>> _getExpensesForDateRange(
+  /// Get expenses for a specific date range, expanding recurring expenses dynamically
+  static Future<List<Map<String, dynamic>>> _getExpensesForDateRange(
     String uid,
     DateTime startDate,
     DateTime endDate,
@@ -246,11 +251,34 @@ class CashflowService {
     final snapshot = await _firestore
         .collection('expenses')
         .where('uid', isEqualTo: uid)
-        .where('Date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
-        .where('Date', isLessThanOrEqualTo: Timestamp.fromDate(endDate))
         .get();
 
-    return snapshot.docs;
+    final mappedExpenses = snapshot.docs.map((doc) {
+      final data = doc.data();
+      return {
+        ...data,
+        'id': doc.id,
+      };
+    }).toList();
+
+    final expanded = ExpenseExpansionHelper.expandExpenses(
+      mappedExpenses,
+      maxDate: endDate,
+    );
+
+    // Filter by the date range
+    return expanded.where((expense) {
+      final dateVal = expense['Date'] ?? expense['date'];
+      DateTime? dt;
+      if (dateVal is Timestamp) {
+        dt = dateVal.toDate();
+      } else if (dateVal is DateTime) {
+        dt = dateVal;
+      }
+      if (dt == null) return false;
+      return dt.isAfter(startDate.subtract(const Duration(seconds: 1))) &&
+          dt.isBefore(endDate.add(const Duration(seconds: 1)));
+    }).toList();
   }
 
   /// Get date range for a given period
