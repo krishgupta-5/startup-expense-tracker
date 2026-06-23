@@ -17,6 +17,7 @@ import '../../../services/financial_data_service.dart';
 import '../../../services/financial_calculator.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
+import '../../../services/team_member_service.dart';
 import '../../../utils/expense_expansion_helper.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -166,6 +167,9 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       return;
     }
+
+    // Process any scheduled future salary updates (Lazy Cron pattern)
+    TeamMemberService.checkAndApplyFutureSalaries();
 
     // 1. Listen to Company Document (For Runway & Total Funding)
     _companySubscription = FirebaseFirestore.instance

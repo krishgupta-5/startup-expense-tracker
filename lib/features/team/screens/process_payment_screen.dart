@@ -89,7 +89,16 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
 
       for (final acc in accounts) {
         final String name = acc['name'] as String? ?? 'Unknown Bank';
-        final String last4 = acc['last4'] as String? ?? '';
+        String last4 = acc['last4'] as String? ?? '';
+        
+        // Fallback for newly added accounts if service doesn't parse it
+        if (last4.isEmpty || last4 == '****') {
+          final String rawNum = acc['number']?.toString() ?? '';
+          if (rawNum.isNotEmpty) {
+            last4 = rawNum.length <= 4 ? rawNum : rawNum.substring(rawNum.length - 4);
+          }
+        }
+        
         final String key = "$name-$last4";
         final String label =
             last4.isNotEmpty && last4 != '****'

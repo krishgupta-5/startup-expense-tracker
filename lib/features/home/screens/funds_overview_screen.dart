@@ -1214,7 +1214,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           context,
           MaterialPageRoute(builder: (_) => const AddBankAccountScreen()),
         );
-        if (result == true) {
+        if (result != null) {
           _loadAllData(); // Reload everything to ensure sync
         }
       },

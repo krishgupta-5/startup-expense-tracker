@@ -9,7 +9,7 @@ import 'team_detail_screen.dart';
 import '../../../widgets/avatar_widget.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
-import '../../../services/telegram_service.dart'; // T-06/T-07/T-21
+import '../../../services/telegram_service.dart';
 
 class TeamScreen extends StatefulWidget {
   const TeamScreen({super.key});
@@ -29,14 +29,11 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   String _selectedOrder = "A-Z"; // Default order
 
   // Refresh state
-  // T-22: _needsRefresh removed — was always false (never set to true).
-  // didChangeAppLifecycleState now calls _refreshData() directly on resume.
   String _userCountryCode = '+1'; // Default to USD
 
   // Cache for the last sort future to prevent rebuilding on every stream tick
   Future<List<Map<String, dynamic>>>? _sortedTeamsFuture;
   List<Map<String, dynamic>>? _lastTeamsData;
-  // T-09: fingerprint-based invalidation catches name/budget changes, not just length
   String _lastTeamsFingerprint = '';
 
   /// Lightweight content fingerprint so sort cache invalidation detects
@@ -51,7 +48,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     _lastTeamsFingerprint = _teamsFingerprint(teams);
     _sortedTeamsFuture = _filterAndSortTeams(teams);
   }
-  // T-07/T-21: Telegram URL cache moved to TelegramService (6-hour TTL)
 
   @override
   void initState() {
@@ -93,8 +89,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // T-22: Previously checked _needsRefresh (always false — dead code).
-    // Now triggers a sort-cache reset whenever the user returns from background.
     if (state == AppLifecycleState.resumed) {
       _refreshData();
     }
@@ -184,8 +178,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     }
 
     if (_selectedSortOption == "Team Size") {
-      // T-08: ONE query for all members instead of N queries (one per team).
-      // Reduces Firestore reads from O(teams) to O(1) on every sort trigger.
       final user = FirebaseAuth.instance.currentUser;
       final teamSizes = <String, int>{};
 
@@ -252,7 +244,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
           _selectedOrder = "High-Low";
         }
       }
-      // Invalidate cache so sort re-runs with new criteria
       if (_lastTeamsData != null) {
         _sortedTeamsFuture = _filterAndSortTeams(_lastTeamsData!);
       }
@@ -358,8 +349,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
           return _buildEmptyState("You don't have any teams yet.");
         }
 
-        // T-09: Fingerprint-based invalidation — catches name/budget changes
-        // in addition to list-length changes.
         final newTeams = snapshot.data!;
         final newFingerprint = _teamsFingerprint(newTeams);
         if (_sortedTeamsFuture == null ||
@@ -615,10 +604,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
 
   Widget _buildTeamCard(BuildContext context, Map<String, dynamic> teamData) {
     final String name = teamData['teamName'] ?? 'Unnamed Team';
-    final double rawCost = (teamData['monthlyBudget'] ?? 0).toDouble();
-    // T-20: removed dead _isLoadingCountry branch (always false)
-    final String cost =
-        CurrencyFormatter.formatByCountryCompact(rawCost, _userCountryCode);
     final Color color = _getColorFromName(teamData['color'] ?? 'blue');
     final IconData icon = _getIconFromData(teamData);
     final String teamId = teamData['id'] as String;
@@ -635,9 +620,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
             ),
           ).then((_) => _refreshData());
         },
-        // T-05: ONE StreamBuilder per card — previously _buildMemberCount and
-        // _buildAvatarPile each opened their own stream, doubling subscriptions.
-        // With 10 teams that was 20 open Firestore listeners; now it's 10.
         child: StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('members')
@@ -653,15 +635,12 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                         ? '1 Member'
                         : '$memberCount Members');
 
-            // Extract avatar data for the first 3 members from the SAME
-            // snapshot — zero extra Firestore reads.
             final List<Map<String, dynamic>> avatarInfos = membersDocs
                 .take(3)
                 .map((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   final String? tgId = data['telegramFileId'] as String?;
                   final String? url = data['avatarUrl'] as String?;
-                  // Legacy: avatarUrl can hold a Telegram fileId (not a URL)
                   final String? legacyTgId = (url != null &&
                           url.isNotEmpty &&
                           !url.startsWith('http') &&
@@ -683,8 +662,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
               decoration: BoxDecoration(
                 color: const Color(0xFF141416),
                 borderRadius: BorderRadius.circular(20),
-                border:
-                    Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
               ),
               child: Column(
                 children: [
@@ -743,24 +721,84 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _buildAvatarRow(avatarInfos),
-                      Row(
-                        children: [
-                          Text(
-                            "Monthly: ",
-                            style: GoogleFonts.inter(
-                              color: Colors.white38,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            cost,
-                            style: GoogleFonts.inter(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                      // --- NEW: Live Spent / Budget Visualizer ---
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('expenses')
+                            .where('TeamId', isEqualTo: teamId)
+                            .snapshots(),
+                        builder: (context, expenseSnap) {
+                          double actualSpent = 0.0;
+                          if (expenseSnap.hasData) {
+                            final now = DateTime.now();
+                            for (var doc in expenseSnap.data!.docs) {
+                              final data = doc.data() as Map<String, dynamic>;
+                              final date = (data['Date'] as Timestamp?)?.toDate();
+                              if (date != null &&
+                                  date.month == now.month &&
+                                  date.year == now.year) {
+                                actualSpent += (data['Amount'] as num?)?.toDouble() ?? 0.0;
+                              }
+                            }
+                          }
+
+                          final budget = (teamData['monthlyBudget'] ?? 0).toDouble();
+                          final isOverBudget = actualSpent > budget && budget > 0;
+                          
+                          final spentStr = CurrencyFormatter.formatByCountryCompact(actualSpent, _userCountryCode);
+                          final budgetStr = CurrencyFormatter.formatByCountryCompact(budget, _userCountryCode);
+                          
+                          double progress = budget > 0 ? (actualSpent / budget) : 0.0;
+                          if (progress > 1.0) progress = 1.0;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    spentStr,
+                                    style: GoogleFonts.inter(
+                                      color: isOverBudget ? const Color(0xFFFF453A) : Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    " / $budgetStr",
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white38,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                width: 80,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: FractionallySizedBox(
+                                    widthFactor: progress,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: isOverBudget ? const Color(0xFFFF453A) : const Color(0xFF30D158),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -773,8 +811,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     );
   }
 
-  // T-05: Replaces _buildAvatarWidget + _buildMemberAvatar + _buildAvatarPile.
-  // Receives pre-loaded data from the single StreamBuilder in _buildTeamCard.
   Widget _buildAvatarRow(List<Map<String, dynamic>> avatarInfos) {
     if (avatarInfos.isEmpty) {
       return Text(
@@ -806,8 +842,6 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     );
   }
 
-  // T-06/T-07: Uses TelegramService.getImageUrl which loads the bot token
-  // once (not per call) and caches URLs with a 6-hour TTL.
   Widget _buildMemberAvatarWithTelegram(
     String name,
     double size,
@@ -831,7 +865,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                 child: SizedBox(
                   width: size * 0.3,
                   height: size * 0.3,
-                  child: CircularProgressIndicator(
+                  child: const CircularProgressIndicator(
                     strokeWidth: 2,
                     color: Colors.white38,
                   ),
@@ -897,5 +931,4 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
       ),
     );
   }
-
 }

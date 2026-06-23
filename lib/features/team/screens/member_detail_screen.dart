@@ -11,6 +11,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'edit_member_screen.dart';
 import 'adjust_salary_screen.dart';
 import 'payment_history_screen.dart';
+import 'salary_history_screen.dart';
 import 'process_payment_screen.dart';
 import 'transaction_details_screen.dart';
 import '../../../widgets/avatar_widget.dart';
@@ -1095,6 +1096,20 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     MaterialPageRoute(
                       builder: (context) => AdjustSalaryScreen(
                         memberId: widget.memberId,
+                        currentSalary: currentSalary,
+                      ),
+                    ),
+                  );
+                }),
+
+                _buildActionOption(Icons.history, "Appraisal History", () {
+                  Navigator.pop(bottomSheetContext);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SalaryHistoryScreen(
+                        memberId: widget.memberId,
+                        memberName: memberName,
                         currentSalary: currentSalary,
                       ),
                     ),

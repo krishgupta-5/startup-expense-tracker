@@ -17,6 +17,7 @@ import '../../../services/bank_account_service.dart';
 import '../../../services/team_member_service.dart';
 import '../../../widgets/avatar_widget.dart';
 import '../../../shared/widgets/error_popup.dart';
+import '../../settings/screens/category_settings_screen.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   // ✅ Accept prefill data from scan screen
@@ -31,6 +32,7 @@ class AddExpenseScreen extends StatefulWidget {
 }
 
 class _AddExpenseScreenState extends State<AddExpenseScreen> {
+  int _categoryRebuildKey = 0;
   late final TextEditingController _amountController;
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
@@ -49,7 +51,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   String? _fileName;
   bool _isUploading = false;
 
-  final categories = {
+  Map<String, String> categories = {
     'marketing': 'Marketing',
     'infrastructure': 'Infrastructure',
     'office': 'Office Rent',
@@ -67,7 +69,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final types = {
     'one_time': 'One-time',
     'recurring': 'Recurring',
-    'subscription': 'Subscription',
   };
 
   Map<String, String> _bankAccounts = {};
@@ -137,6 +138,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     _fetchBankAccounts();
     _fetchTeamMembers();
     _fetchTeams();
+    _fetchCompanyCategories();
 
     // ✅ Auto-upload image and scroll to attachment section if image path provided
     if (widget.imagePath != null) {
@@ -304,6 +306,57 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
+  Future<void> _fetchCompanyCategories() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final companyId = userDoc.data()?['companyId'] as String?;
+      if (companyId == null) return;
+
+      final companyDoc = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(companyId)
+          .get();
+
+      if (companyDoc.exists) {
+        final data = companyDoc.data()!;
+        final selectedCats =
+            (data['Categories'] as List<dynamic>?)?.cast<String>() ?? [];
+
+        final Map<String, String> newCategories = {};
+
+        // Only add the selected categories
+        for (final val in selectedCats) {
+          final key = val.toLowerCase().replaceAll(' ', '_');
+          newCategories[key] = val;
+        }
+
+        // Add the Add New Category option
+        newCategories['add_new'] = '+ Add New Category';
+
+        if (mounted) {
+          setState(() {
+            categories = newCategories;
+            // Update default selected category if none was prefilled
+            if (widget.prefillData?['category'] == null) {
+              _selectedCategory = newCategories.keys.firstWhere(
+                (k) => k != 'add_new',
+                orElse: () => 'add_new',
+              );
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Failed to load company categories: $e");
+    }
+  }
+
 
   Future<void> _uploadExpense() async {
     FocusScope.of(context).unfocus(); // Dismiss keyboard
@@ -352,9 +405,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       );
       return;
     }
-    final isRecurringOrSub =
-        _selectedType == "recurring" || _selectedType == "subscription";
-    if (!isRecurringOrSub && _selectedDate.isAfter(DateTime.now())) {
+    final isRecurring = _selectedType == "recurring";
+    if (!isRecurring && _selectedDate.isAfter(DateTime.now())) {
       ErrorPopup.showValidation(
         context: context,
         message: "Date cannot be in the future.",
@@ -363,7 +415,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
 
     int? recurringTenure;
-    if (isRecurringOrSub && !_isOngoing) {
+    if (isRecurring && !_isOngoing) {
       final tenureText = _tenureController.text.trim();
       if (tenureText.isEmpty) {
         _showMinimalToast(
@@ -509,7 +561,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         if (_expenseType == 'member' && _selectedTeamMember != null)
           'memberId': _selectedTeamMember!.id,
         'Time': FieldValue.serverTimestamp(),
-        if (isRecurringOrSub) ...{
+        if (isRecurring) ...{
           'recurrenceFrequency': _recurrenceFrequency,
           'recurringTenureMonths': recurringTenure,
         },
@@ -964,8 +1016,24 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                 icon: Icons.pie_chart_outline,
                                 onChanged: (val) {
                                   FocusScope.of(context).unfocus();
-                                  setState(() => _selectedCategory = val!);
+                                  if (val == 'add_new') {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const CategorySettingsScreen(),
+                                      ),
+                                    ).then((_) {
+                                      _fetchCompanyCategories();
+                                      // Force rebuild to revert the dropdown visual selection
+                                      setState(() {
+                                        _categoryRebuildKey++;
+                                      });
+                                    });
+                                  } else {
+                                    setState(() => _selectedCategory = val!);
+                                  }
                                 },
+                                keySuffix: _categoryRebuildKey.toString(),
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -987,8 +1055,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         AnimatedCrossFade(
                           duration: const Duration(milliseconds: 300),
                           crossFadeState:
-                              (_selectedType == 'recurring' ||
-                                  _selectedType == 'subscription')
+                              (_selectedType == 'recurring')
                               ? CrossFadeState.showFirst
                               : CrossFadeState.showSecond,
                           firstChild: _buildRecurringDetailsCard(),
@@ -1191,6 +1258,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     required Map<String, String> items,
     required IconData icon,
     required Function(String?) onChanged,
+    String? keySuffix,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1200,10 +1268,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         ConstrainedBox(
           constraints: const BoxConstraints(minWidth: double.infinity),
           child: ShadSelect<String>(
-            // ValueKey forces the widget to be fully recreated whenever
-            // currentValue changes (e.g. after bank accounts load async),
-            // so initialValue is always seeded with the correct value.
-            key: ValueKey(currentValue),
+            key: ValueKey('${currentValue}_$keySuffix'),
             placeholder: Text(
               'Select $label',
               style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),

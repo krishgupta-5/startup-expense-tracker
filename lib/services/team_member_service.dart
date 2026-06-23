@@ -249,4 +249,56 @@ class TeamMemberService {
     }
     return null;
   }
+
+  static Future<void> checkAndApplyFutureSalaries() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final now = DateTime.now();
+      // Fetch all members for the user to evaluate locally (avoids needing a composite index)
+      final snapshot = await _firestore
+          .collection('members')
+          .where('uid', isEqualTo: user.uid)
+          .get();
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final effectiveDate = data['futureSalaryDate'] as Timestamp?;
+
+        if (effectiveDate != null && effectiveDate.toDate().isBefore(now)) {
+          final newSalary = (data['futureSalary'] as num?)?.toDouble();
+          final reason = data['futureSalaryReason'] as String?;
+
+          if (newSalary != null) {
+            // Promote future salary to active salary
+            await doc.reference.update({
+              'monthlyCost': newSalary,
+              'salary': newSalary,
+              'lastSalaryUpdateDate': effectiveDate,
+              'lastSalaryUpdateReason': reason,
+              'futureSalary': FieldValue.delete(),
+              'futureSalaryDate': FieldValue.delete(),
+              'futureSalaryReason': FieldValue.delete(),
+            });
+
+            // Log in salary history
+            final currentSalary = (data['salary'] as num?)?.toDouble() ?? 0.0;
+            await doc.reference.collection('salary_history').add({
+              'previousSalary': currentSalary,
+              'newSalary': newSalary,
+              'delta': newSalary - currentSalary,
+              'reason': reason ?? 'Scheduled Salary Update',
+              'effectiveDate': effectiveDate,
+              'changedAt': FieldValue.serverTimestamp(),
+            });
+            
+            debugPrint('✅ DEBUG: Applied future salary of $newSalary for member ${doc.id}');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ DEBUG: Error applying future salaries: $e');
+    }
+  }
 }

@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
+import 'category_settings_screen.dart';
 
 class BudgetSettingsScreen extends StatefulWidget {
   const BudgetSettingsScreen({super.key});
@@ -22,25 +23,12 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
   bool _isLoadingData = true;
   String _userCountryCode = '+1'; // Default to USD
   double _currentBudget = 0.0;
+  int _categoryRebuildKey = 0;
 
-  final Map<String, String> _allCategories = {
-    'marketing': 'Marketing',
-    'infrastructure': 'Infrastructure',
-    'office': 'Office Rent',
-    'software': 'Software',
-    'hardware': 'Hardware',
-    'transport': 'Transport',
-    'design': 'Design',
-    'others': 'Others',
-    'travel': 'Travel',
-    'meals': 'Meals',
-    'contractors': 'Contractors',
-    'legal': 'Legal',
-    'salaries': 'Salary',
-  };
+  Map<String, String> _allCategories = {};
 
   // Default to the first specific category
-  String _selectedCategory = 'marketing';
+  String _selectedCategory = '';
 
   @override
   void initState() {
@@ -105,9 +93,27 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       if (companyDoc.exists) {
         final companyData = companyDoc.data() as Map<String, dynamic>;
         final budgets = companyData['budgets'] as Map<String, dynamic>? ?? {};
+        final selectedCats = (companyData['Categories'] as List<dynamic>?)?.cast<String>() ?? [];
+
+        final Map<String, String> fetchedCategories = {};
+        for (final val in selectedCats) {
+          final key = val.toLowerCase().replaceAll(' ', '_');
+          fetchedCategories[key] = val;
+        }
+        fetchedCategories['add_new'] = '+ Add New Category';
 
         if (mounted) {
           setState(() {
+            _allCategories = fetchedCategories;
+
+            // Ensure _selectedCategory is valid
+            if (!_allCategories.containsKey(_selectedCategory)) {
+              _selectedCategory = _allCategories.keys.firstWhere(
+                (k) => k != 'add_new',
+                orElse: () => 'add_new',
+              );
+            }
+
             _currentBudget = DataHelpers.safeParseDouble(
               budgets[_selectedCategory] ?? 0.0,
             );
@@ -339,6 +345,7 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       constraints: const BoxConstraints(minWidth: double.infinity),
       // Removed outer container to eliminate the double box issue
       child: ShadSelect<String>(
+        key: ValueKey('${_selectedCategory}_$_categoryRebuildKey'),
         placeholder: Text(
           'Select category',
           style: GoogleFonts.inter(color: Colors.white24, fontSize: 15),
@@ -346,11 +353,25 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
         initialValue: _selectedCategory,
         onChanged: (value) {
           if (value != null) {
-            setState(() {
-              _selectedCategory = value;
-              _budgetController.clear();
-            });
-            _loadCurrentBudget(); 
+            if (value == 'add_new') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CategorySettingsScreen(),
+                ),
+              ).then((_) {
+                _loadCurrentBudget();
+                setState(() {
+                  _categoryRebuildKey++;
+                }); // Force rebuild
+              });
+            } else {
+              setState(() {
+                _selectedCategory = value;
+                _budgetController.clear();
+              });
+              _loadCurrentBudget();
+            }
           }
         },
         selectedOptionBuilder: (context, value) {

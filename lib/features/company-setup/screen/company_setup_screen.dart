@@ -87,6 +87,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     "Travel",
     "Meals",
     "Contractors",
+    "Transport",
+    "Salary",
+    "Others",
   ];
   final Set<String> _selectedCategories = {};
 
@@ -96,6 +99,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     {"name": "Marketing", "members": []},
   ];
   final TextEditingController _teamController = TextEditingController();
+  final TextEditingController _customCategoryController = TextEditingController();
 
   // --- METHODS ---
 
@@ -143,6 +147,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     _fundingController.dispose();
     _runwayController.dispose();
     _teamController.dispose();
+    _customCategoryController.dispose();
     for (var acc in _bankAccounts) {
       acc["name"]?.dispose();
       acc["number"]?.dispose();
@@ -299,11 +304,11 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         break;
 
       case 4: // Categories
-        if (_selectedCategories.isEmpty) {
+        if (_selectedCategories.length < 3) {
           _errors.add('categories');
           isValid = false;
           ErrorPopup.showValidation(
-              context: context, message: "Please select at least one category.");
+              context: context, message: "Please select at least 3 categories.");
         }
         break;
 
@@ -1219,6 +1224,44 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               ),
             );
           }).toList(),
+        ),
+        const SizedBox(height: 24),
+        Row(
+          children: [
+            Expanded(
+              child: _buildInputField(
+                _customCategoryController,
+                "Add Custom Category",
+                "custom_category",
+                icon: Icons.add_circle_outline,
+                textCapitalization: TextCapitalization.words,
+              ),
+            ),
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: () {
+                if (_customCategoryController.text.trim().isNotEmpty) {
+                  setState(() {
+                    final newCat = _customCategoryController.text.trim();
+                    if (!_allCategories.map((c) => c.toLowerCase()).contains(newCat.toLowerCase())) {
+                      _allCategories.add(newCat);
+                    }
+                    _selectedCategories.add(_allCategories.firstWhere((c) => c.toLowerCase() == newCat.toLowerCase(), orElse: () => newCat));
+                    _customCategoryController.clear();
+                    _clearError('categories');
+                  });
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(Icons.add, color: Colors.black, size: 20),
+              ),
+            ),
+          ],
         ),
       ],
     );

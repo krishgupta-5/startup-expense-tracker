@@ -18,6 +18,7 @@ import '../widgets/coming_soon_dialog.dart';
 import '../../../services/currency_preference_service.dart';
 import 'set_password.dart'; 
 import 'add_funding_screen.dart';
+import 'category_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -335,6 +336,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     showDialog(
                       context: context,
                       builder: (context) => const AddFundingScreen(),
+                    );
+                  },
+                ),
+                _buildDivider(),
+                _buildTile(
+                  icon: Icons.category_outlined,
+                  title: "Expense Categories",
+                  subtitle: "Manage categories for your expenses",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CategorySettingsScreen(),
+                      ),
                     );
                   },
                 ),

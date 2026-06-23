@@ -313,12 +313,23 @@ class BankAccountService {
     }
 
     final String rawLast4 = accountData['last4']?.toString() ?? '';
-    final String last4 = rawLast4.isNotEmpty ? extractLast4(rawLast4) : '****';
 
-    // Handle account number - could be in 'number' field or extract from last4
-    String accountNumber = accountData['number']?.toString() ?? '';
+    // Handle account number - could be in various fields
+    String accountNumber = accountData['number']?.toString() ??
+        accountData['accountNumber']?.toString() ??
+        accountData['account_number']?.toString() ??
+        accountData['account']?.toString() ??
+        '';
     if (accountNumber.isEmpty && rawLast4.isNotEmpty) {
       accountNumber = rawLast4; // Use last4 as account number fallback
+    }
+
+    // Extract last 4 digits properly
+    String last4 = '****';
+    if (rawLast4.isNotEmpty) {
+      last4 = extractLast4(rawLast4);
+    } else if (accountNumber.isNotEmpty) {
+      last4 = extractLast4(accountNumber);
     }
 
     debugPrint(

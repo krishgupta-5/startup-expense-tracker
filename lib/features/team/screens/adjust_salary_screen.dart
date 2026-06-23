@@ -134,33 +134,55 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Update the member's monthlyCost and salary fields
-      await FirebaseFirestore.instance
-          .collection('members')
-          .doc(widget.memberId)
-          .update({
-            'monthlyCost': newSalary,
-            'salary': newSalary, // Keep in sync with monthlyCost
-            'lastSalaryUpdateDate': _effectiveDate,
-            'lastSalaryUpdateReason': _reasonController.text.trim(),
-          });
+      final now = DateTime.now();
+      final effectiveDateOnly = DateTime(_effectiveDate.year, _effectiveDate.month, _effectiveDate.day);
+      final todayOnly = DateTime(now.year, now.month, now.day);
+      final isFuture = effectiveDateOnly.isAfter(todayOnly);
 
-      // T-04: Write salary history record for full audit trail
-      // (raised, cut, promotion, annual review — all permanently logged)
+      final String reason = _reasonController.text.trim().isNotEmpty
+          ? _reasonController.text.trim()
+          : 'No reason provided';
+
+      final Map<String, dynamic> updateData = {};
+
+      if (isFuture) {
+        // Schedule for future (Lazy Cron pattern)
+        updateData['futureSalary'] = newSalary;
+        updateData['futureSalaryDate'] = _effectiveDate;
+        updateData['futureSalaryReason'] = reason;
+      } else {
+        // Apply immediately and clear any pending future updates
+        updateData['monthlyCost'] = newSalary;
+        updateData['salary'] = newSalary;
+        updateData['lastSalaryUpdateDate'] = _effectiveDate;
+        updateData['lastSalaryUpdateReason'] = reason;
+        updateData['futureSalary'] = FieldValue.delete();
+        updateData['futureSalaryDate'] = FieldValue.delete();
+        updateData['futureSalaryReason'] = FieldValue.delete();
+      }
+
+      // Update the member document
       await FirebaseFirestore.instance
           .collection('members')
           .doc(widget.memberId)
-          .collection('salary_history')
-          .add({
-            'previousSalary': widget.currentSalary,
-            'newSalary': newSalary,
-            'delta': newSalary - widget.currentSalary,
-            'reason': _reasonController.text.trim().isNotEmpty
-                ? _reasonController.text.trim()
-                : 'No reason provided',
-            'effectiveDate': _effectiveDate,
-            'changedAt': FieldValue.serverTimestamp(),
-          });
+          .update(updateData);
+
+      // Only log history immediately if the change is active today.
+      // Future updates will be logged by the cron when they activate.
+      if (!isFuture) {
+        await FirebaseFirestore.instance
+            .collection('members')
+            .doc(widget.memberId)
+            .collection('salary_history')
+            .add({
+              'previousSalary': widget.currentSalary,
+              'newSalary': newSalary,
+              'delta': newSalary - widget.currentSalary,
+              'reason': reason,
+              'effectiveDate': _effectiveDate,
+              'changedAt': FieldValue.serverTimestamp(),
+            });
+      }
 
       if (mounted) {
         Navigator.pop(context);

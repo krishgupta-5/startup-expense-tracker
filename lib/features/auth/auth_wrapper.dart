@@ -155,14 +155,17 @@ class AuthWrapper extends StatelessWidget {
               '🔍 DEBUG: User document data: ${userSnapshot.data?.data()}',
             );
 
-            // If user document doesn't exist or company not set up, go to company setup
+            // If user document doesn't exist (e.g. account data was deleted), 
+            // sign them out and send to login screen.
             if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
               debugPrint(
-                '🔍 DEBUG: User document does not exist, going to company setup',
+                '🔍 DEBUG: User document does not exist, redirecting to login',
               );
-              // Initialize user currency for new users
-              _initializeUserCurrency();
-              return const CompanySetupScreen();
+              // Asynchronously sign out so they don't get stuck in a weird state
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                FirebaseAuth.instance.signOut();
+              });
+              return const LoginScreen();
             }
 
             final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
