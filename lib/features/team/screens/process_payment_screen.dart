@@ -214,6 +214,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
           .doc(widget.memberId);
       batch.update(memberRef, {
         "totalExpenses": FieldValue.increment(amount),
+        "remainingSalary": FieldValue.increment(-amount),
       });
 
       await batch.commit();

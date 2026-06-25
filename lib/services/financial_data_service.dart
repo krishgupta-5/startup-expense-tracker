@@ -87,6 +87,7 @@ class FinancialDataService {
       final expandedExpenses = ExpenseExpansionHelper.expandExpenses(
         allExpensesMapped,
         maxDate: endOfMonth,
+        allowFuture: true,
       );
 
       // Filter in Dart
@@ -136,8 +137,8 @@ class FinancialDataService {
       }
 
       final result = {
-        'grossBurn': totalExpenses + salariesTotal,
-        'netBurn': (totalExpenses + salariesTotal) - currentMonthRevenue,
+        'grossBurn': totalExpenses,
+        'netBurn': totalExpenses - currentMonthRevenue,
         'revenue': currentMonthRevenue,
         'categoryBreakdown': categoryTotals,
         'vendorBreakdown': vendorTotals,
@@ -181,16 +182,10 @@ class FinancialDataService {
     final now = DateTime.now();
     final trendData = <Map<String, dynamic>>[];
 
-    // Pre-compute salaries total (same across all months)
-    double salariesTotal = 0;
-    for (var doc in teamMemberDocs) {
-      final data = doc.data() as Map<String, dynamic>;
-      salariesTotal += double.tryParse((data['salary'] ?? data['Salary'])?.toString() ?? '0') ?? 0;
-    }
-
     for (int i = 5; i >= 0; i--) {
       final monthStart = DateTime(now.year, now.month - i, 1);
       final monthEnd = DateTime(now.year, now.month - i + 1, 1);
+
 
       double expensesTotal = 0;
       for (var data in allExpenses) {
@@ -212,7 +207,7 @@ class FinancialDataService {
 
       trendData.add({
         'month': _getMonthAbbreviation(monthStart.month),
-        'amount': expensesTotal + salariesTotal,
+        'amount': expensesTotal,
         'isCurrentMonth': i == 0,
       });
     }
@@ -512,7 +507,7 @@ class FinancialDataService {
       final startOfMonth = DateTime(now.year, now.month, 1);
       final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
 
-      // Run queries in parallel
+      // Run queries in parallel — also fetch members to include salaries per team
       final futures = await Future.wait([
         // Get all expenses for current month
         _firestore
@@ -521,10 +516,13 @@ class FinancialDataService {
             .get(),
         // Get all teams to map team names
         _firestore.collection('teams').where('uid', isEqualTo: user.uid).get(),
+        // Get all members to aggregate salaries per team
+        _firestore.collection('members').where('uid', isEqualTo: user.uid).get(),
       ]);
 
       final expensesSnapshot = futures[0] as QuerySnapshot;
       final teamsSnapshot = futures[1] as QuerySnapshot;
+      final membersSnapshot = futures[2] as QuerySnapshot;
 
       Map<String, String> teamIdToName = {};
       for (var teamDoc in teamsSnapshot.docs) {
@@ -537,6 +535,25 @@ class FinancialDataService {
 
       Map<String, double> teamSpending = {};
 
+      // --- Add member salaries per team ---
+      for (var memberDoc in membersSnapshot.docs) {
+        final memberData = memberDoc.data() as Map<String, dynamic>;
+        final status = memberData['status']?.toString() ?? 'Active';
+        if (status != 'Active') continue; // only count active members
+
+        final memberTeamId = memberData['teamId']?.toString();
+        if (memberTeamId == null) continue;
+
+        final teamName = teamIdToName[memberTeamId];
+        if (teamName == null) continue; // team not owned by this user
+
+        final salary = double.tryParse(
+              (memberData['salary'] ?? memberData['Salary'])?.toString() ?? '0',
+            ) ??
+            0.0;
+        teamSpending[teamName] = (teamSpending[teamName] ?? 0) + salary;
+      }
+
       final mappedExpenses = expensesSnapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
         return {
@@ -548,16 +565,22 @@ class FinancialDataService {
       final expandedExpenses = ExpenseExpansionHelper.expandExpenses(
         mappedExpenses,
         maxDate: endOfMonth,
+        allowFuture: true,
       );
 
       // Process expenses and categorize by team
       for (final data in expandedExpenses) {
         if (data['isFunding'] == true) continue;
 
-        final amount = double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
+        // Skip salary-category expense docs — member salaries are already
+        // included above from the members collection, preventing double-counting.
         final category = data['Category']?.toString() ?? 'Other';
+        if (category.toLowerCase() == 'salary' ||
+            category.toLowerCase() == 'salaries') continue;
+
+        final amount = double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
         final teamName = data['TeamName']?.toString();
-        
+
         final dateVal = data['Date'] ?? data['date'];
         DateTime? expenseDate;
         if (dateVal is Timestamp) {
@@ -665,6 +688,7 @@ class FinancialDataService {
       final expandedExpenses = ExpenseExpansionHelper.expandExpenses(
         mappedExpenses,
         maxDate: endOfMonth,
+        allowFuture: true,
       );
 
       Map<String, double> categorySpending = {};

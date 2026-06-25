@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +12,7 @@ import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/telegram_service.dart'; 
 import 'team_expense_history_screen.dart';
+import '../../../utils/expense_expansion_helper.dart';
 
 class TeamDetailScreen extends StatefulWidget {
   final String teamId;
@@ -162,30 +164,77 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                             children: [
                               const SizedBox(height: 16),
 
-                              // --- HERO STATS (Actual Spent This Month) ---
+                              // --- HERO STATS (Actual Expenses This Month + Member Salaries) ---
+                              // Uses the already-fetched membersDocs from the outer StreamBuilder
+                              // to include salaries, so no extra Firestore read is needed.
                               StreamBuilder<QuerySnapshot>(
                                 stream: FirebaseFirestore.instance
                                     .collection('expenses')
+                                    .where('uid', isEqualTo:
+                                        FirebaseAuth.instance.currentUser?.uid)
                                     .where('TeamId', isEqualTo: widget.teamId)
                                     .snapshots(),
                                 builder: (context, expenseSnapshot) {
-                                  double actualSpent = 0.0;
+                                  double totalSpentThisMonth = 0.0;
                                   if (expenseSnapshot.hasData) {
                                     final now = DateTime.now();
-                                    for (var doc in expenseSnapshot.data!.docs) {
+
+                                    // Build raw list from Firestore docs
+                                    final rawList = expenseSnapshot.data!.docs.map((doc) {
                                       final data = doc.data() as Map<String, dynamic>;
-                                      final date = (data['Date'] as Timestamp?)?.toDate();
+                                      return {...data, 'id': doc.id};
+                                    }).toList();
+
+                                    // Expand recurring expenses into individual occurrences for the entire month
+                                    final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+                                    final expanded = ExpenseExpansionHelper.expandExpenses(
+                                      rawList,
+                                      maxDate: endOfMonth,
+                                      allowFuture: true,
+                                    );
+
+                                    // Sum only non-salary expense occurrences in the current month.
+                                    // Salary expenses are counted below from the members collection
+                                    // to avoid double-counting if a salary doc also exists.
+                                    for (final data in expanded) {
+                                      if (data['isFunding'] == true) continue;
+                                      final category = (data['Category'] ?? '').toString().toLowerCase();
+
+                                      final rawDate = data['Date'] ?? data['date'];
+                                      DateTime? date;
+                                      if (rawDate is Timestamp) {
+                                        date = rawDate.toDate();
+                                      } else if (rawDate is DateTime) {
+                                        date = rawDate;
+                                      }
                                       if (date != null &&
                                           date.month == now.month &&
                                           date.year == now.year) {
-                                        actualSpent += (data['Amount'] as num?)?.toDouble() ?? 0.0;
+                                        totalSpentThisMonth +=
+                                            (data['Amount'] as num?)?.toDouble() ?? 0.0;
                                       }
                                     }
+
+                                    // Add member salaries from already-fetched membersDocs
+                                    for (var memberDoc in membersDocs) {
+                                      final md = memberDoc.data() as Map<String, dynamic>;
+                                      final status = md['status']?.toString() ?? 'Active';
+                                      if (status != 'Active') continue;
+                                      final salary = double.tryParse(
+                                            (md['salary'] ?? md['Salary'])?.toString() ?? '0',
+                                          ) ??
+                                          0.0;
+                                      totalSpentThisMonth += salary;
+                                    }
                                   }
-                                  final bool isWithinBudget = actualSpent <= teamBudget;
-                                  
-                                  // Pass teamName and teamData for the history button
-                                  return _buildHeroStats(actualSpent, isWithinBudget, teamName, teamData);
+                                  final bool isWithinBudget =
+                                      totalSpentThisMonth <= teamBudget;
+                                  return _buildHeroStats(
+                                    totalSpentThisMonth,
+                                    isWithinBudget,
+                                    teamName,
+                                    teamData,
+                                  );
                                 },
                               ),
 

@@ -18,6 +18,7 @@ import '../../../widgets/avatar_widget.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../utils/data_helpers.dart';
+import '../../../utils/expense_expansion_helper.dart';
 
 class MemberDetailScreen extends StatefulWidget {
   final String memberId;
@@ -583,17 +584,26 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           );
         }
 
-        // 1. Count Total Salary Payments Made for this member using stable memberId
+        // 1. Count Total Salary Payments Made for this member
+        // A recurring salary doc represents multiple months — expand it into
+        // individual occurrences and count how many have passed up to today.
         int totalPaymentsMade = 0;
         if (snapshot.hasData) {
-          for (var doc in snapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            final category = data['Category']?.toString().toLowerCase() ?? '';
+          final now2 = DateTime.now();
+          final salaryDocs = snapshot.data!.docs
+              .map((doc) => {...doc.data() as Map<String, dynamic>, 'id': doc.id})
+              .where((data) {
+                final category = data['Category']?.toString().toLowerCase() ?? '';
+                return category == 'salary' && data['memberId'] == widget.memberId;
+              })
+              .toList();
 
-            if (category == 'salary' && data['memberId'] == widget.memberId) {
-              totalPaymentsMade++;
-            }
-          }
+          // Expand all salary entries (handles recurring by splitting into occurrences)
+          final expanded = ExpenseExpansionHelper.expandExpenses(
+            salaryDocs,
+            maxDate: now2,
+          );
+          totalPaymentsMade = expanded.length;
         }
 
         DateTime addMonths(DateTime date, int months) {
@@ -854,36 +864,39 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           );
         }
 
-        // Extract and filter data for this member
+        // Extract raw docs, expand recurring entries into individual occurrences
         final allDocs = snapshot.data?.docs ?? [];
+        final rawList = allDocs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return {...data, 'id': doc.id};
+        }).toList();
+
+        final expanded = ExpenseExpansionHelper.expandExpenses(
+          rawList,
+          maxDate: DateTime.now(),
+        );
+
         List<Map<String, dynamic>> memberPayments = [];
 
-        for (var doc in allDocs) {
-          final data = doc.data() as Map<String, dynamic>;
-          final String category =
-              data['Category']?.toString().toLowerCase() ?? '';
+        for (var data in expanded) {
           final String title = data['Title']?.toString() ?? '';
+          final rawDate = data['Date'] ?? data['date'];
+          final Timestamp? ts = rawDate is Timestamp ? rawDate : null;
 
-          // Filter: Must be a salary expense AND match the member's ID
-          if (category == 'salary' && data['memberId'] == widget.memberId) {
-            // T-13: Use num cast — safe for int, double, and avoids
-            // TypeError crash if Firestore stores Amount as a String
-            final double amt =
-                (data['Amount'] as num?)?.toDouble() ?? 0.0;
+          final double amt = (data['Amount'] as num?)?.toDouble() ?? 0.0;
 
-            memberPayments.add({
-              "id": doc.id,
-              "rawData": data,
-              "rawDate": data['Date'] as Timestamp?,
-              "date": _formatDate(data['Date'] as Timestamp?),
-              "amt": _isLoadingCountry
-                  ? CurrencyFormatter.formatByCountryCompact(amt, '+1')
-                  : CurrencyFormatter.formatByCountryCompact(amt, _userCountryCode),
-              "title": title.contains("Advance")
-                  ? "Advance Payout"
-                  : "Salary Payout",
-            });
-          }
+          memberPayments.add({
+            "id": data['id'] ?? data['expenseId'] ?? '',
+            "rawData": data,
+            "rawDate": ts,
+            "date": _formatDate(ts),
+            "amt": _isLoadingCountry
+                ? CurrencyFormatter.formatByCountryCompact(amt, '+1')
+                : CurrencyFormatter.formatByCountryCompact(amt, _userCountryCode),
+            "title": title.contains("Advance")
+                ? "Advance Payout"
+                : "Salary Payout",
+          });
         }
 
         // Sort newest first and take only top 3

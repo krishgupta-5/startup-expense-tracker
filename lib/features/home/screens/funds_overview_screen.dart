@@ -95,9 +95,16 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
 
       // Compute totals from REAL loaded expenses — inside setState so rebuild always sees correct values
       if (fundingAmount != null) {
+        final now = DateTime.now();
         final totalReal = allExpenses.fold<double>(
           0.0,
-          (t, e) => t + (e['rawAmount'] as double? ?? 0.0),
+          (t, e) {
+            final ts = e['timestamp'] as Timestamp?;
+            if (ts != null && ts.toDate().isAfter(now)) {
+              return t;
+            }
+            return t + (e['rawAmount'] as double? ?? 0.0);
+          },
         );
         setState(() {
           _totalExpensesAmount = totalReal;
@@ -217,7 +224,12 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
 
   void _calculateCashFlowBreakdown() {
     final Map<String, double> categoryTotals = {};
+    final now = DateTime.now();
     for (var expense in allExpenses) {
+      final ts = expense['timestamp'] as Timestamp?;
+      if (ts != null && ts.toDate().isAfter(now)) {
+        continue; // Skip future projected recurring instances
+      }
       final category = expense['category'] as String? ?? 'Other';
       final amount = expense['rawAmount'] as double? ?? (expense['amount'] as num).toDouble();
       categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
@@ -264,7 +276,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   }
 
   double _calculateCurrentMonthBurn() {
-    if (allExpenses.isEmpty) return _totalSalaries;
+    if (allExpenses.isEmpty) return 0.0;
     final now = DateTime.now();
     double currentMonthTotal = 0;
     for (var expense in allExpenses) {
@@ -276,7 +288,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         }
       }
     }
-    return currentMonthTotal + _totalSalaries;
+    return currentMonthTotal;
   }
 
 
@@ -298,16 +310,24 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         };
       }).toList();
 
+      final now = DateTime.now();
+      final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
       final expanded = ExpenseExpansionHelper.expandExpenses(
         mappedExpenses,
-        maxDate: DateTime.now(),
+        maxDate: endOfMonth,
+        allowFuture: true,
       );
 
       allExpenses = expanded
-          .where((data) => data['isFunding'] != true)
+          .where((data) {
+             if (data['isFunding'] == true) return false;
+             final category = (data['Category'] ?? data['category'] ?? '').toString().toLowerCase();
+
+             return true;
+          })
           .map((data) {
-        final rawAmount =
-            double.tryParse(data['Amount']?.toString() ?? '0') ?? 0.0;
+        final amountVal = data['Amount'] ?? data['amount'];
+        final rawAmount = amountVal is num ? amountVal.toDouble() : double.tryParse(amountVal?.toString() ?? '0') ?? 0.0;
         final dateVal = data['Date'] ?? data['date'];
         DateTime? dt;
         if (dateVal is Timestamp) {
@@ -334,6 +354,15 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               'N/A',
         };
       }).toList();
+
+      // Sort by timestamp descending so recent expenses section works correctly
+      allExpenses.sort((a, b) {
+        final aTs = a['timestamp'] as Timestamp?;
+        final bTs = b['timestamp'] as Timestamp?;
+        if (aTs == null) return 1;
+        if (bTs == null) return -1;
+        return bTs.compareTo(aTs);
+      });
     } catch (e) {
       log('Error fetching expenses: $e');
     }

@@ -325,12 +325,9 @@ class BankAccountService {
     }
 
     // Extract last 4 digits properly
-    String last4 = '****';
-    if (rawLast4.isNotEmpty) {
-      last4 = extractLast4(rawLast4);
-    } else if (accountNumber.isNotEmpty) {
-      last4 = extractLast4(accountNumber);
-    }
+    final String last4 = rawLast4.isNotEmpty 
+        ? extractLast4(rawLast4) 
+        : (accountNumber.isNotEmpty ? extractLast4(accountNumber) : '****');
 
     debugPrint(
       '🔍 DEBUG: Company array bank - Name: "$bankName", Last4: "$last4", AccountNumber: "$accountNumber"',

@@ -11,6 +11,7 @@ import 'transaction_details_screen.dart';
 import '../../../../services/currency_formatter.dart';
 import '../../../../services/currency_preference_service.dart';
 import '../../../../services/bank_account_service.dart';
+import '../../../../utils/expense_expansion_helper.dart';
 
 class TeamExpenseHistoryScreen extends StatefulWidget {
   final String teamId;
@@ -305,26 +306,47 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                           );
                         }
 
-                        // Extract and filter data
+                        // Extract raw docs and expand recurring expenses
                         final allDocs = snapshot.data?.docs ?? [];
+                        final rawList = allDocs.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          return {...data, 'id': doc.id};
+                        }).toList();
+
+                        // Expand recurring/subscription expenses into individual
+                        // occurrences up to today so every past payment is visible.
+                        final expanded = ExpenseExpansionHelper.expandExpenses(
+                          rawList,
+                          maxDate: DateTime.now(),
+                        );
+
                         List<Map<String, dynamic>> teamExpenses = [];
                         double totalSpent = 0.0;
 
-                        for (var doc in allDocs) {
-                          final data = doc.data() as Map<String, dynamic>;
+                        for (var data in expanded) {
+                          if (data['isFunding'] == true) continue;
+
                           final String title = data['Title']?.toString() ?? '';
                           final String memberName =
                               data['TeamMemberName']?.toString() ?? '';
 
+                          final Timestamp? rawDate =
+                              data['Date'] as Timestamp? ??
+                              data['date'] as Timestamp?;
+
                           final double amt =
-                              (data['Amount'] as num?)?.toDouble() ?? 0.0;
+                              (data['Amount'] as num?)?.toDouble() ??
+                              double.tryParse(
+                                data['amount']?.toString() ?? '0',
+                              ) ??
+                              0.0;
 
                           totalSpent += amt;
                           teamExpenses.add({
-                            "id": doc.id,
+                            "id": data['id'] ?? data['expenseId'] ?? '',
                             "rawData": data,
-                            "rawDate": data['Date'] as Timestamp?,
-                            "date": _formatDate(data['Date'] as Timestamp?),
+                            "rawDate": rawDate,
+                            "date": _formatDate(rawDate),
                             "amt": _formatCurrency(amt),
                             "status": "Completed",
                             "title": title,

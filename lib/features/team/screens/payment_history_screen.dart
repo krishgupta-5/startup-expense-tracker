@@ -7,10 +7,11 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-import 'transaction_details_screen.dart'; // Make sure to import the new screen
+import 'transaction_details_screen.dart';
 import '../../../../services/currency_formatter.dart';
 import '../../../../services/currency_preference_service.dart';
 import '../../../../services/bank_account_service.dart';
+import '../../../../utils/expense_expansion_helper.dart';
 
 class PaymentHistoryScreen extends StatefulWidget {
   final DateTime joiningDate;
@@ -83,34 +84,44 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
           .where('memberId', isEqualTo: widget.memberId)
           .get();
 
-      final payments = querySnapshot.docs;
+      // Sort payments by date (ascending for chronological order in PDF)
+      final rawDocs = querySnapshot.docs.map((doc) {
+        return {...doc.data(), 'id': doc.id};
+      }).toList();
 
-      if (payments.isEmpty) {
+      // Expand recurring salary entries into individual occurrences
+      final expandedPayments = ExpenseExpansionHelper.expandExpenses(
+        rawDocs,
+        maxDate: DateTime.now(),
+      );
+
+      expandedPayments.sort((a, b) {
+        final rawA = a['Date'] ?? a['date'];
+        final rawB = b['Date'] ?? b['date'];
+        final Timestamp? dateA = rawA is Timestamp ? rawA : null;
+        final Timestamp? dateB = rawB is Timestamp ? rawB : null;
+        if (dateA == null || dateB == null) return 0;
+        return dateA.compareTo(dateB);
+      });
+
+      if (expandedPayments.isEmpty) {
         _showMessage("No payment history found for this member.");
         setState(() => _isDownloading = false);
         return;
       }
 
-      // Sort payments by date (ascending for chronological order in PDF)
-      payments.sort((a, b) {
-        final Timestamp? dateA = a['Date'] as Timestamp?;
-        final Timestamp? dateB = b['Date'] as Timestamp?;
-        if (dateA == null || dateB == null) return 0;
-        return dateA.compareTo(dateB);
-      });
-
       // Generate PDF
       final pdf = pw.Document();
       double totalAmount = 0;
 
-      // Map Firestore data to PDF table rows
-      final List<List<String>> tableData = payments
-          .map((doc) {
-            final data = doc.data();
-            final amount = double.tryParse(data['Amount'].toString()) ?? 0.0;
+      // Map expanded data to PDF table rows
+      final List<List<String>> tableData = expandedPayments
+          .map((data) {
+            final amount = (data['Amount'] as num?)?.toDouble() ?? 0.0;
             totalAmount += amount;
 
-            final date = (data['Date'] as Timestamp).toDate();
+            final rawDate = data['Date'] ?? data['date'];
+            final date = rawDate is Timestamp ? rawDate.toDate() : DateTime.now();
             final dateStr = "${date.day}/${date.month}/${date.year}";
 
             final title = data['Title']?.toString() ?? 'Unknown';
@@ -121,7 +132,6 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                     ? "Salary"
                     : title;
 
-            // Format bank account like transaction details
             String paymentMethod = _getBankAccountDisplay(data);
 
             return [
@@ -207,7 +217,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                   crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
                     pw.Text(
-                      "Total Payments: ${payments.length}",
+                      "Total Payments: ${expandedPayments.length}",
                       style: pw.TextStyle(
                         fontSize: 16,
                         fontWeight: pw.FontWeight.bold,
@@ -303,28 +313,37 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                           );
                         }
 
-                        // Extract and filter data
+                        // Extract raw docs and expand recurring salary entries
                         final allDocs = snapshot.data?.docs ?? [];
+                        final rawList = allDocs.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          return {...data, 'id': doc.id};
+                        }).toList();
+
+                        // Expand recurring entries into individual occurrences
+                        final expanded = ExpenseExpansionHelper.expandExpenses(
+                          rawList,
+                          maxDate: DateTime.now(),
+                        );
+
                         List<Map<String, dynamic>> memberPayments = [];
                         double totalPaid = 0.0;
 
-                        for (var doc in allDocs) {
-                          final data = doc.data() as Map<String, dynamic>;
+                        for (var data in expanded) {
                           final String title = data['Title']?.toString() ?? '';
-                          final String category =
-                              data['Category']?.toString() ?? '';
+                          final String category = data['Category']?.toString() ?? '';
+                          final rawDate = data['Date'] ?? data['date'];
+                          final Timestamp? ts = rawDate is Timestamp ? rawDate : null;
 
-                          // T-12: server-side query already filters memberId,
-                          // so no client-side guard needed here.
                           final double amt =
                               (data['Amount'] as num?)?.toDouble() ?? 0.0;
 
                           totalPaid += amt;
                           memberPayments.add({
-                            "id": doc.id,
+                            "id": data['id'] ?? data['expenseId'] ?? '',
                             "rawData": data,
-                            "rawDate": data['Date'] as Timestamp?,
-                            "date": _formatDate(data['Date'] as Timestamp?),
+                            "rawDate": ts,
+                            "date": _formatDate(ts),
                             "amt": _formatCurrency(amt),
                             "status": "Completed",
                             "title": title.contains("Advance")

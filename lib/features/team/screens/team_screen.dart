@@ -657,6 +657,25 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                 })
                 .toList();
 
+            // Compute actual monthly cost from member salaries (already fetched
+            // by this StreamBuilder — zero extra Firestore reads needed).
+            // Only active members are included.
+            double actualMonthlyCost = 0.0;
+            for (final doc in membersDocs) {
+              final md = doc.data() as Map<String, dynamic>;
+              final status = md['status']?.toString() ?? 'Active';
+              if (status != 'Active') continue;
+              actualMonthlyCost += double.tryParse(
+                    (md['salary'] ?? md['Salary'])?.toString() ?? '0',
+                  ) ??
+                  0.0;
+            }
+            final String cost = membersSnapshot.connectionState ==
+                    ConnectionState.waiting
+                ? '...'
+                : CurrencyFormatter.formatByCountryCompact(
+                    actualMonthlyCost, _userCountryCode);
+
             return Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(

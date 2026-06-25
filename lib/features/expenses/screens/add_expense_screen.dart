@@ -578,7 +578,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         final teamRef = FirebaseFirestore.instance
             .collection('teams')
             .doc(_selectedTeam!.id);
-        batch.update(teamRef, {'teamExpenses': FieldValue.increment(amount)});
+        batch.update(teamRef, {'usedBudget': FieldValue.increment(amount)});
+      } else if (_expenseType == 'member' && _selectedTeamMember != null) {
+        final memberRef = FirebaseFirestore.instance
+            .collection('members')
+            .doc(_selectedTeamMember!.id);
+        batch.update(memberRef, {
+          'totalExpenses': FieldValue.increment(amount),
+          'remainingSalary': FieldValue.increment(-amount),
+        });
       }
 
       await batch.commit();

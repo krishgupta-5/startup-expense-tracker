@@ -66,7 +66,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   final types = {
     'one_time': 'One-time',
     'recurring': 'Recurring',
-    'subscription': 'Subscription',
   };
 
   Map<String, String> _bankAccounts = {};

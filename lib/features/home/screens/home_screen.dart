@@ -232,14 +232,16 @@ class _HomeScreenState extends State<HomeScreen> {
           };
         }).toList();
 
-        // Expand recurring expenses up to now
-        final expandedExpenses = ExpenseExpansionHelper.expandExpenses(
+        // 1) currentMonthBurn = projected burn this month → expand to end of month.
+        final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        final expandedProjected = ExpenseExpansionHelper.expandExpenses(
           rawExpenses,
-          maxDate: now,
+          maxDate: endOfMonth,
+          allowFuture: true,
         );
 
         final expensesList = <Map<String, dynamic>>[];
-        for (final data in expandedExpenses) {
+        for (final data in expandedProjected) {
           if (data['isFunding'] == true) continue;
 
           final amount = _toDouble(data['Amount'] ?? data['amount']);
@@ -252,13 +254,10 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           final category = (data['Category'] ?? data['category'] ?? 'others').toString().toLowerCase();
 
-          absoluteTotal += amount;
 
-          if (dt != null) {
-            if (dt.month == now.month && dt.year == now.year) {
-              currentMonthTotal += amount;
-              localCategoryBreakdown[category] = (localCategoryBreakdown[category] ?? 0.0) + amount;
-            }
+          if (dt != null && dt.month == now.month && dt.year == now.year) {
+            currentMonthTotal += amount;
+            localCategoryBreakdown[category] = (localCategoryBreakdown[category] ?? 0.0) + amount;
           }
 
           expensesList.add({
@@ -270,6 +269,17 @@ class _HomeScreenState extends State<HomeScreen> {
             'recurrenceFrequency': data['recurrenceFrequency'] ?? data['loanRateType'] ?? 'monthly',
             'recurringTenureMonths': data['recurringTenureMonths'] ?? data['loanTenureMonths'],
           });
+        }
+        
+        // --- Compute absoluteTotal from the expensesList by filtering future dates ---
+        for (final e in expensesList) {
+          final dt = e['date'];
+          if (dt is Timestamp && dt.toDate().isAfter(now)) {
+            continue;
+          } else if (dt is DateTime && dt.isAfter(now)) {
+            continue;
+          }
+          absoluteTotal += e['amount'] as double;
         }
 
         // Sort in memory to keep newest first
@@ -298,6 +308,7 @@ class _HomeScreenState extends State<HomeScreen> {
       log("Error fetching expenses: $e");
       if (mounted) setState(() => _isMonthlyBurnLoading = false);
     });
+
 
     // 3. Listen to Team Members Collection (For Salary Burn Updates in Trend Chart)
     _teamMembersSubscription = FirebaseFirestore.instance
@@ -341,20 +352,19 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // Compute available balance dynamically from allExpenses
-    final realTotalExpenses = allExpenses.fold<double>(
-      0.0,
-      (t, e) => t + (e['amount'] as double? ?? 0.0),
-    );
-    final availableBalance = _fundingAmount - realTotalExpenses;
+    // Bug 5 fix: use _absoluteTotalExpenses (past-only, salary-excluded) so that
+    // availableBalance matches the Available Funds card exactly. Previously this
+    // folded allExpenses which included projected future recurring instances,
+    // making the runway use a different base than the displayed balance.
+    final availableBalance = _fundingAmount - _absoluteTotalExpenses;
     if (availableBalance <= 0) {
       runwayValue = "0.0";
       return;
     }
 
-    // Calculate current month burn using FinancialCalculator
-    // IMPORTANT: allExpenses are already expanded, so mark as 'one_time'
-    // to prevent currentMonthBurn() from re-applying recurring scaling.
+    // Calculate current month projected burn using FinancialCalculator.
+    // allExpenses is expanded to end-of-month (allowFuture:true), and all entries
+    // are marked 'one_time' here so currentMonthBurn() won't re-expand them.
     final expensesForCalculation = allExpenses
         .map(
           (expense) => {
@@ -369,10 +379,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     double actualMonthlyBurn = FinancialCalculator.currentMonthBurn(
       expensesForCalculation,
-    ) + _totalSalaries;
+    );
 
     if (actualMonthlyBurn == 0 && allExpenses.isNotEmpty) {
-      actualMonthlyBurn = _calculateAverageMonthlyBurn() + _totalSalaries;
+      actualMonthlyBurn = _calculateAverageMonthlyBurn();
     }
 
     if (actualMonthlyBurn <= 0) {
@@ -708,9 +718,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       child: _buildFlatMetricCard(
                         label: "Monthly Burn",
-                        value: _isMonthlyBurnLoading || (_currentMonthBurn + _totalSalaries) <= 0 
-                                ? null 
-                                : _formatCurrency(_currentMonthBurn + _totalSalaries),
+                        value: _isMonthlyBurnLoading || _currentMonthBurn <= 0 
+                                ? '--' 
+                                : _formatCurrency(_currentMonthBurn),
                         icon: Icons.local_fire_department_outlined,
                         isBurn: true,
                         isLoading: _isMonthlyBurnLoading,
