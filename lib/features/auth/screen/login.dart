@@ -9,6 +9,7 @@ import 'package:startup_expense_tracker/features/auth/services/google_sign_in_se
 import 'package:startup_expense_tracker/features/company-setup/screen/company_setup_screen.dart';
 import 'package:startup_expense_tracker/services/ai_service.dart';
 import 'package:startup_expense_tracker/shared/utils/error_handler.dart';
+import '../../../theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   /// Optional email to pre-fill (e.g. when redirected from Sign Up).
@@ -145,15 +146,15 @@ class _LoginScreenState extends State<LoginScreen> {
       context: context,
       barrierDismissible: true,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          side: BorderSide(color: context.borderColor),
         ),
         title: Text(
           'Different Sign-In Method',
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
@@ -163,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ? 'This email is registered with Google Sign-In. Please use the "Google Sign-In" button below to continue.'
               : 'This email is registered with a different sign-in method. Please use the appropriate method to log in.',
           style: GoogleFonts.inter(
-            color: Colors.white70,
+            color: context.textSecondary,
             fontSize: 14,
             height: 1.5,
           ),
@@ -174,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Text(
               'OK',
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -194,10 +195,12 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), 
+      backgroundColor: context.appBackground, 
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: GestureDetector(
             onTap: () => FocusScope.of(context).unfocus(),
@@ -208,29 +211,29 @@ class _LoginScreenState extends State<LoginScreen> {
                 constraints: BoxConstraints(
                   minHeight: MediaQuery.of(context).size.height -
                       MediaQuery.of(context).viewInsets.bottom -
-                      MediaQuery.of(context).padding.top,
+                      MediaQuery.of(context).padding.top -
+                      MediaQuery.of(context).padding.bottom,
                 ),
                 child: IntrinsicHeight(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 24),
-                      _buildHeader(),
-                      const SizedBox(height: 24),
-                      _buildLabel("EMAIL ADDRESS"),
+                      _buildHeader(context),
+                      const SizedBox(height: 32),
+                      _buildLabel(context, "EMAIL ADDRESS"),
                       const SizedBox(height: 8),
                       _buildInputField(
+                        context: context,
                         controller: _emailController,
                         hint: "name@company.com",
                         icon: Icons.email_outlined,
-                        action: TextInputAction.next,
                         keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 20),
-                      _buildLabel("PASSWORD"),
+                      _buildLabel(context, "PASSWORD"),
                       const SizedBox(height: 8),
-                      _buildPasswordField(),
-                      const SizedBox(height: 16),
+                      _buildPasswordField(context),
+                      const SizedBox(height: 12),
                       Align(
                         alignment: Alignment.centerRight,
                         child: GestureDetector(
@@ -248,7 +251,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Text(
                             "Forgot Password?",
                             style: GoogleFonts.inter(
-                              color: Colors.white70,
+                              color: context.textSecondary,
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                             ),
@@ -256,11 +259,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      _buildLoginButton(),
+                      _buildLoginButton(context),
                       const SizedBox(height: 24),
-                      _buildDivider(),
+                      _buildDivider(context),
                       const SizedBox(height: 16),
-                      _buildGoogleSignInButton(),
+                      _buildGoogleSignInButton(context),
                       const Spacer(),
                       _buildFooter(context),
                       const SizedBox(height: 16),
@@ -275,7 +278,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -283,7 +286,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           "Welcome Back",
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 32,
             fontWeight: FontWeight.w600,
             letterSpacing: -1,
@@ -293,7 +296,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           "Sign in to access your dashboard.",
           style: GoogleFonts.inter(
-            color: Colors.white70,
+            color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w400,
           ),
@@ -302,11 +305,11 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildLabel(String text) {
+  Widget _buildLabel(BuildContext context, String text) {
     return Text(
       text,
       style: GoogleFonts.inter(
-        color: Colors.white70,
+        color: context.textSecondary,
         fontSize: 10,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.5,
@@ -315,6 +318,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildInputField({
+    required BuildContext context,
     required TextEditingController controller,
     required String hint,
     required IconData icon,
@@ -324,10 +328,10 @@ class _LoginScreenState extends State<LoginScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
+          color: context.borderColor,
         ),
       ),
       child: TextField(
@@ -335,16 +339,16 @@ class _LoginScreenState extends State<LoginScreen> {
         textInputAction: action,
         keyboardType: keyboardType,
         onTapOutside: (_) => FocusScope.of(context).unfocus(),
-        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-        cursorColor: Colors.white,
+        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        cursorColor: context.textPrimary,
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textTertiary,
           ),
           icon: Icon(
             icon,
-            color: Colors.white60,
+            color: context.iconSecondary,
             size: 20,
           ),
           border: InputBorder.none,
@@ -354,14 +358,14 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildPasswordField() {
+  Widget _buildPasswordField(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
+          color: context.borderColor,
         ),
       ),
       child: TextField(
@@ -369,22 +373,22 @@ class _LoginScreenState extends State<LoginScreen> {
         obscureText: !_isPasswordVisible,
         textInputAction: TextInputAction.done,
         onTapOutside: (_) => FocusScope.of(context).unfocus(),
-        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-        cursorColor: Colors.white,
+        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        cursorColor: context.textPrimary,
         decoration: InputDecoration(
           hintText: "Enter your password",
           hintStyle: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textTertiary,
           ),
-          icon: const Icon(
+          icon: Icon(
             Icons.lock_outline,
-            color: Colors.white60,
+            color: context.iconSecondary,
             size: 20,
           ),
           suffixIcon: IconButton(
             icon: Icon(
               _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-              color: Colors.white60,
+              color: context.iconSecondary,
               size: 20,
             ),
             onPressed: () {
@@ -400,27 +404,27 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildLoginButton() {
+  Widget _buildLoginButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: ElevatedButton(
         onPressed: _isLoading ? null : loginUserWithEmailAndPassword,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          disabledBackgroundColor: Colors.white70,
+          backgroundColor: context.textPrimary,
+          foregroundColor: context.appBackground,
+          disabledBackgroundColor: context.textTertiary,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
         ),
         child: _isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 height: 24,
                 width: 24,
                 child: CircularProgressIndicator(
-                  color: Colors.black,
+                  color: context.appBackground,
                   strokeWidth: 2,
                 ),
               )
@@ -429,34 +433,34 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  color: context.appBackground,
                 ),
               ),
       ),
     );
   }
 
-  Widget _buildDivider() {
+  Widget _buildDivider(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
+        Expanded(child: Divider(color: context.borderColor)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             "Or",
             style: GoogleFonts.inter(
-              color: Colors.white60,
+              color: context.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
           ),
         ),
-        Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
+        Expanded(child: Divider(color: context.borderColor)),
       ],
     );
   }
 
-  Widget _buildGoogleSignInButton() {
+  Widget _buildGoogleSignInButton(BuildContext context) {
     return GestureDetector(
       onTap: () async {
         if (_isLoading) return;
@@ -532,19 +536,19 @@ class _LoginScreenState extends State<LoginScreen> {
         width: double.infinity,
         height: 56,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          border: Border.all(color: context.borderColor),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset('assets/images/google_logo.png', height: 24, width: 24),
             const SizedBox(width: 12),
-            const Text(
+            Text(
               "Google Sign-In",
               style: TextStyle(
-                color: Colors.black87,
+                color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
@@ -562,7 +566,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           "Don't have an account? ",
           style: GoogleFonts.inter(
-            color: Colors.white70,
+            color: context.textSecondary,
             fontSize: 14,
           ),
         ),
@@ -578,7 +582,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Text(
               "Sign Up",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
               ),

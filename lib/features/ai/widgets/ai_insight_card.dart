@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:startup_expense_tracker/theme/app_theme.dart';
 
 class AiInsightCard extends StatelessWidget {
   final String title;
@@ -23,16 +24,16 @@ class AiInsightCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
+              Icon(Icons.auto_awesome, color: context.textPrimary, size: 16),
               const SizedBox(width: 12),
               Text(
                 insightType,
@@ -46,13 +47,13 @@ class AiInsightCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          ...items.map((item) => _buildInsightItem(item)),
+          ...items.map((item) => _buildInsightItem(item, context)),
         ],
       ),
     );
   }
 
-  Widget _buildInsightItem(InsightItem item) {
+  Widget _buildInsightItem(InsightItem item, BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -64,7 +65,7 @@ class AiInsightCard extends StatelessWidget {
                 child: Text(
                   item.title,
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -99,7 +100,7 @@ class AiInsightCard extends StatelessWidget {
           Text(
             item.description,
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: context.textSecondary,
               fontSize: 12,
               height: 1.4,
               fontWeight: FontWeight.w400,

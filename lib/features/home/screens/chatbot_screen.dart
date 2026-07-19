@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:startup_expense_tracker/theme/app_theme.dart';
 
 class ChatbotScreen extends StatefulWidget {
   const ChatbotScreen({super.key});
@@ -199,14 +200,16 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: context.isDarkMode
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: const Color(0xFF09090B),
+        backgroundColor: context.appBackground,
         appBar: AppBar(
-          backgroundColor: const Color(0xFF09090B),
+          backgroundColor: context.appBackground,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: Icon(Icons.arrow_back, color: context.textPrimary),
             onPressed: () => Navigator.pop(context),
           ),
           title: Row(
@@ -217,13 +220,17 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                   color: const Color(0xFF0A84FF).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.auto_awesome, color: Color(0xFF0A84FF), size: 16),
+                child: const Icon(
+                  Icons.auto_awesome,
+                  color: Color(0xFF0A84FF),
+                  size: 16,
+                ),
               ),
               const SizedBox(width: 12),
               Text(
                 "AI Assistant",
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
@@ -236,21 +243,27 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
             children: [
               if (!_isDataLoaded)
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                  color: const Color(0xFF141416),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 16,
+                  ),
+                  color: context.cardBackground,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const SizedBox(
+                      SizedBox(
                         width: 12,
                         height: 12,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white38),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: context.textSecondary,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Text(
                         "Syncing your financial data...",
                         style: GoogleFonts.inter(
-                          color: Colors.white38,
+                          color: context.textSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -268,27 +281,44 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                     final isError = msg['role'] == 'error';
 
                     return Align(
-                      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment:
+                          isUser ? Alignment.centerRight : Alignment.centerLeft,
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
-                          color: isUser
-                              ? const Color(0xFF0A84FF)
-                              : isError
-                                  ? const Color(0xFFFF453A).withValues(alpha: 0.1)
-                                  : const Color(0xFF141416),
+                          color:
+                              isUser
+                                  ? const Color(0xFF0A84FF)
+                                  : isError
+                                  ? const Color(
+                                    0xFFFF453A,
+                                  ).withValues(alpha: 0.1)
+                                  : context.cardBackground,
                           borderRadius: BorderRadius.circular(16).copyWith(
-                            bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
-                            bottomLeft: !isUser ? const Radius.circular(4) : const Radius.circular(16),
+                            bottomRight:
+                                isUser
+                                    ? const Radius.circular(4)
+                                    : const Radius.circular(16),
+                            bottomLeft:
+                                !isUser
+                                    ? const Radius.circular(4)
+                                    : const Radius.circular(16),
                           ),
-                          border: isUser
-                              ? null
-                              : Border.all(
-                                  color: isError
-                                      ? const Color(0xFFFF453A).withValues(alpha: 0.3)
-                                      : Colors.white.withValues(alpha: 0.08),
-                                ),
+                          border:
+                              isUser
+                                  ? null
+                                  : Border.all(
+                                    color:
+                                        isError
+                                            ? const Color(
+                                              0xFFFF453A,
+                                            ).withValues(alpha: 0.3)
+                                            : context.borderColor,
+                                  ),
                         ),
                         constraints: BoxConstraints(
                           maxWidth: MediaQuery.of(context).size.width * 0.75,
@@ -296,11 +326,12 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                         child: Text(
                           msg['text'] ?? "",
                           style: GoogleFonts.inter(
-                            color: isUser
-                                ? Colors.white
-                                : isError
+                            color:
+                                isUser
+                                    ? Colors.white
+                                    : isError
                                     ? const Color(0xFFFF453A)
-                                    : Colors.white70,
+                                    : context.textPrimary,
                             fontSize: 14,
                             height: 1.5,
                           ),
@@ -312,17 +343,23 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
               ),
               if (_isTyping)
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
+                          color: context.cardBackground,
                           borderRadius: BorderRadius.circular(16).copyWith(
                             bottomLeft: const Radius.circular(4),
                           ),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                          border: Border.all(color: context.borderColor),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -339,7 +376,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                             Text(
                               "Thinking...",
                               style: GoogleFonts.inter(
-                                color: Colors.white38,
+                                color: context.textSecondary,
                                 fontSize: 12,
                               ),
                             ),
@@ -352,34 +389,28 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF09090B),
-                  border: Border(
-                    top: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.08),
-                    ),
-                  ),
+                  color: context.appBackground,
+                  border: Border(top: BorderSide(color: context.borderColor)),
                 ),
                 child: Row(
                   children: [
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
+                          color: context.cardBackground,
                           borderRadius: BorderRadius.circular(100),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.08),
-                          ),
+                          border: Border.all(color: context.borderColor),
                         ),
                         child: TextField(
                           controller: _messageController,
                           style: GoogleFonts.inter(
-                            color: Colors.white,
+                            color: context.textPrimary,
                             fontSize: 14,
                           ),
                           decoration: InputDecoration(
                             hintText: "Ask about your startup's finances...",
                             hintStyle: GoogleFonts.inter(
-                              color: Colors.white38,
+                              color: context.textSecondary,
                               fontSize: 14,
                             ),
                             border: InputBorder.none,

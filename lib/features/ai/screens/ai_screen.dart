@@ -651,31 +651,34 @@ class _AiScreenState extends State<AiScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "AI Insights",
-                style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "AI Insights",
+                  style: GoogleFonts.inter(
+                    color: context.textSecondary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _isLoading || _isFetchingMore
-                    ? "Analyzing Data..."
-                    : "Financial Intelligence",
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.5,
+                const SizedBox(height: 4),
+                Text(
+                  _isLoading || _isFetchingMore
+                      ? "Analyzing Data..."
+                      : "Financial Intelligence",
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.5,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 16),
           Container(
             width: 44,
             height: 44,

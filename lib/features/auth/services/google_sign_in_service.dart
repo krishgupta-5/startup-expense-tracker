@@ -63,6 +63,7 @@ class GoogleSignInService {
     // now signing in with Google) must retain their existing companySetup value.
     if (isNewUser) {
       data['companySetup'] = false;
+      data['preferredTheme'] = 'dark';
       data['createdAt'] = FieldValue.serverTimestamp();
     }
 

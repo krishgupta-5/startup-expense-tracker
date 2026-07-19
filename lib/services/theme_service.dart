@@ -11,6 +11,7 @@ class ThemeService {
   ThemeService._();
 
   static const String _prefsKey = 'cached_theme_mode';
+  static const String _freshInstallKey = 'has_synced_after_fresh_install';
   static final ValueNotifier<ThemeMode> _themeModeNotifier =
       ValueNotifier<ThemeMode>(ThemeMode.dark);
 
@@ -77,6 +78,29 @@ class ThemeService {
   static Future<void> syncFromUserData(Map<String, dynamic>? userData) async {
     if (userData == null) return;
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasSyncedAfterInstall = prefs.getBool(_freshInstallKey) ?? false;
+
+      // For the first time login after a fresh install, ALWAYS make the default theme dark only.
+      if (!hasSyncedAfterInstall) {
+        await prefs.setBool(_freshInstallKey, true);
+        if (_themeModeNotifier.value != ThemeMode.dark) {
+          _themeModeNotifier.value = ThemeMode.dark;
+          if (kDebugMode) {
+            print('ThemeService: First login after fresh install -> opening dark mode only');
+          }
+        }
+        await prefs.setString(_prefsKey, 'dark');
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({'preferredTheme': 'dark'}, SetOptions(merge: true));
+        }
+        return;
+      }
+
       final preferredTheme = userData['preferredTheme'] as String?;
       if (preferredTheme != null && preferredTheme.isNotEmpty) {
         final mode = _parseThemeMode(preferredTheme);
@@ -87,8 +111,24 @@ class ThemeService {
           }
         }
         // Ensure local disk cache is up to date for next launch
-        final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_prefsKey, preferredTheme);
+      } else {
+        // For the first time after login or if preferredTheme is not set yet,
+        // ALWAYS open dark mode only!
+        if (_themeModeNotifier.value != ThemeMode.dark) {
+          _themeModeNotifier.value = ThemeMode.dark;
+          if (kDebugMode) {
+            print('ThemeService: First login after auth -> opening dark mode only');
+          }
+        }
+        await prefs.setString(_prefsKey, 'dark');
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({'preferredTheme': 'dark'}, SetOptions(merge: true));
+        }
       }
     } catch (e) {
       if (kDebugMode) print('ThemeService: Error in syncFromUserData: $e');
@@ -111,6 +151,9 @@ class ThemeService {
           }
           return mode;
         }
+        if (_themeModeNotifier.value != ThemeMode.dark) {
+          _themeModeNotifier.value = ThemeMode.dark;
+        }
         return ThemeMode.dark;
       }
 
@@ -123,6 +166,21 @@ class ThemeService {
         final userData = doc.data();
         final preferredTheme = userData?['preferredTheme'] as String?;
 
+        final hasSyncedAfterInstall = prefs.getBool(_freshInstallKey) ?? false;
+        if (!hasSyncedAfterInstall) {
+          await prefs.setBool(_freshInstallKey, true);
+          const mode = ThemeMode.dark;
+          if (_themeModeNotifier.value != mode) {
+            _themeModeNotifier.value = mode;
+          }
+          await prefs.setString(_prefsKey, 'dark');
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({'preferredTheme': 'dark'}, SetOptions(merge: true));
+          return mode;
+        }
+
         if (preferredTheme != null && preferredTheme.isNotEmpty) {
           final mode = _parseThemeMode(preferredTheme);
           await prefs.setString(_prefsKey, preferredTheme);
@@ -130,20 +188,35 @@ class ThemeService {
             _themeModeNotifier.value = mode;
           }
           return mode;
+        } else {
+          // For the first time after login or if preferredTheme is not set yet,
+          // ALWAYS open dark mode only!
+          const mode = ThemeMode.dark;
+          if (_themeModeNotifier.value != mode) {
+            _themeModeNotifier.value = mode;
+          }
+          await prefs.setString(_prefsKey, 'dark');
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({'preferredTheme': 'dark'}, SetOptions(merge: true));
+          return mode;
         }
       }
 
-      if (cachedStr != null && cachedStr.isNotEmpty) {
-        final mode = _parseThemeMode(cachedStr);
-        if (_themeModeNotifier.value != mode) {
-          _themeModeNotifier.value = mode;
-        }
-        return mode;
+      // If user doc not found or during first setup, open dark mode only!
+      const mode = ThemeMode.dark;
+      if (_themeModeNotifier.value != mode) {
+        _themeModeNotifier.value = mode;
       }
-      if (_themeModeNotifier.value != ThemeMode.dark) {
-        _themeModeNotifier.value = ThemeMode.dark;
-      }
-      return ThemeMode.dark;
+      await prefs.setString(_prefsKey, 'dark');
+      try {
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .set({'preferredTheme': 'dark'}, SetOptions(merge: true));
+      } catch (_) {}
+      return mode;
     } catch (e) {
       if (kDebugMode) print('ThemeService: Error getting preference: $e');
       return _themeModeNotifier.value;

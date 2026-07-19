@@ -6,15 +6,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:startup_expense_tracker/services/ai_service.dart';
+import 'package:startup_expense_tracker/theme/app_theme.dart';
 
 extension HexColor on Color {
-  static Color fromHex(String hexString) {
-    if (hexString.isEmpty) return Colors.white;
+  static Color fromHex(String hexString, [BuildContext? context]) {
+    if (hexString.isEmpty) {
+      return context != null ? context.textPrimary : Colors.white;
+    }
     final buffer = StringBuffer();
     if (hexString.length == 6 || hexString.length == 7) buffer.write('ff');
     buffer.write(hexString.replaceFirst('#', ''));
-    return Color(int.tryParse(buffer.toString(), radix: 16) ?? 0xFFFFFFFF);
+    final parsed = Color(
+      int.tryParse(buffer.toString(), radix: 16) ?? 0xFFFFFFFF,
+    );
+    if (context != null &&
+        !context.isDarkMode &&
+        parsed.toARGB32() == 0xFFFFFFFF) {
+      return context.textPrimary;
+    }
+    return parsed;
   }
 }
 
@@ -175,13 +185,21 @@ class _AiScreenState extends State<AiScreen>
           final insight = data["insight"];
           
           setState(() {
-            if (sectionKey == "main") _mainData = insight;
-            else if (sectionKey == "keyPoints") _keyPointsData = insight;
-            else if (sectionKey == "runway") _runwayData = insight;
-            else if (sectionKey == "burn") _burnData = insight;
-            else if (sectionKey == "staffing") _staffingData = insight;
-            else if (sectionKey == "expense") _expenseData = insight;
-            else if (sectionKey == "subscription") _subscriptionData = insight;
+            if (sectionKey == "main") {
+              _mainData = insight;
+            } else if (sectionKey == "keyPoints") {
+              _keyPointsData = insight;
+            } else if (sectionKey == "runway") {
+              _runwayData = insight;
+            } else if (sectionKey == "burn") {
+              _burnData = insight;
+            } else if (sectionKey == "staffing") {
+              _staffingData = insight;
+            } else if (sectionKey == "expense") {
+              _expenseData = insight;
+            } else if (sectionKey == "subscription") {
+              _subscriptionData = insight;
+            }
           });
         }
       } catch (e) {
@@ -225,7 +243,9 @@ class _AiScreenState extends State<AiScreen>
   Widget build(BuildContext context) {
     super.build(context);
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: context.isDarkMode
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
       child: SafeArea(
         child: Column(
           children: [
@@ -234,10 +254,16 @@ class _AiScreenState extends State<AiScreen>
 
             // Content
             Expanded(
-              child: _isLoading 
-                ? const Center(child: CircularProgressIndicator(color: Colors.white24))
-                : RefreshIndicator(
-                onRefresh: () async {
+              child: _isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        color: context.textPrimary.withValues(alpha: 0.3),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      color: context.textPrimary,
+                      backgroundColor: context.cardBackground,
+                      onRefresh: () async {
                   // This will show a spinner until the sync is complete
                   await _fetchAIInsight();
                 },
@@ -322,40 +348,43 @@ class _AiScreenState extends State<AiScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "AI Insights",
-                style: GoogleFonts.inter(
-                  color: Colors.white38,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "AI Insights",
+                  style: GoogleFonts.inter(
+                    color: context.textSecondary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                "Financial Recommendations",
-                style: GoogleFonts.inter(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.5,
+                const SizedBox(height: 4),
+                Text(
+                  "Financial Recommendations",
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.5,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 16),
           Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(color: context.borderColor),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.auto_awesome,
-              color: Colors.white,
+              color: context.textPrimary,
               size: 20,
             ),
           ),
@@ -370,30 +399,41 @@ class _AiScreenState extends State<AiScreen>
         width: double.infinity,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          border: Border.all(color: context.borderColor),
         ),
-        child: const Center(child: CircularProgressIndicator(color: Colors.white24)),
+        child: Center(
+          child: CircularProgressIndicator(
+            color: context.textPrimary.withValues(alpha: 0.3),
+          ),
+        ),
       );
     }
-    
-    final primaryInsight = _mainData?['primary_insight'] ?? "No insight available.";
-    final description = _mainData?['description'] ?? "We couldn't generate an insight at this time.";
+
+    final primaryInsight =
+        _mainData?['primary_insight'] ?? "No insight available.";
+    final description =
+        _mainData?['description'] ??
+        "We couldn't generate an insight at this time.";
     final highImpact = _mainData?['high_impact_summary'] ?? "HIGH IMPACT";
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -417,26 +457,32 @@ class _AiScreenState extends State<AiScreen>
                   ),
                 ),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width - 96,
                 ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF9F0A).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(
-                    color: const Color(0xFFFF9F0A).withValues(alpha: 0.3),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
                   ),
-                ),
-                child: Text(
-                  highImpact.toUpperCase(),
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFFFF9F0A),
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.0,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF9F0A).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(
+                      color: const Color(0xFFFF9F0A).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    highImpact.toUpperCase(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFFFF9F0A),
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.0,
+                    ),
                   ),
                 ),
               ),
@@ -446,7 +492,7 @@ class _AiScreenState extends State<AiScreen>
           Text(
             primaryInsight,
             style: GoogleFonts.inter(
-              color: Colors.white70,
+              color: context.textPrimary,
               fontSize: 16,
               height: 1.5,
               fontWeight: FontWeight.w400,
@@ -456,7 +502,7 @@ class _AiScreenState extends State<AiScreen>
           Text(
             description,
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: context.textSecondary,
               fontSize: 14,
               height: 1.5,
               fontWeight: FontWeight.w400,
@@ -469,7 +515,11 @@ class _AiScreenState extends State<AiScreen>
 
   Widget _buildKeyPointsSection() {
     if (_keyPointsData == null) {
-       return const Center(child: CircularProgressIndicator(color: Colors.white24));
+      return Center(
+        child: CircularProgressIndicator(
+          color: context.textPrimary.withValues(alpha: 0.3),
+        ),
+      );
     }
     final items = _keyPointsData?['items'] as List<dynamic>? ?? [];
 
@@ -479,7 +529,7 @@ class _AiScreenState extends State<AiScreen>
         Text(
           "Key Recommendations",
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.5,
@@ -490,24 +540,25 @@ class _AiScreenState extends State<AiScreen>
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: Column(
-            children: items.map((item) {
-              return Column(
-                children: [
-                  _buildKeyPoint(
-                    item['title'] ?? '',
-                    item['description'] ?? '',
-                    item['savings'] ?? '',
-                    HexColor.fromHex(item['color'] ?? '#ffffff'),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-              );
-            }).toList(),
+            children:
+                items.map((item) {
+                  return Column(
+                    children: [
+                      _buildKeyPoint(
+                        item['title'] ?? '',
+                        item['description'] ?? '',
+                        item['savings'] ?? '',
+                        HexColor.fromHex(item['color'] ?? '#ffffff', context),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  );
+                }).toList(),
           ),
         ),
       ],
@@ -524,9 +575,12 @@ class _AiScreenState extends State<AiScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color:
+            context.isDarkMode
+                ? Colors.white.withValues(alpha: 0.03)
+                : Colors.black.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -537,12 +591,13 @@ class _AiScreenState extends State<AiScreen>
                 child: Text(
                   title,
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -566,7 +621,7 @@ class _AiScreenState extends State<AiScreen>
           Text(
             description,
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: context.textSecondary,
               fontSize: 12,
               height: 1.4,
               fontWeight: FontWeight.w400,
@@ -579,9 +634,14 @@ class _AiScreenState extends State<AiScreen>
 
   Widget _buildRunwayRecommendationsSection() {
     if (_runwayData == null) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white24));
+      return Center(
+        child: CircularProgressIndicator(
+          color: context.textPrimary.withValues(alpha: 0.3),
+        ),
+      );
     }
-    final bulletPoints = _runwayData?['bullet_points'] as List<dynamic>? ?? [];
+    final bulletPoints =
+        _runwayData?['bullet_points'] as List<dynamic>? ?? [];
     final textContent = bulletPoints.map((b) => "• $b").join('\n');
 
     return Column(
@@ -590,7 +650,7 @@ class _AiScreenState extends State<AiScreen>
         Text(
           "Runway Optimization",
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.5,
@@ -601,7 +661,8 @@ class _AiScreenState extends State<AiScreen>
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            color: context.cardBackground,
+            border: Border.all(color: context.borderColor),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Column(
@@ -609,12 +670,16 @@ class _AiScreenState extends State<AiScreen>
             children: [
               Row(
                 children: [
-                  const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
+                  Icon(
+                    Icons.auto_awesome,
+                    color: context.textPrimary,
+                    size: 16,
+                  ),
                   const SizedBox(width: 12),
                   Text(
                     "OPTIMIZATION OPPORTUNITIES",
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.textPrimary,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.0,
@@ -626,7 +691,7 @@ class _AiScreenState extends State<AiScreen>
               Text(
                 textContent,
                 style: GoogleFonts.inter(
-                  color: Colors.white70,
+                  color: context.textSecondary,
                   fontSize: 14,
                   height: 1.6,
                   fontWeight: FontWeight.w400,
@@ -639,11 +704,13 @@ class _AiScreenState extends State<AiScreen>
     );
   }
 
-
-
   Widget _buildBurnOptimizationSection() {
     if (_burnData == null) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white24));
+      return Center(
+        child: CircularProgressIndicator(
+          color: context.textPrimary.withValues(alpha: 0.3),
+        ),
+      );
     }
     final items = _burnData?['items'] as List<dynamic>? ?? [];
 
@@ -653,7 +720,7 @@ class _AiScreenState extends State<AiScreen>
         Text(
           "Burn Optimization",
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.5,
@@ -664,7 +731,8 @@ class _AiScreenState extends State<AiScreen>
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            color: context.cardBackground,
+            border: Border.all(color: context.borderColor),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Column(
@@ -672,12 +740,16 @@ class _AiScreenState extends State<AiScreen>
             children: [
               Row(
                 children: [
-                  const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
+                  Icon(
+                    Icons.auto_awesome,
+                    color: context.textPrimary,
+                    size: 16,
+                  ),
                   const SizedBox(width: 12),
                   Text(
                     "OPTIMIZATION OPPORTUNITIES",
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.textPrimary,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.0,
@@ -693,7 +765,7 @@ class _AiScreenState extends State<AiScreen>
                     item['title'] ?? '',
                     item['description'] ?? '',
                     item['savings'] ?? '',
-                    HexColor.fromHex(item['color'] ?? '#ffffff'),
+                    HexColor.fromHex(item['color'] ?? '#ffffff', context),
                   ),
                 );
               }),
@@ -714,9 +786,12 @@ class _AiScreenState extends State<AiScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color:
+            context.isDarkMode
+                ? Colors.white.withValues(alpha: 0.03)
+                : Colors.black.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -727,12 +802,13 @@ class _AiScreenState extends State<AiScreen>
                 child: Text(
                   title,
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -756,7 +832,7 @@ class _AiScreenState extends State<AiScreen>
           Text(
             description,
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: context.textSecondary,
               fontSize: 12,
               height: 1.4,
               fontWeight: FontWeight.w400,
@@ -769,7 +845,11 @@ class _AiScreenState extends State<AiScreen>
 
   Widget _buildStaffingInsightsSection() {
     if (_staffingData == null) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white24));
+      return Center(
+        child: CircularProgressIndicator(
+          color: context.textPrimary.withValues(alpha: 0.3),
+        ),
+      );
     }
     final insight = _staffingData?['insight'] ?? "";
 
@@ -779,7 +859,7 @@ class _AiScreenState extends State<AiScreen>
         Text(
           "Staffing Analysis",
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.5,
@@ -790,7 +870,8 @@ class _AiScreenState extends State<AiScreen>
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            color: context.cardBackground,
+            border: Border.all(color: context.borderColor),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Column(
@@ -819,7 +900,7 @@ class _AiScreenState extends State<AiScreen>
               Text(
                 insight,
                 style: GoogleFonts.inter(
-                  color: Colors.white70,
+                  color: context.textSecondary,
                   fontSize: 14,
                   height: 1.5,
                   fontWeight: FontWeight.w400,
@@ -832,11 +913,13 @@ class _AiScreenState extends State<AiScreen>
     );
   }
 
-
-
   Widget _buildExpenseAnalysisSection() {
     if (_expenseData == null) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white24));
+      return Center(
+        child: CircularProgressIndicator(
+          color: context.textPrimary.withValues(alpha: 0.3),
+        ),
+      );
     }
     final insight = _expenseData?['insight'] ?? "";
 
@@ -846,7 +929,7 @@ class _AiScreenState extends State<AiScreen>
         Text(
           "Expense Analysis",
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.5,
@@ -857,7 +940,8 @@ class _AiScreenState extends State<AiScreen>
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            color: context.cardBackground,
+            border: Border.all(color: context.borderColor),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Column(
@@ -886,7 +970,7 @@ class _AiScreenState extends State<AiScreen>
               Text(
                 insight,
                 style: GoogleFonts.inter(
-                  color: Colors.white70,
+                  color: context.textSecondary,
                   fontSize: 14,
                   height: 1.5,
                   fontWeight: FontWeight.w400,
@@ -901,7 +985,11 @@ class _AiScreenState extends State<AiScreen>
 
   Widget _buildSubscriptionInsightsSection() {
     if (_subscriptionData == null) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white24));
+      return Center(
+        child: CircularProgressIndicator(
+          color: context.textPrimary.withValues(alpha: 0.3),
+        ),
+      );
     }
     final items = _subscriptionData?['items'] as List<dynamic>? ?? [];
 
@@ -911,7 +999,7 @@ class _AiScreenState extends State<AiScreen>
         Text(
           "Subscription Analysis",
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.5,
@@ -922,7 +1010,8 @@ class _AiScreenState extends State<AiScreen>
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            color: context.cardBackground,
+            border: Border.all(color: context.borderColor),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Column(
@@ -930,12 +1019,16 @@ class _AiScreenState extends State<AiScreen>
             children: [
               Row(
                 children: [
-                  const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
+                  Icon(
+                    Icons.auto_awesome,
+                    color: context.textPrimary,
+                    size: 16,
+                  ),
                   const SizedBox(width: 12),
                   Text(
                     "SUBSCRIPTION OPPORTUNITIES",
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.textPrimary,
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.0,
@@ -951,7 +1044,7 @@ class _AiScreenState extends State<AiScreen>
                     item['title'] ?? '',
                     item['description'] ?? '',
                     item['savings'] ?? '',
-                    HexColor.fromHex(item['color'] ?? '#ffffff'),
+                    HexColor.fromHex(item['color'] ?? '#ffffff', context),
                   ),
                 );
               }),

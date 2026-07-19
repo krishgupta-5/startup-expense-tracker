@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:startup_expense_tracker/features/auth/screen/login.dart';
 import '../../../shared/widgets/error_popup.dart';
 import '../services/auth_service.dart';
+import '../../../theme/app_theme.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   /// Optional email to pre-fill (e.g. passed from login screen).
@@ -78,15 +79,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       context: context,
       barrierDismissible: true,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          side: BorderSide(color: context.borderColor),
         ),
         title: Text(
           'Google Account Detected',
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
@@ -94,7 +95,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         content: Text(
           'This email is linked to a Google account. You don\'t need a password — just use the "Google Sign-In" button on the login screen.',
           style: GoogleFonts.inter(
-            color: Colors.white70,
+            color: context.textSecondary,
             fontSize: 14,
             height: 1.5,
           ),
@@ -105,7 +106,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             child: Text(
               'Cancel',
               style: GoogleFonts.inter(
-                color: Colors.white54,
+                color: context.textTertiary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -118,15 +119,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
+              backgroundColor: context.textPrimary,
+              foregroundColor: context.appBackground,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
             child: Text(
               'Go to Login',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
+                color: context.appBackground,
+              ),
             ),
           ),
         ],
@@ -232,10 +236,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: GestureDetector(
             onTap: () => FocusScope.of(context).unfocus(),
@@ -247,7 +253,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   minHeight:
                       MediaQuery.of(context).size.height -
                       MediaQuery.of(context).viewInsets.bottom -
-                      MediaQuery.of(context).padding.top,
+                      MediaQuery.of(context).padding.top -
+                      MediaQuery.of(context).padding.bottom,
                 ),
                 child: IntrinsicHeight(
                   child: Form(
@@ -256,11 +263,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 24),
-                        _buildHeader(),
+                        _buildHeader(context),
                         const SizedBox(height: 48),
-                        _buildLabel("EMAIL ADDRESS"),
+                        _buildLabel(context, "EMAIL ADDRESS"),
                         const SizedBox(height: 8),
                         _buildInputField(
+                          context: context,
                           controller: _emailController,
                           hint: "name@company.com",
                           action: TextInputAction.done,
@@ -317,9 +325,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           ),
                         ],
                         const SizedBox(height: 48),
-                        _buildSendButton(),
+                        _buildSendButton(context),
                         const Spacer(),
-                        _buildBackToLogin(),
+                        _buildBackToLogin(context),
                         const SizedBox(height: 16),
                       ],
                     ),
@@ -333,7 +341,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -342,18 +350,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              border: Border.all(color: context.borderColor),
             ),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+            child: Icon(Icons.arrow_back, color: context.textPrimary, size: 20),
           ),
         ),
         const SizedBox(height: 20),
         Text(
           "Reset Password",
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 32,
             fontWeight: FontWeight.w600,
             letterSpacing: -1,
@@ -363,7 +371,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Text(
           "Enter the email associated with your account and we'll send you a reset link.",
           style: GoogleFonts.inter(
-            color: Colors.white70,
+            color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w400,
             height: 1.5,
@@ -373,11 +381,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-  Widget _buildLabel(String text) {
+  Widget _buildLabel(BuildContext context, String text) {
     return Text(
       text,
       style: GoogleFonts.inter(
-        color: Colors.white70,
+        color: context.textSecondary,
         fontSize: 10,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.5,
@@ -386,6 +394,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Widget _buildInputField({
+    required BuildContext context,
     required TextEditingController controller,
     required String hint,
     TextInputAction action = TextInputAction.next,
@@ -398,28 +407,28 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       keyboardType: keyboardType,
       validator: validator,
       onTapOutside: (_) => FocusScope.of(context).unfocus(),
-      style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-      cursorColor: Colors.white,
+      style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+      cursorColor: context.textPrimary,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.inter(color: Colors.white38),
+        hintStyle: GoogleFonts.inter(color: context.textTertiary),
         filled: true,
-        fillColor: const Color(0xFF141416),
+        fillColor: context.cardBackground,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 16,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          borderSide: BorderSide(color: context.borderColor),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          borderSide: BorderSide(color: context.borderColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Colors.white),
+          borderSide: BorderSide(color: context.textPrimary),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
@@ -434,7 +443,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     );
   }
 
-  Widget _buildSendButton() {
+  Widget _buildSendButton(BuildContext context) {
     final bool isButtonDisabled = _isLoading || _cooldownSeconds > 0;
 
     return SizedBox(
@@ -443,21 +452,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       child: ElevatedButton(
         onPressed: isButtonDisabled ? null : _sendPasswordResetEmail,
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          disabledBackgroundColor: Colors.white.withValues(alpha: 0.5),
+          backgroundColor: context.textPrimary,
+          foregroundColor: context.appBackground,
+          disabledBackgroundColor: context.textTertiary,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
         ),
         child: _isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 height: 24,
                 width: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                  valueColor: AlwaysStoppedAnimation<Color>(context.appBackground),
                 ),
               )
             : Text(
@@ -467,20 +476,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: isButtonDisabled ? Colors.black54 : Colors.black,
+                  color: isButtonDisabled ? context.appBackground.withValues(alpha: 0.6) : context.appBackground,
                 ),
               ),
       ),
     );
   }
 
-  Widget _buildBackToLogin() {
+  Widget _buildBackToLogin(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
           "Remembered your password? ",
-          style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
+          style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
         ),
         GestureDetector(
           onTap: () {
@@ -494,7 +503,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             child: Text(
               "Login",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
               ),

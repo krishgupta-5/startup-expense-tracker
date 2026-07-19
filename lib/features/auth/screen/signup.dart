@@ -13,6 +13,7 @@ import 'package:startup_expense_tracker/services/ai_service.dart';
 import 'package:startup_expense_tracker/shared/utils/error_handler.dart';
 
 import 'package:startup_expense_tracker/features/auth/auth_wrapper.dart';
+import '../../../theme/app_theme.dart';
 import 'login.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -100,15 +101,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
       context: context,
       barrierDismissible: true,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          side: BorderSide(color: context.borderColor),
         ),
         title: Text(
           'Email Already Registered',
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
@@ -116,7 +117,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         content: Text(
           message,
           style: GoogleFonts.inter(
-            color: Colors.white70,
+            color: context.textSecondary,
             fontSize: 14,
             height: 1.5,
           ),
@@ -127,7 +128,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             child: Text(
               'Cancel',
               style: GoogleFonts.inter(
-                color: Colors.white54,
+                color: context.textTertiary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -144,15 +145,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
+                backgroundColor: context.textPrimary,
+                foregroundColor: context.appBackground,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
               child: Text(
                 'Go to Login',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w600,
+                  color: context.appBackground,
+                ),
               ),
             ),
         ],
@@ -252,6 +256,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           'email': (user.email ?? '').toLowerCase(),
           'provider': 'email',
           'companySetup': false,
+          'preferredTheme': 'dark',
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
@@ -317,10 +322,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: GestureDetector(
             onTap: () => FocusScope.of(context).unfocus(),
@@ -331,38 +338,39 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 constraints: BoxConstraints(
                   minHeight: MediaQuery.of(context).size.height -
                       MediaQuery.of(context).viewInsets.bottom -
-                      MediaQuery.of(context).padding.top,
+                      MediaQuery.of(context).padding.top -
+                      MediaQuery.of(context).padding.bottom,
                 ),
                 child: IntrinsicHeight(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 24),
-                      _buildHeader(),
-                      const SizedBox(height: 24),
-                      _buildLabel("EMAIL ADDRESS"),
+                      _buildHeader(context),
+                      const SizedBox(height: 32),
+                      _buildLabel(context, "EMAIL ADDRESS"),
                       const SizedBox(height: 8),
                       _buildInputField(
+                        context: context,
                         controller: _emailController,
                         hint: "name@company.com",
                         icon: Icons.email_outlined,
                       ),
                       const SizedBox(height: 20),
-                      _buildLabel("PASSWORD"),
+                      _buildLabel(context, "PASSWORD"),
                       const SizedBox(height: 8),
-                      _buildPasswordField(),
+                      _buildPasswordField(context),
                       const SizedBox(height: 20),
-                      _buildLabel("CONFIRM PASSWORD"),
+                      _buildLabel(context, "CONFIRM PASSWORD"),
                       const SizedBox(height: 8),
-                      _buildConfirmPasswordField(),
+                      _buildConfirmPasswordField(context),
                       const SizedBox(height: 24),
-                      _buildSignUpButton(),
+                      _buildSignUpButton(context),
                       const SizedBox(height: 24),
-                      _buildDivider(),
+                      _buildDivider(context),
                       const SizedBox(height: 16),
-                      _buildGoogleSignInButton(),
+                      _buildGoogleSignInButton(context),
                       const Spacer(),
-                      _buildFooter(),
+                      _buildFooter(context),
                       const SizedBox(height: 16),
                     ],
                   ),
@@ -375,10 +383,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const SizedBox(height: 12),
         GestureDetector(
           onTap: () => Navigator.pushReplacement(
             context,
@@ -387,20 +396,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.1),
+                color: context.borderColor,
               ), 
             ),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+            child: Icon(Icons.arrow_back, color: context.textPrimary, size: 20),
           ),
         ),
         const SizedBox(height: 20),
         Text(
           "Create Account",
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 32,
             fontWeight: FontWeight.w600,
             letterSpacing: -1,
@@ -410,7 +419,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         Text(
           "Join us to manage your startup finances.",
           style: GoogleFonts.inter(
-            color: Colors.white70, 
+            color: context.textSecondary, 
             fontSize: 14,
             fontWeight: FontWeight.w400,
           ),
@@ -419,11 +428,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildLabel(String text) {
+  Widget _buildLabel(BuildContext context, String text) {
     return Text(
       text,
       style: GoogleFonts.inter(
-        color: Colors.white70, 
+        color: context.textSecondary, 
         fontSize: 10,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.5,
@@ -432,6 +441,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Widget _buildInputField({
+    required BuildContext context,
     required TextEditingController controller,
     required String hint,
     required IconData icon,
@@ -439,24 +449,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
+          color: context.borderColor,
         ), 
       ),
       child: TextField(
         controller: controller,
-        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-        cursorColor: Colors.white,
+        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        cursorColor: context.textPrimary,
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textTertiary,
           ), 
           icon: Icon(
             icon,
-            color: Colors.white60,
+            color: context.iconSecondary,
             size: 20,
           ), 
           border: InputBorder.none,
@@ -466,29 +476,29 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildConfirmPasswordField() {
+  Widget _buildConfirmPasswordField(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
+          color: context.borderColor,
         ), 
       ),
       child: TextField(
         controller: _confirmPasswordController,
         obscureText: !_isConfirmPasswordVisible,
-        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-        cursorColor: Colors.white,
+        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        cursorColor: context.textPrimary,
         decoration: InputDecoration(
           hintText: "Confirm your password",
           hintStyle: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textTertiary,
           ), 
-          icon: const Icon(
+          icon: Icon(
             Icons.lock_outline,
-            color: Colors.white60,
+            color: context.iconSecondary,
             size: 20,
           ), 
           suffixIcon: IconButton(
@@ -496,7 +506,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               _isConfirmPasswordVisible
                   ? Icons.visibility
                   : Icons.visibility_off,
-              color: Colors.white60, 
+              color: context.iconSecondary, 
               size: 20,
             ),
             onPressed: () {
@@ -512,35 +522,35 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildPasswordField() {
+  Widget _buildPasswordField(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
+          color: context.borderColor,
         ), 
       ),
       child: TextField(
         controller: _passwordController,
         obscureText: !_isPasswordVisible,
-        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-        cursorColor: Colors.white,
+        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        cursorColor: context.textPrimary,
         decoration: InputDecoration(
           hintText: "Create a password",
           hintStyle: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textTertiary,
           ), 
-          icon: const Icon(
+          icon: Icon(
             Icons.lock_outline,
-            color: Colors.white60,
+            color: context.iconSecondary,
             size: 20,
           ), 
           suffixIcon: IconButton(
             icon: Icon(
               _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-              color: Colors.white60, 
+              color: context.iconSecondary, 
               size: 20,
             ),
             onPressed: () {
@@ -556,7 +566,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildSignUpButton() {
+  Widget _buildSignUpButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       height: 56,
@@ -567,21 +577,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 createUserWithEmailAndPassword();
               },
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          disabledBackgroundColor: Colors.white70, 
+          backgroundColor: context.textPrimary,
+          foregroundColor: context.appBackground,
+          disabledBackgroundColor: context.textTertiary, 
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
         ),
         child: _isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 height: 24, 
                 width: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                  valueColor: AlwaysStoppedAnimation<Color>(context.appBackground),
                 ),
               )
             : Text(
@@ -589,34 +599,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 style: GoogleFonts.inter(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black, 
+                  color: context.appBackground, 
                 ),
               ),
       ),
     );
   }
 
-  Widget _buildDivider() {
+  Widget _buildDivider(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
+        Expanded(child: Divider(color: context.borderColor)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             "Or",
             style: GoogleFonts.inter(
-              color: Colors.white60, 
+              color: context.textSecondary, 
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
           ),
         ),
-        Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.1))),
+        Expanded(child: Divider(color: context.borderColor)),
       ],
     );
   }
 
-  Widget _buildGoogleSignInButton() {
+  Widget _buildGoogleSignInButton(BuildContext context) {
     return GestureDetector(
       onTap: () async {
         if (_isLoading) return;
@@ -705,10 +715,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
         width: double.infinity,
         height: 56,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.1),
+            color: context.borderColor,
           ), 
         ),
         child: Row(
@@ -716,10 +726,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
           children: [
             Image.asset('assets/images/google_logo.png', height: 24, width: 24),
             const SizedBox(width: 12),
-            const Text(
+            Text(
               "Google Sign-In",
               style: TextStyle(
-                color: Colors.black87,
+                color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
@@ -730,14 +740,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  Widget _buildFooter() {
+  Widget _buildFooter(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Text(
           "Already have an account? ",
           style: GoogleFonts.inter(
-            color: Colors.white70,
+            color: context.textSecondary,
             fontSize: 14,
           ), 
         ),
@@ -751,7 +761,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           child: Text(
             "Login",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontWeight: FontWeight.bold,
               fontSize: 14,
             ),

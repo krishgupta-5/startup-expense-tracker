@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../theme/app_theme.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
   const VerifyEmailScreen({super.key});
@@ -86,10 +87,12 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -100,15 +103,15 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF141416),
+                    color: context.cardBackground,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: context.borderColor,
                     ),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.email_outlined,
-                    color: Colors.white,
+                    color: context.textPrimary,
                     size: 48,
                   ),
                 ),
@@ -118,7 +121,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 Text(
                   "Verify Your Email",
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 28,
                     fontWeight: FontWeight.w600,
                     letterSpacing: -1,
@@ -131,7 +134,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 Text(
                   "We've sent a verification link to your email address. Please check your inbox and click the link to continue.",
                   style: GoogleFonts.inter(
-                    color: Colors.white70,
+                    color: context.textSecondary,
                     fontSize: 14,
                     height: 1.5,
                     fontWeight: FontWeight.w400,
@@ -147,22 +150,22 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                   child: ElevatedButton(
                     onPressed: _isResending ? null : _resendVerificationEmail,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      disabledBackgroundColor: Colors.grey,
+                      backgroundColor: context.textPrimary,
+                      foregroundColor: context.appBackground,
+                      disabledBackgroundColor: context.textTertiary,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     child: _isResending
-                        ? const SizedBox(
+                        ? SizedBox(
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.black,
+                                context.appBackground,
                               ),
                             ),
                           )
@@ -355,7 +358,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                   child: Text(
                     "Sign Out",
                     style: GoogleFonts.inter(
-                      color: Colors.white70,
+                      color: context.textSecondary,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),

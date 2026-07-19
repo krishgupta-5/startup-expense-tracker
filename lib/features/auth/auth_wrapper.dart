@@ -150,18 +150,41 @@ class AuthWrapper extends StatelessWidget {
               );
             }
 
+            if (!userSnapshot.hasData) {
+              return _buildLoadingScreen(context);
+            }
+
             debugPrint(
-              '🔍 DEBUG: User document exists: ${userSnapshot.hasData}',
+              '🔍 DEBUG: User document exists: ${userSnapshot.data!.exists} (fromCache: ${userSnapshot.data!.metadata.isFromCache})',
             );
             debugPrint(
               '🔍 DEBUG: User document data: ${userSnapshot.data?.data()}',
             );
 
-            // If user document doesn't exist (e.g. account data was deleted), 
-            // sign them out and send to login screen.
-            if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+            // If the snapshot is from local cache and the document is not yet in local cache (exists == false),
+            // wait for Cloud Firestore to fetch the live document from the server instead of signing out.
+            if (!userSnapshot.data!.exists && userSnapshot.data!.metadata.isFromCache) {
               debugPrint(
-                '🔍 DEBUG: User document does not exist, redirecting to login',
+                '🔍 DEBUG: Document not found in local cache yet, waiting for server response...',
+              );
+              return _buildLoadingScreen(context);
+            }
+
+            // If user document doesn't exist on server (e.g. account data was deleted or currently being created),
+            if (!userSnapshot.data!.exists) {
+              final authUser = FirebaseAuth.instance.currentUser;
+              final creationTime = authUser?.metadata.creationTime;
+              // Give newly created accounts a 15-second grace period for the Firestore document creation to complete.
+              if (creationTime != null &&
+                  DateTime.now().difference(creationTime).inSeconds < 15) {
+                debugPrint(
+                  '🔍 DEBUG: Account created recently, waiting for document creation...',
+                );
+                return _buildLoadingScreen(context);
+              }
+
+              debugPrint(
+                '🔍 DEBUG: User document does not exist on server, redirecting to login',
               );
               // Asynchronously sign out so they don't get stuck in a weird state
               WidgetsBinding.instance.addPostFrameCallback((_) {

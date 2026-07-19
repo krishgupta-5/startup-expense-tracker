@@ -204,7 +204,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 itemBuilder: (itemContext, index) {
                   final themeItem = availableThemes[index];
                   final mode = themeItem['mode'] as ThemeMode;
-                  final isSelected = _selectedTheme == mode;
+                  final activeTheme = ThemeService.themeModeNotifier.value;
+                  final isSelected = activeTheme == mode;
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -585,30 +586,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // 4. Preferences
               _buildSectionLabel("PREFERENCES"),
               _buildSettingsGroup([
-                _buildTile(
-                  icon: Icons.palette_outlined,
-                  title: "Theme Appearance",
-                  subtitle: ThemeService.getThemeDisplayName(_selectedTheme),
-                  onTap: _showThemeSelector,
-                  trailing: _isThemeLoading
-                      ? SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              context.textPrimary,
+                ValueListenableBuilder<ThemeMode>(
+                  valueListenable: ThemeService.themeModeNotifier,
+                  builder: (context, currentThemeMode, _) {
+                    return _buildTile(
+                      icon: Icons.palette_outlined,
+                      title: "Theme Appearance",
+                      subtitle: ThemeService.getThemeDisplayName(
+                        currentThemeMode,
+                      ),
+                      onTap: _showThemeSelector,
+                      trailing: _isThemeLoading
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  context.textPrimary,
+                                ),
+                              ),
+                            )
+                          : Text(
+                              ThemeService.getThemeDisplayName(
+                                currentThemeMode,
+                              ),
+                              style: GoogleFonts.inter(
+                                color: context.textSecondary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                        )
-                      : Text(
-                          ThemeService.getThemeDisplayName(_selectedTheme),
-                          style: GoogleFonts.inter(
-                            color: context.textSecondary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                    );
+                  },
                 ),
                 _buildDivider(),
                 _buildTile(
