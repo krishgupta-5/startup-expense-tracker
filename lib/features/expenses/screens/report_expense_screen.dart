@@ -13,6 +13,7 @@ import '../../../utils/expense_expansion_helper.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/bank_account_service.dart';
+import '../../../theme/app_theme.dart';
 
 class ReportExpenseScreen extends StatefulWidget {
   const ReportExpenseScreen({super.key});
@@ -141,7 +142,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
               child: Text(
                 message,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -149,12 +150,12 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 3),
         elevation: 0,
@@ -173,10 +174,10 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
         DateTime tempSelectedDate = initialDate;
 
         return Dialog(
-          backgroundColor: const Color(0xFF09090B),
+          backgroundColor: context.cardBackground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+            side: BorderSide(color: context.borderColor),
           ),
           child: Container(
             padding: const EdgeInsets.all(20),
@@ -189,14 +190,14 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                     Text(
                       isStart ? "Select Start Date" : "Select End Date",
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white38),
+                      icon: Icon(Icons.close, color: context.textSecondary),
                     ),
                   ],
                 ),
@@ -235,8 +236,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                       Navigator.pop(context);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
+                      backgroundColor: context.textPrimary,
+                      foregroundColor: context.appBackground,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -834,7 +835,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54,
+        color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
@@ -847,9 +848,11 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
     final currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: Theme.of(context).brightness == Brightness.dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           bottom: false,
           child: Stack(
@@ -863,9 +866,9 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return const Center(
+                          return Center(
                             child: CircularProgressIndicator(
-                              color: Colors.white38,
+                              color: context.textSecondary,
                             ),
                           );
                         }
@@ -1106,15 +1109,13 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(
-                  alpha: 0.05,
-                ), // White Glass Style
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -1122,7 +1123,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
           Text(
             "Expense Report",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -1132,13 +1133,11 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(
-                  alpha: 0.05,
-                ), // White Glass Style
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(Icons.download, color: Colors.white, size: 20),
+              child: Icon(Icons.download, color: context.textPrimary, size: 20),
             ),
           ),
         ],
@@ -1182,19 +1181,19 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected
-              ? Colors.white
-              : const Color(0xFF141416), // Premium White Toggle
+              ? context.textPrimary
+              : context.cardBackground,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
-                ? Colors.white
-                : Colors.white.withValues(alpha: 0.08),
+                ? context.textPrimary
+                : context.borderColor,
           ),
         ),
         child: Text(
           label,
           style: GoogleFonts.inter(
-            color: isSelected ? Colors.black : Colors.white70,
+            color: isSelected ? context.appBackground : context.textSecondary,
             fontSize: 14,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
           ),
@@ -1220,10 +1219,10 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                     horizontal: 16,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF141416),
+                    color: context.cardBackground,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.08),
+                      color: context.borderColor,
                     ),
                   ),
                   child: Row(
@@ -1235,14 +1234,14 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                             : "Start Date",
                         style: GoogleFonts.inter(
                           color: _customStartDate != null
-                              ? Colors.white
-                              : Colors.white54,
+                              ? context.textPrimary
+                              : context.textSecondary,
                           fontSize: 13,
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.calendar_today,
-                        color: Colors.white38,
+                        color: context.textSecondary,
                         size: 16,
                       ),
                     ],
@@ -1260,10 +1259,10 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                     horizontal: 16,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF141416),
+                    color: context.cardBackground,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.08),
+                      color: context.borderColor,
                     ),
                   ),
                   child: Row(
@@ -1275,14 +1274,14 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                             : "End Date",
                         style: GoogleFonts.inter(
                           color: _customEndDate != null
-                              ? Colors.white
-                              : Colors.white54,
+                              ? context.textPrimary
+                              : context.textSecondary,
                           fontSize: 13,
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.calendar_today,
-                        color: Colors.white38,
+                        color: context.textSecondary,
                         size: 16,
                       ),
                     ],
@@ -1337,19 +1336,19 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Colors.white
-                              : const Color(0xFF141416), // Premium White Toggle
+                              ? context.textPrimary
+                              : context.cardBackground,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isSelected
-                                ? Colors.white
-                                : Colors.white.withValues(alpha: 0.08),
+                                ? context.textPrimary
+                                : context.borderColor,
                           ),
                         ),
                         child: Text(
                           category,
                           style: GoogleFonts.inter(
-                            color: isSelected ? Colors.black : Colors.white70,
+                            color: isSelected ? context.appBackground : context.textSecondary,
                             fontSize: 13,
                             fontWeight: isSelected
                                 ? FontWeight.w600
@@ -1408,9 +1407,9 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1423,7 +1422,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                 child: Text(
                   title,
                   style: GoogleFonts.inter(
-                    color: Colors.white54,
+                    color: context.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                   ),
@@ -1441,7 +1440,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             child: Text(
               value,
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 22,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.5,
@@ -1476,23 +1475,23 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             width: double.infinity,
             height: 240,
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              border: Border.all(color: context.borderColor),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
                   Icons.bar_chart_outlined,
-                  color: Colors.white.withValues(alpha: 0.15),
+                  color: context.textSecondary.withValues(alpha: 0.3),
                   size: 48,
                 ),
                 const SizedBox(height: 16),
                 Text(
                   'No expenses for this period',
                   style: GoogleFonts.inter(
-                    color: Colors.white38,
+                    color: context.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -1501,7 +1500,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                 Text(
                   'Try selecting a different date range or category',
                   style: GoogleFonts.inter(
-                    color: Colors.white24,
+                    color: context.textSecondary.withValues(alpha: 0.6),
                     fontSize: 12,
                   ),
                 ),
@@ -1529,9 +1528,9 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             right: 16,
           ),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -1563,7 +1562,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                                   _isLoadingCountry ? '+1' : _userCountryCode,
                                 ),
                               style: GoogleFonts.inter(
-                                color: Colors.white54,
+                                color: context.textSecondary,
                                 fontSize: 9,
                               ),
                             ),
@@ -1580,8 +1579,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             colors: [
-                              Colors.white, // White theme requested
-                              Colors.white.withValues(alpha: 0.3),
+                              context.textPrimary,
+                              context.textPrimary.withValues(alpha: 0.3),
                             ],
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
@@ -1595,7 +1594,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                         child: Text(
                           labelParts[0],
                           style: GoogleFonts.inter(
-                            color: Colors.white70,
+                            color: context.textPrimary,
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
@@ -1607,7 +1606,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                           child: Text(
                             labelParts[1],
                             style: GoogleFonts.inter(
-                              color: Colors.white38,
+                              color: context.textSecondary,
                               fontSize: 9,
                             ),
                           ),
@@ -1637,9 +1636,9 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: Column(
             children: sortedEntries.asMap().entries.map((entry) {
@@ -1661,7 +1660,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                   ),
                   if (index != sortedEntries.length - 1)
                     Divider(
-                      color: Colors.white.withValues(alpha: 0.04),
+                      color: context.borderColor,
                       height: 1,
                     ),
                 ],
@@ -1683,7 +1682,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             child: Text(
               category,
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -1696,7 +1695,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
               Text(
                 amount,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1707,15 +1706,15 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(
+                  color: context.textPrimary.withValues(
                     alpha: 0.1,
-                  ), // Switched from Blue to White
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   "${(percentage * 100).toStringAsFixed(1)}%",
                   style: GoogleFonts.inter(
-                    color: Colors.white, // Switched from Blue to White
+                    color: context.textPrimary,
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                   ),

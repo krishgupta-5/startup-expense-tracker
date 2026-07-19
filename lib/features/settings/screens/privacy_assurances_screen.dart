@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../theme/app_theme.dart';
 
 class PrivacyAssurancesScreen extends StatelessWidget {
   const PrivacyAssurancesScreen({super.key});
@@ -8,16 +9,15 @@ class PrivacyAssurancesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: context.appBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
-              // 1. Premium Header
               _buildHeader(context, "Privacy Assurances"),
-
-              // 2. Scrollable Content
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
@@ -29,12 +29,10 @@ class PrivacyAssurancesScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 16),
-
-                      // --- HERO SECTION ---
                       Text(
                         "Your data belongs to you.",
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 32,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -1.5,
@@ -44,45 +42,45 @@ class PrivacyAssurancesScreen extends StatelessWidget {
                       Text(
                         "We believe financial privacy is a fundamental right. Here is exactly how we handle your information.",
                         style: GoogleFonts.inter(
-                          color: Colors.white54,
+                          color: context.textSecondary,
                           fontSize: 14,
                           height: 1.5,
                           fontWeight: FontWeight.w400,
                         ),
                       ),
-
                       const SizedBox(height: 48),
 
-                      // --- ASSURANCE CARDS ---
-                      _buildSectionLabel("SECURITY STANDARDS"),
+                      _buildSectionLabel(context, "SECURITY STANDARDS"),
                       const SizedBox(height: 8),
                       _buildAssuranceCard(
+                        context,
                         Icons.lock_outline,
                         "Zero-Knowledge Encryption",
                         "Your data is encrypted on your device before it reaches our servers. Only you hold the keys.",
                       ),
                       const SizedBox(height: 16),
                       _buildAssuranceCard(
+                        context,
                         Icons.visibility_off_outlined,
                         "No Ad Tracking",
                         "We do not sell, rent, or share your personal data with advertisers or third parties.",
                       ),
                       const SizedBox(height: 16),
                       _buildAssuranceCard(
+                        context,
                         Icons.storage,
                         "Data Residency",
                         "All your financial records are stored in enterprise-grade data centers within your region (India).",
                       ),
                       const SizedBox(height: 16),
                       _buildAssuranceCard(
+                        context,
                         Icons.delete_outline,
                         "Right to Erasure",
                         "Delete your account and every single byte of your data is permanently wiped from our backups instantly.",
                       ),
-
                       const SizedBox(height: 48),
 
-                      // --- CERTIFICATION BADGE ---
                       Center(
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -122,7 +120,6 @@ class PrivacyAssurancesScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -135,8 +132,6 @@ class PrivacyAssurancesScreen extends StatelessWidget {
     );
   }
 
-  // --- WIDGET BUILDERS ---
-
   Widget _buildHeader(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -148,15 +143,13 @@ class PrivacyAssurancesScreen extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(
-                  alpha: 0.05,
-                ), // White Glass Style
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -164,23 +157,22 @@ class PrivacyAssurancesScreen extends StatelessWidget {
           Text(
             title,
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
           ),
-          // Spacer for balance
           const SizedBox(width: 44),
         ],
       ),
     );
   }
 
-  Widget _buildSectionLabel(String text) {
+  Widget _buildSectionLabel(BuildContext context, String text) {
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54,
+        color: context.textTertiary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
@@ -188,25 +180,33 @@ class PrivacyAssurancesScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAssuranceCard(IconData icon, String title, String desc) {
+  Widget _buildAssuranceCard(
+    BuildContext context,
+    IconData icon,
+    String title,
+    String desc,
+  ) {
+    final iconBg = context.isDarkMode
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.05);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon Container matching SettingsScreen design
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05), // Glassy fill
-              borderRadius: BorderRadius.circular(12), // Match rounded squares
+              color: iconBg,
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: Colors.white70, size: 20),
+            child: Icon(icon, color: context.iconSecondary, size: 20),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -216,7 +216,7 @@ class PrivacyAssurancesScreen extends StatelessWidget {
                 Text(
                   title,
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
@@ -225,7 +225,7 @@ class PrivacyAssurancesScreen extends StatelessWidget {
                 Text(
                   desc,
                   style: GoogleFonts.inter(
-                    color: Colors.white54,
+                    color: context.textSecondary,
                     fontSize: 13,
                     height: 1.5,
                   ),

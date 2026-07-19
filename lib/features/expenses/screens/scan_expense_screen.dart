@@ -13,6 +13,7 @@ import 'add_expense_screen.dart';
 import '../../../services/api_service.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/user_country_service.dart';
+import '../../../theme/app_theme.dart';
 
 class ScanExpenseScreen extends StatefulWidget {
   const ScanExpenseScreen({super.key});
@@ -118,25 +119,26 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF141416),
+          backgroundColor: context.cardBackground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: context.borderColor),
           ),
           child: Container(
             padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
+                Icon(
                   Icons.camera_alt_outlined,
-                  color: Colors.white,
+                  color: context.textPrimary,
                   size: 48,
                 ),
                 const SizedBox(height: 16),
                 Text(
                   "Camera Permission Required",
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -145,7 +147,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 const SizedBox(height: 16),
                 Text(
                   "Please grant camera permission to scan receipts.",
-                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
+                  style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
@@ -156,12 +158,12 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                         onPressed: () => Navigator.pop(context),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
-                          foregroundColor: Colors.white,
+                          foregroundColor: context.textPrimary,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                             side: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.1),
+                              color: context.borderColor,
                             ),
                           ),
                         ),
@@ -176,8 +178,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                           _initializeCamera();
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black,
+                          backgroundColor: context.textPrimary,
+                          foregroundColor: context.appBackground,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -265,19 +267,20 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
   // Crop Image Logic with compression
   Future<void> _cropImage() async {
     if (_capturedImagePath == null) return;
+    final appBg = context.appBackground;
+    final textPri = context.textPrimary;
     try {
       final imageFile = File(_capturedImagePath!);
       final imageSizeBytes = await imageFile.length();
       final imageSizeMB = imageSizeBytes / (1024 * 1024);
 
       if (imageSizeMB > _maxImageSizeMB) {
-        if (mounted) {
-          _showErrorDialog(
-            "Image too large",
-            "Images larger than ${_maxImageSizeMB}MB are not supported to control costs. Please choose a smaller image.",
-          );
-          return;
-        }
+        if (!context.mounted) return;
+        _showErrorDialog(
+          "Image too large",
+          "Images larger than ${_maxImageSizeMB}MB are not supported to control costs. Please choose a smaller image.",
+        );
+        return;
       }
 
       final croppedFile = await ImageCropper().cropImage(
@@ -285,8 +288,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
         uiSettings: [
           AndroidUiSettings(
             toolbarTitle: 'Crop Receipt',
-            toolbarColor: const Color(0xFF09090B),
-            toolbarWidgetColor: Colors.white,
+            toolbarColor: appBg,
+            toolbarWidgetColor: textPri,
             initAspectRatio: CropAspectRatioPreset.original,
             lockAspectRatio: false,
           ),
@@ -661,26 +664,26 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF141416),
+          backgroundColor: context.cardBackground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+            side: BorderSide(color: context.borderColor),
           ),
           child: Container(
             padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
+                const Icon(
                   Icons.error_outline,
-                  color: const Color(0xFFFF453A),
+                  color: Color(0xFFFF453A),
                   size: 48,
                 ),
                 const SizedBox(height: 16),
                 Text(
                   title,
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -689,7 +692,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 const SizedBox(height: 16),
                 Text(
                   message,
-                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 14),
+                  style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
@@ -698,8 +701,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                   child: ElevatedButton(
                     onPressed: () => Navigator.pop(context),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
+                      backgroundColor: context.textPrimary,
+                      foregroundColor: context.appBackground,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -727,7 +730,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416).withValues(alpha: 0.95),
+        color: context.cardBackground.withValues(alpha: 0.95),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Row(
@@ -743,14 +746,14 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                   color: Colors.transparent,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.15),
+                    color: context.borderColor,
                   ),
                 ),
                 child: Center(
                   child: Text(
                     "Retake",
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
@@ -767,11 +770,11 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
               height: 52,
               width: 52,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: context.appBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(Icons.crop, color: Colors.white, size: 20),
+              child: Icon(Icons.crop, color: context.textPrimary, size: 20),
             ),
           ),
           const SizedBox(width: 12),
@@ -786,14 +789,14 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
               child: Container(
                 height: 52,
                 decoration: BoxDecoration(
-                  color: Colors.white, // Standard white action button
+                  color: context.textPrimary,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Center(
                   child: Text(
                     "Use Photo",
                     style: GoogleFonts.inter(
-                      color: Colors.black,
+                      color: context.appBackground,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                     ),
@@ -835,15 +838,15 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 width: 80,
                 height: 80,
                 child: CircularProgressIndicator(
-                  color: Colors.white.withValues(alpha: 0.2), // Muted track
+                  color: context.textPrimary.withValues(alpha: 0.2), // Muted track
                   strokeWidth: 4,
                 ),
               ),
-              const SizedBox(
+              SizedBox(
                 width: 40,
                 height: 40,
                 child: CircularProgressIndicator(
-                  color: Colors.white, // White spinner
+                  color: context.textPrimary, // Spinner
                   strokeWidth: 4,
                 ),
               ),
@@ -853,14 +856,14 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(color: context.borderColor),
             ),
             child: Text(
               _scanStatus,
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -876,7 +879,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54,
+        color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
@@ -894,10 +897,10 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
       constraints: const BoxConstraints(maxHeight: 400),
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416), // Match settings container color
+        color: context.cardBackground, // Match settings container color
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
+          top: BorderSide(color: context.borderColor),
         ),
       ),
       child: Column(
@@ -936,16 +939,16 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 width: double.infinity,
                 padding: const EdgeInsets.all(20), // Tighter padding
                 decoration: BoxDecoration(
-                  color: const Color(0xFF09090B), // Deep background for text
+                  color: context.appBackground, // Deep background for text
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.04),
+                    color: context.borderColor,
                   ),
                 ),
                 child: Text(
                   _scannedResult,
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 14, // Slightly smaller for better fit
                     height: 1.6,
                     fontWeight: FontWeight.w500,
@@ -988,14 +991,14 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                   child: Container(
                     height: 52,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: context.textPrimary,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Center(
                       child: Text(
                         hasData ? 'Proceed' : 'Retry Scan',
                         style: GoogleFonts.inter(
-                          color: Colors.black,
+                          color: context.appBackground,
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1013,14 +1016,14 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.15),
+                        color: context.borderColor,
                       ),
                     ),
                     child: Center(
                       child: Text(
                         "Discard",
                         style: GoogleFonts.inter(
-                          color: Colors.white70,
+                          color: context.textSecondary,
                           fontSize: 15,
                           fontWeight: FontWeight.w500,
                         ),

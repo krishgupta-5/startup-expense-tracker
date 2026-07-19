@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../theme/app_theme.dart';
 
 class CategorySettingsScreen extends StatefulWidget {
   const CategorySettingsScreen({super.key});
@@ -43,14 +44,21 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
       final companyId = userDoc.data()?['companyId'] as String?;
       if (companyId == null) return;
 
-      final companyDoc = await FirebaseFirestore.instance.collection('companies').doc(companyId).get();
+      final companyDoc = await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(companyId)
+          .get();
       if (companyDoc.exists) {
         final data = companyDoc.data()!;
-        final cats = (data['Categories'] as List<dynamic>?)?.cast<String>() ?? [];
+        final cats =
+            (data['Categories'] as List<dynamic>?)?.cast<String>() ?? [];
         if (mounted) {
           setState(() {
             _categories = cats;
@@ -70,9 +78,17 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
     final newCategory = _categoryController.text.trim();
     if (newCategory.isEmpty) return;
 
-    if (_categories.map((e) => e.toLowerCase()).contains(newCategory.toLowerCase())) {
+    if (_categories
+        .map((e) => e.toLowerCase())
+        .contains(newCategory.toLowerCase())) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Category already exists')),
+        SnackBar(
+          content: Text(
+            'Category already exists',
+            style: TextStyle(color: context.textPrimary),
+          ),
+          backgroundColor: context.cardBackground,
+        ),
       );
       return;
     }
@@ -81,16 +97,22 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
       final companyId = userDoc.data()?['companyId'] as String?;
       if (companyId == null) return;
 
-      final updatedCategories = List<String>.from(_categories)..add(newCategory);
+      final updatedCategories = List<String>.from(_categories)
+        ..add(newCategory);
 
-      await FirebaseFirestore.instance.collection('companies').doc(companyId).update({
-        'Categories': updatedCategories,
-      });
+      await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(companyId)
+          .update({'Categories': updatedCategories});
 
+      if (!mounted) return;
       setState(() {
         _categories = updatedCategories;
         _categoryController.clear();
@@ -106,16 +128,21 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
       final companyId = userDoc.data()?['companyId'] as String?;
       if (companyId == null) return;
 
       final updatedCategories = List<String>.from(_categories)..add(category);
 
-      await FirebaseFirestore.instance.collection('companies').doc(companyId).update({
-        'Categories': updatedCategories,
-      });
+      await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(companyId)
+          .update({'Categories': updatedCategories});
 
+      if (!mounted) return;
       setState(() {
         _categories = updatedCategories;
       });
@@ -129,16 +156,22 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
       final companyId = userDoc.data()?['companyId'] as String?;
       if (companyId == null) return;
 
-      final updatedCategories = List<String>.from(_categories)..remove(category);
+      final updatedCategories = List<String>.from(_categories)
+        ..remove(category);
 
-      await FirebaseFirestore.instance.collection('companies').doc(companyId).update({
-        'Categories': updatedCategories,
-      });
+      await FirebaseFirestore.instance
+          .collection('companies')
+          .doc(companyId)
+          .update({'Categories': updatedCategories});
 
+      if (!mounted) return;
       setState(() {
         _categories = updatedCategories;
       });
@@ -149,45 +182,72 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final btnBg = context.isDarkMode ? Colors.white : Colors.black;
+    final btnText = context.isDarkMode ? Colors.black : Colors.white;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
               _buildHeader(),
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                    ? Center(
+                        child: CircularProgressIndicator(
+                          color: context.iconSecondary,
+                        ),
+                      )
                     : SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 16,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               "Manage the categories available when adding expenses.",
-                              style: GoogleFonts.inter(color: Colors.white54, fontSize: 14),
+                              style: GoogleFonts.inter(
+                                color: context.textSecondary,
+                                fontSize: 14,
+                              ),
                             ),
                             const SizedBox(height: 24),
-                            
+
                             // Add New Category Input
                             Row(
                               children: [
                                 Expanded(
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF141416),
+                                      color: context.cardBackground,
                                       borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                                      border: Border.all(
+                                        color: context.borderColor,
+                                      ),
                                     ),
                                     child: TextField(
                                       controller: _categoryController,
-                                      style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+                                      style: GoogleFonts.inter(
+                                        color: context.textPrimary,
+                                        fontSize: 15,
+                                      ),
+                                      cursorColor: context.textPrimary,
                                       decoration: InputDecoration(
                                         hintText: "New Category Name",
-                                        hintStyle: GoogleFonts.inter(color: Colors.white24, fontSize: 15),
+                                        hintStyle: GoogleFonts.inter(
+                                          color: context.textTertiary,
+                                          fontSize: 15,
+                                        ),
                                         border: InputBorder.none,
                                       ),
                                     ),
@@ -199,23 +259,32 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
                                   child: Container(
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: btnBg,
                                       borderRadius: BorderRadius.circular(16),
                                     ),
-                                    child: const Icon(Icons.add, color: Colors.black, size: 20),
+                                    child: Icon(
+                                      Icons.add,
+                                      color: btnText,
+                                      size: 20,
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                            
+
                             const SizedBox(height: 32),
-                            
-                            // Show predefined categories that are not yet selected
-                            if (_allCategories.where((c) => !_categories.map((e) => e.toLowerCase()).contains(c.toLowerCase())).isNotEmpty) ...[
+
+                            if (_allCategories
+                                .where(
+                                  (c) => !_categories
+                                      .map((e) => e.toLowerCase())
+                                      .contains(c.toLowerCase()),
+                                )
+                                .isNotEmpty) ...[
                               Text(
                                 "AVAILABLE CATEGORIES",
                                 style: GoogleFonts.inter(
-                                  color: Colors.white24,
+                                  color: context.textTertiary,
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 1.5,
@@ -226,27 +295,42 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
                                 spacing: 12,
                                 runSpacing: 12,
                                 children: _allCategories
-                                    .where((c) => !_categories.map((e) => e.toLowerCase()).contains(c.toLowerCase()))
+                                    .where(
+                                      (c) => !_categories
+                                          .map((e) => e.toLowerCase())
+                                          .contains(c.toLowerCase()),
+                                    )
                                     .map((cat) {
                                   return GestureDetector(
                                     onTap: () => _addPredefinedCategory(cat),
                                     child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 200),
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                      duration: const Duration(
+                                        milliseconds: 200,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF141416),
+                                        color: context.cardBackground,
                                         borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                                        border: Border.all(
+                                          color: context.borderColor,
+                                        ),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const Icon(Icons.add, color: Colors.white, size: 14),
+                                          Icon(
+                                            Icons.add,
+                                            color: context.textPrimary,
+                                            size: 14,
+                                          ),
                                           const SizedBox(width: 6),
                                           Text(
                                             cat,
                                             style: GoogleFonts.inter(
-                                              color: Colors.white,
+                                              color: context.textPrimary,
                                               fontSize: 13,
                                               fontWeight: FontWeight.w500,
                                             ),
@@ -263,47 +347,63 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
                             Text(
                               "YOUR CATEGORIES",
                               style: GoogleFonts.inter(
-                                color: Colors.white24,
+                                color: context.textTertiary,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 1.5,
                               ),
                             ),
                             const SizedBox(height: 16),
-                            
-                            ..._categories.map((cat) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF141416),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.category_outlined, color: Colors.white60, size: 18),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          cat,
-                                          style: GoogleFonts.inter(
-                                            color: Colors.white,
-                                            fontSize: 15,
+
+                            ..._categories.map(
+                              (cat) => Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 16,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: context.cardBackground,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: context.borderColor,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.category_outlined,
+                                            color: context.iconSecondary,
+                                            size: 18,
                                           ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            cat,
+                                            style: GoogleFonts.inter(
+                                              color: context.textPrimary,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      GestureDetector(
+                                        onTap: () => _removeCategory(cat),
+                                        child: Icon(
+                                          Icons.close,
+                                          color: context.iconSecondary,
+                                          size: 18,
                                         ),
-                                      ],
-                                    ),
-                                    GestureDetector(
-                                      onTap: () => _removeCategory(cat),
-                                      child: const Icon(Icons.close, color: Colors.white38, size: 18),
-                                    ),
-                                  ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            )).toList(),
+                            ),
                           ],
                         ),
                       ),
@@ -324,19 +424,23 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
           GestureDetector(
             onTap: () => Navigator.pop(context),
             child: Container(
-               padding: const EdgeInsets.all(12),
-               decoration: BoxDecoration(
-                 color: const Color(0xFF141416),
-                 borderRadius: BorderRadius.circular(14),
-                 border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
-               ),
-               child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: context.cardBackground,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: context.borderColor),
+              ),
+              child: Icon(
+                Icons.arrow_back,
+                color: context.textPrimary,
+                size: 20,
+              ),
             ),
           ),
           Text(
             "Expense Categories",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),

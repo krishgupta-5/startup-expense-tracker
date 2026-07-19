@@ -7,11 +7,11 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-// Ensure these paths match your project structure
 import '../../../../services/currency_preference_service.dart';
 import '../../../../services/currency_formatter.dart';
 import '../../../../services/bank_account_service.dart';
 import '../../../../utils/expense_expansion_helper.dart';
+import '../../../../theme/app_theme.dart';
 
 class ExpensesExportScreen extends StatefulWidget {
   const ExpensesExportScreen({super.key});
@@ -23,7 +23,6 @@ class ExpensesExportScreen extends StatefulWidget {
 class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
   bool _isDownloading = false;
 
-  // Helper to get month name
   String _getMonthName(int month) {
     const months = [
       'January',
@@ -42,20 +41,16 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
     return months[month - 1];
   }
 
-  // Helper to format bank account display
   String _getBankAccountDisplay(Map<String, dynamic> transactionData) {
-    // Check for bank account ID
     final bankAccountId =
         transactionData['bankAccount'] as String? ??
         transactionData['BankAccount'] as String?;
 
     if (bankAccountId != null) {
-      // Check if it's a cash transaction (either "Cash-" or "Cash")
       if (bankAccountId == 'Cash-' || bankAccountId == 'Cash') {
         return 'Cash';
       }
 
-      // For bank accounts, try to format them properly
       if (bankAccountId.contains('-')) {
         final parts = bankAccountId.split('-');
         if (parts.length >= 2) {
@@ -68,11 +63,9 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
         }
       }
 
-      // Ensure PDF-safe text by removing any problematic characters
       return bankAccountId.replaceAll(RegExp(r'[^\w\s\-\.\*]'), '');
     }
 
-    // Check if it's a cash payment
     final paymentMethod = transactionData['PaymentMethod'] as String?;
     if (paymentMethod == 'cash') {
       return 'Cash';
@@ -81,7 +74,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
     return 'N/A';
   }
 
-  // --- UNIFIED MINIMAL TOAST ---
   void _showMinimalToast(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -100,7 +92,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
               child: Text(
                 message,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -108,12 +100,12 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 3),
         elevation: 0,
@@ -121,12 +113,9 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
     );
   }
 
-  // --- REPORT GENERATION LOGIC ---
   Future<void> _downloadReport(String reportType) async {
     setState(() => _isDownloading = true);
 
-    // PDF-safe currency formatter: Unicode symbols may not render in the
-    // default PDF font, so we use ASCII-safe fallbacks for ALL currencies.
     String getPdfCurrencySymbol(double amount) {
       final userCurrencyCode =
           CurrencyPreferenceService.getCurrencyPreferenceSync();
@@ -142,7 +131,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
       DateTime endDate;
       String reportTitle = "";
 
-      // 1. Calculate Date Ranges Based on Report Type
       if (reportType == "Monthly") {
         startDate = DateTime(now.year, now.month, 1);
         endDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
@@ -152,14 +140,12 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
         final currentQuarter = ((now.month - 1) ~/ 3) + 1;
         final startMonth = (currentQuarter - 1) * 3 + 1;
         startDate = DateTime(now.year, startMonth, 1);
-        // Safe end: last day of the quarter's last month, handles Dec overflow
         final endMonth = startMonth + 2;
         final endYear = endMonth > 12 ? now.year + 1 : now.year;
         final safeEndMonth = endMonth > 12 ? endMonth - 12 : endMonth;
         endDate = DateTime(endYear, safeEndMonth + 1, 0, 23, 59, 59);
         reportTitle = "Quarterly Expenses - Q$currentQuarter ${now.year}";
       } else {
-        // Annual (Assuming Financial Year April - March)
         final isNewFY = now.month >= 4;
         final startYear = isNewFY ? now.year : now.year - 1;
         startDate = DateTime(startYear, 4, 1);
@@ -168,7 +154,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
             "Annual Expenses - FY $startYear-${(startYear + 1).toString().substring(2)}";
       }
 
-      // 2. Fetch Data from Firestore and expand in memory
       final querySnapshot = await FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: user.uid)
@@ -200,7 +185,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
             dt.isBefore(endDate.add(const Duration(seconds: 1)));
       }).toList();
 
-      // Sort descending by date
       expenses.sort((a, b) {
         final aDateVal = a['Date'] ?? a['date'];
         final bDateVal = b['Date'] ?? b['date'];
@@ -218,11 +202,9 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
         return;
       }
 
-      // 3. Generate PDF
       final pdf = pw.Document();
       double totalAmount = 0;
 
-      // Helper to build a single table cell
       pw.Widget buildCell(
         String text, {
         pw.Alignment alignment = pw.Alignment.centerLeft,
@@ -244,9 +226,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
         );
       }
 
-      // Build table rows with per-row green for funding
       final List<pw.TableRow> tableRows = [
-        // Header row
         pw.TableRow(
           decoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
           children: [
@@ -262,7 +242,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
             );
           }).toList(),
         ),
-        // Data rows
         ...expenses.map((data) {
           final amount = double.tryParse(data['Amount'].toString()) ?? 0.0;
           final category = data['Category']?.toString().toLowerCase() ?? '';
@@ -277,13 +256,13 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
           final amountStr = getPdfCurrencySymbol(amount);
           final displayAmount = isFunding ? '+$amountStr' : amountStr;
           final rowColor = isFunding
-              ? const PdfColor(0.16, 0.55, 0.25) // green700
+              ? const PdfColor(0.16, 0.55, 0.25)
               : PdfColors.black;
 
           return pw.TableRow(
             decoration: pw.BoxDecoration(
               color: isFunding
-                  ? const PdfColor(0.91, 0.98, 0.92) // light green tint
+                  ? const PdfColor(0.91, 0.98, 0.92)
                   : null,
               border: const pw.Border(
                 bottom: pw.BorderSide(
@@ -310,7 +289,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                 displayAmount,
                 alignment: pw.Alignment.centerRight,
                 textColor: isFunding
-                    ? const PdfColor(0.13, 0.55, 0.13) // green
+                    ? const PdfColor(0.13, 0.55, 0.13)
                     : PdfColors.black,
                 fontWeight: isFunding
                     ? pw.FontWeight.bold
@@ -327,7 +306,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
           margin: const pw.EdgeInsets.all(32),
           build: (pw.Context context) {
             return [
-              // PDF Header
               pw.Header(
                 level: 0,
                 child: pw.Row(
@@ -351,8 +329,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                 ),
               ),
               pw.SizedBox(height: 20),
-
-              // PDF Table with per-row funding colors
               pw.Table(
                 columnWidths: {
                   0: const pw.FixedColumnWidth(70),
@@ -364,8 +340,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                 children: tableRows,
               ),
               pw.SizedBox(height: 20),
-
-              // PDF Total
               pw.Container(
                 alignment: pw.Alignment.centerRight,
                 child: pw.Text(
@@ -381,7 +355,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
         ),
       );
 
-      // 4. Print / Share / Download the PDF
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => pdf.save(),
         name: '${reportTitle.replaceAll(' ', '_')}.pdf',
@@ -406,9 +379,11 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
         "FY $startYear-${(startYear + 1).toString().substring(2)}";
 
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Stack(
             children: [
@@ -426,7 +401,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                           Text(
                             "Expense Details",
                             style: GoogleFonts.inter(
-                              color: Colors.white,
+                              color: context.textPrimary,
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                               letterSpacing: -0.5,
@@ -436,7 +411,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                           Text(
                             "Download and manage your expense reports",
                             style: GoogleFonts.inter(
-                              color: Colors.white54,
+                              color: context.textSecondary,
                               fontSize: 14,
                             ),
                           ),
@@ -444,7 +419,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
 
                           _buildSectionLabel("AVAILABLE EXPENSE REPORTS"),
 
-                          // Monthly Button
                           _buildStatementCard(
                             title: "Monthly Expenses",
                             period: currentMonthYear,
@@ -455,7 +429,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Quarterly Button
                           _buildStatementCard(
                             title: "Quarterly Expenses",
                             period: currentQuarterStr,
@@ -466,7 +439,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Annual Button
                           _buildStatementCard(
                             title: "Annual Expense Summary",
                             period: currentFY,
@@ -484,7 +456,6 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                 ],
               ),
 
-              // Loading Overlay
               if (_isDownloading)
                 Container(
                   color: Colors.black.withValues(alpha: 0.6),
@@ -510,15 +481,13 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(
-                  alpha: 0.05,
-                ), // White Glass Style
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -526,12 +495,12 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
           Text(
             "Downloads",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(width: 44), // Balance the back button
+          const SizedBox(width: 44),
         ],
       ),
     );
@@ -543,7 +512,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
       child: Text(
         text.toUpperCase(),
         style: GoogleFonts.inter(
-          color: Colors.white54,
+          color: context.textTertiary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
@@ -559,14 +528,18 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
     required IconData icon,
     required VoidCallback onTap,
   }) {
+    final iconBg = context.isDarkMode
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.05);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          border: Border.all(color: context.borderColor),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -576,13 +549,11 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: iconBg,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.05),
-                    ),
+                    border: Border.all(color: context.borderColor),
                   ),
-                  child: Icon(icon, color: Colors.white70, size: 20),
+                  child: Icon(icon, color: context.iconSecondary, size: 20),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -592,7 +563,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                       Text(
                         title,
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                         ),
@@ -601,7 +572,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                       Text(
                         period,
                         style: GoogleFonts.inter(
-                          color: Colors.white38,
+                          color: context.textTertiary,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -612,15 +583,13 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: iconBg,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
-                    ),
+                    border: Border.all(color: context.borderColor),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.download,
-                    color: Colors.white,
+                    color: context.textPrimary,
                     size: 16,
                   ),
                 ),
@@ -629,7 +598,10 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
             const SizedBox(height: 16),
             Text(
               description,
-              style: GoogleFonts.inter(color: Colors.white54, fontSize: 13),
+              style: GoogleFonts.inter(
+                color: context.textSecondary,
+                fontSize: 13,
+              ),
             ),
           ],
         ),

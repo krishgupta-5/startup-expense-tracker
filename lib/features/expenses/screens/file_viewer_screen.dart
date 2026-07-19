@@ -1,10 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
-import 'dart:convert';
+import 'package:webview_flutter/webview_flutter.dart';
+import '../../../theme/app_theme.dart';
 
 class FileViewerScreen extends StatefulWidget {
   final String fileId;
@@ -26,6 +29,10 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
   bool _isLoading = true;
   String? _error;
   String? _fileUrl;
+  String? _textPreview;
+  bool _textLoadError = false;
+  bool _isWebViewLoading = true;
+  WebViewController? _webViewController;
 
   @override
   void initState() {
@@ -62,6 +69,47 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
       final filePath = fileInfo['file_path'] as String;
       final fileUrl = "https://api.telegram.org/file/bot$botToken/$filePath";
 
+      if (_isTextFile(widget.fileName)) {
+        try {
+          final textResponse = await http.get(Uri.parse(fileUrl));
+          if (textResponse.statusCode == 200) {
+            _textPreview = textResponse.body;
+          } else {
+            _textLoadError = true;
+          }
+        } catch (_) {
+          _textLoadError = true;
+        }
+      }
+
+      if (_isWebPreviewSupported(widget.fileName) && mounted) {
+        _webViewController = WebViewController()
+          ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..setBackgroundColor(const Color(0x00000000))
+          ..setNavigationDelegate(
+            NavigationDelegate(
+              onPageStarted: (_) {
+                if (mounted) {
+                  setState(() => _isWebViewLoading = true);
+                }
+              },
+              onPageFinished: (_) {
+                if (mounted) {
+                  setState(() => _isWebViewLoading = false);
+                }
+              },
+              onNavigationRequest: (request) {
+                return NavigationDecision.navigate;
+              },
+            ),
+          )
+          ..loadRequest(
+            Uri.parse(
+              'https://docs.google.com/viewer?url=${Uri.encodeComponent(fileUrl)}&embedded=true',
+            ),
+          );
+      }
+
       setState(() {
         _fileUrl = fileUrl;
         _isLoading = false;
@@ -92,7 +140,7 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
               child: Text(
                 message,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -100,12 +148,12 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 3),
         elevation: 0,
@@ -116,25 +164,26 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF09090B),
+        backgroundColor: context.appBackground,
         elevation: 0,
         leading: GestureDetector(
           onTap: () => Navigator.pop(context),
           child: Container(
             margin: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: context.borderColor),
             ),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+            child: Icon(Icons.arrow_back, color: context.textPrimary, size: 20),
           ),
         ),
         title: Text(
           widget.fileName,
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
@@ -146,7 +195,7 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
                 Clipboard.setData(ClipboardData(text: _fileUrl!));
                 _showMinimalToast("File link copied to clipboard");
               },
-              icon: const Icon(Icons.copy, color: Colors.white54),
+              icon: Icon(Icons.copy, color: context.textSecondary),
             ),
         ],
       ),
@@ -156,9 +205,9 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(
-          color: Color(0xFF30D158),
+          color: context.textPrimary,
           strokeWidth: 2,
         ),
       );
@@ -174,7 +223,7 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
             Text(
               "Failed to load file",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
               ),
@@ -182,7 +231,7 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
             const SizedBox(height: 8),
             Text(
               _error!,
-              style: GoogleFonts.inter(color: Colors.white54, fontSize: 14),
+              style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
               textAlign: TextAlign.center,
             ),
           ],
@@ -191,18 +240,18 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
     }
 
     return Container(
-      color: Colors.white,
+      color: context.appBackground,
       child: Column(
         children: [
           // Header with file info
           Container(
             padding: const EdgeInsets.all(16),
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             child: Row(
               children: [
                 Icon(
                   _getFileIcon(widget.fileName),
-                  color: Color(0xFF30D158),
+                  color: const Color(0xFF30D158),
                   size: 24,
                 ),
                 const SizedBox(width: 12),
@@ -213,15 +262,21 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
                       Text(
                         widget.fileName,
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       Text(
-                        "Preview not available in app",
+                        _isImageFile(widget.fileName)
+                            ? 'Image preview'
+                            : _isTextFile(widget.fileName)
+                            ? 'Text preview'
+                            : _isWebPreviewSupported(widget.fileName)
+                            ? 'Document preview'
+                            : 'Preview not available in app',
                         style: GoogleFonts.inter(
-                          color: Colors.white54,
+                          color: context.textSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -231,33 +286,75 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
               ],
             ),
           ),
-          // Image preview if it's an image URL
           if (_isImageFile(widget.fileName) && _fileUrl != null)
             Expanded(
               child: Container(
-                color: Colors.black,
+                color: context.appBackground,
                 child: InteractiveViewer(child: Image.network(_fileUrl!)),
               ),
             ),
-          // File info for non-images
-          if (!_isImageFile(widget.fileName))
+          if (_isTextFile(widget.fileName))
             Expanded(
               child: Container(
-                color: Colors.grey[100],
+                color: context.appBackground,
+                padding: const EdgeInsets.all(16),
+                child: _textLoadError
+                    ? Center(
+                        child: Text(
+                          'Unable to load text preview.',
+                          style: GoogleFonts.inter(
+                            color: context.textSecondary,
+                            fontSize: 14,
+                          ),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        child: SelectableText(
+                          _textPreview ?? 'Loading text preview...',
+                          style: GoogleFonts.inter(
+                            color: context.textPrimary,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+          if (_isWebPreviewSupported(widget.fileName) &&
+              _webViewController != null)
+            Expanded(
+              child: Stack(
+                children: [
+                  WebViewWidget(controller: _webViewController!),
+                  if (_isWebViewLoading)
+                    Center(
+                      child: CircularProgressIndicator(
+                        color: context.textPrimary,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          if (!_isImageFile(widget.fileName) &&
+              !_isTextFile(widget.fileName) &&
+              !_isWebPreviewSupported(widget.fileName))
+            Expanded(
+              child: Container(
+                color: context.appBackground,
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
                         _getFileIcon(widget.fileName),
-                        color: Colors.grey[600]!,
+                        color: context.textSecondary,
                         size: 64,
                       ),
                       const SizedBox(height: 16),
                       Text(
                         'File cannot be previewed',
                         style: GoogleFonts.inter(
-                          color: Colors.grey[700]!,
+                          color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                         ),
@@ -266,7 +363,7 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
                       Text(
                         widget.fileName,
                         style: GoogleFonts.inter(
-                          color: Colors.grey[600]!,
+                          color: context.textSecondary,
                           fontSize: 14,
                         ),
                         textAlign: TextAlign.center,
@@ -288,13 +385,13 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
                         label: Text(
                           'Open in Browser',
                           style: GoogleFonts.inter(
-                            color: Colors.white,
+                            color: context.appBackground,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF30D158),
-                          foregroundColor: Colors.white,
+                          backgroundColor: context.textPrimary,
+                          foregroundColor: context.appBackground,
                           padding: const EdgeInsets.symmetric(
                             horizontal: 24,
                             vertical: 12,
@@ -353,5 +450,15 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
   bool _isImageFile(String fileName) {
     final extension = fileName.toLowerCase().split('.').last;
     return ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(extension);
+  }
+
+  bool _isTextFile(String fileName) {
+    final extension = fileName.toLowerCase().split('.').last;
+    return ['txt', 'csv'].contains(extension);
+  }
+
+  bool _isWebPreviewSupported(String fileName) {
+    final extension = fileName.toLowerCase().split('.').last;
+    return ['pdf', 'doc', 'docx', 'xls', 'xlsx'].contains(extension);
   }
 }

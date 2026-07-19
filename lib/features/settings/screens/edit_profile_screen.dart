@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../theme/app_theme.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -83,7 +84,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               child: Text(
                 message,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -91,12 +92,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 3),
         elevation: 0,
@@ -106,34 +107,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> loadUserProfile() async {
     try {
-      // First try to get data from companies collection (company setup data)
       final companySnapshot = await FirebaseFirestore.instance
           .collection("companies")
           .doc(uid)
           .get();
 
-      // Also get user data as fallback
       final userSnapshot = await FirebaseFirestore.instance
           .collection("users")
           .doc(uid)
           .get();
 
+      if (!mounted) return;
       setState(() {
-        // Default values
         _nameController.text = '';
         _phoneController.text = '';
         _locationController.text = '';
         _emailController.text = email;
 
-        // Priority: Use company data if available (from company setup)
         if (companySnapshot.exists) {
           final companyData = companySnapshot.data()!;
           _nameController.text = companyData["Owner Name"] ?? '';
 
-          // Parse mobile number to extract country code and phone number
           String fullMobileNumber = companyData["Mobile Number"] ?? '';
           if (fullMobileNumber.isNotEmpty) {
-            // Find the first space to separate country code from phone number
             int spaceIndex = fullMobileNumber.indexOf(' ');
             if (spaceIndex != -1) {
               String countryCode = fullMobileNumber.substring(0, spaceIndex);
@@ -141,7 +137,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   .substring(spaceIndex + 1)
                   .trim();
 
-              // Set the country code if it matches one of our codes
               for (var country in _countryCodes) {
                 if (country["code"] == countryCode) {
                   _selectedCountryCode = countryCode;
@@ -151,7 +146,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               }
               _phoneController.text = phoneNumber;
             } else {
-              // If no space found, treat entire string as phone number with default country code
               _phoneController.text = fullMobileNumber;
             }
           }
@@ -159,7 +153,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           _locationController.text = companyData["Country Location"] ?? '';
         }
 
-        // Fallback: Use user data if company data not available
         if (userSnapshot.exists && _nameController.text.isEmpty) {
           final userData = userSnapshot.data()!;
           _nameController.text = userData['name'] ?? '';
@@ -167,7 +160,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           _locationController.text = userData['location'] ?? '';
         }
 
-        // Load profile image from user data
         if (userSnapshot.exists) {
           final userData = userSnapshot.data()!;
           _profileImageFileId = userData['profileImageFileId'];
@@ -179,9 +171,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  // Telegram photo fetching methods with caching
   Future<String> getTelegramImageUrl(String fileId) async {
-    // Check cache first
     if (_telegramPhotoCache.containsKey(fileId)) {
       return _telegramPhotoCache[fileId]!;
     }
@@ -205,7 +195,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
 
-      // Cache the result
       _telegramPhotoCache[fileId] = imageUrl;
 
       return imageUrl;
@@ -216,7 +205,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _handleSave() async {
-    FocusScope.of(context).unfocus(); // Dismiss keyboard
+    FocusScope.of(context).unfocus();
 
     if (_nameController.text.trim().isEmpty) {
       _showMinimalToast("Name cannot be empty", isError: true);
@@ -226,12 +215,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Update Firebase Auth profile
       await FirebaseAuth.instance.currentUser?.updateDisplayName(
         _nameController.text.trim(),
       );
 
-      // Update user profile in users collection
       await FirebaseFirestore.instance.collection("users").doc(uid).set({
         "name": _nameController.text.trim(),
         "phone": _phoneController.text.trim(),
@@ -241,7 +228,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         "updatedAt": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // Update companies collection with the same field names as company setup
       final String fullMobileNumber =
           "$_selectedCountryCode ${_phoneController.text.trim()}";
       await FirebaseFirestore.instance.collection("companies").doc(uid).set({
@@ -271,10 +257,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
@@ -307,7 +295,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
-                          readOnly: true, // Fades out the text automatically
+                          readOnly: true,
                         ),
 
                         const SizedBox(height: 32),
@@ -350,15 +338,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(
-                  alpha: 0.05,
-                ), // White Glass Style
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -366,12 +352,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           Text(
             "Edit Profile",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(width: 44), // Balances header
+          const SizedBox(width: 44),
         ],
       ),
     );
@@ -381,7 +367,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54,
+        color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
@@ -389,8 +375,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  // Avatar Uploader with Telegram functionality
   Widget _buildAvatarUploader() {
+    final badgeBg = context.isDarkMode ? Colors.white : Colors.black;
+    final badgeIcon = context.isDarkMode ? Colors.black : Colors.white;
+
     return GestureDetector(
       onTap: _showImagePicker,
       child: Column(
@@ -399,10 +387,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             width: 100,
             height: 100,
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               shape: BoxShape.circle,
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.08),
+                color: context.borderColor,
                 width: 1,
               ),
             ),
@@ -415,22 +403,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   right: 0,
                   child: Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: badgeBg,
                       shape: BoxShape.circle,
                     ),
                     child: _isLoading
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.black,
+                              color: badgeIcon,
                             ),
                           )
-                        : const Icon(
+                        : Icon(
                             Icons.camera_alt,
-                            color: Colors.black,
+                            color: badgeIcon,
                             size: 16,
                           ),
                   ),
@@ -442,7 +430,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           Text(
             "Update Photo",
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: context.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -461,9 +449,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             return SizedBox(
               width: 100 * 0.3,
               height: 100 * 0.3,
-              child: const CircularProgressIndicator(
+              child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: Colors.white38,
+                color: context.iconSecondary,
               ),
             );
           } else if (snapshot.hasError || !snapshot.hasData) {
@@ -492,11 +480,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Container(
       width: 100,
       height: 100,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Color(0xFF141416),
+        color: context.cardBackground,
       ),
-      child: const Icon(Icons.person, size: 40, color: Colors.white38),
+      child: Icon(Icons.person, size: 40, color: context.iconSecondary),
     );
   }
 
@@ -504,7 +492,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     FocusScope.of(context).unfocus();
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF141416),
+      backgroundColor: context.cardBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -519,14 +507,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   "Profile Photo",
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
                   ),
@@ -536,12 +523,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: context.glassBackgroundStrong,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: context.borderColor),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.close,
-                      color: Colors.white54,
+                      color: context.iconSecondary,
                       size: 20,
                     ),
                   ),
@@ -550,7 +538,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Options
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -578,8 +565,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     IconData icon,
     String label,
     VoidCallback onTap, {
-    Color color = Colors.white,
+    Color? color,
   }) {
+    final effectiveColor = color ?? context.textPrimary;
     return GestureDetector(
       onTap: () {
         Navigator.pop(context);
@@ -591,17 +579,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
+              color: effectiveColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withValues(alpha: 0.2)),
+              border: Border.all(color: effectiveColor.withValues(alpha: 0.2)),
             ),
-            child: Icon(icon, color: color, size: 28),
+            child: Icon(icon, color: effectiveColor, size: 28),
           ),
           const SizedBox(height: 8),
           Text(
             label,
             style: GoogleFonts.inter(
-              color: color,
+              color: effectiveColor,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -625,7 +613,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       setState(() => _isLoading = true);
 
-      // Upload to Telegram using the same method as TelegramImagePicker
       final fileId = await _uploadToTelegram(image.path);
 
       if (fileId != null) {
@@ -665,7 +652,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         final res = await http.Response.fromStream(response);
         final data = jsonDecode(res.body);
 
-        // Take highest quality image
         return data['result']['photo'].last['file_id'];
       } else {
         throw Exception("Upload failed: ${response.statusCode}");
@@ -687,28 +673,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
         textInputAction: textInputAction,
         readOnly: readOnly,
-        canRequestFocus: !readOnly, // Removes the blinking cursor when locked
+        canRequestFocus: !readOnly,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         style: GoogleFonts.inter(
-          // FADED OUT TEXT: Dimming the color to white38 makes it visually distinct as disabled/locked
-          color: readOnly ? Colors.white38 : Colors.white, 
+          color: readOnly ? context.textTertiary : context.textPrimary,
           fontSize: 15,
           fontWeight: FontWeight.w500,
         ),
-        cursorColor: Colors.white,
+        cursorColor: context.textPrimary,
         decoration: InputDecoration(
-          icon: Icon(icon, color: Colors.white38, size: 20),
+          icon: Icon(icon, color: context.iconSecondary, size: 20),
           labelText: hint,
-          labelStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
+          labelStyle: GoogleFonts.inter(color: context.textSecondary, fontSize: 13),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
@@ -721,9 +706,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Row(
         children: [
@@ -740,15 +725,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   Text(
                     "$_selectedFlag $_selectedCountryCode",
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(width: 6),
-                  const Icon(
+                  Icon(
                     Icons.keyboard_arrow_down,
-                    color: Colors.white60,
+                    color: context.iconSecondary,
                     size: 18,
                   ),
                 ],
@@ -758,7 +743,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           Container(
             height: 24,
             width: 1,
-            color: Colors.white.withValues(alpha: 0.1),
+            color: context.borderColor,
             margin: const EdgeInsets.symmetric(horizontal: 16),
           ),
           Expanded(
@@ -768,15 +753,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               textInputAction: TextInputAction.next,
               onTapOutside: (event) => FocusScope.of(context).unfocus(),
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
-              cursorColor: Colors.white,
+              cursorColor: context.textPrimary,
               decoration: InputDecoration(
                 labelText: "Phone Number",
                 labelStyle: GoogleFonts.inter(
-                  color: Colors.white38,
+                  color: context.textSecondary,
                   fontSize: 13,
                 ),
                 border: InputBorder.none,
@@ -795,10 +780,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF141416),
+          backgroundColor: context.cardBackground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+            side: BorderSide(color: context.borderColor),
           ),
           child: Container(
             constraints: BoxConstraints(
@@ -816,7 +801,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       Text(
                         "Country Code",
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.5,
@@ -824,9 +809,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
-                        child: const Icon(
+                        child: Icon(
                           Icons.close,
-                          color: Colors.white38,
+                          color: context.iconSecondary,
                           size: 20,
                         ),
                       ),
@@ -834,7 +819,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Divider(color: Colors.white.withValues(alpha: 0.05), height: 1),
+                Divider(color: context.borderColor, height: 1),
                 Expanded(
                   child: ListView.builder(
                     physics: const BouncingScrollPhysics(),
@@ -863,7 +848,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         title: Text(
                           country["name"]!,
                           style: GoogleFonts.inter(
-                            color: isSelected ? Colors.white : Colors.white70,
+                            color: isSelected
+                                ? context.textPrimary
+                                : context.textSecondary,
                             fontSize: 14,
                             fontWeight: isSelected
                                 ? FontWeight.w600
@@ -873,7 +860,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         trailing: Text(
                           country["code"]!,
                           style: GoogleFonts.inter(
-                            color: isSelected ? Colors.white : Colors.white38,
+                            color: isSelected
+                                ? context.textPrimary
+                                : context.textTertiary,
                             fontSize: 14,
                             fontWeight: isSelected
                                 ? FontWeight.w600
@@ -893,12 +882,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildSaveButton() {
+    final btnBg = context.isDarkMode ? Colors.white : Colors.black;
+    final btnText = context.isDarkMode ? Colors.black : Colors.white;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF09090B),
+        color: context.appBackground,
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          top: BorderSide(color: context.borderColor),
         ),
       ),
       child: SizedBox(
@@ -907,20 +899,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: ElevatedButton(
           onPressed: _isLoading ? null : _handleSave,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            disabledBackgroundColor: Colors.white54,
+            backgroundColor: btnBg,
+            foregroundColor: btnText,
+            disabledBackgroundColor: context.textTertiary,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
           child: _isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   width: 24,
                   height: 24,
                   child: CircularProgressIndicator(
-                    color: Colors.black,
+                    color: btnText,
                     strokeWidth: 2,
                   ),
                 )

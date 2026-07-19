@@ -20,6 +20,7 @@ import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/team_member_service.dart';
 import '../../../utils/expense_expansion_helper.dart';
+import '../../../theme/app_theme.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(int)? onNavigateToTab;
@@ -37,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? runwayValue;
   bool isLoading = true;
   String? errorMessage;
-  
+
   // Storing raw numbers ensures real-time calculation and instant currency updates
   double _fundingAmount = 0.0;
   double _absoluteTotalExpenses = 0.0;
@@ -47,9 +48,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Real-time calculated Pie Chart data
   Map<String, double> _realtimeCategoryBreakdown = {};
-  
-  List<Map<String, dynamic>> allExpenses = [];
 
+  List<Map<String, dynamic>> allExpenses = [];
 
   bool _isPieChartLoading = true;
   bool _isMonthlyBurnLoading = true;
@@ -73,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
     CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
     _loadUserCountryCode();
-    
+
     // Initiate Real-Time Listeners
     _setupRealtimeListeners();
     _createAIData();
@@ -81,7 +81,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    CurrencyPreferenceService.currencyNotifier.removeListener(_onCurrencyChanged);
+    CurrencyPreferenceService.currencyNotifier.removeListener(
+      _onCurrencyChanged,
+    );
     _companySubscription?.cancel();
     _expensesSubscription?.cancel();
     _teamMembersSubscription?.cancel();
@@ -92,16 +94,19 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onCurrencyChanged() {
     if (mounted) {
       setState(() {
-        _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+        _userCountryCode =
+            CurrencyPreferenceService.getCurrencyPreferenceSync();
       });
     }
   }
 
   double _toDouble(dynamic value, {double fallback = 0.0}) {
     if (value == null) return fallback;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), '')) ?? fallback;
+    if (value is num) return value.toDouble();
+    if (value is String) {
+      return double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), '')) ??
+          fallback;
+    }
     return fallback;
   }
 
@@ -122,7 +127,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (botToken == null) throw Exception('Telegram bot token not found');
 
-      final res = await http.get(Uri.parse("https://api.telegram.org/bot$botToken/getFile?file_id=$fileId"));
+      final res = await http.get(
+        Uri.parse(
+          "https://api.telegram.org/bot$botToken/getFile?file_id=$fileId",
+        ),
+      );
       final data = jsonDecode(res.body);
       final path = data['result']['file_path'];
       final imageUrl = "https://api.telegram.org/file/bot$botToken/$path";
@@ -136,7 +145,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadUserCountryCode() async {
-    final currencyCode = await CurrencyPreferenceService.getCurrencyPreference();
+    final currencyCode =
+        await CurrencyPreferenceService.getCurrencyPreference();
     if (mounted && currencyCode != _userCountryCode) {
       setState(() {
         _userCountryCode = currencyCode;
@@ -177,40 +187,44 @@ class _HomeScreenState extends State<HomeScreen> {
         .collection("companies")
         .doc(user.uid)
         .snapshots()
-        .listen((docSnapshot) {
-      if (docSnapshot.exists && docSnapshot.data() != null) {
-        final data = docSnapshot.data()!;
-        
-        final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
-        
-        if (mounted) {
-          setState(() {
-            _fundingAmount = _toDouble(funding);
-            _updateRunwayValue();
-            
-            isLoading = false;
-            _isFundsLoading = false;
-          });
-          _handleRealtimeUpdate();
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            errorMessage = "No company data found";
-            isLoading = false;
-            _isFundsLoading = false;
-          });
-        }
-      }
-    }, onError: (e) {
-      if (mounted) {
-        setState(() {
-          errorMessage = "Failed to load company data";
-          isLoading = false;
-          _isFundsLoading = false;
-        });
-      }
-    });
+        .listen(
+          (docSnapshot) {
+            if (docSnapshot.exists && docSnapshot.data() != null) {
+              final data = docSnapshot.data()!;
+
+              final funding =
+                  data["Funding"] ?? data["funding"] ?? data["FUNDING"];
+
+              if (mounted) {
+                setState(() {
+                  _fundingAmount = _toDouble(funding);
+                  _updateRunwayValue();
+
+                  isLoading = false;
+                  _isFundsLoading = false;
+                });
+                _handleRealtimeUpdate();
+              }
+            } else {
+              if (mounted) {
+                setState(() {
+                  errorMessage = "No company data found";
+                  isLoading = false;
+                  _isFundsLoading = false;
+                });
+              }
+            }
+          },
+          onError: (e) {
+            if (mounted) {
+              setState(() {
+                errorMessage = "Failed to load company data";
+                isLoading = false;
+                _isFundsLoading = false;
+              });
+            }
+          },
+        );
 
     // 2. Listen to Expenses Collection (For Instant Burn, Funds & Pie Chart Updates)
     _expensesSubscription = FirebaseFirestore.instance
@@ -218,98 +232,102 @@ class _HomeScreenState extends State<HomeScreen> {
         .where('uid', isEqualTo: user.uid)
         .snapshots()
         .listen((snapshot) {
-      if (mounted) {
-        final now = DateTime.now();
-        double currentMonthTotal = 0.0;
-        double absoluteTotal = 0.0;
-        Map<String, double> localCategoryBreakdown = {};
+          if (mounted) {
+            final now = DateTime.now();
+            double currentMonthTotal = 0.0;
+            double absoluteTotal = 0.0;
+            Map<String, double> localCategoryBreakdown = {};
 
-        // Convert Firestore docs to maps first
-        final rawExpenses = snapshot.docs.map((doc) {
-          final data = doc.data();
-          return {
-            ...data,
-            'id': doc.id,
-          };
-        }).toList();
+            // Convert Firestore docs to maps first
+            final rawExpenses = snapshot.docs.map((doc) {
+              final data = doc.data();
+              return {...data, 'id': doc.id};
+            }).toList();
 
-        // 1) currentMonthBurn = projected burn this month → expand to end of month.
-        final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
-        final expandedProjected = ExpenseExpansionHelper.expandExpenses(
-          rawExpenses,
-          maxDate: endOfMonth,
-          allowFuture: true,
-        );
+            // 1) currentMonthBurn = projected burn this month → expand to end of month.
+            final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+            final expandedProjected = ExpenseExpansionHelper.expandExpenses(
+              rawExpenses,
+              maxDate: endOfMonth,
+              allowFuture: true,
+            );
 
-        final expensesList = <Map<String, dynamic>>[];
-        for (final data in expandedProjected) {
-          if (data['isFunding'] == true) continue;
+            final expensesList = <Map<String, dynamic>>[];
+            for (final data in expandedProjected) {
+              if (data['isFunding'] == true) continue;
 
-          final amount = _toDouble(data['Amount'] ?? data['amount']);
-          final dateVal = data['Date'] ?? data['date'];
-          DateTime? dt;
-          if (dateVal is Timestamp) {
-            dt = dateVal.toDate();
-          } else if (dateVal is DateTime) {
-            dt = dateVal;
+              final amount = _toDouble(data['Amount'] ?? data['amount']);
+              final dateVal = data['Date'] ?? data['date'];
+              DateTime? dt;
+              if (dateVal is Timestamp) {
+                dt = dateVal.toDate();
+              } else if (dateVal is DateTime) {
+                dt = dateVal;
+              }
+              final category = (data['Category'] ??
+                      data['category'] ??
+                      'others')
+                  .toString()
+                  .toLowerCase();
+
+              if (dt != null && dt.month == now.month && dt.year == now.year) {
+                currentMonthTotal += amount;
+                localCategoryBreakdown[category] =
+                    (localCategoryBreakdown[category] ?? 0.0) + amount;
+              }
+
+              expensesList.add({
+                'id': data['id'] ?? data['expenseId'] ?? '',
+                'amount': amount,
+                'date': dateVal is Timestamp
+                    ? dateVal
+                    : (dt != null ? Timestamp.fromDate(dt) : null),
+                'category': category,
+                'type': data['Type'] ?? data['type'] ?? 'one_time',
+                'recurrenceFrequency':
+                    data['recurrenceFrequency'] ?? data['loanRateType'] ?? 'monthly',
+                'recurringTenureMonths':
+                    data['recurringTenureMonths'] ?? data['loanTenureMonths'],
+              });
+            }
+
+            // --- Compute absoluteTotal from the expensesList by filtering future dates ---
+            for (final e in expensesList) {
+              final dt = e['date'];
+              if (dt is Timestamp && dt.toDate().isAfter(now)) {
+                continue;
+              } else if (dt is DateTime && dt.isAfter(now)) {
+                continue;
+              }
+              absoluteTotal += _toDouble(e['amount']);
+            }
+
+            // Sort in memory to keep newest first
+            expensesList.sort((a, b) {
+              final aDate = a['date'] as Timestamp?;
+              final bDate = b['date'] as Timestamp?;
+              if (aDate == null) return 1;
+              if (bDate == null) return -1;
+              return bDate.compareTo(aDate);
+            });
+
+            setState(() {
+              allExpenses = expensesList;
+              _absoluteTotalExpenses = absoluteTotal;
+              _currentMonthBurn = currentMonthTotal;
+              _realtimeCategoryBreakdown = localCategoryBreakdown;
+              _updateRunwayValue();
+
+              _isMonthlyBurnLoading = false;
+              _isPieChartLoading = false;
+            });
+
+            _handleRealtimeUpdate();
           }
-          final category = (data['Category'] ?? data['category'] ?? 'others').toString().toLowerCase();
-
-
-          if (dt != null && dt.month == now.month && dt.year == now.year) {
-            currentMonthTotal += amount;
-            localCategoryBreakdown[category] = (localCategoryBreakdown[category] ?? 0.0) + amount;
-          }
-
-          expensesList.add({
-            'id': data['id'] ?? data['expenseId'] ?? '',
-            'amount': amount,
-            'date': dateVal is Timestamp ? dateVal : (dt != null ? Timestamp.fromDate(dt) : null),
-            'category': category,
-            'type': data['Type'] ?? data['type'] ?? 'one_time',
-            'recurrenceFrequency': data['recurrenceFrequency'] ?? data['loanRateType'] ?? 'monthly',
-            'recurringTenureMonths': data['recurringTenureMonths'] ?? data['loanTenureMonths'],
-          });
-        }
-        
-        // --- Compute absoluteTotal from the expensesList by filtering future dates ---
-        for (final e in expensesList) {
-          final dt = e['date'];
-          if (dt is Timestamp && dt.toDate().isAfter(now)) {
-            continue;
-          } else if (dt is DateTime && dt.isAfter(now)) {
-            continue;
-          }
-          absoluteTotal += e['amount'] as double;
-        }
-
-        // Sort in memory to keep newest first
-        expensesList.sort((a, b) {
-          final aDate = a['date'] as Timestamp?;
-          final bDate = b['date'] as Timestamp?;
-          if (aDate == null) return 1;
-          if (bDate == null) return -1;
-          return bDate.compareTo(aDate);
+        }, onError: (e) {
+          log("Error fetching expenses: $e");
+          if (mounted) setState(() => _isMonthlyBurnLoading = false);
         });
-
-        setState(() {
-          allExpenses = expensesList;
-          _absoluteTotalExpenses = absoluteTotal;
-          _currentMonthBurn = currentMonthTotal;
-          _realtimeCategoryBreakdown = localCategoryBreakdown;
-          _updateRunwayValue();
-          
-          _isMonthlyBurnLoading = false;
-          _isPieChartLoading = false; 
-        });
-
-        _handleRealtimeUpdate();
-      }
-    }, onError: (e) {
-      log("Error fetching expenses: $e");
-      if (mounted) setState(() => _isMonthlyBurnLoading = false);
-    });
-
 
     // 3. Listen to Team Members Collection (For Salary Burn Updates in Trend Chart)
     _teamMembersSubscription = FirebaseFirestore.instance
@@ -317,19 +335,19 @@ class _HomeScreenState extends State<HomeScreen> {
         .where('uid', isEqualTo: user.uid)
         .snapshots()
         .listen((snapshot) {
-      double salariesTotal = 0.0;
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        salariesTotal += _toDouble(data['salary'] ?? data['Salary']);
-      }
-      if (mounted) {
-        setState(() {
-          _totalSalaries = salariesTotal;
-          _updateRunwayValue();
+          double salariesTotal = 0.0;
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            salariesTotal += _toDouble(data['salary'] ?? data['Salary']);
+          }
+          if (mounted) {
+            setState(() {
+              _totalSalaries = salariesTotal;
+              _updateRunwayValue();
+            });
+            _handleRealtimeUpdate();
+          }
         });
-        _handleRealtimeUpdate();
-      }
-    });
   }
 
   Future<void> _loadFinancialDataForPieChart() async {
@@ -353,25 +371,18 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // Bug 5 fix: use _absoluteTotalExpenses (past-only, salary-excluded) so that
-    // availableBalance matches the Available Funds card exactly. Previously this
-    // folded allExpenses which included projected future recurring instances,
-    // making the runway use a different base than the displayed balance.
     final availableBalance = _fundingAmount - _absoluteTotalExpenses;
     if (availableBalance <= 0) {
       runwayValue = "0.0";
       return;
     }
 
-    // Calculate current month projected burn using FinancialCalculator.
-    // allExpenses is expanded to end-of-month (allowFuture:true), and all entries
-    // are marked 'one_time' here so currentMonthBurn() won't re-expand them.
     final expensesForCalculation = allExpenses
         .map(
           (expense) => {
-            'amount': expense['amount'] as double,
+            'amount': _toDouble(expense['amount']),
             'date': expense['date'],
-            'type': 'one_time', // Already expanded — no double-counting
+            'type': 'one_time',
             'recurrenceFrequency': expense['recurrenceFrequency'],
             'recurringTenureMonths': expense['recurringTenureMonths'],
           },
@@ -405,12 +416,12 @@ class _HomeScreenState extends State<HomeScreen> {
             "${expenseDateTime.year}-${expenseDateTime.month.toString().padLeft(2, '0')}";
 
         monthlyTotals[monthKey] =
-            (monthlyTotals[monthKey] ?? 0.0) + (expense['amount'] as double);
+            (monthlyTotals[monthKey] ?? 0.0) + _toDouble(expense['amount']);
       }
     }
 
     if (monthlyTotals.isEmpty) return 0.0;
-    double total = monthlyTotals.values.fold(0.0, (sum, item) => sum + item);
+    double total = monthlyTotals.values.fold(0.0, (totalSum, item) => totalSum + item);
     return total / monthlyTotals.length;
   }
 
@@ -419,7 +430,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54,
+        color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
@@ -438,10 +449,7 @@ class _HomeScreenState extends State<HomeScreen> {
             height: 44,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.1),
-                width: 1,
-              ),
+              border: Border.all(color: context.borderColor, width: 1),
             ),
             child: ClipOval(
               child: snapshot.hasData
@@ -469,13 +477,10 @@ class _HomeScreenState extends State<HomeScreen> {
       height: 44,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
-          width: 1,
-        ),
-        color: const Color(0xFF141416),
+        border: Border.all(color: context.borderColor, width: 1),
+        color: context.cardSecondaryBackground,
       ),
-      child: const Icon(Icons.person, size: 20, color: Colors.white),
+      child: Icon(Icons.person, size: 20, color: context.iconPrimary),
     );
   }
 
@@ -486,7 +491,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Text(
           text,
           style: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textTertiary,
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
@@ -505,7 +510,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return Text(
         "--",
         style: GoogleFonts.inter(
-          color: Colors.white,
+          color: context.textPrimary,
           fontSize: 56,
           fontWeight: FontWeight.w600,
           height: 1.0,
@@ -524,7 +529,7 @@ class _HomeScreenState extends State<HomeScreen> {
             TextSpan(
               text: "$wholeMonths",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 56,
                 fontWeight: FontWeight.w600,
                 height: 1.0,
@@ -534,7 +539,7 @@ class _HomeScreenState extends State<HomeScreen> {
             TextSpan(
               text: " months",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 32,
                 fontWeight: FontWeight.w600,
                 height: 1.0,
@@ -551,7 +556,7 @@ class _HomeScreenState extends State<HomeScreen> {
             TextSpan(
               text: "$wholeMonths",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 56,
                 fontWeight: FontWeight.w600,
                 height: 1.0,
@@ -561,7 +566,7 @@ class _HomeScreenState extends State<HomeScreen> {
             TextSpan(
               text: " M ",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 32,
                 fontWeight: FontWeight.w600,
                 height: 1.0,
@@ -571,7 +576,7 @@ class _HomeScreenState extends State<HomeScreen> {
             TextSpan(
               text: "$remainingDays",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 56,
                 fontWeight: FontWeight.w600,
                 height: 1.0,
@@ -581,7 +586,7 @@ class _HomeScreenState extends State<HomeScreen> {
             TextSpan(
               text: " D",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 32,
                 fontWeight: FontWeight.w600,
                 height: 1.0,
@@ -613,9 +618,14 @@ class _HomeScreenState extends State<HomeScreen> {
     if (runway <= criticalThreshold) {
       return (runway / criticalThreshold) * 0.33;
     } else if (runway <= warningThreshold) {
-      return 0.33 + ((runway - criticalThreshold) / (warningThreshold - criticalThreshold)) * 0.33;
+      return 0.33 +
+          ((runway - criticalThreshold) /
+                  (warningThreshold - criticalThreshold)) *
+              0.33;
     } else if (runway <= safeThreshold) {
-      return 0.66 + ((runway - warningThreshold) / (safeThreshold - warningThreshold)) * 0.34;
+      return 0.66 +
+          ((runway - warningThreshold) / (safeThreshold - warningThreshold)) *
+              0.34;
     } else {
       return 1.0;
     }
@@ -623,7 +633,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   HealthStatus _calculateHealthStatus() {
     if (isLoading) return HealthStatus.unknown;
-    if (runwayValue == null || errorMessage != null) return HealthStatus.unknown;
+    if (runwayValue == null || errorMessage != null) {
+      return HealthStatus.unknown;
+    }
 
     final runway = double.tryParse(runwayValue!) ?? 0;
     if (runway <= 0) return HealthStatus.unknown;
@@ -670,12 +682,14 @@ class _HomeScreenState extends State<HomeScreen> {
     HealthStatus currentHealth = _calculateHealthStatus();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: context.isDarkMode
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         floatingActionButton: FloatingActionButton(
-          backgroundColor: const Color(0xFF0A84FF),
-          child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+          backgroundColor: context.textPrimary,
+          child: Icon(Icons.chat_bubble_outline, color: context.appBackground),
           onPressed: () {
             Navigator.push(
               context,
@@ -714,7 +728,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       child: _buildFlatMetricCard(
                         label: "Available Funds",
-                        value: _isFundsLoading ? null : _formatCurrency(_availableFunds),
+                        value: _isFundsLoading
+                            ? null
+                            : _formatCurrency(_availableFunds),
                         icon: Icons.account_balance_wallet_outlined,
                         isLoading: _isFundsLoading,
                       ),
@@ -731,8 +747,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       child: _buildFlatMetricCard(
                         label: "Monthly Burn",
-                        value: _isMonthlyBurnLoading || _currentMonthBurn <= 0 
-                                ? '--' 
+                        value:
+                            _isMonthlyBurnLoading || _currentMonthBurn <= 0
+                                ? '--'
                                 : _formatCurrency(_currentMonthBurn),
                         icon: Icons.local_fire_department_outlined,
                         isBurn: true,
@@ -794,7 +811,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 "Overview",
                 style: GoogleFonts.inter(
-                  color: Colors.white38,
+                  color: context.textTertiary,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
@@ -803,7 +820,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 "Startup Health",
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 28,
                   fontWeight: FontWeight.w600,
                   letterSpacing: -1,
@@ -820,7 +837,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection("users").doc(user.uid).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .snapshots(),
       builder: (context, userSnapshot) {
         String? profileImageFileId;
         if (userSnapshot.hasData && userSnapshot.data!.exists) {
@@ -838,7 +858,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(
                   "Overview",
                   style: GoogleFonts.inter(
-                    color: Colors.white38,
+                    color: context.textTertiary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -847,7 +867,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(
                   "Startup Health",
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 28,
                     fontWeight: FontWeight.w600,
                     letterSpacing: -1,
@@ -882,7 +902,7 @@ class _HomeScreenState extends State<HomeScreen> {
         statusText = "CRITICAL";
         break;
       case HealthStatus.unknown:
-        statusColor = Colors.white54;
+        statusColor = context.textSecondary;
         statusText = "NO DATA";
         break;
     }
@@ -891,9 +911,18 @@ class _HomeScreenState extends State<HomeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
+        boxShadow: context.isDarkMode
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -951,7 +980,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(
                   "--",
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 56,
                     fontWeight: FontWeight.w600,
                     height: 1.0,
@@ -972,7 +1001,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         _getRunwaySubtitle(runwayValue ?? "0"),
                         style: GoogleFonts.inter(
-                          color: Colors.white38,
+                          color: context.textTertiary,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
@@ -988,7 +1017,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: LinearProgressIndicator(
               value: _calculateRunwayProgress(),
               minHeight: 4,
-              backgroundColor: Colors.white.withValues(alpha: 0.05),
+              backgroundColor: context.glassBackground,
               valueColor: AlwaysStoppedAnimation<Color>(statusColor),
             ),
           ),
@@ -1008,14 +1037,23 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
+        boxShadow: context.isDarkMode
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.white38, size: 20),
+          Icon(icon, color: context.iconSecondary, size: 20),
           const SizedBox(height: 20),
           if (isLoading)
             AnimatedOpacity(
@@ -1025,7 +1063,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 80,
                 height: 24,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
+                  color: context.glassBackgroundStrong,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1041,7 +1079,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         ? "₹0"
                         : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
                 style: GoogleFonts.inter(
-                  color: value != null ? Colors.white : Colors.white54,
+                  color: value != null
+                      ? context.textPrimary
+                      : context.textSecondary,
                   fontSize: 24,
                   fontWeight: FontWeight.w600,
                   letterSpacing: -0.5,
@@ -1052,7 +1092,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(
             label,
             style: GoogleFonts.inter(
-              color: Colors.white54,
+              color: context.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.2,
@@ -1068,17 +1108,26 @@ class _HomeScreenState extends State<HomeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
+        boxShadow: context.isDarkMode
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: _isTrendLoading
-          ? const SizedBox(
+          ? SizedBox(
               height: 160,
               child: Center(
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Colors.white38,
+                  color: context.iconSecondary,
                 ),
               ),
             )
@@ -1088,10 +1137,10 @@ class _HomeScreenState extends State<HomeScreen> {
               height: 160,
               child: Builder(
                 builder: (context) {
-                  // Safely handle chronological ordering for chart
                   List<Map<String, dynamic>> display = _trendData;
                   if (display.isNotEmpty) {
-                    bool isNewestFirst = display.first['isCurrentMonth'] == true;
+                    bool isNewestFirst =
+                        display.first['isCurrentMonth'] == true;
                     if (isNewestFirst) {
                       display = display.take(6).toList().reversed.toList();
                     } else {
@@ -1144,7 +1193,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Text(
             _formatCurrency(amount),
             style: GoogleFonts.inter(
-              color: isActive ? Colors.white : Colors.white54,
+              color: isActive ? context.textPrimary : context.textSecondary,
               fontSize: 9,
               fontWeight: FontWeight.w600,
             ),
@@ -1162,7 +1211,9 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Container(
                 width: 36,
                 decoration: BoxDecoration(
-                  color: isActive ? Colors.white : const Color(0xFF1F1F22),
+                  color: isActive
+                      ? context.textPrimary
+                      : context.cardSecondaryBackground,
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),
@@ -1173,7 +1224,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Text(
           label,
           style: GoogleFonts.inter(
-            color: isActive ? Colors.white : Colors.white38,
+            color: isActive ? context.textPrimary : context.textTertiary,
             fontSize: 11,
             fontWeight: FontWeight.w500,
           ),
@@ -1190,20 +1241,19 @@ class _HomeScreenState extends State<HomeScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          border: Border.all(color: context.borderColor),
         ),
-        child: const Center(
+        child: Center(
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: Colors.white38,
+            color: context.iconSecondary,
           ),
         ),
       );
     }
 
-    // Use REAL-TIME data populated from the stream listener
     final categoryBreakdown = _realtimeCategoryBreakdown;
     final totalExpenses = _currentMonthBurn;
 
@@ -1212,9 +1262,9 @@ class _HomeScreenState extends State<HomeScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          border: Border.all(color: context.borderColor),
         ),
         child: _buildEmptyState("No expense data available"),
       );
@@ -1226,7 +1276,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     final expenseData = categories.entries.map((entry) {
-      final amount = entry.value['amount'] as double;
+      final amount = _toDouble(entry.value['amount']);
       final percentage = FinancialCalculator.calculatePercentage(
         amount: amount,
         total: totalExpenses,
@@ -1240,16 +1290,26 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList();
 
     expenseData.sort(
-      (a, b) => (b['percentage'] as int).compareTo(a['percentage'] as int),
+      (a, b) => ((b['percentage'] as num?)?.toInt() ?? 0)
+          .compareTo((a['percentage'] as num?)?.toInt() ?? 0),
     );
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
+        boxShadow: context.isDarkMode
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Column(
         children: [
@@ -1268,7 +1328,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       sections: expenseData.map((data) {
                         return PieChartSectionData(
                           color: data['color'] as Color,
-                          value: (data['percentage'] as int).toDouble(),
+                          value: _toDouble(data['percentage']),
                           title: '',
                           radius: 16,
                           showTitle: false,
@@ -1302,7 +1362,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Text(
                               data['category'] as String,
                               style: GoogleFonts.inter(
-                                color: Colors.white70,
+                                color: context.textSecondary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -1313,7 +1373,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Text(
                             '${data['percentage']}%',
                             style: GoogleFonts.inter(
-                              color: Colors.white,
+                              color: context.textPrimary,
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                               fontFeatures: [
@@ -1333,9 +1393,9 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.03),
+              color: context.glassBackground,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              border: Border.all(color: context.borderColor),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1343,7 +1403,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(
                   'Total Monthly Expenses',
                   style: GoogleFonts.inter(
-                    color: Colors.white54,
+                    color: context.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -1355,7 +1415,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Text(
                       _formatCurrency(totalExpenses),
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         fontFeatures: [const FontFeature.tabularFigures()],
@@ -1378,28 +1438,25 @@ class _HomeScreenState extends State<HomeScreen> {
         MaterialPageRoute(builder: (_) => const MonthlyBurnScreen()),
       ),
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 8,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: context.glassBackgroundStrong,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+          border: Border.all(color: context.borderColor),
         ),
         child: Row(
           children: [
             Text(
               "VIEW ALL",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.0,
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.arrow_forward, color: Colors.white, size: 12),
+            Icon(Icons.arrow_forward, color: context.textPrimary, size: 12),
           ],
         ),
       ),

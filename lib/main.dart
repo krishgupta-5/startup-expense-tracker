@@ -1,12 +1,12 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:startup_expense_tracker/features/auth/auth_wrapper.dart';
 import 'package:startup_expense_tracker/firebase_options.dart';
 import 'package:startup_expense_tracker/services/user_country_service.dart';
 import 'package:startup_expense_tracker/services/currency_preference_service.dart';
+import 'package:startup_expense_tracker/services/theme_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -20,6 +20,10 @@ void main() async {
   // Initialize currency preference service
   CurrencyPreferenceService.initialize();
 
+  // Initialize theme preference from local disk cache BEFORE runApp
+  // This ensures the app boots instantly in the exact cached theme (zero flash!)
+  await ThemeService.initializeCache();
+
   runApp(const FinancialDashboardApp());
 }
 
@@ -28,23 +32,22 @@ class FinancialDashboardApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ShadTheme(
-      data: ShadThemeData(
-        brightness: Brightness.dark,
-        colorScheme: const ShadSlateColorScheme.dark(),
-      ),
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'Financial Dashboard',
-        theme: ThemeData(
-          brightness: Brightness.dark,
-          scaffoldBackgroundColor: AppTheme.background,
-          textTheme: GoogleFonts.interTextTheme(),
-          useMaterial3: true,
-          iconTheme: const IconThemeData(color: Colors.white),
-        ),
-        home: const AuthWrapper(),
-      ),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeService.themeModeNotifier,
+      builder: (context, themeMode, child) {
+        final isDark = themeMode == ThemeMode.dark;
+        return ShadTheme(
+          data: isDark ? AppTheme.darkShadTheme : AppTheme.lightShadTheme,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: 'Financial Dashboard',
+            themeMode: themeMode,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            home: const AuthWrapper(),
+          ),
+        );
+      },
     );
   }
 }

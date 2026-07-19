@@ -11,6 +11,7 @@ import '../../../services/currency_formatter.dart';
 import '../../../services/user_country_service.dart';
 import '../../../services/bank_account_service.dart';
 import '../../home/screens/add_bank_account_screen.dart';
+import '../../../theme/app_theme.dart';
 
 class CompanyDetailsScreen extends StatefulWidget {
   const CompanyDetailsScreen({super.key});
@@ -82,7 +83,10 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
     if (value == null) return fallback;
     if (value is double) return value;
     if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), '')) ?? fallback;
+    if (value is String) {
+      return double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), '')) ??
+          fallback;
+    }
     return fallback;
   }
 
@@ -90,7 +94,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // Listen to Company Document (for Funding amount)
     _companySubscription = FirebaseFirestore.instance
         .collection("companies")
         .doc(user.uid)
@@ -107,7 +110,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       }
     });
 
-    // Listen to Expenses Collection (for total expenses & runway calc)
     _expensesSubscription = FirebaseFirestore.instance
         .collection('expenses')
         .where('uid', isEqualTo: user.uid)
@@ -136,7 +138,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         Text(
           label,
           style: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textSecondary,
             fontSize: 11,
             fontWeight: FontWeight.w600,
           ),
@@ -146,14 +148,14 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: Text(
             value,
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
             ),
@@ -178,7 +180,9 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         final data = doc.data();
         return {
           'id': doc.id,
-          'amount': (data['Amount'] as num).toDouble(),
+          'amount': (data['Amount'] as num?)?.toDouble() ??
+              (data['amount'] as num?)?.toDouble() ??
+              0.0,
           'bankAccount':
               data['BankAccount'] ??
               data['Bank Account'] ??
@@ -194,9 +198,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
 
   Future<void> _fetchBankAccounts() async {
     try {
-      debugPrint('🔍 DEBUG: Fetching bank accounts using BankAccountService');
-
-      // Use BankAccountService to get bank accounts with spending data
       final accountsWithSpending =
           await BankAccountService.getBankAccountsWithSpending(_allExpenses);
 
@@ -204,18 +205,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         setState(() {
           _bankAccounts = accountsWithSpending;
         });
-      }
-
-      debugPrint(
-        '🔍 DEBUG: Fetched ${_bankAccounts.length} bank accounts with spending data',
-      );
-
-      // Debug: Print each account to see the structure
-      for (var account in _bankAccounts) {
-        debugPrint('🔍 DEBUG: Account structure: $account');
-        debugPrint('🔍 DEBUG: Account name: "${account['name']}"');
-        debugPrint('🔍 DEBUG: Account bankName: "${account['bankName']}"');
-        debugPrint('🔍 DEBUG: Available fields: ${account.keys.toList()}');
       }
     } catch (e) {
       debugPrint('❌ DEBUG: Error fetching bank accounts: $e');
@@ -243,7 +232,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
               child: Text(
                 message,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -251,12 +240,12 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 3),
         elevation: 0,
@@ -269,15 +258,15 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: const Color(0xFF141416),
+          backgroundColor: context.cardBackground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+            side: BorderSide(color: context.borderColor),
           ),
           title: Text(
             'Delete Bank Account',
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
@@ -285,7 +274,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
           content: Text(
             'Are you sure you want to delete "${account['name']?.toString() ?? account['bankName']?.toString() ?? account['bank_name']?.toString() ?? 'Unknown Bank'}"? This action cannot be undone.',
             style: GoogleFonts.inter(
-              color: Colors.white70,
+              color: context.textSecondary,
               fontSize: 14,
               fontWeight: FontWeight.w400,
             ),
@@ -296,7 +285,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
               child: Text(
                 'Cancel',
                 style: GoogleFonts.inter(
-                  color: Colors.white54,
+                  color: context.textSecondary,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
@@ -333,11 +322,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         return;
       }
 
-      debugPrint(
-        '🔍 DEBUG: Attempting to delete bank account with ID: $accountId',
-      );
-
-      // Try to delete from subcollection first (new model)
       try {
         await FirebaseFirestore.instance
             .collection('companies')
@@ -346,14 +330,10 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
             .doc(accountId)
             .delete();
 
-        debugPrint('🔍 DEBUG: Successfully deleted from subcollection');
         _showSuccessMessage('Bank account deleted successfully');
         await _loadAllData();
         return;
       } catch (e) {
-        debugPrint('🔍 DEBUG: Failed to delete from subcollection: $e');
-
-        // Fallback: try to remove from company array (old model)
         try {
           final companyDoc = await FirebaseFirestore.instance
               .collection('companies')
@@ -364,7 +344,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
             final data = companyDoc.data()!;
             final bankAccounts = data["Bank Accounts"] as List<dynamic>? ?? [];
 
-            // Find and remove the account by matching name and last4
             final updatedAccounts = bankAccounts.where((accountData) {
               if (accountData is Map<String, dynamic>) {
                 final bankName =
@@ -398,19 +377,14 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                 .doc(user.uid)
                 .update({'Bank Accounts': updatedAccounts});
 
-            debugPrint('🔍 DEBUG: Successfully deleted from company array');
             _showSuccessMessage('Bank account deleted successfully');
             await _loadAllData();
           }
         } catch (fallbackError) {
-          debugPrint(
-            '❌ DEBUG: Failed to delete from company array: $fallbackError',
-          );
           _showErrorMessage('Failed to delete bank account');
         }
       }
     } catch (e) {
-      debugPrint('❌ DEBUG: Error deleting bank account: $e');
       _showErrorMessage('Failed to delete bank account');
     }
   }
@@ -427,7 +401,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
               child: Text(
                 message,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -435,12 +409,12 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 3),
         elevation: 0,
@@ -499,7 +473,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
           // --- FIXED: Reverse Lookup for Dropdown Key ---
           final savedType = data["Company Type"];
           if (savedType != null) {
-            // Find the key corresponding to the saved value to prevent ShadSelect crash
             final key = companyTypes.keys.firstWhere(
               (k) => companyTypes[k] == savedType || k == savedType,
               orElse: () => "sole_proprietorship",
@@ -545,12 +518,11 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Make sure the Auth Display Name stays perfectly in sync
       await user.updateDisplayName(_ownerNameController.text.trim());
 
       await FirebaseFirestore.instance.collection("users").doc(user.uid).set({
         "name": _ownerNameController.text.trim(),
-        "email": _emailController.text.trim(), // Also sync email
+        "email": _emailController.text.trim(),
         "updatedAt": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
@@ -561,10 +533,12 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
@@ -585,9 +559,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                       _buildInputGroup("OFFICIAL EMAIL", _emailController),
                       const SizedBox(height: 40),
                       _buildSectionLabel("LEGAL & LOCATION"),
-                      _buildDropdownGroup(
-                        "COMPANY TYPE",
-                      ),
+                      _buildDropdownGroup("COMPANY TYPE"),
                       const SizedBox(height: 24),
                       _buildInputGroup(
                         "DESCRIPTION",
@@ -604,7 +576,10 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                       _buildSectionLabel("FINANCIAL OVERVIEW"),
                       _buildReadOnlyMetric(
                         "FUNDS LEFT (${CurrencyFormatter.getCurrencySymbol(_userCountryCode)})",
-                        CurrencyFormatter.formatByCountryCompact(_availableFunds, _userCountryCode),
+                        CurrencyFormatter.formatByCountryCompact(
+                          _availableFunds,
+                          _userCountryCode,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       _buildInputGroup(
@@ -640,13 +615,13 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -654,7 +629,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
           Text(
             "Company Details",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -671,7 +646,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
       child: Text(
         text,
         style: GoogleFonts.inter(
-          color: Colors.white24,
+          color: context.textTertiary,
           fontSize: 10,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.5,
@@ -692,7 +667,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         Text(
           label,
           style: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textSecondary,
             fontSize: 11,
             fontWeight: FontWeight.w600,
           ),
@@ -701,20 +676,20 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: TextField(
             controller: controller,
             keyboardType: isNumber ? TextInputType.number : TextInputType.text,
             maxLines: maxLines,
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
             ),
-            cursorColor: Colors.white,
+            cursorColor: context.textPrimary,
             decoration: const InputDecoration(
               border: InputBorder.none,
               contentPadding: EdgeInsets.symmetric(vertical: 14),
@@ -733,7 +708,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         Text(
           label,
           style: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textSecondary,
             fontSize: 11,
             fontWeight: FontWeight.w600,
           ),
@@ -742,22 +717,24 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
         ConstrainedBox(
           constraints: const BoxConstraints(minWidth: double.infinity),
           child: ShadSelect<String>(
-            key: ValueKey(_selectedType), // Force rebuild when data loads
-            initialValue: _selectedType, // Provide the validated key
+            key: ValueKey(_selectedType),
+            initialValue: _selectedType,
             placeholder: Text(
               'Select $label',
-              style: GoogleFonts.inter(color: Colors.white24, fontSize: 15),
+              style: GoogleFonts.inter(
+                color: context.textTertiary,
+                fontSize: 15,
+              ),
             ),
             options: [
               ...companyTypes.entries.map(
                 (e) => ShadOption(value: e.key, child: Text(e.value)),
               ),
             ],
-            // --- FIXED: Added null fallback here to prevent crash ---
             selectedOptionBuilder: (context, selectedValue) => Text(
               companyTypes[selectedValue] ?? selectedValue,
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
@@ -783,7 +760,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
             Text(
               "LINKED PAYMENT METHODS",
               style: GoogleFonts.inter(
-                color: Colors.white24,
+                color: context.textTertiary,
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.5,
@@ -798,7 +775,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                   ),
                 );
                 if (result != null) {
-                  // Bank account was added successfully, reload data
                   await _loadAllData();
                   _showSuccessMessage('Bank account added successfully');
                 }
@@ -806,21 +782,22 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
+                  color: context.glassBackgroundStrong,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: context.borderColor),
                 ),
-                child: const Icon(Icons.add, color: Colors.white, size: 16),
+                child: Icon(Icons.add, color: context.iconPrimary, size: 16),
               ),
             ),
           ],
         ),
         const SizedBox(height: 8),
         if (_isLoading)
-          const Center(
+          Center(
             child: Padding(
-              padding: EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16.0),
               child: CircularProgressIndicator(
-                color: Colors.white38,
+                color: context.iconSecondary,
                 strokeWidth: 2,
               ),
             ),
@@ -831,7 +808,10 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Text(
                 "No accounts added",
-                style: GoogleFonts.inter(color: Colors.white24, fontSize: 13),
+                style: GoogleFonts.inter(
+                  color: context.textSecondary,
+                  fontSize: 13,
+                ),
               ),
             ),
           )
@@ -843,11 +823,9 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF141416),
+                  color: context.cardBackground,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.04),
-                  ),
+                  border: Border.all(color: context.borderColor),
                 ),
                 child: Row(
                   children: [
@@ -882,7 +860,6 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Handle multiple possible field names for bank name
                           Text(
                             (() {
                               final bankName =
@@ -893,7 +870,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                               return bankName;
                             })(),
                             style: GoogleFonts.inter(
-                              color: Colors.white,
+                              color: context.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
@@ -910,15 +887,15 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
                               return maskedNumber;
                             })(),
                             style: GoogleFonts.inter(
-                              color: Colors.white70,
+                              color: context.textSecondary,
                               fontSize: 13,
                             ),
                           ),
                           if (account['totalSpent'] != null &&
-                              (account['totalSpent'] as num) > 0) ...[
+                              ((account['totalSpent'] as num?)?.toDouble() ?? 0.0) > 0) ...[
                             const SizedBox(height: 4),
                             Text(
-                              'Spent: ${CurrencyFormatter.formatByCountryCompact((account['totalSpent'] as num).toDouble(), _userCountryCode)}',
+                              'Spent: ${CurrencyFormatter.formatByCountryCompact((account['totalSpent'] as num?)?.toDouble() ?? 0.0, _userCountryCode)}',
                               style: GoogleFonts.inter(
                                 color: const Color(0xFFFF453A),
                                 fontSize: 11,
@@ -958,12 +935,15 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
   }
 
   Widget _buildSaveButton() {
+    final btnBg = context.isDarkMode ? Colors.white : Colors.black;
+    final btnText = context.isDarkMode ? Colors.black : Colors.white;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF09090B),
+        color: context.appBackground,
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          top: BorderSide(color: context.borderColor),
         ),
       ),
       child: SizedBox(
@@ -975,8 +955,8 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
             if (mounted) Navigator.pop(context);
           },
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
+            backgroundColor: btnBg,
+            foregroundColor: btnText,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),

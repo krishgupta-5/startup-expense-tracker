@@ -7,6 +7,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
 import 'category_settings_screen.dart';
+import '../../../theme/app_theme.dart';
 
 class BudgetSettingsScreen extends StatefulWidget {
   const BudgetSettingsScreen({super.key});
@@ -18,7 +19,7 @@ class BudgetSettingsScreen extends StatefulWidget {
 class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   final _budgetController = TextEditingController();
-  
+
   bool _isLoading = false;
   bool _isLoadingData = true;
   String _userCountryCode = '+1'; // Default to USD
@@ -26,8 +27,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
   int _categoryRebuildKey = 0;
 
   Map<String, String> _allCategories = {};
-
-  // Default to the first specific category
   String _selectedCategory = '';
 
   @override
@@ -35,8 +34,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
     super.initState();
     _loadUserCountryCode();
     _loadCurrentBudget();
-
-    // Listen for currency changes
     CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
   }
 
@@ -59,7 +56,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
   }
 
   Future<void> _loadUserCountryCode() async {
-    final currencyCode = await CurrencyPreferenceService.getCurrencyPreference();
+    final currencyCode =
+        await CurrencyPreferenceService.getCurrencyPreference();
     if (mounted) {
       setState(() {
         _userCountryCode = currencyCode;
@@ -75,7 +73,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Get user document to find companyId
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -84,7 +81,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       final companyId = userDoc.data()?['companyId'];
       if (companyId == null) return;
 
-      // Load budget settings from company document
       final companyDoc = await FirebaseFirestore.instance
           .collection('companies')
           .doc(companyId)
@@ -93,7 +89,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       if (companyDoc.exists) {
         final companyData = companyDoc.data() as Map<String, dynamic>;
         final budgets = companyData['budgets'] as Map<String, dynamic>? ?? {};
-        final selectedCats = (companyData['Categories'] as List<dynamic>?)?.cast<String>() ?? [];
+        final selectedCats =
+            (companyData['Categories'] as List<dynamic>?)?.cast<String>() ?? [];
 
         final Map<String, String> fetchedCategories = {};
         for (final val in selectedCats) {
@@ -106,7 +103,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
           setState(() {
             _allCategories = fetchedCategories;
 
-            // Ensure _selectedCategory is valid
             if (!_allCategories.containsKey(_selectedCategory)) {
               _selectedCategory = _allCategories.keys.firstWhere(
                 (k) => k != 'add_new',
@@ -117,7 +113,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
             _currentBudget = DataHelpers.safeParseDouble(
               budgets[_selectedCategory] ?? 0.0,
             );
-            // Pre-fill the controller with the current budget
             _budgetController.text = _currentBudget > 0
                 ? _currentBudget.toStringAsFixed(2)
                 : '';
@@ -141,7 +136,9 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
           children: [
             Icon(
               isError ? Icons.error_outline : Icons.check_circle_outline,
-              color: isError ? const Color(0xFFFF453A) : const Color(0xFF30D158),
+              color: isError
+                  ? const Color(0xFFFF453A)
+                  : const Color(0xFF30D158),
               size: 18,
             ),
             const SizedBox(width: 12),
@@ -149,7 +146,7 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
               child: Text(
                 message,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -157,12 +154,12 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 3),
         elevation: 0,
@@ -173,7 +170,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
   Future<void> _saveBudget() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Dismiss keyboard
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
 
@@ -181,7 +177,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Get user document to find companyId
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -190,18 +185,16 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       final companyId = userDoc.data()?['companyId'];
       if (companyId == null) return;
 
-      final budgetAmount = CurrencyFormatter.parse(
-        _budgetController.text.trim()
-      ) ?? 0.0;
+      final budgetAmount =
+          CurrencyFormatter.parse(_budgetController.text.trim()) ?? 0.0;
 
-      // Update budget in company document
       await FirebaseFirestore.instance
           .collection('companies')
           .doc(companyId)
           .update({
-        'budgets.$_selectedCategory': budgetAmount,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+            'budgets.$_selectedCategory': budgetAmount,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
       if (mounted) {
         setState(() {
@@ -222,22 +215,28 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currencySymbol = CurrencyFormatter.getCurrencySymbol(_userCountryCode);
+    final currencySymbol = CurrencyFormatter.getCurrencySymbol(
+      _userCountryCode,
+    );
 
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
               _buildHeader(context),
               Expanded(
                 child: _isLoadingData
-                    ? const Center(
+                    ? Center(
                         child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white38),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            context.iconSecondary,
+                          ),
                         ),
                       )
                     : GestureDetector(
@@ -251,13 +250,9 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const SizedBox(height: 32),
-
-                                // Category Selection
                                 _buildSectionLabel("EXPENSE CATEGORY"),
                                 _buildCategorySelector(),
                                 const SizedBox(height: 32),
-
-                                // Current Budget Display
                                 _buildReadOnlyMetric(
                                   "CURRENT ALLOCATION",
                                   CurrencyFormatter.formatByCountryCompact(
@@ -267,11 +262,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                                   highlight: _currentBudget > 0,
                                 ),
                                 const SizedBox(height: 32),
-
-                                // Budget Amount Input
                                 _buildSectionLabel("UPDATE MONTHLY LIMIT"),
                                 _buildAmountInput(currencySymbol),
-
                                 const SizedBox(height: 100),
                               ],
                             ),
@@ -287,8 +279,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
     );
   }
 
-  // --- WIDGET BUILDERS ---
-
   Widget _buildHeader(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -300,13 +290,13 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -314,7 +304,7 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
           Text(
             "Budget Settings",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -331,7 +321,7 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       child: Text(
         text.toUpperCase(),
         style: GoogleFonts.inter(
-          color: Colors.white54,
+          color: context.textTertiary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.5,
@@ -343,12 +333,11 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
   Widget _buildCategorySelector() {
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: double.infinity),
-      // Removed outer container to eliminate the double box issue
       child: ShadSelect<String>(
         key: ValueKey('${_selectedCategory}_$_categoryRebuildKey'),
         placeholder: Text(
           'Select category',
-          style: GoogleFonts.inter(color: Colors.white24, fontSize: 15),
+          style: GoogleFonts.inter(color: context.textTertiary, fontSize: 15),
         ),
         initialValue: _selectedCategory,
         onChanged: (value) {
@@ -363,7 +352,7 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                 _loadCurrentBudget();
                 setState(() {
                   _categoryRebuildKey++;
-                }); // Force rebuild
+                });
               });
             } else {
               setState(() {
@@ -378,7 +367,7 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
           return Text(
             _allCategories[value] ?? 'Select category',
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
             ),
@@ -389,7 +378,7 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
             value: entry.key,
             child: Text(
               entry.value,
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+              style: GoogleFonts.inter(color: context.textPrimary, fontSize: 14),
             ),
           );
         }).toList(),
@@ -397,14 +386,18 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
     );
   }
 
-  Widget _buildReadOnlyMetric(String label, String value, {bool highlight = false}) {
+  Widget _buildReadOnlyMetric(
+    String label,
+    String value, {
+    bool highlight = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: GoogleFonts.inter(
-            color: highlight ? const Color(0xFF30D158) : Colors.white38,
+            color: highlight ? const Color(0xFF30D158) : context.textSecondary,
             fontSize: 10,
             fontWeight: FontWeight.w600,
             letterSpacing: 1.2,
@@ -413,15 +406,14 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
         const SizedBox(height: 8),
         Container(
           width: double.infinity,
-          // Refined padding to closely match the inputs
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: highlight 
-                ? const Color(0xFF30D158).withValues(alpha: 0.3) 
-                : Colors.white.withValues(alpha: 0.04)
+              color: highlight
+                  ? const Color(0xFF30D158).withValues(alpha: 0.3)
+                  : context.borderColor,
             ),
           ),
           child: FittedBox(
@@ -430,9 +422,10 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
             child: Text(
               value,
               style: GoogleFonts.inter(
-                color: highlight ? const Color(0xFF30D158) : Colors.white,
-                // Reduced from 20 to 18 to match standard elegant typography
-                fontSize: 18, 
+                color: highlight
+                    ? const Color(0xFF30D158)
+                    : context.textPrimary,
+                fontSize: 18,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -444,12 +437,11 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
 
   Widget _buildAmountInput(String currencySymbol) {
     return Container(
-      // Refined vertical padding to match the ReadOnlyMetric and Select
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2), 
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -457,8 +449,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
           Text(
             currencySymbol,
             style: GoogleFonts.inter(
-              color: Colors.white54,
-              fontSize: 18, // Normalized size 
+              color: context.textSecondary,
+              fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -470,15 +462,15 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
               textInputAction: TextInputAction.done,
               onTapOutside: (event) => FocusScope.of(context).unfocus(),
               style: GoogleFonts.inter(
-                color: Colors.white,
-                fontSize: 18, // Normalized size
+                color: context.textPrimary,
+                fontSize: 18,
                 fontWeight: FontWeight.w600,
               ),
-              cursorColor: Colors.white,
+              cursorColor: context.textPrimary,
               decoration: InputDecoration(
                 hintText: "0.00",
                 hintStyle: GoogleFonts.inter(
-                  color: Colors.white12,
+                  color: context.textTertiary,
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                 ),
@@ -490,7 +482,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                   height: 0.8,
                 ),
               ),
-              // Allowed characters are handled by CurrencyFormatter.parse
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'Amount required';
@@ -509,12 +500,15 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
   }
 
   Widget _buildSubmitButton() {
+    final btnBg = context.isDarkMode ? Colors.white : Colors.black;
+    final btnText = context.isDarkMode ? Colors.black : Colors.white;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF09090B),
+        color: context.appBackground,
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          top: BorderSide(color: context.borderColor),
         ),
       ),
       child: SizedBox(
@@ -523,21 +517,21 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
         child: ElevatedButton(
           onPressed: _isLoading ? null : _saveBudget,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            disabledBackgroundColor: Colors.white.withValues(alpha: 0.2),
+            backgroundColor: btnBg,
+            foregroundColor: btnText,
+            disabledBackgroundColor: context.textTertiary,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
           child: _isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   height: 20,
                   width: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.black,
+                    color: btnText,
                   ),
                 )
               : Text(
@@ -553,7 +547,6 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
   }
 }
 
-// Helper class for data parsing
 class DataHelpers {
   static double safeParseDouble(dynamic value) {
     if (value == null) return 0.0;

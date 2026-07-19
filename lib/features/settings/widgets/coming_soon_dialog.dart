@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../theme/app_theme.dart';
 
 class ComingSoonDialog extends StatelessWidget {
   const ComingSoonDialog({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final btnBg = context.isDarkMode
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.08);
+
     return Dialog(
-      backgroundColor: const Color(0xFF141416),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: context.cardBackground,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: context.borderColor),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -27,7 +35,7 @@ class ComingSoonDialog extends StatelessWidget {
             Text(
               "Coming Soon!",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
               ),
@@ -36,7 +44,10 @@ class ComingSoonDialog extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               "This feature is currently under development and will be available in a future update.",
-              style: GoogleFonts.inter(color: Colors.white60, fontSize: 14),
+              style: GoogleFonts.inter(
+                color: context.textSecondary,
+                fontSize: 14,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -46,8 +57,8 @@ class ComingSoonDialog extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2C2C2E),
-                  foregroundColor: Colors.white,
+                  backgroundColor: btnBg,
+                  foregroundColor: context.textPrimary,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

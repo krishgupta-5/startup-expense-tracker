@@ -18,6 +18,7 @@ import '../../../widgets/avatar_widget.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../utils/data_helpers.dart';
+import '../../../theme/app_theme.dart';
 import '../../../utils/expense_expansion_helper.dart';
 
 class MemberDetailScreen extends StatefulWidget {
@@ -115,9 +116,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: context.appBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           bottom: false,
           child: StreamBuilder<DocumentSnapshot>(
@@ -128,8 +131,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting &&
                   !snapshot.hasData) {
-                return const Center(
-                  child: CircularProgressIndicator(color: Colors.white38),
+                return Center(
+                  child: CircularProgressIndicator(color: context.textSecondary),
                 );
               }
 
@@ -139,7 +142,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 return Center(
                   child: Text(
                     "Member not found.",
-                    style: GoogleFonts.inter(color: Colors.white54),
+                    style: GoogleFonts.inter(color: context.textSecondary),
                   ),
                 );
               }
@@ -250,10 +253,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                           Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF141416),
+                              color: context.cardBackground,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.04),
+                                color: context.borderColor,
                               ),
                             ),
                             child: Column(
@@ -314,20 +317,16 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                         8, // Slightly taller for touch area
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(
-                                      alpha: 0.08,
-                                    ), // Glassy white
+                                    color: context.cardBackground,
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.15,
-                                      ), // Crisp border
+                                      color: context.borderColor,
                                     ),
                                   ),
                                   child: Text(
                                     "VIEW ALL",
                                     style: GoogleFonts.inter(
-                                      color: Colors.white,
+                                      color: context.textPrimary,
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold,
                                       letterSpacing: 1.0,
@@ -373,13 +372,13 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05), // Glassy
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -390,7 +389,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               "Member Profile",
               textAlign: TextAlign.center, // Centered title
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -408,13 +407,13 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05), // Glassy
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.more_horiz,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -459,7 +458,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         Text(
           name,
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 24,
             fontWeight: FontWeight.w600,
             letterSpacing: -0.5,
@@ -469,7 +468,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         Text(
           "$role • $team",
           style: GoogleFonts.inter(
-            color: Colors.white54,
+            color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
@@ -503,16 +502,16 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         children: [
           Text(
             "MONTHLY COST",
             style: GoogleFonts.inter(
-              color: Colors.white54, // Upgraded visibility
+              color: context.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.2,
@@ -524,12 +523,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 ? "${CurrencyFormatter.getCurrencySymbol(_isLoadingCountry ? '+1' : _userCountryCode)}0.00"
                 : salary,
             style: GoogleFonts.inter(
-              color: isPaused ? Colors.white38 : Colors.white,
+              color: isPaused ? context.textTertiary : context.textPrimary,
               fontSize: 42,
               fontWeight: FontWeight.w600,
               letterSpacing: -1,
               decoration: isPaused ? TextDecoration.lineThrough : null,
-              decorationColor: Colors.white54,
+              decorationColor: context.textSecondary,
             ),
           ),
           const SizedBox(height: 8),
@@ -538,14 +537,14 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             children: [
               Icon(
                 isPaused ? Icons.pause_circle_outline : Icons.trending_flat,
-                color: isPaused ? const Color(0xFFFF9F0A) : Colors.white38,
+                color: isPaused ? const Color(0xFFFF9F0A) : context.textSecondary,
                 size: 16,
               ),
               const SizedBox(width: 6),
               Text(
                 isPaused ? "Payroll Suspended" : "No change from last month",
                 style: GoogleFonts.inter(
-                  color: isPaused ? const Color(0xFFFF9F0A) : Colors.white38,
+                  color: isPaused ? const Color(0xFFFF9F0A) : context.textSecondary,
                   fontSize: 12,
                 ),
               ),
@@ -579,8 +578,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting &&
             !snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(color: Colors.white38),
+          return Center(
+            child: CircularProgressIndicator(color: context.textSecondary),
           );
         }
 
@@ -648,16 +647,16 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.info_outline,
-                    color: Colors.white38,
+                    color: context.textSecondary,
                     size: 14,
                   ),
                   const SizedBox(width: 6),
                   Text(
                     "Next Due: $formattedDueDate",
                     style: GoogleFonts.inter(
-                      color: Colors.white54,
+                      color: context.textSecondary,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -669,25 +668,25 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF141416),
+                  color: context.cardBackground,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.04),
+                    color: context.borderColor,
                   ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.lock_outline,
-                      color: Colors.white38,
+                      color: context.textSecondary,
                       size: 16,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       "Advance payment not available yet",
                       style: GoogleFonts.inter(
-                        color: Colors.white54,
+                        color: context.textSecondary,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -706,7 +705,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               children: [
                 Icon(
                   isAdvance ? Icons.info_outline : Icons.warning_amber_rounded,
-                  color: isAdvance ? Colors.white38 : const Color(0xFFFF9F0A),
+                  color: isAdvance ? context.textSecondary : const Color(0xFFFF9F0A),
                   size: 14,
                 ),
                 const SizedBox(width: 6),
@@ -715,7 +714,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                       ? "Next Due: $formattedDueDate"
                       : "Due: $formattedDueDate",
                   style: GoogleFonts.inter(
-                    color: isAdvance ? Colors.white54 : const Color(0xFFFF9F0A),
+                    color: isAdvance ? context.textSecondary : const Color(0xFFFF9F0A),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -743,16 +742,15 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  // Premium "White Glass" for Advance Pay, Solid White for Pay Salary
                   backgroundColor: isAdvance
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : Colors.white,
-                  foregroundColor: isAdvance ? Colors.white : Colors.black,
+                      ? context.cardBackground
+                      : context.textPrimary,
+                  foregroundColor: isAdvance ? context.textPrimary : context.appBackground,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                     side: isAdvance
                         ? BorderSide(
-                            color: Colors.white.withValues(alpha: 0.15),
+                            color: context.borderColor,
                           )
                         : BorderSide.none,
                   ),
@@ -776,7 +774,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   Widget _buildDetailRow(String label, String value, IconData icon) {
     return Row(
       children: [
-        Icon(icon, color: Colors.white38, size: 20),
+        Icon(icon, color: context.textSecondary, size: 20),
         const SizedBox(width: 16),
         Expanded(
           child: Column(
@@ -785,7 +783,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               Text(
                 label,
                 style: GoogleFonts.inter(
-                  color: Colors.white38,
+                  color: context.textSecondary,
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                 ),
@@ -794,7 +792,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               Text(
                 value,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
                 ),
@@ -811,7 +809,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   Widget _buildDivider() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Divider(color: Colors.white.withValues(alpha: 0.04), height: 1),
+      child: Divider(color: context.borderColor, height: 1),
     );
   }
 
@@ -836,12 +834,12 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              border: Border.all(color: context.borderColor),
             ),
-            child: const Center(
-              child: CircularProgressIndicator(color: Colors.white38),
+            child: Center(
+              child: CircularProgressIndicator(color: context.textSecondary),
             ),
           );
         }
@@ -851,9 +849,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              border: Border.all(color: context.borderColor),
             ),
             child: Center(
               child: Text(
@@ -914,16 +912,16 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              border: Border.all(color: context.borderColor),
             ),
             child: Center(
               child: Text(
                 "No payouts processed yet.\nClick 'Pay Salary' to log the first payment.",
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
-                  color: Colors.white38,
+                  color: context.textSecondary,
                   height: 1.5,
                   fontSize: 13,
                 ),
@@ -959,10 +957,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     vertical: 14,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF141416),
+                    color: context.cardBackground,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.04),
+                      color: context.borderColor,
                     ),
                   ),
                   child: Row(
@@ -973,14 +971,14 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
+                              color: context.appBackground,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Icon(
                               isAdvance
                                   ? Icons.fast_forward
                                   : Icons.arrow_outward,
-                              color: Colors.white,
+                              color: context.textPrimary,
                               size: 16,
                             ),
                           ),
@@ -991,7 +989,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                               Text(
                                 p['title']!,
                                 style: GoogleFonts.inter(
-                                  color: Colors.white,
+                                  color: context.textPrimary,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -1000,7 +998,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                               Text(
                                 p['date']!,
                                 style: GoogleFonts.inter(
-                                  color: Colors.white38,
+                                  color: context.textSecondary,
                                   fontSize: 12,
                                 ),
                               ),
@@ -1011,7 +1009,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                       Text(
                         p['amt']!,
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1033,8 +1031,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       child: Text(
         title.toUpperCase(),
         style: GoogleFonts.inter(
-          color: Colors.white54, // Upgraded visibility
-          fontSize: 11, // Upgraded size
+          color: context.textSecondary,
+          fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
         ),
@@ -1053,7 +1051,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF141416),
+      backgroundColor: context.cardBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1070,7 +1068,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white12,
+                      color: context.borderColor,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -1079,7 +1077,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 Text(
                   "Manage $memberName",
                   style: GoogleFonts.inter(
-                    color: Colors.white54,
+                    color: context.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.0,
@@ -1145,7 +1143,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            backgroundColor: const Color(0xFF141416),
+                            backgroundColor: context.textPrimary,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -1155,7 +1153,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                   ? "Member resumed."
                                   : "Member paused. Payroll suspended.",
                               style: GoogleFonts.inter(
-                                color: Colors.white,
+                                color: context.appBackground,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -1169,7 +1167,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 ),
 
                 const SizedBox(height: 16),
-                Divider(color: Colors.white.withValues(alpha: 0.04), height: 1),
+                Divider(color: context.borderColor, height: 1),
                 const SizedBox(height: 16),
 
                 _buildActionOption(
@@ -1204,26 +1202,26 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         decoration: BoxDecoration(
           color: isDestructive
               ? const Color(0xFFFF453A).withValues(alpha: 0.1)
-              : Colors.white.withValues(alpha: 0.05), // White Glass fill
+              : context.appBackground,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isDestructive
                 ? const Color(0xFFFF453A).withValues(alpha: 0.2)
-                : Colors.white.withValues(alpha: 0.08), // Glass Border
+                : context.borderColor,
           ),
         ),
         child: Row(
           children: [
             Icon(
               icon,
-              color: isDestructive ? const Color(0xFFFF453A) : Colors.white,
+              color: isDestructive ? const Color(0xFFFF453A) : context.textPrimary,
               size: 20,
             ),
             const SizedBox(width: 16),
             Text(
               label,
               style: GoogleFonts.inter(
-                color: isDestructive ? const Color(0xFFFF453A) : Colors.white,
+                color: isDestructive ? const Color(0xFFFF453A) : context.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
@@ -1247,9 +1245,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416), // Match theme
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(color: context.borderColor),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.6),
@@ -1282,7 +1280,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                       child: Text(
                         "Remove Member?",
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                           letterSpacing: -0.5,
@@ -1296,7 +1294,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 Text(
                   "This will permanently remove $memberName from the team and archive all associated payment history.",
                   style: GoogleFonts.inter(
-                    color: Colors.white70,
+                    color: context.textSecondary,
                     fontSize: 14,
                     height: 1.5,
                   ),
@@ -1311,21 +1309,17 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(
-                              alpha: 0.08,
-                            ), // White Glass effect
+                            color: context.appBackground,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: Colors.white.withValues(
-                                alpha: 0.15,
-                              ), // Crisp border
+                              color: context.borderColor,
                             ),
                           ),
                           alignment: Alignment.center,
                           child: Text(
                             "Cancel",
                             style: GoogleFonts.inter(
-                              color: Colors.white,
+                              color: context.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1432,9 +1426,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                 SnackBar(
                                   content: Text(
                                     "Member removed and payment history archived",
-                                    style: GoogleFonts.inter(),
+                                    style: GoogleFonts.inter(color: context.appBackground),
                                   ),
-                                  backgroundColor: Colors.black,
+                                  backgroundColor: context.textPrimary,
                                 ),
                               );
                             }
@@ -1499,17 +1493,17 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               width: size,
               height: size,
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
               child: Center(
                 child: SizedBox(
                   width: size * 0.3,
                   height: size * 0.3,
-                  child: const CircularProgressIndicator(
+                  child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white38,
+                    color: context.textSecondary,
                   ),
                 ),
               ),

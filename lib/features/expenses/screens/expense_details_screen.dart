@@ -13,6 +13,7 @@ import '../../../utils/data_helpers.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/team_member_service.dart';
+import '../../../theme/app_theme.dart';
 
 class ExpenseDetailsScreen extends StatefulWidget {
   final String expenseId;
@@ -313,7 +314,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
               child: Text(
                 message,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -321,12 +322,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 3),
         elevation: 0,
@@ -343,11 +344,11 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: Color(0xFF09090B),
+          return Scaffold(
+            backgroundColor: context.appBackground,
             body: Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white38),
+                valueColor: AlwaysStoppedAnimation<Color>(context.textSecondary),
               ),
             ),
           );
@@ -355,7 +356,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
         if (snapshot.hasError) {
           return Scaffold(
-            backgroundColor: const Color(0xFF09090B),
+            backgroundColor: context.appBackground,
             body: Center(
               child: Text(
                 'Error loading expense details',
@@ -367,11 +368,11 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
         if (!snapshot.hasData || !snapshot.data!.exists) {
           return Scaffold(
-            backgroundColor: const Color(0xFF09090B),
+            backgroundColor: context.appBackground,
             body: Center(
               child: Text(
                 'Expense not found',
-                style: GoogleFonts.inter(color: Colors.white54),
+                style: GoogleFonts.inter(color: context.textSecondary),
               ),
             ),
           );
@@ -450,9 +451,11 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: context.appBackground, // Theme Background
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: Theme.of(context).brightness == Brightness.dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
@@ -486,7 +489,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                                           _userCountryCode,
                                         ),
                                 style: GoogleFonts.inter(
-                                  color: Colors.white,
+                                  color: context.textPrimary,
                                   fontSize: 48,
                                   fontWeight: FontWeight.w600,
                                   letterSpacing: -1.5,
@@ -497,7 +500,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                             Text(
                               title,
                               style: GoogleFonts.inter(
-                                color: Colors.white54,
+                                color: context.textSecondary,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -514,10 +517,10 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                       Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
+                          color: context.cardBackground,
                           borderRadius: BorderRadius.circular(24),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.04),
+                            color: context.borderColor,
                           ),
                         ),
                         child: Column(
@@ -548,16 +551,16 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
+                          color: context.cardBackground,
                           borderRadius: BorderRadius.circular(24),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.04),
+                            color: context.borderColor,
                           ),
                         ),
                         child: Text(
                           notes,
                           style: GoogleFonts.inter(
-                            color: Colors.white70,
+                            color: context.textPrimary,
                             fontSize: 15,
                             height: 1.5,
                           ),
@@ -797,12 +800,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416), // Match theme
+              color: context.cardBackground, // Match theme
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(color: context.borderColor),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.6),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -832,7 +835,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                       child: Text(
                         "Delete Expense?",
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                           letterSpacing: -0.5,
@@ -846,7 +849,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 Text(
                   "This will permanently delete this expense record and reverse it from your total company expenses. This action cannot be undone.",
                   style: GoogleFonts.inter(
-                    color: Colors.white70,
+                    color: context.textSecondary,
                     fontSize: 14,
                     height: 1.5,
                   ),
@@ -861,17 +864,17 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
+                            color: context.appBackground,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.15),
+                              color: context.borderColor,
                             ),
                           ),
                           alignment: Alignment.center,
                           child: Text(
                             "Cancel",
                             style: GoogleFonts.inter(
-                              color: Colors.white,
+                              color: context.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
@@ -918,7 +921,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   void _showOptionsBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF141416),
+      backgroundColor: context.cardBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -935,7 +938,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white12,
+                      color: context.textSecondary.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -944,7 +947,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 Text(
                   "Manage Expense",
                   style: GoogleFonts.inter(
-                    color: Colors.white54,
+                    color: context.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.0,
@@ -986,7 +989,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                Divider(color: Colors.white.withValues(alpha: 0.04), height: 1),
+                Divider(color: context.borderColor, height: 1),
                 const SizedBox(height: 16),
                 _buildActionOption(
                   icon: Icons.delete_outline_rounded,
@@ -1018,15 +1021,13 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(
-                  alpha: 0.05,
-                ), // White Glass Style
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -1034,7 +1035,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           Text(
             "Details",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -1045,15 +1046,13 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(
-                  alpha: 0.05,
-                ), // White Glass Style
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.more_horiz,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -1067,19 +1066,19 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.pie_chart_outline, color: Colors.white54, size: 14),
+          Icon(Icons.pie_chart_outline, color: context.textSecondary, size: 14),
           const SizedBox(width: 6),
           Text(
             category,
             style: GoogleFonts.inter(
-              color: Colors.white54,
+              color: context.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.0,
@@ -1096,7 +1095,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       child: Text(
         text.toUpperCase(),
         style: GoogleFonts.inter(
-          color: Colors.white54,
+          color: context.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
@@ -1112,7 +1111,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         Text(
           label,
           style: GoogleFonts.inter(
-            color: Colors.white54,
+            color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
@@ -1120,7 +1119,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         Text(
           value,
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
@@ -1162,7 +1161,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.15),
+            color: context.borderColor,
             width: 1.5,
           ),
           image: DecorationImage(
@@ -1209,17 +1208,17 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           Text(
             "Linked Member",
             style: GoogleFonts.inter(
-              color: Colors.white54,
+              color: context.textSecondary,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(
+          SizedBox(
             width: 18,
             height: 18,
             child: CircularProgressIndicator(
               strokeWidth: 1.5,
-              color: Colors.white24,
+              color: context.textSecondary,
             ),
           ),
         ],
@@ -1261,7 +1260,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           Text(
             "Linked Member",
             style: GoogleFonts.inter(
-              color: Colors.white54,
+              color: context.textSecondary,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -1269,7 +1268,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           Text(
             "None",
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: context.textSecondary.withValues(alpha: 0.6),
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -1285,7 +1284,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         Text(
           displayLabel,
           style: GoogleFonts.inter(
-            color: Colors.white54,
+            color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
@@ -1302,7 +1301,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 Text(
                   displayName,
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1311,7 +1310,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                   Text(
                     subtitle,
                     style: GoogleFonts.inter(
-                      color: Colors.white38,
+                      color: context.textSecondary,
                       fontSize: 11,
                       fontWeight: FontWeight.w400,
                     ),
@@ -1327,7 +1326,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
   Widget _buildDivider() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Divider(color: Colors.white.withValues(alpha: 0.04), height: 1),
+      child: Divider(color: context.borderColor, height: 1),
     );
   }
 
@@ -1340,9 +1339,9 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          border: Border.all(color: context.borderColor),
         ),
         child: Row(
           children: [
@@ -1350,12 +1349,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: context.appBackground,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.description,
-                color: Colors.white54,
+                color: context.textSecondary,
                 size: 24,
               ),
             ),
@@ -1366,7 +1365,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 Text(
                   "No receipt attached",
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1374,7 +1373,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 const SizedBox(height: 2),
                 Text(
                   "0 KB",
-                  style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
+                  style: GoogleFonts.inter(color: context.textSecondary, fontSize: 12),
                 ),
               ],
             ),
@@ -1392,7 +1391,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: const Color(0xFF30D158).withValues(alpha: 0.3),
@@ -1431,7 +1430,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                           Text(
                             "Fetching from Telegram",
                             style: GoogleFonts.inter(
-                              color: Colors.white38,
+                              color: context.textSecondary,
                               fontSize: 11,
                             ),
                           ),
@@ -1444,7 +1443,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 Container(
                   height: 150,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: context.appBackground,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: const Center(
@@ -1464,7 +1463,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: const Color(0xFFFF453A).withValues(alpha: 0.3),
@@ -1503,7 +1502,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                           Text(
                             "Could not fetch from Telegram",
                             style: GoogleFonts.inter(
-                              color: Colors.white38,
+                              color: context.textSecondary,
                               fontSize: 11,
                             ),
                           ),
@@ -1516,13 +1515,13 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 Container(
                   height: 150,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: context.appBackground,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Text(
                       "Preview unavailable",
-                      style: TextStyle(color: Colors.white38, fontSize: 12),
+                      style: TextStyle(color: context.textSecondary, fontSize: 12),
                     ),
                   ),
                 ),
@@ -1541,7 +1540,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(
               color: const Color(0xFF30D158).withValues(alpha: 0.3),
@@ -1580,7 +1579,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         Text(
                           "${(fileSize / 1024).toStringAsFixed(1)} KB • Stored in Telegram",
                           style: GoogleFonts.inter(
-                            color: Colors.white38,
+                            color: context.textSecondary,
                             fontSize: 11,
                           ),
                         ),
@@ -1594,7 +1593,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         final fileInfo = await getTelegramFileInfo(
                           attachmentFileId,
                         );
-                        if (fileInfo != null && mounted) {
+                        if (!context.mounted) return;
+                        if (fileInfo != null) {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -1621,12 +1621,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
+                        color: context.appBackground,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.visibility,
-                        color: Colors.white54,
+                        color: context.textSecondary,
                         size: 16,
                       ),
                     ),
@@ -1639,7 +1639,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 Container(
                   height: 200,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: context.appBackground,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: ClipRRect(
@@ -1653,14 +1653,14 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         return Container(
                           height: 200,
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
+                            color: context.appBackground,
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: const Center(
+                          child: Center(
                             child: Text(
                               "Failed to load image preview",
                               style: TextStyle(
-                                color: Colors.white38,
+                                color: context.textSecondary,
                                 fontSize: 12,
                               ),
                             ),
@@ -1672,7 +1672,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         return Container(
                           height: 200,
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
+                            color: context.appBackground,
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: const Center(
@@ -1690,7 +1690,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 Container(
                   height: 150,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: context.appBackground,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Center(
@@ -1699,14 +1699,14 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                       children: [
                         Icon(
                           getFileIcon(filePath),
-                          color: Colors.white38,
+                          color: context.textSecondary,
                           size: 48,
                         ),
                         const SizedBox(height: 8),
                         Text(
                           fileName,
                           style: GoogleFonts.inter(
-                            color: Colors.white70,
+                            color: context.textPrimary,
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
                           ),
@@ -1716,7 +1716,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         Text(
                           "Tap the download icon to view",
                           style: GoogleFonts.inter(
-                            color: Colors.white38,
+                            color: context.textSecondary,
                             fontSize: 12,
                           ),
                         ),
@@ -1747,26 +1747,26 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         decoration: BoxDecoration(
           color: isDestructive
               ? const Color(0xFFFF453A).withValues(alpha: 0.1)
-              : Colors.white.withValues(alpha: 0.05), // White Glass fill
+              : context.appBackground,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isDestructive
                 ? const Color(0xFFFF453A).withValues(alpha: 0.2)
-                : Colors.white.withValues(alpha: 0.08), // Glass Border
+                : context.borderColor,
           ),
         ),
         child: Row(
           children: [
             Icon(
               icon,
-              color: isDestructive ? const Color(0xFFFF453A) : Colors.white,
+              color: isDestructive ? const Color(0xFFFF453A) : context.textPrimary,
               size: 20,
             ),
             const SizedBox(width: 16),
             Text(
               label,
               style: GoogleFonts.inter(
-                color: isDestructive ? const Color(0xFFFF453A) : Colors.white,
+                color: isDestructive ? const Color(0xFFFF453A) : context.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),

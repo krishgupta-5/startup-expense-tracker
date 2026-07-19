@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../theme/app_theme.dart';
 
 class SetPasswordScreen extends StatefulWidget {
   const SetPasswordScreen({super.key});
@@ -14,7 +15,7 @@ class SetPasswordScreen extends StatefulWidget {
 class _SetPasswordScreenState extends State<SetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
-  
+
   bool _isLoading = false;
   int _cooldownSeconds = 0;
   Timer? _cooldownTimer;
@@ -22,7 +23,6 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   @override
   void initState() {
     super.initState();
-    // Auto-fill the email since the user is already logged in
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser != null && currentUser.email != null) {
       _emailController.text = currentUser.email!;
@@ -51,7 +51,6 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     });
   }
 
-  // --- UNIFIED MINIMAL TOAST ---
   void _showMinimalToast(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -60,7 +59,9 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
           children: [
             Icon(
               isError ? Icons.error_outline : Icons.check_circle_outline,
-              color: isError ? const Color(0xFFFF453A) : const Color(0xFF30D158),
+              color: isError
+                  ? const Color(0xFFFF453A)
+                  : const Color(0xFF30D158),
               size: 18,
             ),
             const SizedBox(width: 12),
@@ -68,7 +69,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
               child: Text(
                 message,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -76,12 +77,12 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 4),
         elevation: 0,
@@ -90,28 +91,27 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   }
 
   Future<void> _sendPasswordResetEmail() async {
-    FocusScope.of(context).unfocus(); 
+    FocusScope.of(context).unfocus();
 
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     try {
-      // Firebase uses the password reset link to allow users to set an initial password
       await FirebaseAuth.instance.sendPasswordResetEmail(
         email: _emailController.text.trim(),
       );
 
       if (mounted) {
         _showMinimalToast('Secure link sent! Please check your inbox.');
-        _startCooldown(); 
+        _startCooldown();
       }
     } on FirebaseAuthException catch (e) {
       String errorMessage;
       switch (e.code) {
         case 'too-many-requests':
           errorMessage = 'Too many requests. Try again later.';
-          _startCooldown(); 
+          _startCooldown();
           break;
         case 'user-disabled':
           errorMessage = 'This account has been disabled.';
@@ -125,7 +125,10 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showMinimalToast('An unexpected error occurred. Please try again.', isError: true);
+        _showMinimalToast(
+          'An unexpected error occurred. Please try again.',
+          isError: true,
+        );
       }
     } finally {
       if (mounted) {
@@ -137,10 +140,12 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), 
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
@@ -160,7 +165,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                           Text(
                             "We will send a secure link to your registered email address to set a password for your account.",
                             style: GoogleFonts.inter(
-                              color: Colors.white54,
+                              color: context.textSecondary,
                               fontSize: 14,
                               fontWeight: FontWeight.w400,
                               height: 1.5,
@@ -184,8 +189,6 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     );
   }
 
-  // --- WIDGET BUILDERS ---
-
   Widget _buildHeader(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -197,13 +200,13 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -211,12 +214,12 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
           Text(
             "Set Password",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(width: 44), // Balances header
+          const SizedBox(width: 44),
         ],
       ),
     );
@@ -228,7 +231,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       child: Text(
         text.toUpperCase(),
         style: GoogleFonts.inter(
-          color: Colors.white38,
+          color: context.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.w600,
         ),
@@ -240,25 +243,25 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: TextFormField(
         controller: _emailController,
         keyboardType: TextInputType.emailAddress,
         textInputAction: TextInputAction.done,
-        readOnly: true, 
-        canRequestFocus: false, // Prevents keyboard from appearing
+        readOnly: true,
+        canRequestFocus: false,
         style: GoogleFonts.inter(
-          color: Colors.white54, // Soft dim to show it's locked but clearly readable
+          color: context.textSecondary,
           fontSize: 15,
           fontWeight: FontWeight.w500,
         ),
-        cursorColor: Colors.white,
+        cursorColor: context.textPrimary,
         decoration: InputDecoration(
           hintText: "name@company.com",
-          hintStyle: GoogleFonts.inter(color: Colors.white24, fontSize: 15),
+          hintStyle: GoogleFonts.inter(color: context.textTertiary, fontSize: 15),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           isDense: true,
@@ -274,14 +277,17 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
   }
 
   Widget _buildSubmitButton() {
-    final bool isButtonDisabled = _isLoading || _cooldownSeconds > 0 || _emailController.text.isEmpty;
+    final bool isButtonDisabled =
+        _isLoading || _cooldownSeconds > 0 || _emailController.text.isEmpty;
+    final btnBg = context.isDarkMode ? Colors.white : Colors.black;
+    final btnText = context.isDarkMode ? Colors.black : Colors.white;
 
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF09090B),
+        color: context.appBackground,
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          top: BorderSide(color: context.borderColor),
         ),
       ),
       child: SizedBox(
@@ -290,31 +296,31 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         child: ElevatedButton(
           onPressed: isButtonDisabled ? null : _sendPasswordResetEmail,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            disabledBackgroundColor: Colors.white.withValues(alpha: 0.2),
+            backgroundColor: btnBg,
+            foregroundColor: btnText,
+            disabledBackgroundColor: context.textTertiary,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
           child: _isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   height: 20,
                   width: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.black,
+                    color: btnText,
                   ),
                 )
               : Text(
-                  _cooldownSeconds > 0 
-                      ? "Resend in ${_cooldownSeconds}s" 
+                  _cooldownSeconds > 0
+                      ? "Resend in ${_cooldownSeconds}s"
                       : "Send Secure Link",
                   style: GoogleFonts.inter(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: isButtonDisabled ? Colors.white54 : Colors.black,
+                    color: isButtonDisabled ? context.textSecondary : btnText,
                   ),
                 ),
         ),

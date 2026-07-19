@@ -11,6 +11,7 @@ import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/bank_account_service.dart';
 import '../../../utils/expense_expansion_helper.dart';
+import '../../../theme/app_theme.dart';
 
 class FundsOverviewScreen extends StatefulWidget {
   const FundsOverviewScreen({super.key});
@@ -41,11 +42,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   @override
   void initState() {
     super.initState();
-    // Get currency preference synchronously for instant display
     _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
-    // Listen for currency changes
     CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
-    // Load in background for more accurate result
     _loadUserCountryCode();
     _loadAllData();
   }
@@ -64,7 +62,6 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         _userCountryCode =
             CurrencyPreferenceService.getCurrencyPreferenceSync();
       });
-      // Reload data to refresh currency formatting
       _loadAllData();
     }
   }
@@ -86,26 +83,21 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     });
 
     try {
-      // Fetch funding amount and expenses in parallel
       await Future.wait([
         _fetchFundsData(),
         _fetchAllExpenses(),
         _fetchSalaries(),
       ]);
 
-      // Compute totals from REAL loaded expenses — inside setState so rebuild always sees correct values
       if (fundingAmount != null) {
         final now = DateTime.now();
-        final totalReal = allExpenses.fold<double>(
-          0.0,
-          (t, e) {
-            final ts = e['timestamp'] as Timestamp?;
-            if (ts != null && ts.toDate().isAfter(now)) {
-              return t;
-            }
-            return t + (e['rawAmount'] as double? ?? 0.0);
-          },
-        );
+        final totalReal = allExpenses.fold<double>(0.0, (t, e) {
+          final ts = e['timestamp'] as Timestamp?;
+          if (ts != null && ts.toDate().isAfter(now)) {
+            return t;
+          }
+          return t + (e['rawAmount'] as double? ?? 0.0);
+        });
         setState(() {
           _totalExpensesAmount = totalReal;
           _availableAmount = fundingAmount! - totalReal;
@@ -116,11 +108,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
 
       _calculateCashFlowBreakdown();
 
-      // Fetch bank accounts and funding history in parallel
-      await Future.wait([
-        _fetchBankAccounts(),
-        _fetchFundingHistory(),
-      ]);
+      await Future.wait([_fetchBankAccounts(), _fetchFundingHistory()]);
     } catch (e) {
       log('Error loading all data: $e');
       if (mounted) {
@@ -135,6 +123,83 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     }
   }
 
+  Future<void> _fetchFundsData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection("companies")
+          .doc(user.uid)
+          .get();
+
+      if (docSnapshot.exists && docSnapshot.data() != null) {
+        final data = docSnapshot.data()!;
+        final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
+        if (mounted) {
+          setState(() {
+            if (funding != null) {
+              if (funding is num) {
+                fundingAmount = funding.toDouble();
+              } else if (funding is String) {
+                fundingAmount = double.tryParse(
+                  funding.replaceAll(RegExp(r'[^\d.-]'), ''),
+                );
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      log("Error fetching funds data: $e");
+    }
+  }
+
+  Future<void> _fetchSalaries() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('members')
+          .where('uid', isEqualTo: user.uid)
+          .get();
+
+      double salariesTotal = 0.0;
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final salaryVal = data['salary'] ?? data['Salary'];
+        if (salaryVal is num) {
+          salariesTotal += salaryVal.toDouble();
+        } else if (salaryVal is String) {
+          salariesTotal +=
+              double.tryParse(salaryVal.replaceAll(RegExp(r'[^\d.-]'), '')) ??
+              0.0;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _totalSalaries = salariesTotal;
+        });
+      }
+    } catch (e) {
+      log("Error fetching salaries: $e");
+    }
+  }
+
+  Future<void> _fetchBankAccounts() async {
+    try {
+      final accounts = await BankAccountService.getBankAccounts();
+      if (mounted) {
+        setState(() {
+          bankAccounts = accounts;
+        });
+      }
+    } catch (e) {
+      log("Error fetching bank accounts: $e");
+    }
+  }
 
   Future<void> _fetchFundingHistory() async {
     try {
@@ -160,7 +225,6 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         final companyDateStr =
             createdAt != null ? _formatDate(createdAt) : 'Date unknown';
 
-        // Fetch all funding transactions (no orderBy to avoid index requirement)
         double additionalFundingTotal = 0;
         final List<Map<String, dynamic>> txnEntries = [];
 
@@ -170,7 +234,6 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               .where('uid', isEqualTo: user.uid)
               .get();
 
-          // Sort by createdAt in memory
           final sortedDocs = txnSnapshot.docs.toList()
             ..sort((a, b) {
               final aTime = a.data()['createdAt'] as Timestamp?;
@@ -202,7 +265,6 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           log("Error fetching funding transactions: $e");
         }
 
-        // Initial funding = total funding minus all additional transactions
         final initialFunding = totalFunding - additionalFundingTotal;
 
         if (initialFunding > 0) {
@@ -214,12 +276,30 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           });
         }
 
-        // Add all funding rounds after the initial
         fundingHistory.addAll(txnEntries);
       }
     } catch (e) {
       log("Error fetching funding history: $e");
     }
+  }
+
+  String _formatDate(Timestamp timestamp) {
+    final dt = timestamp.toDate();
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return "${months[dt.month - 1]} ${dt.year}";
   }
 
   void _calculateCashFlowBreakdown() {
@@ -228,10 +308,14 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     for (var expense in allExpenses) {
       final ts = expense['timestamp'] as Timestamp?;
       if (ts != null && ts.toDate().isAfter(now)) {
-        continue; // Skip future projected recurring instances
+        continue;
       }
       final category = expense['category'] as String? ?? 'Other';
-      final amount = expense['rawAmount'] as double? ?? (expense['amount'] as num).toDouble();
+      final amount =
+          (expense['rawAmount'] as num?)?.toDouble() ??
+          (expense['amount'] as num?)?.toDouble() ??
+          (expense['Amount'] as num?)?.toDouble() ??
+          0.0;
       categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
     }
 
@@ -271,7 +355,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
       case "CRITICAL":
         return const Color(0xFFFF453A);
       default:
-        return Colors.white54;
+        return context.textSecondary;
     }
   }
 
@@ -291,7 +375,6 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     return currentMonthTotal;
   }
 
-
   Future<void> _fetchAllExpenses() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -302,185 +385,84 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           .where('uid', isEqualTo: user.uid)
           .get();
 
-      final mappedExpenses = expensesSnapshot.docs.map((doc) {
+      final rawExpenses = expensesSnapshot.docs.map((doc) {
         final data = doc.data();
-        return {
-          ...data,
-          'id': doc.id,
-        };
+        return {...data, 'id': doc.id};
       }).toList();
 
       final now = DateTime.now();
       final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
-      final expanded = ExpenseExpansionHelper.expandExpenses(
-        mappedExpenses,
+      final expandedList = ExpenseExpansionHelper.expandExpenses(
+        rawExpenses,
         maxDate: endOfMonth,
         allowFuture: true,
       );
 
-      allExpenses = expanded
-          .where((data) {
-             if (data['isFunding'] == true) return false;
-             final category = (data['Category'] ?? data['category'] ?? '').toString().toLowerCase();
+      final List<Map<String, dynamic>> loadedExpenses = [];
+      for (final data in expandedList) {
+        if (data['isFunding'] == true) continue;
 
-             return true;
-          })
-          .map((data) {
         final amountVal = data['Amount'] ?? data['amount'];
-        final rawAmount = amountVal is num ? amountVal.toDouble() : double.tryParse(amountVal?.toString() ?? '0') ?? 0.0;
+        double amt = 0.0;
+        if (amountVal is num) {
+          amt = amountVal.toDouble();
+        } else if (amountVal is String) {
+          amt = double.tryParse(amountVal.replaceAll(RegExp(r'[^\d.-]'), '')) ?? 0.0;
+        }
+
+        final title = data['Title'] ?? data['title'] ?? 'Expense';
+        final category = data['Category'] ?? data['category'] ?? 'Other';
+        final description = data['Description'] ?? data['description'] ?? '';
         final dateVal = data['Date'] ?? data['date'];
-        DateTime? dt;
+
+        Timestamp? ts;
         if (dateVal is Timestamp) {
-          dt = dateVal.toDate();
+          ts = dateVal;
         } else if (dateVal is DateTime) {
-          dt = dateVal;
+          ts = Timestamp.fromDate(dateVal);
         }
-        return {
+
+        String dateStr = 'Unknown date';
+        if (ts != null) {
+          final dt = ts.toDate();
+          dateStr = '${dt.day}/${dt.month}/${dt.year}';
+        }
+
+        loadedExpenses.add({
           'id': data['id'] ?? data['expenseId'] ?? '',
-          'title': data['Title'] ?? data['Description'] ?? 'Unnamed Expense',
-          'amount': rawAmount.toInt(),       // kept for UI compat
-          'rawAmount': rawAmount,            // accurate double for calculations
-          'category': data['Category'] ?? 'General',
-          'date': dateVal is Timestamp
-              ? _formatDate(dateVal)
-              : (dt != null ? _formatDate(Timestamp.fromDate(dt)) : 'Unknown Date'),
-          'timestamp': dateVal is Timestamp ? dateVal : (dt != null ? Timestamp.fromDate(dt) : null),  // raw timestamp for filtering
-          'description': data['Description'] ?? '',
-          'type': data['Type'] ?? 'one_time',
-          'bankAccount':
-              data['BankAccount'] ??
-              data['Bank Account'] ??
-              data['bankAccount'] ??
-              'N/A',
-        };
-      }).toList();
-
-      // Sort by timestamp descending so recent expenses section works correctly
-      allExpenses.sort((a, b) {
-        final aTs = a['timestamp'] as Timestamp?;
-        final bTs = b['timestamp'] as Timestamp?;
-        if (aTs == null) return 1;
-        if (bTs == null) return -1;
-        return bTs.compareTo(aTs);
-      });
-    } catch (e) {
-      log('Error fetching expenses: $e');
-    }
-  }
-
-  Future<void> _fetchSalaries() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-      final snapshot = await FirebaseFirestore.instance
-          .collection('members')
-          .where('uid', isEqualTo: user.uid)
-          .get();
-
-      double salariesTotal = 0.0;
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        salariesTotal += double.tryParse((data['salary'] ?? data['Salary'])?.toString() ?? '0') ?? 0.0;
+          'title': title,
+          'amount': amt.toInt(),
+          'rawAmount': amt,
+          'category': category,
+          'description': description,
+          'date': dateStr,
+          'timestamp': ts,
+        });
       }
-      setState(() {
-        _totalSalaries = salariesTotal;
+
+      loadedExpenses.sort((a, b) {
+        final aTime = a['timestamp'] as Timestamp?;
+        final bTime = b['timestamp'] as Timestamp?;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+        return bTime.compareTo(aTime);
       });
-    } catch (e) {
-      log('Error fetching salaries: $e');
-    }
-  }
-
-
-  Future<void> _fetchBankAccounts() async {
-    try {
-      debugPrint('🔍 DEBUG Funds Overview: Starting _fetchBankAccounts()');
-      // Use BankAccountService for consistent bank account processing
-      final accountsWithSpending =
-          await BankAccountService.getBankAccountsWithSpending(allExpenses);
-
-      debugPrint(
-        '🔍 DEBUG Funds Overview: BankAccountService returned ${accountsWithSpending.length} accounts',
-      );
-      for (var account in accountsWithSpending) {
-        debugPrint('🔍 DEBUG Funds Overview: Account - $account');
-      }
 
       if (mounted) {
         setState(() {
-          bankAccounts = accountsWithSpending;
+          allExpenses = loadedExpenses;
         });
-      }
-    } catch (e, stackTrace) {
-      debugPrint(
-        '🔍 DEBUG Funds Overview: Exception in _fetchBankAccounts(): $e',
-      );
-      debugPrint('🔍 DEBUG Funds Overview: Stack trace: $stackTrace');
-      log("Error fetching bank accounts: $e");
-      if (mounted) {
-        setState(() {
-          bankAccounts = [];
-        });
-      }
-    }
-  }
-
-  String _formatDate(Timestamp timestamp) {
-    final date = timestamp.toDate();
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
-  }
-
-  Future<void> _fetchFundsData() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        errorMessage = 'User not authenticated';
-        return;
-      }
-
-      final docSnapshot = await FirebaseFirestore.instance
-          .collection('companies')
-          .doc(user.uid)
-          .get();
-
-      if (docSnapshot.exists && docSnapshot.data() != null) {
-        final data = docSnapshot.data()!;
-        final funding = data['Funding'] ?? data['funding'] ?? data['FUNDING'];
-
-        if (funding != null) {
-          // Only store raw funding amount; available is computed after expenses load
-          fundingAmount = double.tryParse(funding.toString()) ?? 0;
-        } else {
-          errorMessage = 'No funding data found';
-        }
-      } else {
-        errorMessage = 'No company data found';
       }
     } catch (e) {
-      errorMessage = 'Failed to load funds data';
+      log("Error fetching expenses: $e");
     }
   }
 
-
-  // --- PREMIUM SECTION LABEL HELPER ---
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54,
+        color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
@@ -488,7 +470,6 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     );
   }
 
-  // --- MINIMAL EMPTY STATE COMPONENT ---
   Widget _buildEmptyState(String text) {
     return Center(
       child: Padding(
@@ -496,7 +477,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         child: Text(
           text,
           style: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textTertiary,
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
@@ -511,14 +492,16 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: RefreshIndicator(
             onRefresh: _loadAllData,
-            color: Colors.black,
-            backgroundColor: Colors.white,
+            color: context.textPrimary,
+            backgroundColor: context.cardBackground,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
@@ -542,7 +525,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                               _userCountryCode,
                             ),
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 48,
                         fontWeight: FontWeight.w600,
                         height: 1.0,
@@ -554,7 +537,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                   Text(
                     "Total Outflow",
                     style: GoogleFonts.inter(
-                      color: Colors.white38,
+                      color: context.textSecondary,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -590,13 +573,11 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(
-                alpha: 0.05,
-              ), // White Glass matched
+              color: context.glassBackgroundStrong,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              border: Border.all(color: context.borderColor),
             ),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+            child: Icon(Icons.arrow_back, color: context.iconPrimary, size: 20),
           ),
         ),
         Column(
@@ -605,7 +586,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             Text(
               "Funds Overview",
               style: GoogleFonts.inter(
-                color: Colors.white38,
+                color: context.textSecondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -614,7 +595,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             Text(
               "Capital Analysis",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.5,
@@ -629,11 +610,20 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   Widget _buildMainFundsCard() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24), // Tighter padding
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
+        boxShadow: context.isDarkMode
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -668,7 +658,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                   Text(
                     "Updated: ${lastUpdated ?? '--'}",
                     style: GoogleFonts.inter(
-                      color: Colors.white38,
+                      color: context.textSecondary,
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
                     ),
@@ -679,17 +669,17 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       child: isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 14,
                               height: 14,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white38,
+                                color: context.iconSecondary,
                               ),
                             )
-                          : const Icon(
+                          : Icon(
                               Icons.refresh,
-                              color: Colors.white38,
+                              color: context.iconSecondary,
                               size: 16,
                             ),
                     ),
@@ -702,7 +692,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           Text(
             "AVAILABLE FOR OPERATIONS",
             style: GoogleFonts.inter(
-              color: Colors.white54,
+              color: context.textSecondary,
               fontSize: 10,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.2,
@@ -720,19 +710,25 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                       _userCountryCode,
                     ),
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 32,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -1,
               ),
             ),
           ),
-          if (!isLoading && _dataLoaded && fundingAmount != null && fundingAmount! > 0)
+          if (!isLoading &&
+              _dataLoaded &&
+              fundingAmount != null &&
+              fundingAmount! > 0)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 '${((_availableAmount / fundingAmount!) * 100).toStringAsFixed(1)}% of total capital remaining',
-                style: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
+                style: GoogleFonts.inter(
+                  color: context.textSecondary,
+                  fontSize: 13,
+                ),
               ),
             ),
         ],
@@ -750,9 +746,18 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
+            boxShadow: context.isDarkMode
+                ? []
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: isLoading
               ? _buildEmptyState("Loading history...")
@@ -768,10 +773,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                         _buildFundingItem(item),
                         if (!isLast) ...[
                           const SizedBox(height: 16),
-                          Divider(
-                            color: Colors.white.withValues(alpha: 0.04),
-                            height: 1,
-                          ),
+                          Divider(color: context.borderColor, height: 1),
                           const SizedBox(height: 16),
                         ],
                       ],
@@ -784,7 +786,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   }
 
   Widget _buildFundingItem(Map<String, dynamic> item) {
-    final amount = (item['amount'] as num).toInt();
+    final amount = (item['amount'] as num?)?.toInt() ?? 0;
     final isActive =
         item['status'] == 'active' || item['status'] == 'completed';
 
@@ -817,7 +819,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               Text(
                 item['round'] as String,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
@@ -826,7 +828,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               Text(
                 item['date'] as String,
                 style: GoogleFonts.inter(
-                  color: Colors.white38,
+                  color: context.textSecondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
@@ -900,9 +902,18 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
+            boxShadow: context.isDarkMode
+                ? []
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: isLoading
               ? _buildEmptyState("Loading expenses...")
@@ -920,10 +931,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                           _buildTransactionItem(transaction),
                           if (!isLast) ...[
                             const SizedBox(height: 16),
-                            Divider(
-                              color: Colors.white.withValues(alpha: 0.04),
-                              height: 1,
-                            ),
+                            Divider(color: context.borderColor, height: 1),
                             const SizedBox(height: 16),
                           ],
                         ],
@@ -939,7 +947,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   Widget _buildTransactionItem(Map<String, dynamic> transaction) {
     final isExpense = transaction['type'] == 'expense';
     final isActive = transaction['status'] == 'active';
-    final amount = (transaction['amount'] as num).toInt();
+    final amount = (transaction['amount'] as num?)?.toInt() ?? 0;
     final isNegative = amount < 0;
 
     String formattedAmount;
@@ -955,7 +963,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
       amountColor = const Color(0xFFFF453A);
     } else {
       formattedAmount = '+$cleanAmount';
-      amountColor = isActive ? const Color(0xFF30D158) : Colors.white;
+      amountColor = isActive ? const Color(0xFF30D158) : context.textPrimary;
     }
 
     return Row(
@@ -968,14 +976,14 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                 ? const Color(0xFFFF453A).withValues(alpha: 0.1)
                 : isActive
                 ? const Color(0xFF30D158).withValues(alpha: 0.1)
-                : Colors.white.withValues(alpha: 0.05),
+                : context.glassBackgroundStrong,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isExpense
                   ? const Color(0xFFFF453A).withValues(alpha: 0.3)
                   : isActive
                   ? const Color(0xFF30D158).withValues(alpha: 0.3)
-                  : Colors.white.withValues(alpha: 0.08),
+                  : context.borderColor,
             ),
           ),
           child: Icon(
@@ -984,7 +992,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                 : (isActive ? Icons.trending_up : Icons.account_balance),
             color: isExpense
                 ? const Color(0xFFFF453A)
-                : (isActive ? const Color(0xFF30D158) : Colors.white38),
+                : (isActive ? const Color(0xFF30D158) : context.iconSecondary),
             size: 20,
           ),
         ),
@@ -996,7 +1004,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               Text(
                 transaction['round'],
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1009,7 +1017,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                     ? '${transaction['category']} • ${transaction['date']}'
                     : transaction['date'],
                 style: GoogleFonts.inter(
-                  color: Colors.white38,
+                  color: context.textSecondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
@@ -1057,9 +1065,18 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
+            boxShadow: context.isDarkMode
+                ? []
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: isLoading
               ? _buildEmptyState("Loading cash flow...")
@@ -1071,10 +1088,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                       (item) => _buildCashFlowItem(item),
                     ),
                     const SizedBox(height: 8),
-                    Divider(
-                      color: Colors.white.withValues(alpha: 0.04),
-                      height: 1,
-                    ),
+                    Divider(color: context.borderColor, height: 1),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1082,7 +1096,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                         Text(
                           "Total Outflow",
                           style: GoogleFonts.inter(
-                            color: Colors.white,
+                            color: context.textPrimary,
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1118,7 +1132,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
       amount.abs().toDouble(),
       _userCountryCode,
     );
-    final displayAmount = isPositive ? '+$formattedAmount' : '-$formattedAmount';
+    final displayAmount =
+        isPositive ? '+$formattedAmount' : '-$formattedAmount';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -1139,7 +1154,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             child: Text(
               item['category'],
               style: GoogleFonts.inter(
-                color: Colors.white70,
+                color: context.textSecondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -1193,9 +1208,18 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
+            boxShadow: context.isDarkMode
+                ? []
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: isLoading
               ? _buildEmptyState("Loading accounts...")
@@ -1218,10 +1242,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                           _buildBankAccountItem(account),
                           if (!isLast) ...[
                             const SizedBox(height: 16),
-                            Divider(
-                              color: Colors.white.withValues(alpha: 0.04),
-                              height: 1,
-                            ),
+                            Divider(color: context.borderColor, height: 1),
                             const SizedBox(height: 16),
                           ],
                         ],
@@ -1244,25 +1265,25 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           MaterialPageRoute(builder: (_) => const AddBankAccountScreen()),
         );
         if (result != null) {
-          _loadAllData(); // Reload everything to ensure sync
+          _loadAllData();
         }
       },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05), // White glass style
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          color: context.glassBackgroundStrong,
+          border: Border.all(color: context.borderColor),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.add, color: Colors.white, size: 16),
+            Icon(Icons.add, color: context.textPrimary, size: 16),
             const SizedBox(width: 8),
             Text(
               "Add Bank Account",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
@@ -1274,17 +1295,15 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   }
 
   Widget _buildBankAccountItem(Map<String, dynamic> account) {
-    final totalSpent = (account['totalSpent'] as num).toDouble();
+    final totalSpent = (account['totalSpent'] as num?)?.toDouble() ?? 0.0;
     final isCash = account['isCash'] == true;
 
-    // Handle multiple possible field names for bank name
     final bankName =
         account['name']?.toString() ??
         account['bankName']?.toString() ??
         account['bank_name']?.toString() ??
         'Unknown Bank';
 
-    // Cash uses orange accent; bank accounts use green
     final accentColor =
         isCash ? const Color(0xFFFF9F0A) : const Color(0xFF30D158);
 
@@ -1324,7 +1343,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               Text(
                 bankName,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1335,7 +1354,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               Text(
                 account['maskedNumber']?.toString() ?? '****',
                 style: GoogleFonts.inter(
-                  color: Colors.white38,
+                  color: context.textSecondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
@@ -1355,7 +1374,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                 style: GoogleFonts.inter(
                   color: totalSpent > 0
                       ? const Color(0xFFFF453A)
-                      : Colors.white38,
+                      : context.textSecondary,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1365,7 +1384,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             Text(
               "total transactions",
               style: GoogleFonts.inter(
-                color: Colors.white38,
+                color: context.textSecondary,
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
               ),

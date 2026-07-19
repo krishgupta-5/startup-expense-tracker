@@ -11,6 +11,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:startup_expense_tracker/services/ai_service.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
+import '../../../theme/app_theme.dart';
 
 class AiScreen extends StatefulWidget {
   final String uid;
@@ -21,7 +22,8 @@ class AiScreen extends StatefulWidget {
   State<AiScreen> createState() => _AiScreenState();
 }
 
-class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin {
+class _AiScreenState extends State<AiScreen>
+    with AutomaticKeepAliveClientMixin {
   final Map<String, bool> _sectionLoadStates = {};
 
   bool _isLoading = true;
@@ -30,7 +32,7 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
   String _userCountryCode = '+1'; // Default
   Map<String, dynamic>? aiMetrics;
   Map<String, dynamic>? _cachedPayload;
-  
+
   // Dynamic list to hold parsed markdown sections from live AI
   List<Map<String, String>> _parsedInsights = [];
 
@@ -77,27 +79,31 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
     for (final section in sections) {
       _sectionLoadStates[section] = false;
     }
-    _sectionLoadStates['keyPoints'] = true; 
+    _sectionLoadStates['keyPoints'] = true;
   }
 
   void _loadSection(String sectionKey) {
     if (_sectionLoadStates[sectionKey]! || _cachedPayload == null) return;
-    
-    _sectionLoadStates[sectionKey] = true; 
+
+    _sectionLoadStates[sectionKey] = true;
     _pendingSections.add(sectionKey);
     _processQueue();
   }
 
   Future<void> _processQueue() async {
-    if (_isFetchingMore || _pendingSections.isEmpty || _cachedPayload == null) return;
+    if (_isFetchingMore || _pendingSections.isEmpty || _cachedPayload == null) {
+      return;
+    }
 
     setState(() => _isFetchingMore = true);
 
     while (_pendingSections.isNotEmpty) {
       final sectionKey = _pendingSections.removeAt(0);
       try {
-        String baseUrl = Platform.isIOS ? "http://127.0.0.1:8000" : "http://10.0.2.2:8000";
-        
+        String baseUrl = Platform.isIOS
+            ? "http://127.0.0.1:8000"
+            : "http://10.0.2.2:8000";
+
         final requestBody = {
           "sectionName": sectionKey,
           "sectionData": _cachedPayload,
@@ -168,8 +174,9 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
           _parsedInsights = [
             {
               "title": "Welcome to AI Insights",
-              "content": "No expenses recorded yet. Add some expenses to generate your first financial intelligence report."
-            }
+              "content":
+                  "No expenses recorded yet. Add some expenses to generate your first financial intelligence report.",
+            },
           ];
           _isLoading = false;
         });
@@ -184,9 +191,11 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
           "Type": (e["Type"] ?? "unknown").toString(),
           "Description": (e["Description"] ?? e["Title"] ?? "").toString(),
           "ExpenseType": (e["ExpenseType"] ?? "unknown").toString(),
-          "TeamName": (e["TeamName"] ?? e["linkedTeamName"] ?? "general").toString(),
+          "TeamName":
+              (e["TeamName"] ?? e["linkedTeamName"] ?? "general").toString(),
           "TeamMemberName": (e["TeamMemberName"] ?? "none").toString(),
-          "PaymentMethod": (e["BankAccount"] ?? e["PaymentMethod"] ?? "unknown").toString(),
+          "PaymentMethod":
+              (e["BankAccount"] ?? e["PaymentMethod"] ?? "unknown").toString(),
           "Date": (e["Date"] is Timestamp)
               ? (e["Date"] as Timestamp).toDate().toIso8601String()
               : e["Date"]?.toString() ?? "",
@@ -196,12 +205,16 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
       final companyData = companySnapshot.docs.isNotEmpty
           ? _cleanTimestamps(companySnapshot.docs.first.data())
           : {};
-      final teamsData = teamsSnapshot.docs.map((doc) => _cleanTimestamps(doc.data())).toList();
-      final membersData = membersSnapshot.docs.map((doc) => _cleanTimestamps(doc.data())).toList();
+      final teamsData = teamsSnapshot.docs
+          .map((doc) => _cleanTimestamps(doc.data()))
+          .toList();
+      final membersData = membersSnapshot.docs
+          .map((doc) => _cleanTimestamps(doc.data()))
+          .toList();
 
       final sectionData = {
         "expenses": cleanExpenses,
-        "revenue": [], 
+        "revenue": [],
         "company": companyData,
         "members": membersData,
         "teams": teamsData,
@@ -214,7 +227,9 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
         "sectionData": sectionData,
       };
 
-      String baseUrl = Platform.isIOS ? "http://127.0.0.1:8000" : "http://10.0.2.2:8000";
+      String baseUrl = Platform.isIOS
+          ? "http://127.0.0.1:8000"
+          : "http://10.0.2.2:8000";
 
       final res = await http.post(
         Uri.parse("$baseUrl/generate-ai-section"),
@@ -227,37 +242,54 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final String rawInsight = data["insight"] ?? "No insight generated.";
-        
+
         setState(() {
           _parseMarkdownToSections(rawInsight, append: false);
           aiMetrics = data["metrics"] as Map<String, dynamic>?;
         });
       } else {
         setState(() {
-          _parsedInsights = [{"title": "Error", "content": "Server error: ${res.statusCode}"}];
+          _parsedInsights = [
+            {
+              "title": "Error",
+              "content": "Server error: ${res.statusCode}",
+            },
+          ];
         });
       }
     } on SocketException {
       if (!mounted) return;
       setState(() {
-        _parsedInsights = [{"title": "Connection Failed", "content": "AI server is not running locally. Please start the Python server."}];
+        _parsedInsights = [
+          {
+            "title": "Connection Failed",
+            "content":
+                "AI server is not running locally. Please start the Python server.",
+          },
+        ];
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _parsedInsights = [{"title": "Error", "content": "Could not load AI insights. Please try again later."}];
+        _parsedInsights = [
+          {
+            "title": "Error",
+            "content":
+                "Could not load AI insights. Please try again later.",
+          },
+        ];
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // --- DYNAMIC MARKDOWN PARSER (IMPROVED) ---
+  // --- DYNAMIC MARKDOWN PARSER ---
   void _parseMarkdownToSections(String rawText, {bool append = false}) {
     if (!append) {
       _parsedInsights.clear();
     }
-    
+
     String currentTitle = "Analysis";
     List<String> currentContent = [];
 
@@ -265,36 +297,36 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
 
     for (var line in lines) {
       final trimmed = line.trim();
-      
-      // 1. STRIP MARKDOWN SEPARATORS (e.g., ====, ----, ****)
-      if (trimmed.length >= 3 && (
-          trimmed.replaceAll('=', '').isEmpty || 
-          trimmed.replaceAll('-', '').isEmpty || 
-          trimmed.replaceAll('*', '').isEmpty)) {
+
+      if (trimmed.length >= 3 &&
+          (trimmed.replaceAll('=', '').isEmpty ||
+              trimmed.replaceAll('-', '').isEmpty ||
+              trimmed.replaceAll('*', '').isEmpty)) {
         continue;
       }
 
       bool isHeader = false;
       String newTitle = "";
 
-      // 2. DETECT HEADERS (# Heading or **Heading:**)
       if (trimmed.startsWith('#')) {
         isHeader = true;
         newTitle = trimmed.replaceAll('#', '').trim();
-      } else if (trimmed.startsWith('**') && (trimmed.endsWith('**') || trimmed.endsWith(':') || trimmed.endsWith('**:') || trimmed.endsWith(':**'))) {
+      } else if (trimmed.startsWith('**') &&
+          (trimmed.endsWith('**') ||
+              trimmed.endsWith(':') ||
+              trimmed.endsWith('**:') ||
+              trimmed.endsWith(':**'))) {
         isHeader = true;
         newTitle = trimmed.replaceAll('*', '').replaceAll(':', '').trim();
       }
 
       if (isHeader) {
-        // Save previous section ONLY if it actually contains text
         if (currentContent.join('').trim().isNotEmpty) {
           _parsedInsights.add({
             'title': currentTitle,
-            'content': currentContent.join('\n').trim()
+            'content': currentContent.join('\n').trim(),
           });
         }
-        // Update to new title and clear content
         currentTitle = newTitle;
         currentContent.clear();
       } else {
@@ -302,20 +334,15 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
       }
     }
 
-    // Add the final section (if not empty)
     if (currentContent.join('').trim().isNotEmpty) {
       _parsedInsights.add({
         'title': currentTitle,
-        'content': currentContent.join('\n').trim()
+        'content': currentContent.join('\n').trim(),
       });
     }
 
-    // Fallback if absolutely nothing parsed
     if (_parsedInsights.isEmpty) {
-      _parsedInsights.add({
-        "title": "Analysis",
-        "content": rawText
-      });
+      _parsedInsights.add({"title": "Analysis", "content": rawText});
     }
   }
 
@@ -355,20 +382,21 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
 
     for (var line in lines) {
       line = line.trim();
-      
+
       if (line.isEmpty) {
         widgets.add(const SizedBox(height: 8));
         continue;
       }
 
-      // Final failsafe for leaked separators
-      if (line.length >= 3 && (line.replaceAll('=', '').isEmpty || line.replaceAll('-', '').isEmpty)) {
+      if (line.length >= 3 &&
+          (line.replaceAll('=', '').isEmpty ||
+              line.replaceAll('-', '').isEmpty)) {
         continue;
       }
 
-      // Handle Bullet Points
-      if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('• ')) {
-        // Strip the bullet to use our custom clean dot
+      if (line.startsWith('- ') ||
+          line.startsWith('* ') ||
+          line.startsWith('• ')) {
         final cleanLine = line.substring(2).trim();
         widgets.add(
           Padding(
@@ -376,14 +404,20 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("•  ", style: GoogleFonts.inter(color: Colors.white54, fontSize: 15, height: 1.5)),
+                Text(
+                  "•  ",
+                  style: GoogleFonts.inter(
+                    color: context.textSecondary,
+                    fontSize: 15,
+                    height: 1.5,
+                  ),
+                ),
                 Expanded(child: _parseInlineMarkdown(cleanLine)),
               ],
             ),
           ),
         );
       } else {
-        // Normal Paragraph
         widgets.add(
           Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
@@ -405,29 +439,31 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
 
     for (int i = 0; i < parts.length; i++) {
       if (parts[i].isEmpty) continue;
-      
+
       if (i % 2 == 1) {
-        // Bold Text
-        spans.add(TextSpan(
-          text: parts[i],
-          style: GoogleFonts.inter(
-            color: Colors.white, 
-            fontWeight: FontWeight.w700, 
-            fontSize: 14, 
-            height: 1.5,
+        spans.add(
+          TextSpan(
+            text: parts[i],
+            style: GoogleFonts.inter(
+              color: context.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              height: 1.5,
+            ),
           ),
-        ));
+        );
       } else {
-        // Normal Text
-        spans.add(TextSpan(
-          text: parts[i],
-          style: GoogleFonts.inter(
-            color: Colors.white70, 
-            fontWeight: FontWeight.w400, 
-            fontSize: 14, 
-            height: 1.5,
+        spans.add(
+          TextSpan(
+            text: parts[i],
+            style: GoogleFonts.inter(
+              color: context.textSecondary,
+              fontWeight: FontWeight.w400,
+              fontSize: 14,
+              height: 1.5,
+            ),
           ),
-        ));
+        );
       }
     }
     return RichText(text: TextSpan(children: spans));
@@ -437,134 +473,176 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
   Widget build(BuildContext context) {
     super.build(context);
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: context.isDarkMode
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
       child: SafeArea(
         child: Column(
           children: [
             _buildHeader(context),
             Expanded(
-              child: _isLoading 
-                ? _buildShimmerLoadingState() 
-                : RefreshIndicator(
-                  color: Colors.black,
-                  backgroundColor: Colors.white,
-                  onRefresh: () async {
-                    await AIService.syncAICollections();
-                    await _fetchAIInsight();
-                  },
-                  child: NotificationListener<ScrollNotification>(
-                    onNotification: (scrollInfo) {
-                      if (scrollInfo.metrics.pixels > 100) {
-                        _loadSection('runway');
-                        _loadSection('investment');
-                      }
-                      if (scrollInfo.metrics.pixels > 400) {
-                        _loadSection('burn');
-                        _loadSection('staffing');
-                      }
-                      if (scrollInfo.metrics.pixels > 800) {
-                        _loadSection('performance');
-                        _loadSection('team');
-                      }
-                      if (scrollInfo.metrics.pixels > 1200) {
-                        _loadSection('expense');
-                        _loadSection('subscription');
-                      }
-                      return false;
-                    },
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // --- LIVE AI DATA ---
-                          if (aiMetrics != null) _buildMetricsCard(),
-                          
-                          ..._parsedInsights.asMap().entries.map((entry) {
-                            int index = entry.key;
-                            Map<String, String> section = entry.value;
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 24),
-                              child: _buildDynamicInsightCard(
-                                title: section['title']!,
-                                content: section['content']!,
-                                isFirst: index == 0,
-                              ),
-                            );
-                          }),
-
-                          if (_isFetchingMore)
-                            _buildShimmerBlock(),
-
-                          const SizedBox(height: 16),
-
-                          // --- PENDING AI SECTIONS ---
-                          if (_sectionLoadStates['keyPoints']! && !_isFetchingMore) _buildPendingSection(
-                            title: "Key Recommendations",
-                            child: Column(
-                              children: [
-                                _buildKeyPoint("Marketing Optimization", "Reduce digital ad spend by 20% and focus on organic growth.", "\$800/mo", const Color(0xFF30D158)),
-                                const SizedBox(height: 16),
-                                _buildKeyPoint("Infrastructure Costs", "Switch to AWS reserved instances.", "\$1,200/mo", const Color(0xFF0A84FF)),
-                              ],
-                            ),
+              child: _isLoading
+                  ? _buildShimmerLoadingState()
+                  : RefreshIndicator(
+                      color: context.textPrimary,
+                      backgroundColor: context.cardBackground,
+                      onRefresh: () async {
+                        await AIService.syncAICollections();
+                        await _fetchAIInsight();
+                      },
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: (scrollInfo) {
+                          if (scrollInfo.metrics.pixels > 100) {
+                            _loadSection('runway');
+                            _loadSection('investment');
+                          }
+                          if (scrollInfo.metrics.pixels > 400) {
+                            _loadSection('burn');
+                            _loadSection('staffing');
+                          }
+                          if (scrollInfo.metrics.pixels > 800) {
+                            _loadSection('performance');
+                            _loadSection('team');
+                          }
+                          if (scrollInfo.metrics.pixels > 1200) {
+                            _loadSection('expense');
+                            _loadSection('subscription');
+                          }
+                          return false;
+                        },
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 16,
                           ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // --- LIVE AI DATA ---
+                              if (aiMetrics != null) _buildMetricsCard(),
 
-                          if (_sectionLoadStates['runway']! && !_isFetchingMore) _buildPendingSection(
-                            title: "Runway Optimization",
-                            content: "• Reduce marketing budget by 20% to extend runway by 1.8 months\n• Delay non-essential hiring until Q1\n• Negotiate better terms with SaaS providers",
+                              ..._parsedInsights.asMap().entries.map((entry) {
+                                int index = entry.key;
+                                Map<String, String> section = entry.value;
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 24),
+                                  child: _buildDynamicInsightCard(
+                                    title: section['title']!,
+                                    content: section['content']!,
+                                    isFirst: index == 0,
+                                  ),
+                                );
+                              }),
+
+                              if (_isFetchingMore) _buildShimmerBlock(),
+
+                              const SizedBox(height: 16),
+
+                              // --- PENDING AI SECTIONS ---
+                              if (_sectionLoadStates['keyPoints']! &&
+                                  !_isFetchingMore)
+                                _buildPendingSection(
+                                  title: "Key Recommendations",
+                                  child: Column(
+                                    children: [
+                                      _buildKeyPoint(
+                                        "Marketing Optimization",
+                                        "Reduce digital ad spend by 20% and focus on organic growth.",
+                                        "\$800/mo",
+                                        const Color(0xFF30D158),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      _buildKeyPoint(
+                                        "Infrastructure Costs",
+                                        "Switch to AWS reserved instances.",
+                                        "\$1,200/mo",
+                                        const Color(0xFF0A84FF),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                              if (_sectionLoadStates['runway']! &&
+                                  !_isFetchingMore)
+                                _buildPendingSection(
+                                  title: "Runway Optimization",
+                                  content:
+                                      "• Reduce marketing budget by 20% to extend runway by 1.8 months\n• Delay non-essential hiring until Q1\n• Negotiate better terms with SaaS providers",
+                                ),
+
+                              if (_sectionLoadStates['investment']! &&
+                                  !_isFetchingMore)
+                                _buildPendingSection(
+                                  title: "Investment Strategy",
+                                  content:
+                                      "• Consider high-yield savings for reserve funds\n• Start Series A preparation in 3 months\n• Explore strategic partnerships",
+                                ),
+
+                              if (_sectionLoadStates['burn']! &&
+                                  !_isFetchingMore)
+                                _buildPendingSection(
+                                  title: "Burn Optimization",
+                                  child: _buildKeyPoint(
+                                    "Tool Consolidation",
+                                    "Replace HubSpot with cheaper alternatives",
+                                    "\$600/month",
+                                    const Color(0xFFFF9F0A),
+                                  ),
+                                ),
+
+                              if (_sectionLoadStates['staffing']! &&
+                                  !_isFetchingMore)
+                                _buildPendingSection(
+                                  title: "Staffing Analysis",
+                                  content:
+                                      "Engineering costs have risen by 12% due to new hires. Marketing is currently under budget.",
+                                ),
+
+                              if (_sectionLoadStates['performance']! &&
+                                  !_isFetchingMore)
+                                _buildPendingSection(
+                                  title: "Performance Analysis",
+                                  content:
+                                      "James's cost efficiency is in the top 10% of engineers. Market rate for this role is currently \$14k/mo.",
+                                ),
+
+                              if (_sectionLoadStates['team']! &&
+                                  !_isFetchingMore)
+                                _buildPendingSection(
+                                  title: "Team Efficiency",
+                                  content:
+                                      "Backend development costs are 20% higher than industry average. Consider optimizing resource allocation.",
+                                ),
+
+                              if (_sectionLoadStates['expense']! &&
+                                  !_isFetchingMore)
+                                _buildPendingSection(
+                                  title: "Expense Analysis",
+                                  content:
+                                      "This expense is 15% higher than your average for Infrastructure. Consider reviewing unused instances.",
+                                ),
+
+                              if (_sectionLoadStates['subscription']! &&
+                                  !_isFetchingMore)
+                                _buildPendingSection(
+                                  title: "Subscription Analysis",
+                                  content:
+                                      "Subscriptions are 15% higher this month. Review your active AWS instances.",
+                                ),
+
+                              const SizedBox(height: 64),
+                            ],
                           ),
-
-                          if (_sectionLoadStates['investment']! && !_isFetchingMore) _buildPendingSection(
-                            title: "Investment Strategy",
-                            content: "• Consider high-yield savings for reserve funds\n• Start Series A preparation in 3 months\n• Explore strategic partnerships",
-                          ),
-
-                          if (_sectionLoadStates['burn']! && !_isFetchingMore) _buildPendingSection(
-                            title: "Burn Optimization",
-                            child: _buildKeyPoint("Tool Consolidation", "Replace HubSpot with cheaper alternatives", "\$600/month", const Color(0xFFFF9F0A)),
-                          ),
-
-                          if (_sectionLoadStates['staffing']! && !_isFetchingMore) _buildPendingSection(
-                            title: "Staffing Analysis",
-                            content: "Engineering costs have risen by 12% due to new hires. Marketing is currently under budget.",
-                          ),
-
-                          if (_sectionLoadStates['performance']! && !_isFetchingMore) _buildPendingSection(
-                            title: "Performance Analysis",
-                            content: "James's cost efficiency is in the top 10% of engineers. Market rate for this role is currently \$14k/mo.",
-                          ),
-
-                          if (_sectionLoadStates['team']! && !_isFetchingMore) _buildPendingSection(
-                            title: "Team Efficiency",
-                            content: "Backend development costs are 20% higher than industry average. Consider optimizing resource allocation.",
-                          ),
-
-                          if (_sectionLoadStates['expense']! && !_isFetchingMore) _buildPendingSection(
-                            title: "Expense Analysis",
-                            content: "This expense is 15% higher than your average for Infrastructure. Consider reviewing unused instances.",
-                          ),
-
-                          if (_sectionLoadStates['subscription']! && !_isFetchingMore) _buildPendingSection(
-                            title: "Subscription Analysis",
-                            content: "Subscriptions are 15% higher this month. Review your active AWS instances.",
-                          ),
-
-                          const SizedBox(height: 64),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                ),
             ),
           ],
         ),
       ),
     );
   }
-
-  // --- WIDGET BUILDERS ---
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
@@ -579,16 +657,18 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
               Text(
                 "AI Insights",
                 style: GoogleFonts.inter(
-                  color: Colors.white38,
+                  color: context.textSecondary,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
-                _isLoading || _isFetchingMore ? "Analyzing Data..." : "Financial Intelligence",
+                _isLoading || _isFetchingMore
+                    ? "Analyzing Data..."
+                    : "Financial Intelligence",
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   letterSpacing: -0.5,
@@ -600,28 +680,34 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              border: Border.all(color: context.borderColor),
             ),
             child: _isLoading || _isFetchingMore
                 ? Padding(
                     padding: const EdgeInsets.all(12.0),
                     child: Shimmer.fromColors(
-                      baseColor: Colors.white24,
-                      highlightColor: Colors.white,
+                      baseColor: context.isDarkMode
+                          ? Colors.white24
+                          : Colors.black26,
+                      highlightColor: context.isDarkMode
+                          ? Colors.white
+                          : Colors.black,
                       child: const Icon(Icons.auto_awesome, size: 20),
                     ),
                   )
-                : const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                : Icon(
+                    Icons.auto_awesome,
+                    color: context.iconPrimary,
+                    size: 20,
+                  ),
           ),
         ],
       ),
     );
   }
 
-  // --- SHIMMER LOADING STATES ---
-  
   Widget _buildShimmerLoadingState() {
     return SingleChildScrollView(
       physics: const NeverScrollableScrollPhysics(),
@@ -640,21 +726,23 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
 
   Widget _buildShimmerBlock({double height = 180}) {
     return Shimmer.fromColors(
-      baseColor: const Color(0xFF141416),
-      highlightColor: const Color(0xFF2A2A2E),
+      baseColor: context.isDarkMode
+          ? const Color(0xFF141416)
+          : Colors.black.withValues(alpha: 0.04),
+      highlightColor: context.isDarkMode
+          ? const Color(0xFF2A2A2E)
+          : Colors.black.withValues(alpha: 0.08),
       child: Container(
         width: double.infinity,
         height: height,
         margin: const EdgeInsets.only(bottom: 24),
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(24),
         ),
       ),
     );
   }
-
-  // --- UI CARDS ---
 
   Widget _buildMetricsCard() {
     return Container(
@@ -662,9 +750,18 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
       padding: const EdgeInsets.all(24),
       margin: const EdgeInsets.only(bottom: 32),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
+        boxShadow: context.isDarkMode
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -672,19 +769,46 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
           Text(
             "KEY METRICS",
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: context.textTertiary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.5,
             ),
           ),
           const SizedBox(height: 20),
-          _buildMetricRow("Total Spending", CurrencyFormatter.formatByCountry(_safeDouble(aiMetrics!['total_spending']), _userCountryCode)),
-          _buildMetricRow("Average Spending", CurrencyFormatter.formatByCountry(_safeDouble(aiMetrics!['avg_spending']), _userCountryCode)),
-          _buildMetricRow("Net Burn Rate", CurrencyFormatter.formatByCountry(_safeDouble(aiMetrics!['net_burn']), _userCountryCode)),
-          _buildMetricRow("Risk Level", "${aiMetrics!['risk'] ?? 'Unknown'}"),
+          _buildMetricRow(
+            "Total Spending",
+            CurrencyFormatter.formatByCountry(
+              _safeDouble(aiMetrics!['total_spending']),
+              _userCountryCode,
+            ),
+          ),
+          _buildMetricRow(
+            "Average Spending",
+            CurrencyFormatter.formatByCountry(
+              _safeDouble(aiMetrics!['avg_spending']),
+              _userCountryCode,
+            ),
+          ),
+          _buildMetricRow(
+            "Net Burn Rate",
+            CurrencyFormatter.formatByCountry(
+              _safeDouble(aiMetrics!['net_burn']),
+              _userCountryCode,
+            ),
+          ),
+          _buildMetricRow(
+            "Risk Level",
+            "${aiMetrics!['risk'] ?? 'Unknown'}",
+          ),
           if (aiMetrics!['funding'] != null)
-            _buildMetricRow("Total Funding", CurrencyFormatter.formatByCountry(_safeDouble(aiMetrics!['funding']), _userCountryCode)),
+            _buildMetricRow(
+              "Total Funding",
+              CurrencyFormatter.formatByCountry(
+                _safeDouble(aiMetrics!['funding']),
+                _userCountryCode,
+              ),
+            ),
           _buildMetricRow("Teams", "${aiMetrics!['team_count'] ?? 0}"),
           _buildMetricRow("Members", "${aiMetrics!['member_count'] ?? 0}"),
         ],
@@ -700,12 +824,16 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
         children: [
           Text(
             label,
-            style: GoogleFonts.inter(color: Colors.white54, fontSize: 14, fontWeight: FontWeight.w500),
+            style: GoogleFonts.inter(
+              color: context.textSecondary,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           Text(
             value,
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w600,
             ),
@@ -715,17 +843,32 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
     );
   }
 
-  Widget _buildDynamicInsightCard({required String title, required String content, required bool isFirst}) {
-    final Color badgeColor = isFirst ? const Color(0xFF30D158) : const Color(0xFF0A84FF);
+  Widget _buildDynamicInsightCard({
+    required String title,
+    required String content,
+    required bool isFirst,
+  }) {
+    final Color badgeColor = isFirst
+        ? const Color(0xFF30D158)
+        : const Color(0xFF0A84FF);
     final String badgeText = isFirst ? "PRIMARY INSIGHT" : "RECOMMENDATION";
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
+        boxShadow: context.isDarkMode
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -751,7 +894,7 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
           Text(
             title,
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.w600,
               letterSpacing: -0.5,
@@ -764,7 +907,11 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
     );
   }
 
-  Widget _buildPendingSection({required String title, String? content, Widget? child}) {
+  Widget _buildPendingSection({
+    required String title,
+    String? content,
+    Widget? child,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
@@ -775,7 +922,7 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
               Text(
                 title,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                   letterSpacing: -0.5,
@@ -785,14 +932,14 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
+                  color: context.glassBackgroundStrong,
                   borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                  border: Border.all(color: context.borderColor),
                 ),
                 child: Text(
                   "PENDING AI",
                   style: GoogleFonts.inter(
-                    color: Colors.white38,
+                    color: context.textSecondary,
                     fontSize: 9,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.0,
@@ -806,9 +953,18 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
             width: double.infinity,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              border: Border.all(color: context.borderColor),
+              boxShadow: context.isDarkMode
+                  ? []
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -818,14 +974,14 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
                   child: Text(
                     "EXAMPLE GENERATION:",
                     style: GoogleFonts.inter(
-                      color: Colors.white24,
+                      color: context.textTertiary,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.5,
                     ),
                   ),
                 ),
-                if (content != null) _buildFormattedContent(content), 
+                if (content != null) _buildFormattedContent(content),
                 ?child,
               ],
             ),
@@ -835,14 +991,19 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
     );
   }
 
-  Widget _buildKeyPoint(String title, String desc, String savings, Color color) {
+  Widget _buildKeyPoint(
+    String title,
+    String desc,
+    String savings,
+    Color color,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.02),
+        color: context.glassBackgroundStrong,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -853,7 +1014,11 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
               Expanded(
                 child: Text(
                   title,
-                  style: GoogleFonts.inter(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.inter(
+                    color: context.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               Container(
@@ -878,7 +1043,11 @@ class _AiScreenState extends State<AiScreen> with AutomaticKeepAliveClientMixin 
           const SizedBox(height: 12),
           Text(
             desc,
-            style: GoogleFonts.inter(color: Colors.white38, fontSize: 13, height: 1.5),
+            style: GoogleFonts.inter(
+              color: context.textSecondary,
+              fontSize: 13,
+              height: 1.5,
+            ),
           ),
         ],
       ),

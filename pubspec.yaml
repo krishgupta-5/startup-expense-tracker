@@ -1,6 +1,6 @@
 name: startup_expense_tracker
 description: "A new Flutter project."
-publish_to: 'none'
+publish_to: "none"
 
 version: 1.0.0+1
 
@@ -17,6 +17,7 @@ dependencies:
   fl_chart: ^1.1.1
   table_calendar: ^3.1.2
   url_launcher: ^6.3.0
+  webview_flutter: ^4.0.7
   firebase_core: ^4.4.0
   firebase_auth: ^6.1.4
   google_sign_in: ^7.2.0
@@ -35,6 +36,7 @@ dependencies:
   country_code_picker: ^3.0.0
   file_picker: ^8.1.2
   shimmer: ^3.0.0
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:

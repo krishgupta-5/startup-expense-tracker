@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../../../services/bank_account_service.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
+import '../../../theme/app_theme.dart';
 
 class ProcessPaymentScreen extends StatefulWidget {
   final String memberId;
@@ -269,10 +270,12 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
@@ -354,17 +357,17 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05), // Glassy white
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(Icons.close, color: Colors.white, size: 20),
+              child: Icon(Icons.close, color: context.textPrimary, size: 20),
             ),
           ),
           Text(
             widget.isAdvance ? "Advance Pay" : "Process Salary",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -379,7 +382,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54,
+        color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
@@ -399,26 +402,26 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
         textAlign: TextAlign.center,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         style: GoogleFonts.inter(
-          color: Colors.white,
+          color: context.textPrimary,
           fontSize: 56,
           fontWeight: FontWeight.w600,
           letterSpacing: -2,
         ),
         cursorColor: widget.isAdvance
             ? const Color(0xFF5E5CE6)
-            : Colors.white54,
+            : context.textPrimary,
         decoration: InputDecoration(
           prefixText:
               "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
           prefixStyle: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textSecondary,
             fontSize: 56,
             fontWeight: FontWeight.w500,
             letterSpacing: -2,
           ),
           hintText: "0.00",
           hintStyle: GoogleFonts.inter(
-            color: Colors.white12,
+            color: context.textTertiary,
             fontSize: 56,
             fontWeight: FontWeight.w600,
           ),
@@ -439,9 +442,9 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
           width: double.infinity,
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: Column(
             children: [
@@ -489,12 +492,12 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? Colors.white.withValues(alpha: 0.08)
+              ? context.textPrimary.withValues(alpha: 0.08)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isSelected
-                ? Colors.white.withValues(alpha: 0.15)
+                ? context.textPrimary.withValues(alpha: 0.15)
                 : Colors.transparent,
           ),
         ),
@@ -506,16 +509,16 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
               decoration: BoxDecoration(
                 color: isAvailable
                     ? (isSelected
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.1))
-                    : Colors.white.withValues(alpha: 0.05),
+                          ? context.textPrimary
+                          : context.textPrimary.withValues(alpha: 0.1))
+                    : context.textPrimary.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 icon,
                 color: isAvailable
-                    ? (isSelected ? Colors.black : Colors.white)
-                    : Colors.white.withValues(alpha: 0.3),
+                    ? (isSelected ? context.appBackground : context.textPrimary)
+                    : context.textSecondary,
                 size: 20,
               ),
             ),
@@ -528,8 +531,8 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
                     title,
                     style: GoogleFonts.inter(
                       color: isAvailable
-                          ? (isSelected ? Colors.white : Colors.white70)
-                          : Colors.white.withValues(alpha: 0.3),
+                          ? (isSelected ? context.textPrimary : context.textSecondary)
+                          : context.textTertiary,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
@@ -539,8 +542,8 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
                     subtitle,
                     style: GoogleFonts.inter(
                       color: isAvailable
-                          ? Colors.white.withValues(alpha: 0.5)
-                          : Colors.white.withValues(alpha: 0.2),
+                          ? context.textSecondary
+                          : context.textTertiary,
                       fontSize: 12,
                     ),
                   ),
@@ -552,10 +555,10 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
                 width: 20,
                 height: 20,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.check, color: Colors.black, size: 14),
+                child: Icon(Icons.check, color: context.appBackground, size: 14),
               ),
           ],
         ),
@@ -580,7 +583,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
           child: ShadSelect<String>(
             placeholder: Text(
               'Select $label',
-              style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
+              style: GoogleFonts.inter(color: context.textTertiary, fontSize: 14),
             ),
             initialValue: currentValue.isNotEmpty ? currentValue : null,
             options: [
@@ -591,7 +594,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
             selectedOptionBuilder: (context, value) => Text(
               items[value] ?? "Select",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -612,20 +615,20 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: TextField(
             controller: _reasonController,
             onTapOutside: (event) => FocusScope.of(context).unfocus(),
             textInputAction: TextInputAction.done,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
             maxLines: 3,
             minLines: 3,
             decoration: InputDecoration(
               hintText: "Enter reason for advance payout...",
-              hintStyle: GoogleFonts.inter(color: Colors.white24),
+              hintStyle: GoogleFonts.inter(color: context.textTertiary),
               border: InputBorder.none,
             ),
           ),
@@ -638,9 +641,9 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF09090B),
+        color: context.appBackground,
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          top: BorderSide(color: context.borderColor),
         ),
       ),
       child: SizedBox(
@@ -651,10 +654,10 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
           style: ElevatedButton.styleFrom(
             backgroundColor: widget.isAdvance
                 ? const Color(0xFF5E5CE6) // Purple for Advance
-                : Colors.white, // Solid White for Salary
-            foregroundColor: widget.isAdvance ? Colors.white : Colors.black,
+                : const Color(0xFF0A84FF), // Vibrant Blue for Salary Payment
+            foregroundColor: Colors.white,
             disabledBackgroundColor:
-                (widget.isAdvance ? const Color(0xFF5E5CE6) : Colors.white)
+                (widget.isAdvance ? const Color(0xFF5E5CE6) : const Color(0xFF0A84FF))
                     .withValues(alpha: 0.5),
             elevation: 0,
             shape: RoundedRectangleBorder(
@@ -662,12 +665,12 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
             ),
           ),
           child: _isLoading
-              ? SizedBox(
+              ? const SizedBox(
                   height: 24,
                   width: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: widget.isAdvance ? Colors.white : Colors.black,
+                    color: Colors.white,
                   ),
                 )
               : Text(

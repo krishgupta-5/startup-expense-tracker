@@ -16,6 +16,7 @@ import '../../../services/currency_formatter.dart';
 import '../../../services/bank_account_service.dart';
 import '../../../services/team_member_service.dart';
 import '../../../widgets/avatar_widget.dart';
+import '../../../theme/app_theme.dart';
 
 class EditExpenseScreen extends StatefulWidget {
   final String expenseId;
@@ -361,7 +362,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     try {
       await showModalBottomSheet(
         context: context,
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
@@ -373,17 +374,17 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
               Text(
                 "Select Attachment",
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 20),
               ListTile(
-                leading: const Icon(Icons.camera_alt, color: Colors.white),
+                leading: Icon(Icons.camera_alt, color: context.textPrimary),
                 title: Text(
                   "Take Photo",
-                  style: GoogleFonts.inter(color: Colors.white),
+                  style: GoogleFonts.inter(color: context.textPrimary),
                 ),
                 onTap: () async {
                   Navigator.pop(context);
@@ -398,10 +399,10 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library, color: Colors.white),
+                leading: Icon(Icons.photo_library, color: context.textPrimary),
                 title: Text(
                   "Choose Photo / Video",
-                  style: GoogleFonts.inter(color: Colors.white),
+                  style: GoogleFonts.inter(color: context.textPrimary),
                 ),
                 onTap: () async {
                   Navigator.pop(context);
@@ -413,13 +414,13 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.insert_drive_file,
-                  color: Colors.white,
+                  color: context.textPrimary,
                 ),
                 title: Text(
                   "Choose PDF / Document",
-                  style: GoogleFonts.inter(color: Colors.white),
+                  style: GoogleFonts.inter(color: context.textPrimary),
                 ),
                 onTap: () async {
                   Navigator.pop(context);
@@ -482,7 +483,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
               child: Text(
                 message,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -490,12 +491,12 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 3),
         elevation: 0,
@@ -669,10 +670,12 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: Theme.of(context).brightness == Brightness.dark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
@@ -816,17 +819,17 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(Icons.close, color: Colors.white, size: 20),
+              child: Icon(Icons.close, color: context.textPrimary, size: 20),
             ),
           ),
           Text(
             "Edit Expense",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -841,7 +844,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54,
+        color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
@@ -859,7 +862,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         textInputAction: TextInputAction.next,
         style: GoogleFonts.inter(
-          color: Colors.white,
+          color: context.textPrimary,
           fontSize: 56,
           fontWeight: FontWeight.w600,
           letterSpacing: -2,
@@ -868,7 +871,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         decoration: InputDecoration(
           hintText: "0.00",
           hintStyle: GoogleFonts.inter(
-            color: Colors.white12,
+            color: context.textSecondary.withValues(alpha: 0.3),
             fontSize: 56,
             fontWeight: FontWeight.w600,
           ),
@@ -878,7 +881,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
               ? '₹'
               : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
           prefixStyle: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textSecondary,
             fontSize: 32,
             fontWeight: FontWeight.w600,
           ),
@@ -895,20 +898,20 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: TextField(
         controller: controller,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         textInputAction: TextInputAction.next,
-        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
+          labelStyle: GoogleFonts.inter(color: context.textSecondary, fontSize: 13),
           hintText: placeholder,
-          hintStyle: GoogleFonts.inter(color: Colors.white24),
+          hintStyle: GoogleFonts.inter(color: context.textSecondary.withValues(alpha: 0.5)),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
@@ -934,7 +937,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           child: ShadSelect<String>(
             placeholder: Text(
               'Select $label',
-              style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
+              style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
             ),
             initialValue: currentValue.isNotEmpty ? currentValue : null,
             options: [
@@ -945,7 +948,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             selectedOptionBuilder: (context, value) => Text(
               items[value] ?? "Select",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -968,31 +971,31 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: TextField(
             readOnly: true,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
             decoration: InputDecoration(
-              icon: const Icon(
+              icon: Icon(
                 Icons.calendar_today,
-                color: Colors.white38,
+                color: context.textSecondary,
                 size: 20,
               ),
               hintText: 'Select date',
               labelText: 'Date',
               labelStyle: GoogleFonts.inter(
-                color: Colors.white38,
+                color: context.textSecondary,
                 fontSize: 13,
               ),
-              hintStyle: GoogleFonts.inter(color: Colors.white12),
+              hintStyle: GoogleFonts.inter(color: context.textSecondary.withValues(alpha: 0.5)),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
-              suffixIcon: const Icon(
+              suffixIcon: Icon(
                 Icons.calendar_month,
-                color: Colors.white38,
+                color: context.textSecondary,
               ),
             ),
             // Use the persistent _dateController — avoids creating a new
@@ -1013,7 +1016,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF09090B),
+          backgroundColor: context.cardBackground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -1033,14 +1036,14 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                         Text(
                           "Select Date",
                           style: GoogleFonts.inter(
-                            color: Colors.white,
+                            color: context.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close, color: Colors.white38),
+                          icon: Icon(Icons.close, color: context.textSecondary),
                         ),
                       ],
                     ),
@@ -1069,8 +1072,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                       child: ElevatedButton(
                         onPressed: () => Navigator.pop(context),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black,
+                          backgroundColor: context.textPrimary,
+                          foregroundColor: context.appBackground,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -1104,20 +1107,20 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: TextField(
             controller: controller,
             onTapOutside: (event) => FocusScope.of(context).unfocus(),
             textInputAction: TextInputAction.done,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
             maxLines: 4,
             minLines: 3,
             decoration: InputDecoration(
               hintText: "Enter details...",
-              hintStyle: GoogleFonts.inter(color: Colors.white24),
+              hintStyle: GoogleFonts.inter(color: context.textSecondary.withValues(alpha: 0.5)),
               border: InputBorder.none,
             ),
           ),
@@ -1130,9 +1133,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Row(
         children: [
@@ -1156,7 +1159,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                   style: GoogleFonts.inter(
                     color: _expenseType == "team"
                         ? const Color(0xFF30D158)
-                        : Colors.white70,
+                        : context.textSecondary,
                     fontSize: 14,
                     fontWeight: _expenseType == "team"
                         ? FontWeight.w600
@@ -1187,7 +1190,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                   style: GoogleFonts.inter(
                     color: _expenseType == "member"
                         ? const Color(0xFF0A84FF)
-                        : Colors.white70,
+                        : context.textSecondary,
                     fontSize: 14,
                     fontWeight: _expenseType == "member"
                         ? FontWeight.w600
@@ -1213,14 +1216,14 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       return Container(
         height: 96,
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          border: Border.all(color: context.borderColor),
         ),
         child: Center(
           child: Text(
             isTeamExpense ? "No teams available" : "No team members available",
-            style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
+            style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
           ),
         ),
       );
@@ -1252,13 +1255,13 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
+                          color: context.borderColor,
                         ),
                         color:
                             (isTeamExpense
                                 ? _selectedTeam == null
                                 : _selectedTeamMember == null)
-                            ? Colors.white.withValues(alpha: 0.1)
+                            ? context.borderColor
                             : Colors.transparent,
                       ),
                       child: Icon(
@@ -1269,8 +1272,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                             (isTeamExpense
                                 ? _selectedTeam == null
                                 : _selectedTeamMember == null)
-                            ? Colors.white
-                            : Colors.white38,
+                            ? context.textPrimary
+                            : context.textSecondary,
                         size: 22,
                       ),
                     ),
@@ -1282,8 +1285,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                             (isTeamExpense
                                 ? _selectedTeam == null
                                 : _selectedTeamMember == null)
-                            ? Colors.white
-                            : Colors.white38,
+                            ? context.textPrimary
+                            : context.textSecondary,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -1346,7 +1349,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: isSelected
-                ? Border.all(color: Colors.white, width: 2)
+                ? Border.all(color: context.textPrimary, width: 2)
                 : Border.all(color: Colors.transparent),
           ),
           child: Stack(
@@ -1374,7 +1377,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFF30D158),
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
+                      border: Border.all(color: context.appBackground, width: 2),
                     ),
                     child: const Icon(
                       Icons.check,
@@ -1392,7 +1395,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           child: Text(
             team.teamName,
             style: GoogleFonts.inter(
-              color: isSelected ? Colors.white : Colors.white70,
+              color: isSelected ? context.textPrimary : context.textSecondary,
               fontSize: 12,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             ),
@@ -1451,7 +1454,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: isSelected
-                  ? Border.all(color: Colors.white, width: 2)
+                  ? Border.all(color: context.textPrimary, width: 2)
                   : Border.all(color: Colors.transparent),
             ),
             child: Stack(
@@ -1471,7 +1474,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                       decoration: BoxDecoration(
                         color: const Color(0xFF30D158),
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
+                        border: Border.all(color: context.appBackground, width: 2),
                       ),
                       child: const Icon(
                         Icons.check,
@@ -1487,7 +1490,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           Text(
             member.fullName,
             style: GoogleFonts.inter(
-              color: isSelected ? Colors.white : Colors.white70,
+              color: isSelected ? context.textPrimary : context.textSecondary,
               fontSize: 12,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             ),
@@ -1516,10 +1519,10 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 width: size,
                 height: size,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF141416),
+                  color: context.cardBackground,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: context.borderColor,
                   ),
                 ),
                 child: Center(
@@ -1528,7 +1531,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                     height: size * 0.3,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.white38,
+                      color: context.textSecondary,
                     ),
                   ),
                 ),
@@ -1571,7 +1574,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: const Color(0xFF30D158).withValues(alpha: 0.3),
@@ -1608,7 +1611,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                   Text(
                     "Stored in Telegram",
                     style: GoogleFonts.inter(
-                      color: Colors.white38,
+                      color: context.textSecondary,
                       fontSize: 11,
                     ),
                   ),
@@ -1618,7 +1621,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             IconButton(
               icon: Icon(
                 _isUploading ? Icons.hourglass_empty : Icons.close,
-                color: Colors.white38,
+                color: context.textSecondary,
                 size: 20,
               ),
               onPressed: _isUploading
@@ -1668,12 +1671,12 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: _isUploading
                 ? const Color(0xFF0A84FF).withValues(alpha: 0.3)
-                : Colors.white.withValues(alpha: 0.1),
+                : context.borderColor,
           ),
         ),
         child: Row(
@@ -1692,7 +1695,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 _fileName != null
                     ? _getFileIcon(_fileName!)
                     : Icons.attach_file,
-                color: Colors.white38,
+                color: context.textSecondary,
               ),
             const SizedBox(width: 12),
             Expanded(
@@ -1703,7 +1706,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 style: TextStyle(
                   color: _isUploading
                       ? const Color(0xFF0A84FF)
-                      : Colors.white70,
+                      : context.textSecondary,
                   fontSize: _isUploading ? 12 : 14,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -1729,9 +1732,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF09090B),
+        color: context.appBackground,
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          top: BorderSide(color: context.borderColor),
         ),
       ),
       child: SizedBox(
@@ -1740,21 +1743,21 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         child: ElevatedButton(
           onPressed: _isLoading ? null : _updateExpense,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            disabledBackgroundColor: Colors.white54,
+            backgroundColor: context.textPrimary,
+            foregroundColor: context.appBackground,
+            disabledBackgroundColor: context.textSecondary.withValues(alpha: 0.3),
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
           child: _isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   height: 24,
                   width: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.black,
+                    color: context.appBackground,
                   ),
                 )
               : Text(
@@ -1781,9 +1784,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       margin: const EdgeInsets.only(top: 24),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416).withValues(alpha: 0.6), // Glassy background
+        color: context.cardBackground, // Glassy background
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1821,7 +1824,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                     ShadSelect<String>(
                       placeholder: Text(
                         'Select Frequency',
-                        style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
+                        style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
                       ),
                       initialValue: _recurrenceFrequency,
                       options: [
@@ -1832,7 +1835,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                       selectedOptionBuilder: (context, value) => Text(
                         frequencies[value] ?? "Monthly",
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1861,8 +1864,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                           value: _isOngoing,
                           activeThumbColor: const Color(0xFF30D158),
                           activeTrackColor: const Color(0xFF30D158).withValues(alpha: 0.2),
-                          inactiveThumbColor: Colors.white54,
-                          inactiveTrackColor: Colors.white10,
+                          inactiveThumbColor: context.textSecondary,
+                          inactiveTrackColor: context.borderColor,
                           onChanged: (val) {
                             setState(() {
                               _isOngoing = val;
@@ -1873,7 +1876,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                         Text(
                           _isOngoing ? "Ongoing" : "Fixed Term",
                           style: GoogleFonts.inter(
-                            color: Colors.white70,
+                            color: context.textSecondary,
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
                           ),
@@ -1918,17 +1921,17 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
             decoration: InputDecoration(
               hintText: placeholder,
-              hintStyle: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
+              hintStyle: GoogleFonts.inter(color: context.textSecondary.withValues(alpha: 0.5), fontSize: 14),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
             ),

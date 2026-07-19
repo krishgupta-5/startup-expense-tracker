@@ -372,7 +372,9 @@ class BankAccountService {
 
     // Calculate actual spending for each bank account from expenses
     for (var expense in expenses) {
-      final amount = (expense['amount'] as num).toDouble();
+      final amount = (expense['amount'] as num?)?.toDouble() ??
+          (expense['Amount'] as num?)?.toDouble() ??
+          0.0;
       final expenseBankAccount = expense['bankAccount'] as String?;
       final expenseTitle =
           expense['title'] as String? ??

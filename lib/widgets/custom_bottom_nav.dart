@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:startup_expense_tracker/theme/app_theme.dart';
 
 class ModernDarkNavBar extends StatelessWidget {
   final Function(int) onTabSelected;
@@ -14,39 +15,56 @@ class ModernDarkNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.black,
-        border: Border(top: BorderSide(color: Color(0xFF222222), width: 1.5)),
+      decoration: BoxDecoration(
+        color: context.navBackground,
+        border: Border(top: BorderSide(color: context.borderColor, width: 1.5)),
+        boxShadow: context.isDarkMode
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, -4),
+                ),
+              ],
       ),
       child: SafeArea(
-        // FIX: Removed fixed height.
         // Using vertical padding allows the widget to size itself naturally
-        // preventing the "1 pixel overflow" error.
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildNavItem(0, Icons.home_rounded, Icons.home_outlined, "Home"),
               _buildNavItem(
+                context,
+                0,
+                Icons.home_rounded,
+                Icons.home_outlined,
+                "Home",
+              ),
+              _buildNavItem(
+                context,
                 1,
                 Icons.groups_rounded,
                 Icons.groups_outlined,
                 "Team",
               ),
               _buildNavItem(
+                context,
                 2,
                 Icons.receipt_long_rounded,
                 Icons.receipt_long_outlined,
                 "Expenses",
               ),
               _buildNavItem(
+                context,
                 3,
                 Icons.insights_rounded,
                 Icons.insights_outlined,
                 "AI",
               ),
               _buildNavItem(
+                context,
                 4,
                 Icons.settings_rounded,
                 Icons.settings_outlined,
@@ -60,6 +78,7 @@ class ModernDarkNavBar extends StatelessWidget {
   }
 
   Widget _buildNavItem(
+    BuildContext context,
     int index,
     IconData activeIcon,
     IconData inactiveIcon,
@@ -78,14 +97,12 @@ class ModernDarkNavBar extends StatelessWidget {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               decoration: BoxDecoration(
-                color: isSelected
-                    ? const Color(0xFF222222)
-                    : Colors.transparent,
+                color: isSelected ? context.navActiveTab : Colors.transparent,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Icon(
                 isSelected ? activeIcon : inactiveIcon,
-                color: isSelected ? Colors.white : const Color(0xFF666666),
+                color: isSelected ? context.textPrimary : context.textSecondary,
                 size: 24, // Slightly adjusted for better fit
               ),
             ),
@@ -94,7 +111,7 @@ class ModernDarkNavBar extends StatelessWidget {
               label,
               maxLines: 1,
               style: GoogleFonts.inter(
-                color: isSelected ? Colors.white : const Color(0xFF666666),
+                color: isSelected ? context.textPrimary : context.textSecondary,
                 fontSize: 10,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 letterSpacing: 0.3,

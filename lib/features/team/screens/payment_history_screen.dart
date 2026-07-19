@@ -12,6 +12,7 @@ import '../../../../services/currency_formatter.dart';
 import '../../../../services/currency_preference_service.dart';
 import '../../../../services/bank_account_service.dart';
 import '../../../../utils/expense_expansion_helper.dart';
+import '../../../../theme/app_theme.dart';
 
 class PaymentHistoryScreen extends StatefulWidget {
   final DateTime joiningDate;
@@ -257,11 +258,11 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         content: Text(
           message,
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.appBackground,
             fontWeight: FontWeight.w500,
           ),
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.textPrimary,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
@@ -273,11 +274,13 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     final currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: context.appBackground,
       body: Stack(
         children: [
           AnnotatedRegion<SystemUiOverlayStyle>(
-            value: SystemUiOverlayStyle.light,
+            value: context.isDarkMode
+                ? SystemUiOverlayStyle.light
+                : SystemUiOverlayStyle.dark,
             child: SafeArea(
               bottom: false,
               child: Column(
@@ -297,9 +300,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return const Center(
+                          return Center(
                             child: CircularProgressIndicator(
-                              color: Colors.white38,
+                              color: context.textSecondary,
                             ),
                           );
                         }
@@ -388,7 +391,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                                       "No payments processed yet.\nClick 'Pay Salary' to log the first payment.",
                                       textAlign: TextAlign.center,
                                       style: GoogleFonts.inter(
-                                        color: Colors.white38,
+                                        color: context.textSecondary,
                                         height: 1.5,
                                         fontSize: 14,
                                       ),
@@ -414,8 +417,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
           if (_isDownloading)
             Container(
               color: Colors.black.withValues(alpha: 0.6),
-              child: const Center(
-                child: CircularProgressIndicator(color: Colors.white),
+              child: Center(
+                child: CircularProgressIndicator(color: context.textPrimary),
               ),
             ),
         ],
@@ -434,13 +437,13 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05), // White Glass
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -449,7 +452,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
           Text(
             "Payment History",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -461,11 +464,11 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05), // White Glass
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(Icons.download, color: Colors.white, size: 20),
+              child: Icon(Icons.download, color: context.textPrimary, size: 20),
             ),
           ),
         ],
@@ -478,9 +481,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -488,7 +491,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
           Text(
             "TOTAL PAID (ALL TIME)",
             style: GoogleFonts.inter(
-              color: Colors.white54,
+              color: context.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.2,
@@ -498,7 +501,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
           Text(
             _formatCurrency(totalPaid),
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 32,
               fontWeight: FontWeight.w600,
               letterSpacing: -1,
@@ -573,10 +576,10 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                     vertical: 14,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF141416),
+                    color: context.cardBackground,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.04),
+                      color: context.borderColor,
                     ),
                   ),
                   child: Row(
@@ -587,7 +590,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
+                              color: isAdvance
+                                  ? const Color(0xFF5E5CE6).withValues(alpha: 0.1)
+                                  : context.textPrimary.withValues(alpha: 0.05),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Icon(
@@ -596,7 +601,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                                   : Icons.arrow_outward,
                               color: isAdvance
                                   ? const Color(0xFF5E5CE6)
-                                  : Colors.white54,
+                                  : context.textSecondary,
                               size: 16,
                             ),
                           ),
@@ -607,7 +612,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                               Text(
                                 payment['title'],
                                 style: GoogleFonts.inter(
-                                  color: Colors.white,
+                                  color: context.textPrimary,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -616,7 +621,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                               Text(
                                 payment['date'],
                                 style: GoogleFonts.inter(
-                                  color: Colors.white38,
+                                  color: context.textSecondary,
                                   fontSize: 11,
                                 ),
                               ),
@@ -630,7 +635,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                           Text(
                             payment['amt'],
                             style: GoogleFonts.inter(
-                              color: Colors.white,
+                              color: context.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               fontFeatures: [
@@ -680,7 +685,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
       child: Text(
         title.toUpperCase(),
         style: GoogleFonts.inter(
-          color: Colors.white54,
+          color: context.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,

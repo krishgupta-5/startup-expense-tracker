@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/financial_data_service.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
+import '../../../theme/app_theme.dart';
 
 class MonthlyBurnScreen extends StatefulWidget {
   const MonthlyBurnScreen({super.key});
@@ -62,9 +63,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
 
   double _toDouble(dynamic value, {double fallback = 0.0}) {
     if (value == null) return fallback;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) return double.tryParse(value) ?? fallback;
+    if (value is num) return value.toDouble();
+    if (value is String) {
+      return double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), '')) ??
+          fallback;
+    }
     return fallback;
   }
 
@@ -231,7 +234,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54,
+        color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
@@ -242,9 +245,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
@@ -309,11 +314,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              border: Border.all(color: context.borderColor),
             ),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+            child: Icon(Icons.arrow_back, color: context.iconPrimary, size: 20),
           ),
         ),
         Column(
@@ -322,7 +327,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
             Text(
               "Burn Analysis",
               style: GoogleFonts.inter(
-                color: Colors.white38,
+                color: context.textSecondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -331,7 +336,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
             Text(
               "Expense Breakdown",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.5,
@@ -348,9 +353,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -366,7 +371,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? Colors.white.withValues(alpha: 0.1)
+                      ? (context.isDarkMode
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : Colors.black.withValues(alpha: 0.08))
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -374,7 +381,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                   range,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.inter(
-                    color: isSelected ? Colors.white : Colors.white38,
+                    color: isSelected ? context.textPrimary : context.textTertiary,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
@@ -394,7 +401,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         child: Text(
           text,
           style: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textTertiary,
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
@@ -424,9 +431,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -500,7 +507,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                                   ? "₹0"
                                   : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 48,
                           fontWeight: FontWeight.w600,
                           height: 1.0,
@@ -515,7 +522,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                     child: Text(
                       "/month",
                       style: GoogleFonts.inter(
-                        color: Colors.white38,
+                        color: context.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -529,10 +536,10 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.03),
+                  color: context.cardSecondaryBackground,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.06),
+                    color: context.borderSubtle,
                   ),
                 ),
                 child: Column(
@@ -541,7 +548,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                     Text(
                       "Net Burn",
                       style: GoogleFonts.inter(
-                        color: Colors.white54,
+                        color: context.textSecondary,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -631,9 +638,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
               width: double.infinity,
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
               child: displayData.isEmpty
                   ? _buildEmptyState("Not enough data for trend analysis")
@@ -704,7 +711,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 ? CurrencyFormatter.formatCompact(amount, countryCode: '+91')
                 : CurrencyFormatter.formatByCountryCompact(amount, _userCountryCode),
             style: GoogleFonts.inter(
-              color: isActive ? Colors.white : Colors.white54,
+              color: isActive ? context.textPrimary : context.textSecondary,
               fontSize: 9,
               fontWeight: FontWeight.w600,
             ),
@@ -722,7 +729,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
               child: Container(
                 width: width,
                 decoration: BoxDecoration(
-                  color: isActive ? Colors.white : const Color(0xFF1F1F22),
+                  color: isActive ? context.textPrimary : context.cardSecondaryBackground,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -733,7 +740,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         Text(
           displayLabel,
           style: GoogleFonts.inter(
-            color: isActive ? Colors.white : Colors.white38,
+            color: isActive ? context.textPrimary : context.textTertiary,
             fontSize: 11,
             fontWeight: FontWeight.w500,
           ),
@@ -790,9 +797,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
               width: double.infinity,
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
               child: Builder(
                 builder: (context) {
@@ -866,9 +873,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
               width: double.infinity,
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
               child: teamCosts.isEmpty
                   ? _buildEmptyState("No team data available")
@@ -883,7 +890,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                                 child: Text(
                                   team['name'] as String,
                                   style: GoogleFonts.inter(
-                                    color: Colors.white70,
+                                    color: context.textSecondary,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -902,7 +909,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                                             _userCountryCode,
                                           ),
                                     style: GoogleFonts.inter(
-                                      color: Colors.white,
+                                      color: context.textPrimary,
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
                                       fontFeatures: [
@@ -920,7 +927,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                                       height: 4,
                                       width: double.infinity,
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF1F1F22),
+                                        color: context.cardSecondaryBackground,
                                         borderRadius: BorderRadius.circular(2),
                                       ),
                                     ),
@@ -932,8 +939,8 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                                         height: 4,
                                         decoration: BoxDecoration(
                                           color: _toDouble(team['pct']) > 0
-                                              ? Colors.white
-                                              : Colors.white24,
+                                              ? context.textPrimary
+                                              : context.borderSubtle,
                                           borderRadius: BorderRadius.circular(2),
                                         ),
                                       ),
@@ -981,9 +988,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
               width: double.infinity,
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
               child: rawTeamsData.isEmpty
                   ? _buildEmptyState("No team budget data available")
@@ -1040,17 +1047,17 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         _buildComparisonRow("Team", "Budget", "Actual", "Variance", true),
         ...comparisonData.map(
           (data) => _buildComparisonRow(
-            data['team'] as String,
-            _formatCurrencyForForecast(data['budget'] as double),
-            _formatCurrencyForForecast(data['actual'] as double),
-            data['isOver'] as bool
-                ? "${_formatCurrencyForForecast((data['variance'] as double).abs())} over"
-                : "${_formatCurrencyForForecast((data['variance'] as double).abs())} under",
+            data['team']?.toString() ?? 'Unknown',
+            _formatCurrencyForForecast(_toDouble(data['budget'])),
+            _formatCurrencyForForecast(_toDouble(data['actual'])),
+            data['isOver'] == true
+                ? "${_formatCurrencyForForecast(_toDouble(data['variance']).abs())} over"
+                : "${_formatCurrencyForForecast(_toDouble(data['variance']).abs())} under",
             false,
           ),
         ),
         const SizedBox(height: 16),
-        Container(height: 1, color: Colors.white.withValues(alpha: 0.1)),
+        Container(height: 1, color: context.borderColor),
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1058,7 +1065,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
             Text(
               "Total Budget",
               style: GoogleFonts.inter(
-                color: Colors.white38,
+                color: context.textSecondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -1070,7 +1077,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 child: Text(
                   _formatCurrencyForForecast(totalBudget),
                   style: GoogleFonts.inter(
-                    color: Colors.white38,
+                    color: context.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     fontFeatures: [const FontFeature.tabularFigures()],
@@ -1087,7 +1094,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
             Text(
               "Total Actual",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -1099,7 +1106,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 child: Text(
                   _formatCurrencyForForecast(totalActual),
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     fontFeatures: [const FontFeature.tabularFigures()],
@@ -1116,7 +1123,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
             Text(
               "Variance",
               style: GoogleFonts.inter(
-                color: Colors.white38,
+                color: context.textSecondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -1163,7 +1170,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
             child: Text(
               category,
               style: GoogleFonts.inter(
-                color: isHeader ? Colors.white : Colors.white70,
+                color: isHeader ? context.textPrimary : context.textSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -1178,7 +1185,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 budget,
                 textAlign: TextAlign.end,
                 style: GoogleFonts.inter(
-                  color: isHeader ? Colors.white : Colors.white38,
+                  color: isHeader ? context.textPrimary : context.textTertiary,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
@@ -1194,7 +1201,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 actual,
                 textAlign: TextAlign.end,
                 style: GoogleFonts.inter(
-                  color: isHeader ? Colors.white : Colors.white,
+                  color: isHeader ? context.textPrimary : context.textPrimary,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1213,7 +1220,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 textAlign: TextAlign.end,
                 style: GoogleFonts.inter(
                   color: isHeader
-                      ? Colors.white
+                      ? context.textPrimary
                       : isOver
                       ? const Color(0xFFFF453A)
                       : const Color(0xFF30D158),
@@ -1233,16 +1240,16 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         children: [
           Text(
             "Failed to load financial data",
             style: GoogleFonts.inter(
-              color: Colors.white70,
+              color: context.textSecondary,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -1273,9 +1280,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: _buildEmptyState("Failed to load data"),
         ),
@@ -1288,9 +1295,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
       width: double.infinity,
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: AnimatedBuilder(
         animation: _shimmerController,
@@ -1310,11 +1317,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                         begin: Alignment(value - 1, 0),
                         end: Alignment(value, 0),
                         colors: [
-                          Colors.white.withValues(alpha: 0.03),
-                          Colors.white.withValues(alpha: 0.06),
-                          Colors.white.withValues(alpha: 0.10),
-                          Colors.white.withValues(alpha: 0.06),
-                          Colors.white.withValues(alpha: 0.03),
+                          context.borderSubtle,
+                          context.borderColor,
+                          context.borderColorStrong,
+                          context.borderColor,
+                          context.borderSubtle,
                         ],
                         stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
                       ),
@@ -1330,11 +1337,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                         begin: Alignment(value - 1, 0),
                         end: Alignment(value, 0),
                         colors: [
-                          Colors.white.withValues(alpha: 0.03),
-                          Colors.white.withValues(alpha: 0.06),
-                          Colors.white.withValues(alpha: 0.10),
-                          Colors.white.withValues(alpha: 0.06),
-                          Colors.white.withValues(alpha: 0.03),
+                          context.borderSubtle,
+                          context.borderColor,
+                          context.borderColorStrong,
+                          context.borderColor,
+                          context.borderSubtle,
                         ],
                         stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
                       ),
@@ -1352,11 +1359,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                     begin: Alignment(value - 1, 0),
                     end: Alignment(value, 0),
                     colors: [
-                      Colors.white.withValues(alpha: 0.03),
-                      Colors.white.withValues(alpha: 0.06),
-                      Colors.white.withValues(alpha: 0.10),
-                      Colors.white.withValues(alpha: 0.06),
-                      Colors.white.withValues(alpha: 0.03),
+                      context.borderSubtle,
+                      context.borderColor,
+                      context.borderColorStrong,
+                      context.borderColor,
+                      context.borderSubtle,
                     ],
                     stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
                   ),
@@ -1367,10 +1374,10 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 width: double.infinity,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.03),
+                  color: context.cardSecondaryBackground,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.06),
+                    color: context.borderSubtle,
                   ),
                 ),
                 child: Padding(
@@ -1388,11 +1395,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                             begin: Alignment(value - 1, 0),
                             end: Alignment(value, 0),
                             colors: [
-                              Colors.white.withValues(alpha: 0.03),
-                              Colors.white.withValues(alpha: 0.06),
-                              Colors.white.withValues(alpha: 0.10),
-                              Colors.white.withValues(alpha: 0.06),
-                              Colors.white.withValues(alpha: 0.03),
+                              context.borderSubtle,
+                              context.borderColor,
+                              context.borderColorStrong,
+                              context.borderColor,
+                              context.borderSubtle,
                             ],
                             stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
                           ),
@@ -1408,11 +1415,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                             begin: Alignment(value - 1, 0),
                             end: Alignment(value, 0),
                             colors: [
-                              Colors.white.withValues(alpha: 0.03),
-                              Colors.white.withValues(alpha: 0.06),
-                              Colors.white.withValues(alpha: 0.10),
-                              Colors.white.withValues(alpha: 0.06),
-                              Colors.white.withValues(alpha: 0.03),
+                              context.borderSubtle,
+                              context.borderColor,
+                              context.borderColorStrong,
+                              context.borderColor,
+                              context.borderSubtle,
                             ],
                             stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
                           ),
@@ -1443,11 +1450,11 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
               begin: Alignment(value - 1, 0),
               end: Alignment(value, 0),
               colors: [
-                Colors.white.withValues(alpha: 0.03),
-                Colors.white.withValues(alpha: 0.06),
-                Colors.white.withValues(alpha: 0.10),
-                Colors.white.withValues(alpha: 0.06),
-                Colors.white.withValues(alpha: 0.03),
+                context.borderSubtle,
+                context.borderColor,
+                context.borderColorStrong,
+                context.borderColor,
+                context.borderSubtle,
               ],
               stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
             ),
@@ -1467,9 +1474,9 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1532,7 +1539,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
           child: Text(
             'Category',
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: context.textTertiary,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -1543,7 +1550,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
           child: Text(
             'Budget',
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: context.textTertiary,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -1555,7 +1562,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
           child: Text(
             'Actual',
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: context.textTertiary,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -1567,7 +1574,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
           child: Text(
             'Variance',
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: context.textTertiary,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -1606,7 +1613,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                 Text(
                   category,
                   style: GoogleFonts.inter(
-                    color: Colors.white70,
+                    color: context.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -1615,7 +1622,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
                   Text(
                     'No budget set',
                     style: GoogleFonts.inter(
-                      color: Colors.white38,
+                      color: context.textTertiary,
                       fontSize: 11,
                       fontWeight: FontWeight.w400,
                     ),
@@ -1628,7 +1635,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
             child: Text(
               _formatCurrencyForForecast(budget),
               style: GoogleFonts.inter(
-                color: hasBudget ? Colors.white38 : Colors.white24,
+                color: hasBudget ? context.textTertiary : context.borderSubtle,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -1640,7 +1647,7 @@ class _MonthlyBurnScreenState extends State<MonthlyBurnScreen>
             child: Text(
               _formatCurrencyForForecast(actual),
               style: GoogleFonts.inter(
-                color: actual > 0 ? Colors.white : Colors.white24,
+                color: actual > 0 ? context.textPrimary : context.textTertiary,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),

@@ -10,6 +10,7 @@ import '../../../widgets/avatar_widget.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/telegram_service.dart';
+import '../../../theme/app_theme.dart';
 
 class TeamScreen extends StatefulWidget {
   const TeamScreen({super.key});
@@ -125,7 +126,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
           return Icons.group;
       }
     }
-    return Icons.group; 
+    return Icons.group;
   }
 
   Color _getColorFromName(String colorName) {
@@ -141,7 +142,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
       case 'red':
         return const Color(0xFFFF453A);
       default:
-        return const Color(0xFF0A84FF); 
+        return const Color(0xFF0A84FF);
     }
   }
 
@@ -253,11 +254,13 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: context.isDarkMode
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: const Color(0xFF09090B),
+        backgroundColor: context.appBackground,
         floatingActionButton: _isSearching
-            ? null 
+            ? null
             : FloatingActionButton.extended(
                 onPressed: () {
                   Navigator.push(
@@ -269,8 +272,12 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                     _refreshData();
                   });
                 },
-                backgroundColor: Colors.white, 
-                foregroundColor: Colors.black,
+                backgroundColor: context.isDarkMode
+                    ? Colors.white
+                    : Colors.black,
+                foregroundColor: context.isDarkMode
+                    ? Colors.black
+                    : Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -332,10 +339,10 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
       stream: _getTeamsStream(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
+          return Center(
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: Colors.white38,
+              color: context.iconSecondary,
             ),
           );
         }
@@ -360,10 +367,10 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
           future: _sortedTeamsFuture,
           builder: (context, futureSnapshot) {
             if (futureSnapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
+              return Center(
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: Colors.white38,
+                  color: context.iconSecondary,
                 ),
               );
             }
@@ -380,7 +387,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
             }
 
             return ListView.builder(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 100), 
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
               physics: const BouncingScrollPhysics(),
               itemCount: teams.length,
               itemBuilder: (context, index) {
@@ -439,8 +446,11 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
             : Icons.arrow_upward;
       }
     } else {
-      arrowIcon = Icons.arrow_downward; // default, won't be shown
+      arrowIcon = Icons.arrow_downward;
     }
+
+    final selectedBg = context.isDarkMode ? Colors.white : Colors.black;
+    final selectedText = context.isDarkMode ? Colors.black : Colors.white;
 
     return GestureDetector(
       onTap: () => _toggleOrder(label),
@@ -448,33 +458,31 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : const Color(0xFF141416),
+          color: isSelected ? selectedBg : context.cardBackground,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: isSelected
-                ? Colors.white
-                : Colors.white.withValues(alpha: 0.04),
+            color: isSelected ? selectedBg : context.borderColor,
           ),
         ),
         child: Row(
           children: [
             Icon(
               icon,
-              color: isSelected ? Colors.black : Colors.white54,
+              color: isSelected ? selectedText : context.textSecondary,
               size: 16,
             ),
             const SizedBox(width: 8),
             Text(
               label,
               style: GoogleFonts.inter(
-                color: isSelected ? Colors.black : Colors.white70,
+                color: isSelected ? selectedText : context.textSecondary,
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
             if (isSelected) ...[
               const SizedBox(width: 6),
-              Icon(arrowIcon, color: Colors.black, size: 14),
+              Icon(arrowIcon, color: selectedText, size: 14),
             ],
           ],
         ),
@@ -496,7 +504,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                     Text(
                       "Organization",
                       style: GoogleFonts.inter(
-                        color: Colors.white38,
+                        color: context.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -505,7 +513,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                     Text(
                       "Teams Overview",
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 28,
                         fontWeight: FontWeight.w600,
                         letterSpacing: -1,
@@ -525,11 +533,11 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
               height: 44,
               width: 44,
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(Icons.search, color: Colors.white, size: 20),
+              child: Icon(Icons.search, color: context.iconPrimary, size: 20),
             ),
           ),
         ],
@@ -542,24 +550,27 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Row(
         children: [
-          const Icon(Icons.search, color: Colors.white54, size: 20),
+          Icon(Icons.search, color: context.iconSecondary, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
               controller: _searchController,
               autofocus: true,
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-              cursorColor: Colors.white,
+              style: GoogleFonts.inter(
+                color: context.textPrimary,
+                fontSize: 15,
+              ),
+              cursorColor: context.textPrimary,
               decoration: InputDecoration(
                 hintText: "Search teams...",
                 hintStyle: GoogleFonts.inter(
-                  color: Colors.white24,
+                  color: context.textTertiary,
                   fontSize: 15,
                 ),
                 border: InputBorder.none,
@@ -583,7 +594,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                 _searchController.clear();
               });
             },
-            child: const Icon(Icons.close, color: Colors.white54, size: 20),
+            child: Icon(Icons.close, color: context.iconSecondary, size: 20),
           ),
         ],
       ),
@@ -594,7 +605,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     return Text(
       title,
       style: GoogleFonts.inter(
-        color: Colors.white24,
+        color: context.textTertiary,
         fontSize: 10,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.5,
@@ -641,12 +652,13 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                   final data = doc.data() as Map<String, dynamic>;
                   final String? tgId = data['telegramFileId'] as String?;
                   final String? url = data['avatarUrl'] as String?;
-                  final String? legacyTgId = (url != null &&
-                          url.isNotEmpty &&
-                          !url.startsWith('http') &&
-                          !url.contains('ui-avatars.com'))
-                      ? url
-                      : null;
+                  final String? legacyTgId =
+                      (url != null &&
+                              url.isNotEmpty &&
+                              !url.startsWith('http') &&
+                              !url.contains('ui-avatars.com'))
+                          ? url
+                          : null;
                   return <String, dynamic>{
                     'name': data['fullName'] ?? 'Unnamed',
                     'avatarUrl': url ?? '',
@@ -657,31 +669,21 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                 })
                 .toList();
 
-            // Compute actual monthly cost from member salaries (already fetched
-            // by this StreamBuilder — zero extra Firestore reads needed).
-            // Only active members are included.
-            double actualMonthlyCost = 0.0;
-            for (final doc in membersDocs) {
-              final md = doc.data() as Map<String, dynamic>;
-              final status = md['status']?.toString() ?? 'Active';
-              if (status != 'Active') continue;
-              actualMonthlyCost += double.tryParse(
-                    (md['salary'] ?? md['Salary'])?.toString() ?? '0',
-                  ) ??
-                  0.0;
-            }
-            final String cost = membersSnapshot.connectionState ==
-                    ConnectionState.waiting
-                ? '...'
-                : CurrencyFormatter.formatByCountryCompact(
-                    actualMonthlyCost, _userCountryCode);
-
             return Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
+                boxShadow: context.isDarkMode
+                    ? []
+                    : [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
               ),
               child: Column(
                 children: [
@@ -705,7 +707,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                               Text(
                                 name,
                                 style: GoogleFonts.inter(
-                                  color: Colors.white,
+                                  color: context.textPrimary,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -714,7 +716,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                               Text(
                                 memberCountStr,
                                 style: GoogleFonts.inter(
-                                  color: Colors.white54,
+                                  color: context.textSecondary,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -723,24 +725,20 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                           ),
                         ],
                       ),
-                      const Icon(
+                      Icon(
                         Icons.chevron_right,
-                        color: Colors.white24,
+                        color: context.iconSecondary,
                         size: 20,
                       ),
                     ],
                   ),
                   const SizedBox(height: 20),
-                  Divider(
-                    color: Colors.white.withValues(alpha: 0.04),
-                    height: 1,
-                  ),
+                  Divider(color: context.borderColor, height: 1),
                   const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _buildAvatarRow(avatarInfos),
-                      // --- NEW: Live Spent / Budget Visualizer ---
                       StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
                             .collection('expenses')
@@ -752,22 +750,35 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                             final now = DateTime.now();
                             for (var doc in expenseSnap.data!.docs) {
                               final data = doc.data() as Map<String, dynamic>;
-                              final date = (data['Date'] as Timestamp?)?.toDate();
+                              final date =
+                                  (data['Date'] as Timestamp?)?.toDate();
                               if (date != null &&
                                   date.month == now.month &&
                                   date.year == now.year) {
-                                actualSpent += (data['Amount'] as num?)?.toDouble() ?? 0.0;
+                                actualSpent +=
+                                    (data['Amount'] as num?)?.toDouble() ?? 0.0;
                               }
                             }
                           }
 
-                          final budget = (teamData['monthlyBudget'] ?? 0).toDouble();
-                          final isOverBudget = actualSpent > budget && budget > 0;
-                          
-                          final spentStr = CurrencyFormatter.formatByCountryCompact(actualSpent, _userCountryCode);
-                          final budgetStr = CurrencyFormatter.formatByCountryCompact(budget, _userCountryCode);
-                          
-                          double progress = budget > 0 ? (actualSpent / budget) : 0.0;
+                          final budget =
+                              (teamData['monthlyBudget'] ?? 0).toDouble();
+                          final isOverBudget =
+                              actualSpent > budget && budget > 0;
+
+                          final spentStr =
+                              CurrencyFormatter.formatByCountryCompact(
+                                actualSpent,
+                                _userCountryCode,
+                              );
+                          final budgetStr =
+                              CurrencyFormatter.formatByCountryCompact(
+                                budget,
+                                _userCountryCode,
+                              );
+
+                          double progress =
+                              budget > 0 ? (actualSpent / budget) : 0.0;
                           if (progress > 1.0) progress = 1.0;
 
                           return Column(
@@ -779,7 +790,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                                   Text(
                                     spentStr,
                                     style: GoogleFonts.inter(
-                                      color: isOverBudget ? const Color(0xFFFF453A) : Colors.white,
+                                      color: isOverBudget
+                                          ? const Color(0xFFFF453A)
+                                          : context.textPrimary,
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -787,7 +800,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                                   Text(
                                     " / $budgetStr",
                                     style: GoogleFonts.inter(
-                                      color: Colors.white38,
+                                      color: context.textSecondary,
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -799,7 +812,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                                 width: 80,
                                 height: 4,
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.1),
+                                  color: context.isDarkMode
+                                      ? Colors.white.withValues(alpha: 0.1)
+                                      : Colors.black.withValues(alpha: 0.06),
                                   borderRadius: BorderRadius.circular(2),
                                 ),
                                 child: Align(
@@ -808,7 +823,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                                     widthFactor: progress,
                                     child: Container(
                                       decoration: BoxDecoration(
-                                        color: isOverBudget ? const Color(0xFFFF453A) : const Color(0xFF30D158),
+                                        color: isOverBudget
+                                            ? const Color(0xFFFF453A)
+                                            : const Color(0xFF30D158),
                                         borderRadius: BorderRadius.circular(2),
                                       ),
                                     ),
@@ -834,7 +851,7 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     if (avatarInfos.isEmpty) {
       return Text(
         "No members yet",
-        style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
+        style: GoogleFonts.inter(color: context.textSecondary, fontSize: 12),
       );
     }
 
@@ -876,17 +893,17 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
               width: size,
               height: size,
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
               child: Center(
                 child: SizedBox(
                   width: size * 0.3,
                   height: size * 0.3,
-                  child: const CircularProgressIndicator(
+                  child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white38,
+                    color: context.iconSecondary,
                   ),
                 ),
               ),
@@ -912,9 +929,10 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
       return AvatarWidget(
         name: name,
         size: size,
-        imageUrl: avatarUrl.isNotEmpty && !avatarUrl.contains('ui-avatars.com')
-            ? avatarUrl
-            : null,
+        imageUrl:
+            avatarUrl.isNotEmpty && !avatarUrl.contains('ui-avatars.com')
+                ? avatarUrl
+                : null,
         fontSize: size * 0.4,
       );
     }
@@ -935,15 +953,18 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
         padding: const EdgeInsets.only(top: 40),
         child: Column(
           children: [
-            const Icon(
+            Icon(
               Icons.group_off_outlined,
-              color: Colors.white12,
+              color: context.isDarkMode ? Colors.white12 : Colors.black12,
               size: 48,
-            ), 
+            ),
             const SizedBox(height: 16),
             Text(
               message,
-              style: GoogleFonts.inter(color: Colors.white38, fontSize: 14),
+              style: GoogleFonts.inter(
+                color: context.textSecondary,
+                fontSize: 14,
+              ),
             ),
           ],
         ),

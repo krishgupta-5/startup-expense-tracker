@@ -16,7 +16,9 @@ import 'privacy_assurances_screen.dart';
 import 'budget_settings_screen.dart';
 import '../widgets/coming_soon_dialog.dart';
 import '../../../services/currency_preference_service.dart';
-import 'set_password.dart'; 
+import '../../../services/theme_service.dart';
+import '../../../theme/app_theme.dart';
+import 'set_password.dart';
 import 'add_funding_screen.dart';
 import 'category_settings_screen.dart';
 import 'manage_recurring_payments_screen.dart';
@@ -70,13 +72,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _selectedCurrency = '+1';
   bool _isLoading = false;
 
+  ThemeMode _selectedTheme = ThemeService.getThemePreferenceSync();
+  bool _isThemeLoading = false;
+
   @override
   void initState() {
     super.initState();
+    _selectedCurrency = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    _selectedTheme = ThemeService.getThemePreferenceSync();
     _loadCurrencyPreference();
+    _loadThemePreference();
 
-    // Listen for currency changes
+    // Listen for currency and theme changes
     CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
+    ThemeService.themeModeNotifier.addListener(_onThemeChanged);
   }
 
   @override
@@ -84,6 +93,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     CurrencyPreferenceService.currencyNotifier.removeListener(
       _onCurrencyChanged,
     );
+    ThemeService.themeModeNotifier.removeListener(_onThemeChanged);
     super.dispose();
   }
 
@@ -96,6 +106,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (kDebugMode) {
           print('Updated _selectedCurrency to: $_selectedCurrency');
         }
+      });
+    }
+  }
+
+  void _onThemeChanged() {
+    if (mounted) {
+      setState(() {
+        _selectedTheme = ThemeService.getThemePreferenceSync();
       });
     }
   }
@@ -123,25 +141,200 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _loadThemePreference() async {
+    setState(() => _isThemeLoading = true);
+    try {
+      await ThemeService.getThemePreference();
+      if (mounted) {
+        setState(() {
+          _selectedTheme = ThemeService.getThemePreferenceSync();
+          _isThemeLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isThemeLoading = false);
+    }
+  }
+
+  Future<void> _showThemeSelector() async {
+    final availableThemes = [
+      {
+        'mode': ThemeMode.dark,
+        'name': 'Dark Mode',
+        'icon': Icons.dark_mode_rounded,
+      },
+      {
+        'mode': ThemeMode.light,
+        'name': 'Light Mode',
+        'icon': Icons.light_mode_rounded,
+      },
+    ];
+
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: context.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (bottomSheetContext) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom,
+        ),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(bottomSheetContext).size.height * 0.5,
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Select Theme Appearance',
+                style: GoogleFonts.inter(
+                  color: context.textPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ListView.builder(
+                shrinkWrap: true,
+                itemCount: availableThemes.length,
+                itemBuilder: (itemContext, index) {
+                  final themeItem = availableThemes[index];
+                  final mode = themeItem['mode'] as ThemeMode;
+                  final isSelected = _selectedTheme == mode;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () async {
+                          Navigator.pop(bottomSheetContext);
+                          await _updateTheme(mode);
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? context.textPrimary.withValues(alpha: 0.08)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isSelected
+                                  ? context.textPrimary.withValues(alpha: 0.25)
+                                  : context.borderColor,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                themeItem['icon'] as IconData,
+                                color: context.iconPrimary,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Text(
+                                  themeItem['name'] as String,
+                                  style: GoogleFonts.inter(
+                                    color: context.textPrimary,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              if (isSelected)
+                                Icon(
+                                  Icons.check_circle_rounded,
+                                  color: context.iconPrimary,
+                                  size: 22,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateTheme(ThemeMode mode) async {
+    setState(() => _isThemeLoading = true);
+    try {
+      final success = await ThemeService.updateThemePreference(mode);
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Theme updated to ${ThemeService.getThemeDisplayName(mode)}',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            backgroundColor: const Color(0xFF00C851),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to update theme',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            backgroundColor: const Color(0xFFFF453A),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error updating theme',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+            backgroundColor: const Color(0xFFFF453A),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isThemeLoading = false);
+      }
+    }
+  }
+
   Future<void> _showCurrencySelector() async {
     final availableCurrencies =
         CurrencyPreferenceService.getAvailableCurrencies();
 
     await showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.cardBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       isScrollControlled: true, // Allow proper height calculation
-      builder: (context) => Padding(
+      builder: (bottomSheetContext) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom, // Handle keyboard
+          bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom, // Handle keyboard
         ),
         child: Container(
           constraints: BoxConstraints(
             maxHeight:
-                MediaQuery.of(context).size.height *
+                MediaQuery.of(bottomSheetContext).size.height *
                 0.7, // Max 70% of screen height
           ),
           padding: const EdgeInsets.all(24),
@@ -151,7 +344,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Text(
                 'Select Currency',
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
                 ),
@@ -161,29 +354,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: availableCurrencies.length,
-                  itemBuilder: (context, index) {
+                  itemBuilder: (itemContext, index) {
                     final currency = availableCurrencies[index];
+                    final isSelected = _selectedCurrency == currency['code'];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Material(
                         color: Colors.transparent,
                         child: InkWell(
                           onTap: () async {
-                            Navigator.pop(context);
+                            Navigator.pop(bottomSheetContext);
                             await _updateCurrency(currency['code']!);
                           },
                           borderRadius: BorderRadius.circular(12),
                           child: Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: _selectedCurrency == currency['code']
-                                  ? Colors.white.withValues(alpha: 0.1)
+                              color: isSelected
+                                  ? context.textPrimary.withValues(alpha: 0.08)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: _selectedCurrency == currency['code']
-                                    ? Colors.white.withValues(alpha: 0.2)
-                                    : Colors.white.withValues(alpha: 0.05),
+                                color: isSelected
+                                    ? context.textPrimary.withValues(alpha: 0.25)
+                                    : context.borderColor,
                               ),
                             ),
                             child: Row(
@@ -191,7 +385,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 Text(
                                   currency['symbol']!,
                                   style: GoogleFonts.inter(
-                                    color: Colors.white,
+                                    color: context.textPrimary,
                                     fontSize: 18,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -201,16 +395,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   child: Text(
                                     currency['name']!,
                                     style: GoogleFonts.inter(
-                                      color: Colors.white,
+                                      color: context.textPrimary,
                                       fontSize: 15,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ),
-                                if (_selectedCurrency == currency['code'])
-                                  const Icon(
+                                if (isSelected)
+                                  Icon(
                                     Icons.check,
-                                    color: Colors.white,
+                                    color: context.iconPrimary,
                                     size: 20,
                                   ),
                               ],
@@ -255,7 +449,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             duration: const Duration(seconds: 2),
           ),
         );
-        // Currency notifier automatically propagates changes to all screens
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -292,7 +485,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: context.isDarkMode
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
       child: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -333,9 +528,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: "Add Funding",
                   subtitle: "Update your total available funds",
                   onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => const AddFundingScreen(),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AddFundingScreen(),
+                      ),
                     );
                   },
                 ),
@@ -389,6 +586,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildSectionLabel("PREFERENCES"),
               _buildSettingsGroup([
                 _buildTile(
+                  icon: Icons.palette_outlined,
+                  title: "Theme Appearance",
+                  subtitle: ThemeService.getThemeDisplayName(_selectedTheme),
+                  onTap: _showThemeSelector,
+                  trailing: _isThemeLoading
+                      ? SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              context.textPrimary,
+                            ),
+                          ),
+                        )
+                      : Text(
+                          ThemeService.getThemeDisplayName(_selectedTheme),
+                          style: GoogleFonts.inter(
+                            color: context.textSecondary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
+                _buildDivider(),
+                _buildTile(
                   icon: Icons.currency_exchange,
                   title: "Currency",
                   subtitle: CurrencyPreferenceService.getCurrencyDisplayName(
@@ -396,13 +619,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   onTap: _showCurrencySelector,
                   trailing: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
+                              context.textPrimary,
                             ),
                           ),
                         )
@@ -411,7 +634,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             _selectedCurrency,
                           ),
                           style: GoogleFonts.inter(
-                            color: Colors.white54,
+                            color: context.textSecondary,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
@@ -522,7 +745,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Text(
                   "Version 1.0.2 (Build 402)",
                   style: GoogleFonts.inter(
-                    color: Colors.white24,
+                    color: context.textSubtle,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -542,7 +765,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Text(
       "Settings",
       style: GoogleFonts.inter(
-        color: Colors.white,
+        color: context.textPrimary,
         fontSize: 28, // Scaled up to match Home/Overview screens
         fontWeight: FontWeight.w600,
         letterSpacing: -1,
@@ -556,7 +779,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Text(
         text.toUpperCase(),
         style: GoogleFonts.inter(
-          color: Colors.white54,
+          color: context.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
@@ -577,10 +800,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.1),
-                width: 1,
-              ),
+              border: Border.all(color: context.borderColor, width: 1),
             ),
             child: ClipOval(
               child: snapshot.hasData
@@ -610,13 +830,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       height: 100,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
-          width: 1,
-        ),
-        color: const Color(0xFF141416),
+        border: Border.all(color: context.borderColor, width: 1),
+        color: context.cardSecondaryBackground,
       ),
-      child: const Icon(Icons.person, size: 40, color: Colors.white38),
+      child: Icon(Icons.person, size: 40, color: context.iconSecondary),
     );
   }
 
@@ -668,13 +885,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             return Column(
               children: [
-                // Display Avatar (Pencil removed)
                 _buildProfileAvatar(profileImageFileId),
                 const SizedBox(height: 16),
                 Text(
                   name,
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
                   ),
@@ -682,7 +898,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 4),
                 Text(
                   email,
-                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 14),
+                  style: GoogleFonts.inter(
+                    color: context.textSecondary,
+                    fontSize: 14,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 GestureDetector(
@@ -700,20 +919,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(
-                        alpha: 0.05,
-                      ), // Glassy white
+                      color: context.glassBackgroundStrong,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withValues(
-                          alpha: 0.15,
-                        ), // Crisp border
-                      ),
+                      border: Border.all(color: context.borderColor),
                     ),
                     child: Text(
                       "Edit Profile",
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -731,11 +944,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildSettingsGroup(List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
-        borderRadius: BorderRadius.circular(
-          24,
-        ), // Updated to 24 for larger cards
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        color: context.cardBackground,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: context.borderColor),
+        boxShadow: context.isDarkMode
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Column(children: children),
     );
@@ -760,12 +980,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(
-                    alpha: 0.05,
-                  ), // White Glass Icon background
+                  color: context.glassBackgroundStrong,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: Colors.white70, size: 20),
+                child: Icon(icon, color: context.iconPrimary, size: 20),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -775,7 +993,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Text(
                       title,
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
@@ -785,7 +1003,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Text(
                         subtitle,
                         style: GoogleFonts.inter(
-                          color: Colors.white38,
+                          color: context.textSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -795,9 +1013,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               ?trailing,
               if (trailing == null)
-                const Icon(
+                Icon(
                   Icons.chevron_right,
-                  color: Colors.white24,
+                  color: context.iconSecondary,
                   size: 20,
                 ),
             ],
@@ -811,7 +1029,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Divider(
       height: 1,
       thickness: 1,
-      color: Colors.white.withValues(alpha: 0.04),
+      color: context.borderColor,
       indent: 76, // 20 padding + 40 icon width + 16 gap
     );
   }

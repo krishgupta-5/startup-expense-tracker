@@ -57,8 +57,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
   }
 
-  /// Checks Firestore to see if this email belongs to a Google-only account.
-  Future<bool> _isGoogleOnlyAccount(String email) async {
+  /// Returns the provider string for a known account email, or null if not found.
+  Future<String?> _getAccountProvider(String email) async {
     try {
       final query = await FirebaseFirestore.instance
           .collection('users')
@@ -66,12 +66,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           .limit(1)
           .get();
 
-      if (query.docs.isEmpty) return false;
-
-      final provider = query.docs.first.data()['provider'] as String?;
-      return provider == 'google';
+      if (query.docs.isEmpty) return null;
+      return query.docs.first.data()['provider'] as String?;
     } catch (_) {
-      return false;
+      return null;
     }
   }
 
@@ -146,9 +144,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final email = _emailController.text.trim();
 
     try {
-      // Check if this is a Google-only account before sending a useless email
-      final isGoogle = await _isGoogleOnlyAccount(email);
-      if (isGoogle) {
+      final provider = await _getAccountProvider(email);
+      if (provider == null) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ErrorPopup.showAuth(
+            context: context,
+            message:
+                'Account not found. Please check your email or sign up first.',
+          );
+        }
+        return;
+      }
+
+      if (provider == 'google') {
         if (mounted) {
           setState(() => _isLoading = false);
           _showGoogleAccountDialog();
@@ -171,10 +180,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     } on FirebaseAuthException catch (e) {
       String errorMessage;
       switch (e.code) {
-        // Note: Firebase no longer throws 'user-not-found' for security reasons —
-        // it silently succeeds even for unknown emails. If it ever does surface:
         case 'user-not-found':
-          // Security-safe: don't reveal whether the email exists
           errorMessage =
               'If an account exists with this email, a reset link has been sent.';
           if (mounted) setState(() => _emailSent = true);
@@ -238,7 +244,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: MediaQuery.of(context).size.height -
+                  minHeight:
+                      MediaQuery.of(context).size.height -
                       MediaQuery.of(context).viewInsets.bottom -
                       MediaQuery.of(context).padding.top,
                 ),
@@ -277,10 +284,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF30D158).withValues(alpha: 0.1),
+                              color: const Color(
+                                0xFF30D158,
+                              ).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: const Color(0xFF30D158).withValues(alpha: 0.3),
+                                color: const Color(
+                                  0xFF30D158,
+                                ).withValues(alpha: 0.3),
                               ),
                             ),
                             child: Row(
@@ -394,8 +405,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         hintStyle: GoogleFonts.inter(color: Colors.white38),
         filled: true,
         fillColor: const Color(0xFF141416),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),

@@ -6,6 +6,7 @@ import '../../../shared/widgets/error_popup.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
+import '../../../theme/app_theme.dart';
 
 class EditTeamScreen extends StatefulWidget {
   final String teamId;
@@ -102,8 +103,9 @@ class _EditTeamScreenState extends State<EditTeamScreen>
     setState(() => _isLoading = true);
 
     try {
-      final double budget = CurrencyFormatter.parse(_budgetController.text.trim()) ?? 0.0;
-      
+      final double budget =
+          CurrencyFormatter.parse(_budgetController.text.trim()) ?? 0.0;
+
       await FirebaseFirestore.instance
           .collection('teams')
           .doc(widget.teamId)
@@ -181,8 +183,7 @@ class _EditTeamScreenState extends State<EditTeamScreen>
           final expenseData = Map<String, dynamic>.from(expenseDoc.data());
 
           // T-02: Accumulate what was ACTUALLY paid out
-          final paidAmount =
-              (expenseData['Amount'] as num?)?.toDouble() ?? 0.0;
+          final paidAmount = (expenseData['Amount'] as num?)?.toDouble() ?? 0.0;
           totalActualPayouts += paidAmount;
 
           expenseData['originalMemberId'] = memberId;
@@ -236,7 +237,6 @@ class _EditTeamScreenState extends State<EditTeamScreen>
     }
   }
 
-
   // --- GORGEOUS CUSTOM DELETE DIALOG ---
   void _showDeleteConfirmation() {
     showDialog(
@@ -250,12 +250,12 @@ class _EditTeamScreenState extends State<EditTeamScreen>
             width: double.infinity,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416), // Match theme
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(color: context.borderColor),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.6),
+                  color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -285,7 +285,7 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                       child: Text(
                         "Delete Team?",
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                           letterSpacing: -0.5,
@@ -299,7 +299,7 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                 Text(
                   "This action cannot be undone. The team and all associated members will be permanently removed from your organization.",
                   style: GoogleFonts.inter(
-                    color: Colors.white70,
+                    color: context.textSecondary,
                     fontSize: 14,
                     height: 1.5,
                   ),
@@ -316,15 +316,13 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                           decoration: BoxDecoration(
                             color: Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.1),
-                            ),
+                            border: Border.all(color: context.borderColor),
                           ),
                           alignment: Alignment.center,
                           child: Text(
                             "Cancel",
                             style: GoogleFonts.inter(
-                              color: Colors.white,
+                              color: context.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
@@ -370,10 +368,12 @@ class _EditTeamScreenState extends State<EditTeamScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
@@ -399,16 +399,16 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                         onTapOutside: (event) =>
                             FocusScope.of(context).unfocus(),
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 32,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -1,
                         ),
-                        cursorColor: const Color(0xFF0A84FF),
+                        cursorColor: context.primaryColor,
                         decoration: InputDecoration(
                           hintText: "Team Name",
                           hintStyle: GoogleFonts.inter(
-                            color: Colors.white24, // Upgraded hint visibility
+                            color: context.textTertiary,
                             fontSize: 32,
                             fontWeight: FontWeight.w600,
                             letterSpacing: -1,
@@ -439,11 +439,9 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
+                          color: context.cardBackground,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.04),
-                          ),
+                          border: Border.all(color: context.borderColor),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -486,17 +484,17 @@ class _EditTeamScreenState extends State<EditTeamScreen>
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(Icons.close, color: Colors.white, size: 20),
+              child: Icon(Icons.close, color: context.textPrimary, size: 20),
             ),
           ),
           Text(
             "Edit Team",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -512,20 +510,20 @@ class _EditTeamScreenState extends State<EditTeamScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: TextField(
         controller: _budgetController,
         textInputAction: TextInputAction.next,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         keyboardType: TextInputType.text,
-        cursorColor: Colors.white,
-        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+        cursorColor: context.primaryColor,
+        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
         decoration: InputDecoration(
           hintText: "0.00",
-          hintStyle: GoogleFonts.inter(color: Colors.white24),
+          hintStyle: GoogleFonts.inter(color: context.textTertiary),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           prefixIcon: Column(
@@ -536,7 +534,7 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                 child: Text(
                   CurrencyFormatter.getCurrencySymbol(_userCountryCode),
                   style: GoogleFonts.inter(
-                    color: Colors.white38,
+                    color: context.textSecondary,
                     fontSize: 18,
                     fontWeight: FontWeight.w500,
                   ),
@@ -565,21 +563,21 @@ class _EditTeamScreenState extends State<EditTeamScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: TextField(
             controller: controller,
             textInputAction: TextInputAction.done,
             onTapOutside: (event) => FocusScope.of(context).unfocus(),
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-            cursorColor: Colors.white,
+            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+            cursorColor: context.primaryColor,
             maxLines: 3,
             minLines: 3,
             decoration: InputDecoration(
               hintText: "Enter details...",
-              hintStyle: GoogleFonts.inter(color: Colors.white24),
+              hintStyle: GoogleFonts.inter(color: context.textTertiary),
               border: InputBorder.none,
             ),
           ),
@@ -711,10 +709,10 @@ class _EditTeamScreenState extends State<EditTeamScreen>
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54, // Upgraded contrast
-        fontSize: 11, // Upgraded size
+        color: context.textSecondary,
+        fontSize: 11,
         fontWeight: FontWeight.bold,
-        letterSpacing: 1.2, // Tuned spacing
+        letterSpacing: 1.2,
       ),
     );
   }
@@ -723,10 +721,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF09090B),
-        border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-        ),
+        color: context.appBackground,
+        border: Border(top: BorderSide(color: context.borderColor)),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -734,21 +730,21 @@ class _EditTeamScreenState extends State<EditTeamScreen>
         child: ElevatedButton(
           onPressed: _isLoading || _isDeleting ? null : _updateTeam,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            disabledBackgroundColor: Colors.white54,
+            backgroundColor: context.textPrimary,
+            foregroundColor: context.appBackground,
+            disabledBackgroundColor: context.textTertiary,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
           child: _isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   height: 24,
                   width: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.black,
+                    color: context.appBackground,
                   ),
                 )
               : Text(

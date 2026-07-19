@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../services/bank_account_service.dart';
 import '../../../services/team_member_service.dart';
+import '../../../../theme/app_theme.dart';
 
 class TransactionDetailsScreen extends StatefulWidget {
   final String transactionId;
@@ -237,9 +238,11 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: context.appBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           bottom: false,
           child: Column(
@@ -258,7 +261,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                       Text(
                         widget.formattedAmount,
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 48,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -1.5,
@@ -294,10 +297,10 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
+                          color: context.cardBackground,
                           borderRadius: BorderRadius.circular(24),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.04),
+                            color: context.borderColor,
                           ),
                         ),
                         child: Column(
@@ -367,13 +370,13 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05), // Glassy white
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -381,7 +384,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
           Text(
             "Transaction Details",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -404,17 +407,17 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
             Text(
               "Linked Member",
               style: GoogleFonts.inter(
-                color: Colors.white54,
+                color: context.textSecondary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(
+            SizedBox(
               width: 16,
               height: 16,
               child: CircularProgressIndicator(
                 strokeWidth: 1.5,
-                color: Colors.white24,
+                color: context.textSecondary,
               ),
             ),
           ],
@@ -439,7 +442,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
           Text(
             "Linked Member",
             style: GoogleFonts.inter(
-              color: Colors.white54,
+              color: context.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -462,7 +465,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                     Text(
                       displayName,
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
@@ -471,7 +474,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                       Text(
                         subtitle,
                         style: GoogleFonts.inter(
-                          color: Colors.white38,
+                          color: context.textSecondary,
                           fontSize: 11,
                           fontWeight: FontWeight.w400,
                         ),
@@ -484,7 +487,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
             Text(
               "None",
               style: GoogleFonts.inter(
-                color: Colors.white38,
+                color: context.textSecondary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -504,7 +507,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.1),
+            color: context.borderColor,
             width: 1.5,
           ),
           image: DecorationImage(
@@ -553,7 +556,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
           Text(
             label,
             style: GoogleFonts.inter(
-              color: Colors.white54, // Better contrast for label
+              color: context.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -565,12 +568,12 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
               textAlign: TextAlign.right,
               style: isId
                   ? GoogleFonts.robotoMono(
-                      color: Colors.white,
+                      color: context.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w400,
                     )
                   : GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -584,7 +587,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
   Widget _buildDivider() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Divider(color: Colors.white.withValues(alpha: 0.04), height: 1),
+      child: Divider(color: context.borderColor, height: 1),
     );
   }
 }

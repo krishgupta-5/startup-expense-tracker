@@ -576,7 +576,9 @@ class FinancialDataService {
         // included above from the members collection, preventing double-counting.
         final category = data['Category']?.toString() ?? 'Other';
         if (category.toLowerCase() == 'salary' ||
-            category.toLowerCase() == 'salaries') continue;
+            category.toLowerCase() == 'salaries') {
+          continue;
+        }
 
         final amount = double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
         final teamName = data['TeamName']?.toString();

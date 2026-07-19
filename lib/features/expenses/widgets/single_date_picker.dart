@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import '../../../theme/app_theme.dart';
 
 class SingleDatePicker extends StatefulWidget {
   const SingleDatePicker({super.key});
@@ -19,9 +20,9 @@ class _SingleDatePickerState extends State<SingleDatePicker> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(color: context.borderColor),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -33,7 +34,7 @@ class _SingleDatePickerState extends State<SingleDatePicker> {
                 Text(
                   "Select Date Range",
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -43,12 +44,13 @@ class _SingleDatePickerState extends State<SingleDatePicker> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: context.appBackground,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: context.borderColor),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.close,
-                      color: Colors.white,
+                      color: context.textPrimary,
                       size: 20,
                     ),
                   ),
@@ -79,13 +81,13 @@ class _SingleDatePickerState extends State<SingleDatePicker> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0A84FF).withValues(alpha: 0.1),
+                  color: context.accentColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   "Selected: ${_selectedRange != null ? '${_formatDate(_selectedRange!.start)} - ${_formatDate(_selectedRange!.end)}' : 'No range selected'}",
                   style: GoogleFonts.inter(
-                    color: const Color(0xFF0A84FF),
+                    color: context.accentColor,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -104,17 +106,17 @@ class _SingleDatePickerState extends State<SingleDatePicker> {
                     child: Container(
                       height: 50,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF141416),
+                        color: context.appBackground,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.08),
+                          color: context.borderColor,
                         ),
                       ),
                       child: Center(
                         child: Text(
                           "Cancel",
                           style: GoogleFonts.inter(
-                            color: Colors.white70,
+                            color: context.textSecondary,
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
                           ),
@@ -134,14 +136,14 @@ class _SingleDatePickerState extends State<SingleDatePicker> {
                     child: Container(
                       height: 50,
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0A84FF),
+                        color: context.textPrimary,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Center(
                         child: Text(
                           "Apply",
                           style: GoogleFonts.inter(
-                            color: Colors.white,
+                            color: context.appBackground,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),

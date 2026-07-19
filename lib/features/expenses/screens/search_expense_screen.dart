@@ -8,6 +8,7 @@ import 'package:startup_expense_tracker/services/user_country_service.dart';
 import '../../../utils/data_helpers.dart';
 import '../../../utils/expense_expansion_helper.dart';
 import '../../../services/currency_formatter.dart';
+import '../../../theme/app_theme.dart';
 import 'expense_details_screen.dart';
 
 class SearchExpenseScreen extends StatefulWidget {
@@ -97,9 +98,11 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
@@ -128,22 +131,20 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
                           color: _exactDate != null
-                              ? Colors.white
-                              : Colors.white.withValues(
-                                  alpha: 0.05,
-                                ), // White Glass Style
+                              ? context.textPrimary
+                              : context.cardBackground,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _exactDate != null
-                                ? Colors.white
-                                : Colors.white.withValues(alpha: 0.1),
+                                ? context.textPrimary
+                                : context.borderColor,
                           ),
                         ),
                         child: Icon(
                           Icons.calendar_month,
                           color: _exactDate != null
-                              ? Colors.black
-                              : Colors.white54,
+                              ? context.appBackground
+                              : context.textSecondary,
                           size: 20,
                         ),
                       ),
@@ -198,19 +199,21 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Colors.white
-                              : const Color(0xFF141416),
+                              ? context.textPrimary
+                              : context.cardBackground,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isSelected
-                                ? Colors.white
-                                : Colors.white.withValues(alpha: 0.08),
+                                ? context.textPrimary
+                                : context.borderColor,
                           ),
                         ),
                         child: Text(
                           label,
                           style: GoogleFonts.inter(
-                            color: isSelected ? Colors.black : Colors.white70,
+                            color: isSelected
+                                ? context.appBackground
+                                : context.textSecondary,
                             fontSize: 12,
                             fontWeight: isSelected
                                 ? FontWeight.w600
@@ -254,19 +257,21 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Colors.white
-                              : const Color(0xFF141416),
+                              ? context.textPrimary
+                              : context.cardBackground,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isSelected
-                                ? Colors.white
-                                : Colors.white.withValues(alpha: 0.08),
+                                ? context.textPrimary
+                                : context.borderColor,
                           ),
                         ),
                         child: Text(
                           label,
                           style: GoogleFonts.inter(
-                            color: isSelected ? Colors.black : Colors.white70,
+                            color: isSelected
+                                ? context.appBackground
+                                : context.textSecondary,
                             fontSize: 12,
                             fontWeight: isSelected
                                 ? FontWeight.w600
@@ -280,7 +285,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               ),
 
               const SizedBox(height: 24),
-              const Divider(color: Color(0xFF1F1F22), height: 1),
+              Divider(color: context.borderColor, height: 1),
 
               // --- RESULTS LIST (FIREBASE STREAM) ---
               Expanded(
@@ -336,10 +341,10 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
+          return Center(
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: Colors.white38,
+              color: context.textPrimary,
             ),
           );
         }
@@ -471,7 +476,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               Text(
                 "Filter Expenses",
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
                   letterSpacing: -0.5, // Premium tracking
@@ -482,13 +487,13 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05), // White Glass
+                    color: context.cardBackground,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: context.borderColor,
                     ),
                   ),
-                  child: const Icon(Icons.close, color: Colors.white, size: 20),
+                  child: Icon(Icons.close, color: context.textPrimary, size: 20),
                 ),
               ),
             ],
@@ -497,22 +502,22 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              border: Border.all(color: context.borderColor),
             ),
             child: TextField(
               controller: _searchController,
               onTapOutside: (event) => FocusScope.of(context).unfocus(),
-              style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-              cursorColor: Colors.white,
+              style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+              cursorColor: context.textPrimary,
               decoration: InputDecoration(
                 hintText: "Search title...",
-                hintStyle: GoogleFonts.inter(color: Colors.white24),
+                hintStyle: GoogleFonts.inter(color: context.textTertiary),
                 border: InputBorder.none,
-                prefixIcon: const Icon(
+                prefixIcon: Icon(
                   Icons.search,
-                  color: Colors.white38,
+                  color: context.textSecondary,
                   size: 20,
                 ),
                 prefixIconConstraints: const BoxConstraints(
@@ -525,9 +530,9 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                           _searchController.clear();
                           setState(() => _searchQuery = "");
                         },
-                        child: const Icon(
+                        child: Icon(
                           Icons.cancel,
-                          color: Colors.white38,
+                          color: context.textSecondary,
                           size: 16,
                         ),
                       )
@@ -556,22 +561,22 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05), // White Glass
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+          border: Border.all(color: context.borderColor),
         ),
         child: Row(
           children: [
             Text(
               label,
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(width: 6),
-            Icon(icon, color: Colors.white54, size: 16),
+            Icon(icon, color: context.textSecondary, size: 16),
           ],
         ),
       ),
@@ -621,15 +626,13 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(
-                  alpha: 0.05,
-                ), // White Glass Style
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.receipt_long_outlined,
-                color: Colors.white54,
+                color: context.textSecondary,
                 size: 20,
               ),
             ),
@@ -641,7 +644,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                   Text(
                     title,
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                     ),
@@ -652,7 +655,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                   Text(
                     "$category • $dateStr",
                     style: GoogleFonts.inter(
-                      color: Colors.white38,
+                      color: context.textSecondary,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -668,7 +671,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               child: Text(
                 "${isFunding ? '+' : ''}${_isLoadingCountry ? CurrencyFormatter.formatByCountryCompact(amount, '+91') : CurrencyFormatter.formatByCountryCompact(amount, _userCountryCode)}",
                 style: GoogleFonts.inter(
-                  color: isFunding ? const Color(0xFF30D158) : Colors.white,
+                  color: isFunding ? const Color(0xFF30D158) : context.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                   fontFeatures: [const FontFeature.tabularFigures()],
@@ -717,7 +720,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
         child: Text(
           message,
           style: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textSecondary,
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
@@ -732,10 +735,10 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF09090B),
+          backgroundColor: context.appBackground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+            side: BorderSide(color: context.borderColor),
           ),
           child: Container(
             padding: const EdgeInsets.all(20),
@@ -748,14 +751,14 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                     Text(
                       "Select Date",
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white38),
+                      icon: Icon(Icons.close, color: context.textSecondary),
                     ),
                   ],
                 ),
@@ -826,10 +829,10 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF09090B),
+          backgroundColor: context.appBackground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+            side: BorderSide(color: context.borderColor),
           ),
           child: Container(
             padding: const EdgeInsets.all(20),
@@ -842,14 +845,14 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                     Text(
                       "Select Year",
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white38),
+                      icon: Icon(Icons.close, color: context.textSecondary),
                     ),
                   ],
                 ),
@@ -874,21 +877,21 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: _selectedYear == year
-                              ? Colors.white
-                              : const Color(0xFF141416),
+                              ? context.textPrimary
+                              : context.cardBackground,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _selectedYear == year
-                                ? Colors.white
-                                : Colors.white.withValues(alpha: 0.08),
+                                ? context.textPrimary
+                                : context.borderColor,
                           ),
                         ),
                         child: Text(
                           year,
                           style: GoogleFonts.inter(
                             color: _selectedYear == year
-                                ? Colors.black
-                                : Colors.white70,
+                                ? context.appBackground
+                                : context.textSecondary,
                             fontSize: 14,
                             fontWeight: _selectedYear == year
                                 ? FontWeight.w600
@@ -913,10 +916,10 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF09090B),
+          backgroundColor: context.appBackground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+            side: BorderSide(color: context.borderColor),
           ),
           child: Container(
             padding: const EdgeInsets.all(20),
@@ -929,14 +932,14 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                     Text(
                       "Sort Order",
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white38),
+                      icon: Icon(Icons.close, color: context.textSecondary),
                     ),
                   ],
                 ),
@@ -960,21 +963,21 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: _sortOrder == option.toLowerCase()
-                              ? Colors.white
-                              : const Color(0xFF141416),
+                              ? context.textPrimary
+                              : context.cardBackground,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _sortOrder == option.toLowerCase()
-                                ? Colors.white
-                                : Colors.white.withValues(alpha: 0.08),
+                                ? context.textPrimary
+                                : context.borderColor,
                           ),
                         ),
                         child: Text(
                           option,
                           style: GoogleFonts.inter(
                             color: _sortOrder == option.toLowerCase()
-                                ? Colors.black
-                                : Colors.white70,
+                                ? context.appBackground
+                                : context.textSecondary,
                             fontSize: 14,
                             fontWeight: _sortOrder == option.toLowerCase()
                                 ? FontWeight.w600

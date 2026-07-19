@@ -5,22 +5,24 @@ import '../auth/screen/login.dart';
 import '../company-setup/screen/company_setup_screen.dart';
 import '../navigation/screens/main_navigation_wrapper.dart';
 import '../../../services/user_country_service.dart';
+import '../../../services/theme_service.dart';
+import '../../../theme/app_theme.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
-  Widget _buildLoadingScreen() {
-    return const Scaffold(
-      backgroundColor: Color(0xFF09090B),
+  Widget _buildLoadingScreen(BuildContext context) {
+    return Scaffold(
+      backgroundColor: context.appBackground,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              valueColor: AlwaysStoppedAnimation<Color>(context.textPrimary),
             ),
-            SizedBox(height: 16),
-            Text('Loading...', style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 16),
+            Text('Loading...', style: TextStyle(color: context.textSecondary)),
           ],
         ),
       ),
@@ -47,27 +49,27 @@ class AuthWrapper extends StatelessWidget {
       builder: (context, snapshot) {
         // Show loading spinner while checking auth state
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildLoadingScreen();
+          return _buildLoadingScreen(context);
         }
 
         // Handle token refresh errors
         if (snapshot.hasError) {
           return Scaffold(
-            backgroundColor: const Color(0xFF09090B),
+            backgroundColor: context.appBackground,
             body: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.error_outline, color: Colors.red, size: 48),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     "Session expired",
-                    style: TextStyle(color: Colors.white, fontSize: 18),
+                    style: TextStyle(color: context.textPrimary, fontSize: 18),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     "Please sign in again",
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                    style: TextStyle(color: context.textSecondary, fontSize: 14),
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
@@ -75,8 +77,8 @@ class AuthWrapper extends StatelessWidget {
                       await FirebaseAuth.instance.currentUser?.reload();
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
+                      backgroundColor: context.textPrimary,
+                      foregroundColor: context.appBackground,
                     ),
                     child: const Text("Refresh Session"),
                   ),
@@ -99,14 +101,14 @@ class AuthWrapper extends StatelessWidget {
               .snapshots(),
           builder: (context, userSnapshot) {
             if (userSnapshot.connectionState == ConnectionState.waiting) {
-              return _buildLoadingScreen();
+              return _buildLoadingScreen(context);
             }
 
             // Handle Firestore errors
             if (userSnapshot.hasError) {
               debugPrint('❌ DEBUG: User snapshot error: ${userSnapshot.error}');
               return Scaffold(
-                backgroundColor: const Color(0xFF09090B),
+                backgroundColor: context.appBackground,
                 body: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -117,14 +119,14 @@ class AuthWrapper extends StatelessWidget {
                         size: 48,
                       ),
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         "Connection Error",
-                        style: TextStyle(color: Colors.white, fontSize: 18),
+                        style: TextStyle(color: context.textPrimary, fontSize: 18),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         "Please check your internet connection",
-                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                        style: TextStyle(color: context.textSecondary, fontSize: 14),
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton(
@@ -137,8 +139,8 @@ class AuthWrapper extends StatelessWidget {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black,
+                          backgroundColor: context.textPrimary,
+                          foregroundColor: context.appBackground,
                         ),
                         child: const Text("Retry"),
                       ),
@@ -173,6 +175,9 @@ class AuthWrapper extends StatelessWidget {
             debugPrint(
               '🔍 DEBUG: Company setup status: ${userData?['companySetup']}',
             );
+
+            // Preload and sync theme preference instantaneously from user profile data
+            ThemeService.syncFromUserData(userData);
 
             if (userData == null || userData['companySetup'] != true) {
               debugPrint(

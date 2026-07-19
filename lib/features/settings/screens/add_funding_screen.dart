@@ -6,9 +6,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../services/currency_formatter.dart';
-import '../../../services/user_country_service.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/financial_calculator.dart';
+import '../../../theme/app_theme.dart';
 
 class AddFundingScreen extends StatefulWidget {
   final Map<String, String>? prefillData;
@@ -27,7 +27,6 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
 
   bool _isLoading = false;
   String _userCountryCode = '+1';
-  bool _isLoadingCountry = true;
 
   final TextEditingController _targetRunwayController = TextEditingController();
   final TextEditingController _lenderBankController = TextEditingController();
@@ -48,7 +47,6 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
 
   final Set<String> _errorFields = {};
 
-  // Monochrome, clean funding sources
   final List<Map<String, dynamic>> _fundingSources = [
     {
       'key': 'self_funded',
@@ -114,7 +112,6 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
 
   void _loadUserCountryCode() {
     _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
-    setState(() => _isLoadingCountry = false);
   }
 
   void _onCurrencyChanged() {
@@ -208,7 +205,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
           children: [
             Icon(
               isError ? Icons.error_outline : Icons.check_circle_outline,
-              color: isError ? const Color(0xFFFF453A) : Colors.white,
+              color: isError
+                  ? const Color(0xFFFF453A)
+                  : const Color(0xFF30D158),
               size: 18,
             ),
             const SizedBox(width: 12),
@@ -216,7 +215,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
               child: Text(
                 message,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -224,12 +223,12 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 4),
         elevation: 0,
@@ -254,8 +253,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             ) ??
             0.0;
 
-        if (_lenderBankController.text.trim().isEmpty)
+        if (_lenderBankController.text.trim().isEmpty) {
           _errorFields.add("LENDER BANK NAME");
+        }
         if (rateVal <= 0) _errorFields.add("INTEREST RATE (% P.A.)");
         if (tenureVal <= 0) _errorFields.add("TENURE (MONTHS)");
         if (emiVal <= 0) _errorFields.add("EMI AMOUNT");
@@ -299,7 +299,6 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                 0.0)
           : null;
 
-      // 1. Save Funding Transaction
       await FirebaseFirestore.instance.collection('funding_transactions').add({
         'uid': user.uid,
         'amount': amount,
@@ -320,7 +319,6 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
         },
       });
 
-      // 2. Add to Expenses Collection (as Income/Funding)
       final expenseId = const Uuid().v4();
       await FirebaseFirestore.instance
           .collection('expenses')
@@ -351,7 +349,6 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             },
           });
 
-      // 3. Create Recurring EMI Expense (if Bank Loan)
       if (isBankLoan && loanEmiAmount != null && loanEmiAmount > 0) {
         final emiExpenseId = const Uuid().v4();
         await FirebaseFirestore.instance
@@ -381,7 +378,6 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             });
       }
 
-      // 4. Update Company Document
       final Map<String, dynamic> updateData = {'Funding': newTotalFunding};
 
       if (_updateTargetRunway &&
@@ -399,11 +395,12 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
         Navigator.pop(context, true);
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         _showMinimalToast(
           "Error adding funding: ${e.toString()}",
           isError: true,
         );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -416,10 +413,12 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
@@ -508,19 +507,19 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Row(
         children: [
-          const Icon(Icons.auto_awesome, color: Colors.white, size: 16),
+          Icon(Icons.auto_awesome, color: context.textPrimary, size: 16),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               "Fields pre-filled from scanned receipt. Review and edit if needed.",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -542,17 +541,17 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(Icons.close, color: Colors.white, size: 20),
+              child: Icon(Icons.arrow_back, color: context.textPrimary, size: 20),
             ),
           ),
           Text(
             "Add Funding",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -569,7 +568,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
       child: Text(
         text.toUpperCase(),
         style: GoogleFonts.inter(
-          color: hasError ? const Color(0xFFFF453A) : Colors.white54,
+          color: hasError ? const Color(0xFFFF453A) : context.textTertiary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.5,
@@ -583,7 +582,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
     return Text(
       text,
       style: GoogleFonts.inter(
-        color: hasError ? const Color(0xFFFF453A) : Colors.white38,
+        color: hasError ? const Color(0xFFFF453A) : context.textSecondary,
         fontSize: 10,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.0,
@@ -602,7 +601,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
         Text(
           label,
           style: GoogleFonts.inter(
-            color: highlight ? Colors.white : Colors.white38,
+            color: highlight ? context.textPrimary : context.textSecondary,
             fontSize: 10,
             fontWeight: FontWeight.w600,
             letterSpacing: 1.2,
@@ -613,12 +612,10 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: highlight
-                  ? Colors.white.withValues(alpha: 0.2)
-                  : Colors.white.withValues(alpha: 0.04),
+              color: highlight ? context.borderColorStrong : context.borderColor,
             ),
           ),
           child: FittedBox(
@@ -627,7 +624,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             child: Text(
               value,
               style: GoogleFonts.inter(
-                color: highlight ? Colors.white : Colors.white70,
+                color: highlight
+                    ? context.textPrimary
+                    : context.textSecondary,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -649,12 +648,12 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: hasError
                   ? const Color(0xFFFF453A).withValues(alpha: 0.5)
-                  : Colors.white.withValues(alpha: 0.04),
+                  : context.borderColor,
             ),
           ),
           child: Row(
@@ -663,7 +662,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
               Text(
                 currencySymbol,
                 style: GoogleFonts.inter(
-                  color: hasError ? const Color(0xFFFF453A) : Colors.white38,
+                  color: hasError
+                      ? const Color(0xFFFF453A)
+                      : context.textSecondary,
                   fontSize: 24,
                   fontWeight: FontWeight.w600,
                 ),
@@ -681,18 +682,18 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                     if (hasError) setState(() => _errorFields.remove(label));
                   },
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 32,
                     fontWeight: FontWeight.w600,
                     letterSpacing: -0.5,
                   ),
-                  cursorColor: Colors.white,
+                  cursorColor: context.textPrimary,
                   decoration: InputDecoration(
                     hintText: "0",
                     hintStyle: GoogleFonts.inter(
                       color: hasError
                           ? const Color(0xFFFF453A).withValues(alpha: 0.5)
-                          : Colors.white12,
+                          : context.textTertiary,
                       fontSize: 32,
                       fontWeight: FontWeight.w600,
                     ),
@@ -718,6 +719,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
       children: _fundingSources.map((data) {
         final key = data['key'] as String;
         final isSelected = _selectedSource == key;
+        final selectedBg = context.isDarkMode
+            ? Colors.white.withValues(alpha: 0.1)
+            : Colors.black.withValues(alpha: 0.08);
 
         return GestureDetector(
           onTap: () {
@@ -737,14 +741,12 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: isSelected
-                  ? Colors.white.withValues(alpha: 0.1)
-                  : Colors.transparent,
+              color: isSelected ? selectedBg : Colors.transparent,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: isSelected
-                    ? Colors.white.withValues(alpha: 0.2)
-                    : Colors.white.withValues(alpha: 0.04),
+                    ? context.borderColorStrong
+                    : context.borderColor,
                 width: 1,
               ),
             ),
@@ -753,14 +755,18 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
               children: [
                 Icon(
                   data['icon'] as IconData,
-                  color: isSelected ? Colors.white : Colors.white38,
+                  color: isSelected
+                      ? context.textPrimary
+                      : context.iconSecondary,
                   size: 16,
                 ),
                 const SizedBox(width: 8),
                 Text(
                   data['label'] as String,
                   style: GoogleFonts.inter(
-                    color: isSelected ? Colors.white : Colors.white54,
+                    color: isSelected
+                        ? context.textPrimary
+                        : context.textSecondary,
                     fontSize: 13,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                   ),
@@ -779,25 +785,25 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          border: Border.all(color: context.borderColor),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.account_balance_outlined,
-                  color: Colors.white54,
+                  color: context.iconSecondary,
                   size: 18,
                 ),
                 const SizedBox(width: 10),
                 Text(
                   "LOAN DETAILS",
                   style: GoogleFonts.inter(
-                    color: Colors.white54,
+                    color: context.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.2,
@@ -876,15 +882,15 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                       _recalculateEmi();
                     });
                   },
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.refresh,
                     size: 14,
-                    color: Colors.white54,
+                    color: context.iconSecondary,
                   ),
                   label: Text(
                     "Reset to calculated EMI",
                     style: GoogleFonts.inter(
-                      color: Colors.white70,
+                      color: context.textSecondary,
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
                     ),
@@ -922,12 +928,12 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFF09090B),
+            color: context.appBackground,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: hasError
                   ? const Color(0xFFFF453A).withValues(alpha: 0.5)
-                  : Colors.white.withValues(alpha: 0.04),
+                  : context.borderColor,
             ),
           ),
           child: TextField(
@@ -940,18 +946,21 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
               if (onChanged != null) onChanged(val);
             },
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
-            cursorColor: Colors.white,
+            cursorColor: context.textPrimary,
             inputFormatters: [
               if (isInteger) FilteringTextInputFormatter.digitsOnly,
               if (isDouble) FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
             ],
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: GoogleFonts.inter(color: Colors.white24, fontSize: 13),
+              hintStyle: GoogleFonts.inter(
+                color: context.textTertiary,
+                fontSize: 13,
+              ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 12),
               isDense: true,
@@ -967,9 +976,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
       height: 40,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: const Color(0xFF09090B),
+        color: context.appBackground,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Row(
         children: [
@@ -982,6 +991,10 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
 
   Widget _buildRateTypeButton(String type, String label) {
     final isSelected = _loanRateType == type;
+    final selectedBg = context.isDarkMode
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.08);
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -992,15 +1005,13 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
       child: Container(
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.white.withValues(alpha: 0.1)
-              : Colors.transparent,
+          color: isSelected ? selectedBg : Colors.transparent,
           borderRadius: BorderRadius.circular(7),
         ),
         child: Text(
           label,
           style: GoogleFonts.inter(
-            color: isSelected ? Colors.white : Colors.white38,
+            color: isSelected ? context.textPrimary : context.textSecondary,
             fontSize: 12,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
           ),
@@ -1022,34 +1033,34 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             decoration: BoxDecoration(
-              color: const Color(0xFF09090B),
+              color: context.appBackground,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              border: Border.all(color: context.borderColor),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.calendar_today_outlined,
-                      color: Colors.white38,
+                      color: context.iconSecondary,
                       size: 18,
                     ),
                     const SizedBox(width: 12),
                     Text(
                       formattedDate,
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
-                const Icon(
+                Icon(
                   Icons.edit_outlined,
-                  color: Colors.white38,
+                  color: context.iconSecondary,
                   size: 16,
                 ),
               ],
@@ -1069,14 +1080,23 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Colors.white,
-              onPrimary: Colors.black,
-              surface: Color(0xFF141416),
-              onSurface: Colors.white,
-            ),
+            colorScheme: context.isDarkMode
+                ? const ColorScheme.dark(
+                    primary: Colors.white,
+                    onPrimary: Colors.black,
+                    surface: Color(0xFF141416),
+                    onSurface: Colors.white,
+                  )
+                : const ColorScheme.light(
+                    primary: Colors.black,
+                    onPrimary: Colors.white,
+                    surface: Colors.white,
+                    onSurface: Colors.black,
+                  ),
             textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              style: TextButton.styleFrom(
+                foregroundColor: context.textPrimary,
+              ),
             ),
           ),
           child: child!,
@@ -1104,12 +1124,12 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: hasError
                   ? const Color(0xFFFF453A).withValues(alpha: 0.5)
-                  : Colors.white.withValues(alpha: 0.04),
+                  : context.borderColor,
             ),
           ),
           child: TextField(
@@ -1121,17 +1141,17 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
               if (hasError) setState(() => _errorFields.remove(label));
             },
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
             ),
-            cursorColor: Colors.white,
+            cursorColor: context.textPrimary,
             decoration: InputDecoration(
               hintText: hasError ? "This field is required" : hint,
               hintStyle: GoogleFonts.inter(
                 color: hasError
                     ? const Color(0xFFFF453A).withValues(alpha: 0.5)
-                    : Colors.white24,
+                    : context.textTertiary,
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
               ),
@@ -1146,6 +1166,13 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
   }
 
   Widget _buildTargetRunwaySection() {
+    final thumbColor = _updateTargetRunway
+        ? (context.isDarkMode ? Colors.black : Colors.white)
+        : context.textPrimary;
+    final trackColor = _updateTargetRunway
+        ? (context.isDarkMode ? Colors.white : Colors.black)
+        : context.borderColor;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1155,9 +1182,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              border: Border.all(color: context.borderColor),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1168,7 +1195,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                     Text(
                       "Update Target Runway",
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -1177,7 +1204,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                     Text(
                       "Current Target: ${_currentTargetRunway.isNotEmpty ? '$_currentTargetRunway months' : 'Not set'}",
                       style: GoogleFonts.inter(
-                        color: Colors.white38,
+                        color: context.textSecondary,
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
                       ),
@@ -1189,9 +1216,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                   height: 26,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(13),
-                    color: _updateTargetRunway
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.1),
+                    color: trackColor,
                   ),
                   child: Align(
                     alignment: _updateTargetRunway
@@ -1203,9 +1228,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                       margin: const EdgeInsets.all(2),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _updateTargetRunway
-                            ? Colors.black
-                            : Colors.white,
+                        color: thumbColor,
                       ),
                     ),
                   ),
@@ -1220,9 +1243,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
               child: Row(
                 children: [
@@ -1233,16 +1256,16 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                       textInputAction: TextInputAction.done,
                       onTapOutside: (_) => FocusScope.of(context).unfocus(),
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
                       ),
-                      cursorColor: Colors.white,
+                      cursorColor: context.textPrimary,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: InputDecoration(
                         hintText: "Enter months (e.g., 18)",
                         hintStyle: GoogleFonts.inter(
-                          color: Colors.white24,
+                          color: context.textTertiary,
                           fontSize: 14,
                         ),
                         border: InputBorder.none,
@@ -1255,7 +1278,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                   Text(
                     "months",
                     style: GoogleFonts.inter(
-                      color: Colors.white38,
+                      color: context.textSecondary,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
@@ -1269,12 +1292,15 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
   }
 
   Widget _buildSubmitButton() {
+    final btnBg = context.isDarkMode ? Colors.white : Colors.black;
+    final btnText = context.isDarkMode ? Colors.black : Colors.white;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF09090B),
+        color: context.appBackground,
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          top: BorderSide(color: context.borderColor),
         ),
       ),
       child: SizedBox(
@@ -1283,21 +1309,21 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
         child: ElevatedButton(
           onPressed: _isLoading ? null : _validateAndSaveFunding,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            disabledBackgroundColor: Colors.white.withValues(alpha: 0.2),
+            backgroundColor: btnBg,
+            foregroundColor: btnText,
+            disabledBackgroundColor: context.textTertiary,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
           child: _isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   height: 20,
                   width: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.black,
+                    color: btnText,
                   ),
                 )
               : Text(

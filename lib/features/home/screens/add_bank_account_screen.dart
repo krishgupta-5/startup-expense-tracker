@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../theme/app_theme.dart';
 
 class AddBankAccountScreen extends StatefulWidget {
   const AddBankAccountScreen({super.key});
@@ -44,7 +45,7 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
               child: Text(
                 message,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -52,12 +53,12 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 3),
         elevation: 0,
@@ -120,10 +121,12 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
@@ -246,13 +249,13 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05), // Glassy white
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -260,7 +263,7 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
           Text(
             "Add Bank Account",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -275,7 +278,7 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54,
+        color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
@@ -300,21 +303,21 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: TextFormField(
             controller: controller,
             keyboardType: keyboardType,
             textInputAction: textInputAction,
             onTapOutside: (event) => FocusScope.of(context).unfocus(),
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
-            cursorColor: Colors.white,
+            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+            cursorColor: context.textPrimary,
             decoration: InputDecoration(
-              icon: Icon(icon, color: Colors.white38, size: 20),
+              icon: Icon(icon, color: context.iconSecondary, size: 20),
               hintText: hint,
-              hintStyle: GoogleFonts.inter(color: Colors.white24),
+              hintStyle: GoogleFonts.inter(color: context.textTertiary),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
               errorStyle: GoogleFonts.inter(
@@ -331,12 +334,16 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
   }
 
   Widget _buildSubmitButton() {
+    final btnBg = context.isDarkMode ? Colors.white : Colors.black;
+    final btnText = context.isDarkMode ? Colors.black : Colors.white;
+    final disabledBg = context.isDarkMode ? Colors.white54 : Colors.black38;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF09090B),
+        color: context.appBackground,
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          top: BorderSide(color: context.borderColor),
         ),
       ),
       child: SizedBox(
@@ -345,21 +352,21 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
         child: ElevatedButton(
           onPressed: _isLoading ? null : _saveBankAccount,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            disabledBackgroundColor: Colors.white54,
+            backgroundColor: btnBg,
+            foregroundColor: btnText,
+            disabledBackgroundColor: disabledBg,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
           child: _isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   height: 24,
                   width: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.black,
+                    color: btnText,
                   ),
                 )
               : Text(

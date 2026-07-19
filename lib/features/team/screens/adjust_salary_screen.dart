@@ -6,6 +6,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../../services/currency_formatter.dart';
 import '../../../../services/currency_preference_service.dart';
+import '../../../../theme/app_theme.dart';
 
 class AdjustSalaryScreen extends StatefulWidget {
   final String memberId;
@@ -78,7 +79,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
               child: Text(
                 message,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.appBackground,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -86,12 +87,12 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.textPrimary,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 3),
         elevation: 0,
@@ -211,11 +212,13 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
         : "${_effectiveDate.day}/${_effectiveDate.month}/${_effectiveDate.year}";
 
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         child: AnnotatedRegion<SystemUiOverlayStyle>(
-          value: SystemUiOverlayStyle.light,
+          value: context.isDarkMode
+              ? SystemUiOverlayStyle.light
+              : SystemUiOverlayStyle.dark,
           child: SafeArea(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,7 +236,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                           child: Text(
                             "NEW MONTHLY COST",
                             style: GoogleFonts.inter(
-                              color: Colors.white54,
+                              color: context.textSecondary,
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2,
@@ -250,9 +253,9 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                               keyboardType:
                                   TextInputType.text,
                               textAlign: TextAlign.center,
-                              cursorColor: Colors.white,
+                              cursorColor: context.textPrimary,
                               style: GoogleFonts.inter(
-                                color: Colors.white,
+                                color: context.textPrimary,
                                 fontSize: 56,
                                 fontWeight: FontWeight.w600, // Upgraded weight
                                 height: 1.0,
@@ -262,8 +265,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                                 prefixText:
                                     "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
                                 prefixStyle: GoogleFonts.inter(
-                                  color:
-                                      Colors.white38, // Slightly dimmer prefix
+                                  color: context.textSecondary,
                                   fontSize: 56,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -316,13 +318,13 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05), // Glassy Match
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -330,7 +332,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
           Text(
             "Adjust Salary",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -349,8 +351,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            const Color(0xFF09090B).withValues(alpha: 0.0),
-            const Color(0xFF09090B),
+            context.appBackground.withValues(alpha: 0.0),
+            context.appBackground,
           ],
         ),
       ),
@@ -360,8 +362,9 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
         child: ElevatedButton(
           onPressed: _isLoading ? null : _updateSalary,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            disabledBackgroundColor: Colors.white70,
+            backgroundColor: const Color(0xFF0A84FF),
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: const Color(0xFF0A84FF).withValues(alpha: 0.4),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
@@ -373,15 +376,14 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                   width: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 )
               : Text(
-                  "Update Salary",
+                  "Save Compensation",
                   style: GoogleFonts.inter(
-                    color: Colors.black,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    fontSize: 15,
                   ),
                 ),
         ),
@@ -400,21 +402,21 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF141416),
+          color: context.cardBackground,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+          border: Border.all(color: context.borderColor),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
-                Icon(icon, color: Colors.white38, size: 20),
+                Icon(icon, color: context.textSecondary, size: 20),
                 const SizedBox(width: 12),
                 Text(
                   label,
                   style: GoogleFonts.inter(
-                    color: Colors.white54,
+                    color: context.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -426,7 +428,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                 value,
                 textAlign: TextAlign.right,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -439,16 +441,15 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
       ),
     );
   }
-
   void _showDatePicker() {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF09090B), // Deep Black
+          backgroundColor: context.cardBackground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+            side: BorderSide(color: context.borderColor),
           ),
           child: SingleChildScrollView(
             child: Container(
@@ -462,7 +463,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                       Text(
                         "Effective Date",
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.5,
@@ -470,9 +471,9 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                       ),
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
-                        child: const Icon(
+                        child: Icon(
                           Icons.close,
-                          color: Colors.white38,
+                          color: context.textSecondary,
                           size: 20,
                         ),
                       ),
@@ -504,19 +505,20 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                         Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white.withValues(alpha: 0.08),
-                        foregroundColor: Colors.white,
+                        backgroundColor: context.appBackground,
+                        foregroundColor: context.textPrimary,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                           side: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.15),
+                            color: context.borderColor,
                           ),
                         ),
                       ),
                       child: Text(
                         "Set to Immediately",
                         style: GoogleFonts.inter(
+                          color: context.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -537,10 +539,10 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF141416),
+          backgroundColor: context.cardBackground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
-            side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+            side: BorderSide(color: context.borderColor),
           ),
           child: SingleChildScrollView(
             child: Container(
@@ -554,7 +556,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                       Text(
                         "Update Reason",
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.5,
@@ -562,9 +564,9 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                       ),
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
-                        child: const Icon(
+                        child: Icon(
                           Icons.close,
-                          color: Colors.white38,
+                          color: context.textSecondary,
                           size: 20,
                         ),
                       ),
@@ -577,23 +579,23 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF09090B),
+                      color: context.appBackground,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.08),
+                        color: context.borderColor,
                       ),
                     ),
                     child: TextField(
                       controller: _reasonController,
                       autofocus: true,
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 15,
                       ),
-                      cursorColor: Colors.white,
+                      cursorColor: context.textPrimary,
                       decoration: InputDecoration(
                         hintText: "e.g. Annual Review, Promotion...",
-                        hintStyle: GoogleFonts.inter(color: Colors.white38),
+                        hintStyle: GoogleFonts.inter(color: context.textTertiary),
                         border: InputBorder.none,
                       ),
                     ),
@@ -608,8 +610,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                         Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black,
+                        backgroundColor: const Color(0xFF0A84FF),
+                        foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),

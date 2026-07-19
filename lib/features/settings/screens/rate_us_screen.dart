@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../theme/app_theme.dart';
 
 class RateUsScreen extends StatefulWidget {
   const RateUsScreen({super.key});
@@ -24,16 +25,15 @@ class _RateUsScreenState extends State<RateUsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: context.appBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
-              // 1. Header
               _buildHeader(context),
-
-              // 2. Content
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
@@ -42,8 +42,6 @@ class _RateUsScreenState extends State<RateUsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       const SizedBox(height: 32),
-
-                      // App Icon
                       Container(
                         width: 120,
                         height: 120,
@@ -64,11 +62,10 @@ class _RateUsScreenState extends State<RateUsScreen> {
 
                       const SizedBox(height: 24),
 
-                      // App Name
                       Text(
                         "Startup Expense Tracker",
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
@@ -77,18 +74,17 @@ class _RateUsScreenState extends State<RateUsScreen> {
                       Text(
                         "Version 1.0.2 (Build 402)",
                         style: GoogleFonts.inter(
-                          color: Colors.white38,
+                          color: context.textSecondary,
                           fontSize: 14,
                         ),
                       ),
 
                       const SizedBox(height: 40),
 
-                      // Rating Section
                       Text(
                         "How would you rate our app?",
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                         ),
@@ -97,31 +93,27 @@ class _RateUsScreenState extends State<RateUsScreen> {
                       Text(
                         _ratingDescriptions[_selectedRating],
                         style: GoogleFonts.inter(
-                          color: Colors.white38,
+                          color: context.textSecondary,
                           fontSize: 14,
                         ),
                       ),
 
                       const SizedBox(height: 24),
 
-                      // Star Rating
                       _buildStarRating(),
 
                       const SizedBox(height: 40),
 
-                      // Feedback Section
                       if (_selectedRating > 0 && _selectedRating < 4) ...[
                         _buildFeedbackSection(),
                         const SizedBox(height: 40),
                       ],
 
-                      // Action Buttons
                       if (_selectedRating >= 4) ...[
                         _buildPositiveActions(),
                         const SizedBox(height: 40),
                       ],
 
-                      // Additional Options
                       _buildAdditionalOptions(),
 
                       const SizedBox(height: 100),
@@ -147,13 +139,13 @@ class _RateUsScreenState extends State<RateUsScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -161,7 +153,7 @@ class _RateUsScreenState extends State<RateUsScreen> {
           Text(
             "Rate Us",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -182,7 +174,9 @@ class _RateUsScreenState extends State<RateUsScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Icon(
               index < _selectedRating ? Icons.star : Icons.star_border,
-              color: index < _selectedRating ? Colors.amber : Colors.white24,
+              color: index < _selectedRating
+                  ? Colors.amber
+                  : context.borderColorStrong,
               size: 40,
             ),
           ),
@@ -192,12 +186,16 @@ class _RateUsScreenState extends State<RateUsScreen> {
   }
 
   Widget _buildFeedbackSection() {
+    final btnBg = context.isDarkMode
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.08);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -205,7 +203,7 @@ class _RateUsScreenState extends State<RateUsScreen> {
           Text(
             "Help us improve",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -213,18 +211,19 @@ class _RateUsScreenState extends State<RateUsScreen> {
           const SizedBox(height: 12),
           Text(
             "We're sorry to hear you're not completely satisfied. Your feedback helps us improve the app.",
-            style: GoogleFonts.inter(color: Colors.white54, fontSize: 14),
+            style: GoogleFonts.inter(
+              color: context.textSecondary,
+              fontSize: 14,
+            ),
           ),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {
-                // Open feedback form or email
-              },
+              onPressed: () {},
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white.withValues(alpha: 0.1),
-                foregroundColor: Colors.white,
+                backgroundColor: btnBg,
+                foregroundColor: context.textPrimary,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -245,21 +244,27 @@ class _RateUsScreenState extends State<RateUsScreen> {
   }
 
   Widget _buildPositiveActions() {
+    final primaryBg = context.isDarkMode ? Colors.white : Colors.black;
+    final primaryText = context.isDarkMode ? Colors.black : Colors.white;
+    final secondaryBg = context.isDarkMode
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.08);
+
     return Column(
       children: [
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: Column(
             children: [
               Text(
                 "Thank you for your rating!",
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
@@ -267,7 +272,10 @@ class _RateUsScreenState extends State<RateUsScreen> {
               const SizedBox(height: 12),
               Text(
                 "We're glad you're enjoying the app. Would you mind leaving a review on the Play Store?",
-                style: GoogleFonts.inter(color: Colors.white54, fontSize: 14),
+                style: GoogleFonts.inter(
+                  color: context.textSecondary,
+                  fontSize: 14,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
@@ -279,8 +287,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
                         _launchPlayStore();
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black,
+                        backgroundColor: primaryBg,
+                        foregroundColor: primaryText,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -302,8 +310,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
                         Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white.withValues(alpha: 0.1),
-                        foregroundColor: Colors.white,
+                        backgroundColor: secondaryBg,
+                        foregroundColor: context.textPrimary,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -331,9 +339,9 @@ class _RateUsScreenState extends State<RateUsScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -341,7 +349,7 @@ class _RateUsScreenState extends State<RateUsScreen> {
           Text(
             "Other ways to support",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
@@ -351,18 +359,14 @@ class _RateUsScreenState extends State<RateUsScreen> {
             icon: Icons.share,
             title: "Share App",
             subtitle: "Share with friends and colleagues",
-            onTap: () {
-              // Share functionality
-            },
+            onTap: () {},
           ),
           const SizedBox(height: 12),
           _buildOptionTile(
             icon: Icons.contact_support,
             title: "Contact Support",
             subtitle: "Get help with the app",
-            onTap: () {
-              // Contact support
-            },
+            onTap: () {},
           ),
         ],
       ),
@@ -384,7 +388,7 @@ class _RateUsScreenState extends State<RateUsScreen> {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Icon(icon, color: Colors.white54, size: 20),
+              Icon(icon, color: context.iconSecondary, size: 20),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -393,7 +397,7 @@ class _RateUsScreenState extends State<RateUsScreen> {
                     Text(
                       title,
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -401,14 +405,14 @@ class _RateUsScreenState extends State<RateUsScreen> {
                     Text(
                       subtitle,
                       style: GoogleFonts.inter(
-                        color: Colors.white38,
+                        color: context.textSecondary,
                         fontSize: 12,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: Colors.white24, size: 20),
+              Icon(Icons.chevron_right, color: context.iconSecondary, size: 20),
             ],
           ),
         ),
@@ -417,7 +421,6 @@ class _RateUsScreenState extends State<RateUsScreen> {
   }
 
   Future<void> _launchPlayStore() async {
-    // Replace with your actual app package name
     const packageName = 'com.yourcompany.startupexpensetracker';
     final Uri playStoreUri = Uri.parse(
       'https://play.google.com/store/apps/details?id=$packageName',
@@ -430,9 +433,9 @@ class _RateUsScreenState extends State<RateUsScreen> {
           SnackBar(
             content: Text(
               'Could not open Play Store.',
-              style: GoogleFonts.inter(color: Colors.white),
+              style: GoogleFonts.inter(color: context.textPrimary),
             ),
-            backgroundColor: Colors.redAccent,
+            backgroundColor: context.cardBackground,
             behavior: SnackBarBehavior.floating,
           ),
         );

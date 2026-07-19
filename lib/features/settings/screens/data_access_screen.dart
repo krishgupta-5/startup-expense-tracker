@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../theme/app_theme.dart';
 
 class DataAccessScreen extends StatefulWidget {
   const DataAccessScreen({super.key});
@@ -19,9 +20,11 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
     final currentUser = FirebaseAuth.instance.currentUser;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -31,15 +34,14 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                 _buildHeader(context, "Data Access Control"),
                 const SizedBox(height: 32),
 
-                // 1. Support Access
                 _buildSectionLabel("TEMPORARY ACCESS"),
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF141416),
+                    color: context.cardBackground,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.04),
+                      color: context.borderColor,
                     ),
                   ),
                   child: Row(
@@ -64,14 +66,14 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                             Text(
                               "Grant Support Access",
                               style: GoogleFonts.inter(
-                                color: Colors.white,
+                                color: context.textPrimary,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                             Text(
                               "Allow support team to view data for 2h.",
                               style: GoogleFonts.inter(
-                                color: Colors.white38,
+                                color: context.textSecondary,
                                 fontSize: 12,
                               ),
                             ),
@@ -86,8 +88,8 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                         activeTrackColor: const Color(
                           0xFF0A84FF,
                         ).withValues(alpha: 0.3),
-                        inactiveThumbColor: Colors.white54,
-                        inactiveTrackColor: Colors.white10,
+                        inactiveThumbColor: context.textSecondary,
+                        inactiveTrackColor: context.borderColor,
                       ),
                     ],
                   ),
@@ -95,7 +97,6 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
 
                 const SizedBox(height: 40),
 
-                // 2. Team Permissions — Fix #15: real Firestore data
                 _buildSectionLabel("TEAM MEMBERS"),
                 StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
@@ -107,15 +108,15 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                       return Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
+                          color: context.cardBackground,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.04),
+                            color: context.borderColor,
                           ),
                         ),
-                        child: const Center(
+                        child: Center(
                           child: CircularProgressIndicator(
-                            color: Colors.white38,
+                            color: context.iconSecondary,
                             strokeWidth: 2,
                           ),
                         ),
@@ -126,15 +127,15 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                       return Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
+                          color: context.cardBackground,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.04),
+                            color: context.borderColor,
                           ),
                         ),
                         child: Text(
                           "Failed to load team members.",
-                          style: GoogleFonts.inter(color: Colors.redAccent),
+                          style: GoogleFonts.inter(color: const Color(0xFFFF453A)),
                         ),
                       );
                     }
@@ -145,17 +146,17 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                       return Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
+                          color: context.cardBackground,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.04),
+                            color: context.borderColor,
                           ),
                         ),
                         child: Center(
                           child: Text(
                             "No team members yet.",
                             style: GoogleFonts.inter(
-                              color: Colors.white38,
+                              color: context.textSecondary,
                               fontSize: 14,
                             ),
                           ),
@@ -165,10 +166,10 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
 
                     return Container(
                       decoration: BoxDecoration(
-                        color: const Color(0xFF141416),
+                        color: context.cardBackground,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.04),
+                          color: context.borderColor,
                         ),
                       ),
                       child: Column(
@@ -186,7 +187,6 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                           final String role =
                               data['jobTitle'] as String? ?? 'Member';
 
-                          // Pick a color for the status badge
                           Color statusColor;
                           switch (status) {
                             case 'Active':
@@ -196,7 +196,7 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                               statusColor = const Color(0xFFFF9F0A);
                               break;
                             case 'Inactive':
-                              statusColor = Colors.white38;
+                              statusColor = context.textSecondary;
                               break;
                             default:
                               statusColor = const Color(0xFF30D158);
@@ -212,7 +212,7 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                                 title: Text(
                                   name,
                                   style: GoogleFonts.inter(
-                                    color: Colors.white,
+                                    color: context.textPrimary,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -223,7 +223,7 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                                     Text(
                                       email,
                                       style: GoogleFonts.inter(
-                                        color: Colors.white38,
+                                        color: context.textSecondary,
                                         fontSize: 12,
                                       ),
                                     ),
@@ -231,7 +231,7 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                                     Text(
                                       role,
                                       style: GoogleFonts.inter(
-                                        color: Colors.white24,
+                                        color: context.textTertiary,
                                         fontSize: 11,
                                       ),
                                     ),
@@ -262,7 +262,7 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                               if (idx != docs.length - 1)
                                 Divider(
                                   height: 1,
-                                  color: Colors.white.withValues(alpha: 0.04),
+                                  color: context.borderColor,
                                   indent: 20,
                                   endIndent: 20,
                                 ),
@@ -291,18 +291,18 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+              border: Border.all(color: context.borderColor),
             ),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+            child: Icon(Icons.arrow_back, color: context.textPrimary, size: 20),
           ),
         ),
         const SizedBox(width: 16),
         Text(
           title,
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
           ),
@@ -317,7 +317,7 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
       child: Text(
         text,
         style: GoogleFonts.inter(
-          color: Colors.white24,
+          color: context.textTertiary,
           fontSize: 10,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.5,

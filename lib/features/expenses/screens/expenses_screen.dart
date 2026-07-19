@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// Make sure these imports match your actual file paths
 import 'add_expense_screen.dart';
 import 'search_expense_screen.dart';
 import 'expense_details_screen.dart';
@@ -16,6 +15,7 @@ import '../../../utils/expense_expansion_helper.dart';
 import '../../../services/financial_calculator.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
+import '../../../theme/app_theme.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -46,23 +46,19 @@ class _ExpensesScreenState extends State<ExpensesScreen>
 
   late AnimationController _shimmerController;
 
-  // OVERRIDE wantKeepAlive to return true
   @override
   bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    // Initialize Shimmer Controller
     _shimmerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
     _shimmerController.repeat();
 
-    // Get currency preference synchronously for instant display
     _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
-    // Listen for currency changes
     CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
     _loadMetricsData();
     _loadUserCountryCode();
@@ -107,7 +103,6 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         return;
       }
 
-      // ✅ FIX: Get companyId from user document
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -119,73 +114,66 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         return;
       }
 
-      // Cancel any existing listeners
       await _companySubscription?.cancel();
       await _expensesSubscription?.cancel();
 
-      // Listen to company document in real time
       _companySubscription = FirebaseFirestore.instance
           .collection('companies')
           .doc(companyId)
           .snapshots()
           .listen((companyDoc) {
-        if (companyDoc.exists && mounted) {
-          final companyData = companyDoc.data() as Map<String, dynamic>;
-          setState(() {
-            _totalFunding = DataHelpers.safeParseDouble(companyData['Funding']);
+            if (companyDoc.exists && mounted) {
+              final companyData = companyDoc.data() as Map<String, dynamic>;
+              setState(() {
+                _totalFunding = DataHelpers.safeParseDouble(
+                  companyData['Funding'],
+                );
+              });
+            }
           });
-        }
-      });
 
-      // Listen to user's expenses in real time
       _expensesSubscription = FirebaseFirestore.instance
           .collection('expenses')
           .where('uid', isEqualTo: user.uid)
           .snapshots()
           .listen((expensesSnapshot) {
-        if (mounted) {
-          // Convert and map Firestore docs to maps first
-          final rawList = expensesSnapshot.docs.map((doc) {
-            final data = doc.data();
-            return {
-              ...data,
-              'id': doc.id,
-            };
-          }).toList();
+            if (mounted) {
+              final rawList = expensesSnapshot.docs.map((doc) {
+                final data = doc.data();
+                return {...data, 'id': doc.id};
+              }).toList();
 
-          // Expand recurring/subscription transactions up to today
-          final expanded = ExpenseExpansionHelper.expandExpenses(
-            rawList,
-            maxDate: DateTime.now(),
-          );
+              final expanded = ExpenseExpansionHelper.expandExpenses(
+                rawList,
+                maxDate: DateTime.now(),
+              );
 
-          double totalRealSpent = 0.0;
-          // Convert expenses to format expected by FinancialCalculator
-          List<Map<String, dynamic>> expenses = [];
-          for (final data in expanded) {
-            if (data['isFunding'] != true) {
-              final amt = DataHelpers.safeParseDouble(data['Amount'] ?? data['amount']);
-              totalRealSpent += amt;
-              expenses.add({
-                ...data,
-                'amount': amt,
-                'date': data['Date'] ?? data['date'],
-                'type': data['Type'] ?? data['type'] ?? 'one_time',
+              double totalRealSpent = 0.0;
+              List<Map<String, dynamic>> expenses = [];
+              for (final data in expanded) {
+                if (data['isFunding'] != true) {
+                  final amt = DataHelpers.safeParseDouble(
+                    data['Amount'] ?? data['amount'],
+                  );
+                  totalRealSpent += amt;
+                  expenses.add({
+                    ...data,
+                    'amount': amt,
+                    'date': data['Date'] ?? data['date'],
+                    'type': data['Type'] ?? data['type'] ?? 'one_time',
+                  });
+                }
+              }
+
+              final rollingMonthlyBurn =
+                  FinancialCalculator.rollingAverageMonthlyBurn(expenses);
+              setState(() {
+                _totalExpenses = totalRealSpent;
+                _avgDaily = rollingMonthlyBurn / 30;
+                _isLoading = false;
               });
             }
-          }
-
-          // Calculate average daily burn using rolling window (last 30 days)
-          final rollingMonthlyBurn = FinancialCalculator.rollingAverageMonthlyBurn(
-            expenses,
-          );
-          setState(() {
-            _totalExpenses = totalRealSpent;
-            _avgDaily = rollingMonthlyBurn / 30; // Convert to daily average
-            _isLoading = false;
           });
-        }
-      });
     } catch (e) {
       debugPrint('Error loading metrics: $e');
       if (mounted) setState(() => _isLoading = false);
@@ -197,7 +185,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54,
+        color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
@@ -240,7 +228,9 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     super.build(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: context.isDarkMode
+          ? SystemUiOverlayStyle.light
+          : SystemUiOverlayStyle.dark,
       child: SafeArea(
         bottom: false,
         child: SingleChildScrollView(
@@ -277,7 +267,11 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                         children: [
                           _buildFlatMetric(
                             "Budget Left",
-                            _formatCurrency(_totalFunding > 0 ? (_totalFunding - _totalExpenses) : 0),
+                            _formatCurrency(
+                              _totalFunding > 0
+                                  ? (_totalFunding - _totalExpenses)
+                                  : 0,
+                            ),
                             "${_totalFunding > 0 ? ((_totalFunding - _totalExpenses) / _totalFunding * 100).toStringAsFixed(0) : '0'}%",
                             const Color(0xFF30D158),
                           ),
@@ -286,14 +280,14 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                             "Spent",
                             _formatCurrency(_totalExpenses),
                             "${_totalFunding > 0 ? (_totalExpenses / _totalFunding * 100).toStringAsFixed(1) : '0'}% used",
-                            Colors.white,
+                            context.textPrimary,
                           ),
                           const SizedBox(width: 16),
                           _buildFlatMetric(
                             "Avg. Daily",
                             _formatCurrency(_avgDaily),
                             "30-day rolling avg",
-                            Colors.white54, // Muted grey
+                            context.textSecondary,
                           ),
                         ],
                       ),
@@ -328,29 +322,25 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(
-                          alpha: 0.05,
-                        ), // Glassy white
+                        color: context.glassBackgroundStrong,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.15),
-                        ),
+                        border: Border.all(color: context.borderColor),
                       ),
                       child: Row(
                         children: [
                           Text(
                             "VIEW ALL",
                             style: GoogleFonts.inter(
-                              color: Colors.white,
+                              color: context.textPrimary,
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.0,
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Icon(
+                          Icon(
                             Icons.arrow_forward,
-                            color: Colors.white,
+                            color: context.textPrimary,
                             size: 12,
                           ),
                         ],
@@ -372,8 +362,6 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     );
   }
 
-  // --- WIDGET BUILDERS ---
-
   Widget _buildMinimalHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -381,7 +369,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         Text(
           DataHelpers.formatDate(DateTime.now(), format: 'MMMM yyyy'),
           style: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
@@ -390,7 +378,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         Text(
           "Expenses",
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.textPrimary,
             fontSize: 32,
             fontWeight: FontWeight.w600,
             letterSpacing: -1,
@@ -410,9 +398,18 @@ class _ExpensesScreenState extends State<ExpensesScreen>
       width: 140,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416), // Solid Matte Grey
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
+        boxShadow: context.isDarkMode
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -425,7 +422,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                 child: Text(
                   label,
                   style: GoogleFonts.inter(
-                    color: Colors.white38,
+                    color: context.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -434,7 +431,6 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                 ),
               ),
               const SizedBox(width: 4),
-              // Tiny dot indicator
               Container(
                 width: 6,
                 height: 6,
@@ -448,15 +444,14 @@ class _ExpensesScreenState extends State<ExpensesScreen>
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // FIXED: FITTED BOX FOR LARGE NUMBERS
               FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(
                   value,
                   style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 24, // Bumped for hero impact
+                    color: context.textPrimary,
+                    fontSize: 24,
                     fontWeight: FontWeight.w600,
                     letterSpacing: -1.0,
                   ),
@@ -542,17 +537,17 @@ class _ExpensesScreenState extends State<ExpensesScreen>
           height: 60,
           width: 60,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05), // Premium Glassy style
+            color: context.glassBackgroundStrong,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+            border: Border.all(color: context.borderColor),
           ),
-          child: Icon(icon, color: Colors.white, size: 24),
+          child: Icon(icon, color: context.textPrimary, size: 24),
         ),
         const SizedBox(height: 10),
         Text(
           label,
           style: GoogleFonts.inter(
-            color: Colors.white54,
+            color: context.textSecondary,
             fontSize: 12,
             fontWeight: FontWeight.w500,
           ),
@@ -561,7 +556,6 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     );
   }
 
-  // --- FIREBASE TOP 5 EXPENSES STREAM ---
   Widget _buildFlatTransactionList() {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -570,7 +564,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Text(
           "User not logged in.",
-          style: GoogleFonts.inter(color: Colors.white54),
+          style: GoogleFonts.inter(color: context.textSecondary),
         ),
       );
     }
@@ -610,7 +604,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
               child: Text(
                 "No recent transactions found.",
                 style: GoogleFonts.inter(
-                  color: Colors.white38,
+                  color: context.textTertiary,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
@@ -621,10 +615,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
 
         final mappedExpenses = snapshot.data!.docs.map((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          return {
-            ...data,
-            'id': doc.id,
-          };
+          return {...data, 'id': doc.id};
         }).toList();
 
         final expandedExpenses = ExpenseExpansionHelper.expandExpenses(
@@ -632,7 +623,6 @@ class _ExpensesScreenState extends State<ExpensesScreen>
           maxDate: DateTime.now(),
         );
 
-        // Sort descending by date
         expandedExpenses.sort((a, b) {
           final aDateVal = a['Date'] ?? a['date'];
           final bDateVal = b['Date'] ?? b['date'];
@@ -664,7 +654,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
               child: Text(
                 "No recent transactions found.",
                 style: GoogleFonts.inter(
-                  color: Colors.white38,
+                  color: context.textTertiary,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
@@ -691,14 +681,13 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     final title = DataHelpers.safeParseString(tx['Title']);
     final amount = DataHelpers.safeParseDouble(tx['Amount']);
     final isFunding = tx['isFunding'] == true;
-    final formattedAmount = "${isFunding ? '+' : ''}${_formatCurrency(amount)}";
-    // Format category to capitalize first letter or match your style
+    final formattedAmount =
+        "${isFunding ? '+' : ''}${_formatCurrency(amount)}";
     final String rawCategory = DataHelpers.safeParseString(tx['Category']);
     final category = rawCategory.isNotEmpty
         ? '${rawCategory[0].toUpperCase()}${rawCategory.substring(1)}'
         : 'General';
 
-    // Parse date for display in the row
     String dateStr = '';
     if (tx['Date'] is Timestamp) {
       final d = (tx['Date'] as Timestamp).toDate();
@@ -721,26 +710,22 @@ class _ExpensesScreenState extends State<ExpensesScreen>
           color: Colors.transparent,
           child: Row(
             children: [
-              // Premium Icon Container
               Container(
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
+                  color: context.glassBackgroundStrong,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.08),
-                  ),
+                  border: Border.all(color: context.borderColor),
                 ),
                 child: Icon(
                   _getCategoryIcon(rawCategory),
-                  color: Colors.white54,
+                  color: context.iconSecondary,
                   size: 20,
                 ),
               ),
               const SizedBox(width: 16),
 
-              // Info - Make entire row clickable
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -748,7 +733,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                     Text(
                       title,
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
@@ -761,16 +746,16 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                         Text(
                           category,
                           style: GoogleFonts.inter(
-                            color: Colors.white38,
+                            color: context.textSecondary,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        if (dateStr.isNotEmpty) ...[  
+                        if (dateStr.isNotEmpty) ...[
                           Text(
                             ' · $dateStr',
                             style: GoogleFonts.inter(
-                              color: Colors.white24,
+                              color: context.textTertiary,
                               fontSize: 12,
                               fontWeight: FontWeight.w400,
                             ),
@@ -783,19 +768,18 @@ class _ExpensesScreenState extends State<ExpensesScreen>
               ),
               const SizedBox(width: 12),
 
-              // Amount
               FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerRight,
                 child: Text(
                   formattedAmount,
                   style: GoogleFonts.inter(
-                    color: isFunding ? const Color(0xFF30D158) : Colors.white,
+                    color: isFunding
+                        ? const Color(0xFF30D158)
+                        : context.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    fontFeatures: [
-                      const FontFeature.tabularFigures(),
-                    ], // Aligns numbers
+                    fontFeatures: [const FontFeature.tabularFigures()],
                   ),
                 ),
               ),
@@ -806,8 +790,6 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     );
   }
 
-  // --- SHIMMER LOADING WIDGETS ---
-
   Widget _buildShimmerEffect(
     double width,
     double height, {
@@ -817,6 +799,9 @@ class _ExpensesScreenState extends State<ExpensesScreen>
       animation: _shimmerController,
       builder: (context, child) {
         final value = _shimmerController.value;
+        final baseAlpha = context.isDarkMode ? 0.03 : 0.04;
+        final midAlpha = context.isDarkMode ? 0.10 : 0.12;
+
         return Container(
           width: width,
           height: height,
@@ -826,11 +811,21 @@ class _ExpensesScreenState extends State<ExpensesScreen>
               begin: Alignment(value - 1, 0),
               end: Alignment(value, 0),
               colors: [
-                Colors.white.withValues(alpha: 0.03),
-                Colors.white.withValues(alpha: 0.06),
-                Colors.white.withValues(alpha: 0.10),
-                Colors.white.withValues(alpha: 0.06),
-                Colors.white.withValues(alpha: 0.03),
+                context.textPrimary.withValues(
+                  alpha: baseAlpha,
+                ),
+                context.textPrimary.withValues(
+                  alpha: baseAlpha * 2,
+                ),
+                context.textPrimary.withValues(
+                  alpha: midAlpha,
+                ),
+                context.textPrimary.withValues(
+                  alpha: baseAlpha * 2,
+                ),
+                context.textPrimary.withValues(
+                  alpha: baseAlpha,
+                ),
               ],
               stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
             ),
@@ -845,9 +840,9 @@ class _ExpensesScreenState extends State<ExpensesScreen>
       width: 140,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

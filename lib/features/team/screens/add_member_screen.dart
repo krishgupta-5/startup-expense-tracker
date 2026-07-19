@@ -10,6 +10,7 @@ import 'dart:io';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/telegram_service.dart'; // T-06/T-07/T-21
+import '../../../theme/app_theme.dart';
 
 class AddMemberScreen extends StatefulWidget {
   final String teamId;
@@ -224,12 +225,11 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     );
   }
 
-
   Future<void> _showImagePicker() async {
     FocusScope.of(context).unfocus(); // Dismiss keyboard if open
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF141416),
+      backgroundColor: context.cardBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -249,7 +249,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white12,
+                  color: context.borderColor,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -258,7 +258,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
             Text(
               "Upload Photo",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
               ),
@@ -302,17 +302,17 @@ class _AddMemberScreenState extends State<AddMemberScreen>
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: const Color(0xFF09090B),
+              color: context.appBackground,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(color: context.borderColor),
             ),
-            child: Icon(icon, color: Colors.white, size: 28),
+            child: Icon(icon, color: context.textPrimary, size: 28),
           ),
           const SizedBox(height: 8),
           Text(
             label,
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: context.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -354,10 +354,10 @@ class _AddMemberScreenState extends State<AddMemberScreen>
         uiSettings: [
           AndroidUiSettings(
             toolbarTitle: 'Crop Photo',
-            toolbarColor: const Color(0xFF141416),
-            toolbarWidgetColor: Colors.white,
-            backgroundColor: const Color(0xFF09090B),
-            activeControlsWidgetColor: Colors.white,
+            toolbarColor: context.cardBackground,
+            toolbarWidgetColor: context.textPrimary,
+            backgroundColor: context.appBackground,
+            activeControlsWidgetColor: context.primaryColor,
             lockAspectRatio: true,
           ),
           IOSUiSettings(
@@ -404,10 +404,12 @@ class _AddMemberScreenState extends State<AddMemberScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
@@ -471,17 +473,15 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
+                          color: context.cardBackground,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.04),
-                          ),
+                          border: Border.all(color: context.borderColor),
                         ),
                         child: Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.group,
-                              color: Colors.white38,
+                              color: context.textSecondary,
                               size: 20,
                             ),
                             const SizedBox(width: 12),
@@ -492,7 +492,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                                   Text(
                                     "Member will be added to current team",
                                     style: GoogleFonts.inter(
-                                      color: Colors.white38,
+                                      color: context.textSecondary,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -535,7 +535,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                       Text(
                         "This amount will be added to your monthly burn rate.",
                         style: GoogleFonts.inter(
-                          color: Colors.white38,
+                          color: context.textSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -568,17 +568,17 @@ class _AddMemberScreenState extends State<AddMemberScreen>
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(Icons.close, color: Colors.white, size: 20),
+              child: Icon(Icons.close, color: context.textPrimary, size: 20),
             ),
           ),
           Text(
             "Add Member",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -593,7 +593,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54,
+        color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
@@ -611,12 +611,9 @@ class _AddMemberScreenState extends State<AddMemberScreen>
             width: 100,
             height: 100,
             decoration: BoxDecoration(
-              color: const Color(0xFF141416),
+              color: context.cardBackground,
               shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.08),
-                width: 1,
-              ),
+              border: Border.all(color: context.borderColor, width: 1),
             ),
             child: Stack(
               alignment: Alignment.center,
@@ -626,15 +623,15 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                     future: TelegramService.getImageUrl(_telegramFileId!),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const CircularProgressIndicator(
-                          color: Colors.white38,
+                        return CircularProgressIndicator(
+                          color: context.textSecondary,
                           strokeWidth: 2,
                         );
                       }
                       if (snapshot.hasError || !snapshot.hasData) {
-                        return const Icon(
+                        return Icon(
                           Icons.person,
-                          color: Colors.white12,
+                          color: context.textTertiary,
                           size: 48,
                         );
                       }
@@ -645,9 +642,9 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                           height: 100,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
-                            return const Icon(
+                            return Icon(
                               Icons.person,
-                              color: Colors.white12,
+                              color: context.textTertiary,
                               size: 48,
                             );
                           },
@@ -656,28 +653,28 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                     },
                   )
                 else
-                  const Icon(Icons.person, color: Colors.white12, size: 48),
+                  Icon(Icons.person, color: context.textTertiary, size: 48),
                 Positioned(
                   bottom: 0,
                   right: 0,
                   child: Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: context.textPrimary,
                       shape: BoxShape.circle,
                     ),
                     child: _isLoading
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.black,
+                              color: context.appBackground,
                             ),
                           )
-                        : const Icon(
+                        : Icon(
                             Icons.camera_alt,
-                            color: Colors.black,
+                            color: context.appBackground,
                             size: 16,
                           ),
                   ),
@@ -693,7 +690,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
             style: GoogleFonts.inter(
               color: _telegramFileId != null
                   ? const Color(0xFF30D158)
-                  : Colors.white38,
+                  : context.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -714,22 +711,25 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: TextField(
         controller: controller,
         textInputAction: textInputAction,
         keyboardType: keyboardType,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
-        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
         decoration: InputDecoration(
-          icon: Icon(icon, color: Colors.white38, size: 20),
+          icon: Icon(icon, color: context.textSecondary, size: 20),
           hintText: placeholder,
           labelText: hint,
-          labelStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
-          hintStyle: GoogleFonts.inter(color: Colors.white24),
+          labelStyle: GoogleFonts.inter(
+            color: context.textSecondary,
+            fontSize: 13,
+          ),
+          hintStyle: GoogleFonts.inter(color: context.textTertiary),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
@@ -742,9 +742,9 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Row(
         children: [
@@ -771,7 +771,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                 Text(
                   "MONTHLY COST",
                   style: GoogleFonts.inter(
-                    color: Colors.white54,
+                    color: context.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.2,
@@ -783,13 +783,13 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                   onTapOutside: (event) => FocusScope.of(context).unfocus(),
                   keyboardType: TextInputType.text,
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
                   ),
                   decoration: InputDecoration(
                     hintText: "0.00",
-                    hintStyle: GoogleFonts.inter(color: Colors.white24),
+                    hintStyle: GoogleFonts.inter(color: context.textTertiary),
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 4),
@@ -819,7 +819,10 @@ class _AddMemberScreenState extends State<AddMemberScreen>
           child: ShadSelect<String>(
             placeholder: Text(
               'Select $label',
-              style: GoogleFonts.inter(color: Colors.white24, fontSize: 14),
+              style: GoogleFonts.inter(
+                color: context.textTertiary,
+                fontSize: 14,
+              ),
             ),
             initialValue: currentValue,
             options: [
@@ -831,7 +834,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
               items[value]!,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -847,27 +850,30 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: TextField(
         readOnly: true,
-        style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
         decoration: InputDecoration(
-          icon: const Icon(
+          icon: Icon(
             Icons.calendar_today,
-            color: Colors.white38,
+            color: context.textSecondary,
             size: 20,
           ),
           hintText: "Select joining date",
           labelText: "Joining Date",
-          labelStyle: GoogleFonts.inter(color: Colors.white38, fontSize: 13),
-          hintStyle: GoogleFonts.inter(color: Colors.white24),
+          labelStyle: GoogleFonts.inter(
+            color: context.textSecondary,
+            fontSize: 13,
+          ),
+          hintStyle: GoogleFonts.inter(color: context.textTertiary),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
-          suffixIcon: const Icon(Icons.calendar_month, color: Colors.white38),
+          suffixIcon: Icon(Icons.calendar_month, color: context.textSecondary),
         ),
         controller: TextEditingController(
           text:
@@ -886,7 +892,7 @@ class _AddMemberScreenState extends State<AddMemberScreen>
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF09090B),
+          backgroundColor: context.cardBackground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -906,14 +912,14 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                         Text(
                           "Select Joining Date",
                           style: GoogleFonts.inter(
-                            color: Colors.white,
+                            color: context.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close, color: Colors.white38),
+                          icon: Icon(Icons.close, color: context.textSecondary),
                         ),
                       ],
                     ),
@@ -937,8 +943,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                       child: ElevatedButton(
                         onPressed: () => Navigator.pop(context),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black,
+                          backgroundColor: context.textPrimary,
+                          foregroundColor: context.appBackground,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -967,10 +973,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF09090B),
-        border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-        ),
+        color: context.appBackground,
+        border: Border(top: BorderSide(color: context.borderColor)),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -978,21 +982,21 @@ class _AddMemberScreenState extends State<AddMemberScreen>
         child: ElevatedButton(
           onPressed: _isLoading ? null : _saveMember,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            disabledBackgroundColor: Colors.white54,
+            backgroundColor: context.textPrimary,
+            foregroundColor: context.appBackground,
+            disabledBackgroundColor: context.textTertiary,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
           child: _isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   height: 24,
                   width: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.black,
+                    color: context.appBackground,
                   ),
                 )
               : Text(

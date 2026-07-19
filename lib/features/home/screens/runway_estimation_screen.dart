@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
+import '../../../theme/app_theme.dart';
 import '../../../utils/expense_expansion_helper.dart';
 
 class RunwayEstimationScreen extends StatefulWidget {
@@ -56,6 +57,16 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             CurrencyPreferenceService.getCurrencyPreferenceSync();
       });
     }
+  }
+
+  double _toDouble(dynamic value, {double fallback = 0.0}) {
+    if (value == null) return fallback;
+    if (value is num) return value.toDouble();
+    if (value is String) {
+      return double.tryParse(value.replaceAll(RegExp(r'[^\d.-]'), '')) ??
+          fallback;
+    }
+    return fallback;
   }
 
   Future<void> _loadUserCountryCode() async {
@@ -112,7 +123,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             } else if (dt is DateTime && dt.isAfter(now)) {
               return t;
             }
-            return t + (e['amount'] as double? ?? 0.0);
+            return t + _toDouble(e['amount']);
           },
         );
 
@@ -132,7 +143,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             dt = rawDate;
           }
           if (dt != null && dt.month == now.month && dt.year == now.year) {
-            currentMonthBurnAmount += (e['amount'] as double? ?? 0.0);
+            currentMonthBurnAmount += _toDouble(e['amount']);
           }
         }
 
@@ -271,7 +282,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             "${expenseDateTime.year}-${expenseDateTime.month.toString().padLeft(2, '0')}";
 
         monthlyTotals[monthKey] =
-            (monthlyTotals[monthKey] ?? 0) + (expense['amount'] as double);
+            (monthlyTotals[monthKey] ?? 0) + _toDouble(expense['amount']);
       }
     }
 
@@ -392,7 +403,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
       case "SAFE":
         return const Color(0xFF30D158);
       default:
-        return Colors.white54;
+        return context.textSecondary;
     }
   }
 
@@ -401,7 +412,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     return Text(
       text.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white54,
+        color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2,
@@ -417,7 +428,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
         child: Text(
           text,
           style: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textTertiary,
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
@@ -436,13 +447,13 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.info_outline, color: Colors.white70, size: 18),
+            Icon(Icons.info_outline, color: context.iconSecondary, size: 18),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 "Formula: Fund Left ÷ Monthly Expense",
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -450,12 +461,12 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             ),
           ],
         ),
-        backgroundColor: const Color(0xFF141416),
+        backgroundColor: context.cardSecondaryBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          side: BorderSide(color: context.borderSubtle),
         ),
         duration: const Duration(seconds: 4),
         elevation: 0,
@@ -466,9 +477,11 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B),
+      backgroundColor: context.appBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
@@ -504,11 +517,11 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05), // White Glass Style
+              color: context.cardBackground,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              border: Border.all(color: context.borderColor),
             ),
-            child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+            child: Icon(Icons.arrow_back, color: context.iconPrimary, size: 20),
           ),
         ),
         Column(
@@ -517,7 +530,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             Text(
               "Runway Analysis",
               style: GoogleFonts.inter(
-                color: Colors.white38,
+                color: context.textSecondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -526,7 +539,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             Text(
               "Detailed Projection",
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.5,
@@ -543,9 +556,9 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -583,7 +596,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                   Text(
                     "Last updated: Today",
                     style: GoogleFonts.inter(
-                      color: Colors.white38,
+                      color: context.textSecondary,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -594,17 +607,17 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       child: isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 14,
                               height: 14,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white38,
+                                color: context.textTertiary,
                               ),
                             )
-                          : const Icon(
+                          : Icon(
                               Icons.refresh,
-                              color: Colors.white38,
+                              color: context.textTertiary,
                               size: 16,
                             ),
                     ),
@@ -628,7 +641,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                         ? "--"
                         : (runwayMonths?.toStringAsFixed(1) ?? "0.0"),
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.textPrimary,
                       fontSize: 60, // Huge Hero text
                       fontWeight: FontWeight.w600, // Thickened slightly
                       height: 1.0,
@@ -643,7 +656,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                 child: Text(
                   "months remaining",
                   style: GoogleFonts.inter(
-                    color: Colors.white38,
+                    color: context.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -656,9 +669,9 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.03),
+              color: context.cardSecondaryBackground,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              border: Border.all(color: context.borderSubtle),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -666,7 +679,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                 Text(
                   "Zero Cash Date",
                   style: GoogleFonts.inter(
-                    color: Colors.white38,
+                    color: context.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -675,7 +688,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                 Text(
                   isLoading ? "--" : (zeroCashDate ?? "--"),
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.textPrimary,
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
                   ),
@@ -747,9 +760,9 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -763,7 +776,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             child: Text(
               value,
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.5,
@@ -774,7 +787,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
           Text(
             label,
             style: GoogleFonts.inter(
-              color: Colors.white38,
+              color: context.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -798,15 +811,15 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                 width: 20,
                 height: 20,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
+                  color: context.cardSecondaryBackground,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: context.borderSubtle,
                   ),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.info_outline,
-                  color: Colors.white60,
+                  color: context.iconSecondary,
                   size: 12,
                 ),
               ),
@@ -818,9 +831,9 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: isLoading
               ? _buildEmptyState("Loading projections...")
@@ -843,7 +856,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                             Divider(
                               height: 1,
                               thickness: 1,
-                              color: Colors.white.withValues(alpha: 0.04),
+                              color: context.borderColor,
                             ),
                         ],
                       );
@@ -884,7 +897,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                 Text(
                   month,
                   style: GoogleFonts.inter(
-                    color: isCashOut ? cashOutRed.withValues(alpha: 0.9) : Colors.white70,
+                    color: isCashOut ? cashOutRed.withValues(alpha: 0.9) : context.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -928,7 +941,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                 balance,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
-                  color: isCashOut ? cashOutRed : Colors.white,
+                  color: isCashOut ? cashOutRed : context.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                   fontFeatures: [const FontFeature.tabularFigures()],
@@ -945,7 +958,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                 Text(
                   monthsLeft,
                   style: GoogleFonts.inter(
-                    color: isCashOut ? cashOutRed.withValues(alpha: 0.8) : Colors.white54,
+                    color: isCashOut ? cashOutRed.withValues(alpha: 0.8) : context.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -954,7 +967,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                 Text(
                   "mo",
                   style: GoogleFonts.inter(
-                    color: isCashOut ? cashOutRed.withValues(alpha: 0.5) : Colors.white38,
+                    color: isCashOut ? cashOutRed.withValues(alpha: 0.5) : context.textTertiary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -979,9 +992,9 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: isLoading
               ? _buildEmptyState("Analyzing data...")
@@ -1012,8 +1025,8 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
 
     final Map<String, double> categoryTotals = {};
     for (var expense in allExpenses) {
-      final category = expense['category'] as String;
-      final amount = expense['amount'] as double;
+      final category = expense['category']?.toString() ?? 'Other';
+      final amount = _toDouble(expense['amount']);
       categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
     }
 
@@ -1066,7 +1079,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
               Text(
                 title,
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1075,7 +1088,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
               Text(
                 description,
                 style: GoogleFonts.inter(
-                  color: Colors.white38,
+                  color: context.textSecondary,
                   fontSize: 13,
                   fontWeight: FontWeight.w400,
                   height: 1.4,

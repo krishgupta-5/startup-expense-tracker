@@ -13,6 +13,7 @@ import '../../../services/currency_preference_service.dart';
 import '../../../services/telegram_service.dart'; 
 import 'team_expense_history_screen.dart';
 import '../../../utils/expense_expansion_helper.dart';
+import '../../../theme/app_theme.dart';
 
 class TeamDetailScreen extends StatefulWidget {
   final String teamId;
@@ -68,7 +69,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: context.appBackground,
       
       // --- THEMED FAB ---
       floatingActionButton: FloatingActionButton.extended(
@@ -80,8 +81,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             ),
           );
         },
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: context.textPrimary,
+        foregroundColor: context.appBackground,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16), 
@@ -94,7 +95,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       ),
 
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           bottom: false,
           child: StreamBuilder<DocumentSnapshot>(
@@ -107,7 +110,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 return Center(
                   child: Text(
                     "Error loading team",
-                    style: GoogleFonts.inter(color: Colors.white54),
+                    style: GoogleFonts.inter(color: context.textSecondary),
                   ),
                 );
               }
@@ -137,9 +140,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                         if (membersSnapshot.connectionState ==
                                 ConnectionState.waiting &&
                             !membersSnapshot.hasData) {
-                          return const Center(
+                          return Center(
                             child: CircularProgressIndicator(
-                              color: Colors.white38,
+                              color: context.textSecondary,
                               strokeWidth: 2,
                             ),
                           );
@@ -151,8 +154,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                         // Sort members by cost (Highest to lowest)
                         final sortedMembers = membersDocs.toList();
                         sortedMembers.sort((a, b) {
-                          final costA = ((a.data() as Map<String, dynamic>)['monthlyCost'] ?? 0.0).toDouble();
-                          final costB = ((b.data() as Map<String, dynamic>)['monthlyCost'] ?? 0.0).toDouble();
+                          final costA = ((a.data() as Map<String, dynamic>)['monthlyCost'] as num?)?.toDouble() ?? 0.0;
+                          final costB = ((b.data() as Map<String, dynamic>)['monthlyCost'] as num?)?.toDouble() ?? 0.0;
                           return costB.compareTo(costA);
                         });
 
@@ -199,6 +202,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                     for (final data in expanded) {
                                       if (data['isFunding'] == true) continue;
                                       final category = (data['Category'] ?? '').toString().toLowerCase();
+                                      if (category == 'salary') continue;
 
                                       final rawDate = data['Date'] ?? data['date'];
                                       DateTime? date;
@@ -292,13 +296,13 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.arrow_back,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -308,7 +312,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               teamName,
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -332,13 +336,13 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.settings_outlined,
-                color: Colors.white,
+                color: context.textPrimary,
                 size: 20,
               ),
             ),
@@ -352,7 +356,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     return Text(
       title.toUpperCase(),
       style: GoogleFonts.inter(
-        color: Colors.white38,
+        color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.5,
@@ -366,9 +370,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFF141416),
+        color: context.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+        border: Border.all(color: context.borderColor),
       ),
       child: Column(
         children: [
@@ -379,7 +383,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 Text(
                   "TOTAL MONTHLY COST",
                   style: GoogleFonts.inter(
-                    color: Colors.white38,
+                    color: context.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.5,
@@ -391,7 +395,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                   child: Text(
                     CurrencyFormatter.formatByCountryCompact(totalCost, _userCountryCode),
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.textPrimary,
                       fontSize: 48,
                       fontWeight: FontWeight.w600,
                       letterSpacing: -1.5,
@@ -440,21 +444,23 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.02),
+                color: context.isDarkMode
+                    ? Colors.white.withValues(alpha: 0.02)
+                    : Colors.black.withValues(alpha: 0.02),
                 border: Border(
-                  top: BorderSide(color: Colors.white.withValues(alpha: 0.04)),
+                  top: BorderSide(color: context.borderColor),
                 ),
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.history, color: Colors.white54, size: 16),
+                  Icon(Icons.history, color: context.textSecondary, size: 16),
                   const SizedBox(width: 8),
                   Text(
                     "View Expense History",
                     style: GoogleFonts.inter(
-                      color: Colors.white70,
+                      color: context.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -506,9 +512,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: Row(
             children: [
@@ -533,7 +539,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                             : const Color(0xFF30D158),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: const Color(0xFF141416),
+                          color: context.cardBackground,
                           width: 2.5,
                         ),
                       ),
@@ -551,13 +557,13 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     Text(
                       name,
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         decoration: isPaused
                             ? TextDecoration.lineThrough
                             : null,
-                        decorationColor: Colors.white54,
+                        decorationColor: context.textSecondary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -566,7 +572,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     Text(
                       role,
                       style: GoogleFonts.inter(
-                        color: Colors.white38,
+                        color: context.textSecondary,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -583,7 +589,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                   Text(
                     salary,
                     style: GoogleFonts.inter(
-                      color: isPaused ? Colors.white38 : Colors.white,
+                      color: isPaused ? context.textSecondary : context.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       fontFeatures: [const FontFeature.tabularFigures()],
@@ -596,9 +602,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       color: Colors.transparent,
-                      child: const Icon(
+                      child: Icon(
                         Icons.more_vert,
-                        color: Colors.white24,
+                        color: context.textSecondary,
                         size: 20,
                       ),
                     ),
@@ -620,7 +626,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           message,
           textAlign: TextAlign.center,
           style: GoogleFonts.inter(
-            color: Colors.white38,
+            color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
@@ -637,7 +643,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   ) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF141416),
+      backgroundColor: context.cardBackground,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -654,7 +660,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white12,
+                      color: context.borderColor,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -663,7 +669,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 Text(
                   "MANAGE $memberName".toUpperCase(),
                   style: GoogleFonts.inter(
-                    color: Colors.white38,
+                    color: context.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.5,
@@ -734,14 +740,14 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
           children: [
             Icon(
               icon,
-              color: isDestructive ? const Color(0xFFFF453A) : Colors.white,
+              color: isDestructive ? const Color(0xFFFF453A) : context.textPrimary,
               size: 22,
             ),
             const SizedBox(width: 16),
             Text(
               label,
               style: GoogleFonts.inter(
-                color: isDestructive ? const Color(0xFFFF453A) : Colors.white,
+                color: isDestructive ? const Color(0xFFFF453A) : context.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),
@@ -767,17 +773,17 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               width: size,
               height: size,
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: context.borderColor),
               ),
               child: Center(
                 child: SizedBox(
                   width: size * 0.3,
                   height: size * 0.3,
-                  child: const CircularProgressIndicator(
+                  child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white38,
+                    color: context.textSecondary,
                   ),
                 ),
               ),

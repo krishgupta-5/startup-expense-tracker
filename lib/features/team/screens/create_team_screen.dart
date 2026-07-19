@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
+import '../../../theme/app_theme.dart';
 
 class CreateTeamScreen extends StatefulWidget {
   const CreateTeamScreen({super.key});
@@ -44,6 +45,14 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
     Icons.security,
     Icons.support_agent,
   ];
+
+  Color get _currentTeamColor {
+    final match = _colors.firstWhere(
+      (c) => c["name"] == _selectedColor,
+      orElse: () => _colors.first,
+    );
+    return match["color"] as Color;
+  }
 
   @override
   void initState() {
@@ -194,10 +203,12 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF09090B), // Deep Matte Black
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light,
+        value: context.isDarkMode
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
@@ -223,17 +234,16 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
                         onTapOutside: (event) =>
                             FocusScope.of(context).unfocus(),
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.textPrimary,
                           fontSize: 32,
                           fontWeight: FontWeight.w600,
                           letterSpacing: -1,
                         ),
-                        cursorColor: const Color(0xFF30D158),
+                        cursorColor: context.primaryColor,
                         decoration: InputDecoration(
                           hintText: "e.g. Engineering",
                           hintStyle: GoogleFonts.inter(
-                            color: Colors
-                                .white24, // Improved contrast from white12
+                            color: context.textTertiary,
                             fontSize: 32,
                             fontWeight: FontWeight.w600,
                             letterSpacing: -1,
@@ -251,11 +261,9 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF141416),
+                          color: context.cardBackground,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.04),
-                          ),
+                          border: Border.all(color: context.borderColor),
                         ),
                         child: Column(
                           children: [
@@ -267,10 +275,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
                                   .toList(),
                             ),
                             const SizedBox(height: 24),
-                            Divider(
-                              color: Colors.white.withValues(alpha: 0.04),
-                              height: 1,
-                            ),
+                            Divider(color: context.borderColor, height: 1),
                             const SizedBox(height: 24),
                             // Icon Picker
                             Row(
@@ -334,17 +339,17 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF141416),
+                color: context.cardBackground,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+                border: Border.all(color: context.borderColor),
               ),
-              child: const Icon(Icons.close, color: Colors.white, size: 20),
+              child: Icon(Icons.close, color: context.textPrimary, size: 20),
             ),
           ),
           Text(
             "New Team",
             style: GoogleFonts.inter(
-              color: Colors.white,
+              color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -371,23 +376,21 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            color: const Color(0xFF141416),
+            color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.04)),
+            border: Border.all(color: context.borderColor),
           ),
           child: TextField(
             controller: controller,
             textInputAction: textInputAction,
             onTapOutside: (event) => FocusScope.of(context).unfocus(),
-            keyboardType: isNumber
-                ? TextInputType.text
-                : TextInputType.text,
-            style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+            keyboardType: isNumber ? TextInputType.text : TextInputType.text,
+            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
             maxLines: maxLines,
             minLines: maxLines > 1 ? 3 : 1,
             decoration: InputDecoration(
               hintText: placeholder,
-              hintStyle: GoogleFonts.inter(color: Colors.white24),
+              hintStyle: GoogleFonts.inter(color: context.textTertiary),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
               prefixIcon: isNumber
@@ -401,7 +404,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
                               _userCountryCode,
                             ),
                             style: GoogleFonts.inter(
-                              color: Colors.white38,
+                              color: context.textSecondary,
                               fontSize: 18,
                               fontWeight: FontWeight.w500,
                             ),
@@ -454,6 +457,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
 
   Widget _buildIconOption(IconData icon) {
     final bool isSelected = _selectedIcon == icon;
+    final activeColor = _currentTeamColor;
 
     return GestureDetector(
       onTap: () {
@@ -466,15 +470,15 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
         width: 44,
         height: 44,
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
+          color: isSelected ? activeColor : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: isSelected
-              ? Border.all(color: Colors.white)
-              : Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ? Border.all(color: activeColor)
+              : Border.all(color: context.borderColor),
         ),
         child: Icon(
           icon,
-          color: isSelected ? Colors.black : Colors.white54,
+          color: isSelected ? Colors.white : context.textSecondary,
           size: 20,
         ),
       ),
@@ -485,8 +489,7 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
     return Text(
       text.toUpperCase(), // Forcing uppercase just in case
       style: GoogleFonts.inter(
-        color: Colors
-            .white54, // Changed from white24 to white54 for perfect visibility
+        color: context.textSecondary,
         fontSize: 11, // Bumped from 10 to 11 for better readability
         fontWeight: FontWeight.bold,
         letterSpacing: 1.2, // Slightly tightened so it doesn't spread too much
@@ -498,10 +501,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF09090B),
-        border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
-        ),
+        color: context.appBackground,
+        border: Border(top: BorderSide(color: context.borderColor)),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -509,21 +510,21 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
         child: ElevatedButton(
           onPressed: _isLoading ? null : _createTeam,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            disabledBackgroundColor: Colors.white54,
+            backgroundColor: context.textPrimary,
+            foregroundColor: context.appBackground,
+            disabledBackgroundColor: context.textTertiary,
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
           child: _isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   height: 24,
                   width: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.black,
+                    color: context.appBackground,
                   ),
                 )
               : Text(
