@@ -16,7 +16,7 @@ Track expenses, monitor burn rate, estimate runway, manage teams, and receive AI
 
 ---
 
-**Helping founders make smarter financial decisions with AI.**
+**Helping founders make smarter financial decisions with AI!**
 
 </div>
 
