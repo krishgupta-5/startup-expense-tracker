@@ -494,7 +494,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
           _emailController.text = user.email ?? "";
           _addressController.text = data["Company Address"] ?? "";
           _descController.text = data["Company Work"] ?? "";
-          _targetRunwayController.text = data["Target Runway"]?.toString() ?? "";
+          _targetRunwayController.text = data["Runway"]?.toString() ?? data["Target Runway"]?.toString() ?? "";
           
           // --- FIXED: Reverse Lookup for Dropdown Key ---
           final savedType = data["Company Type"];
@@ -530,7 +530,7 @@ class _CompanyDetailsScreenState extends State<CompanyDetailsScreen> {
             "Email": _emailController.text.trim(),
             "Company Address": _addressController.text.trim(),
             "Company Work": _descController.text.trim(),
-            "Target Runway": _targetRunwayController.text.trim(),
+            "Runway": int.tryParse(_targetRunwayController.text.trim()) ?? 0,
             "Company Type": companyTypes[_selectedType],
           }, SetOptions(merge: true));
 

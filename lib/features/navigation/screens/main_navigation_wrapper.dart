@@ -5,7 +5,7 @@ import 'package:startup_expense_tracker/widgets/custom_bottom_nav.dart';
 import 'package:startup_expense_tracker/features/home/screens/home_screen.dart';
 import 'package:startup_expense_tracker/features/team/screens/team_screen.dart';
 import 'package:startup_expense_tracker/features/expenses/screens/expenses_screen.dart';
-import 'package:startup_expense_tracker/features/ai/screens/ai_screen.dart';
+import 'package:startup_expense_tracker/features/ai/screens/ai_screen_ui.dart';
 import 'package:startup_expense_tracker/features/settings/screens/settings_screen.dart';
 
 class MainNavigationWrapper extends StatefulWidget {
@@ -39,7 +39,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
             HomeScreen(onNavigateToTab: _onTabSelected),
             const TeamScreen(),
             const ExpensesScreen(),
-            AiScreen(uid: FirebaseAuth.instance.currentUser?.uid ?? ''),
+            const AiScreen(),
             const SettingsScreen(),
           ],
         ),

@@ -13,6 +13,7 @@ import 'dart:developer';
 import 'runway_estimation_screen.dart';
 import 'funds_overview_screen.dart';
 import 'monthly_burn_screen.dart';
+import 'chatbot_screen.dart';
 import '../../../services/financial_data_service.dart';
 import '../../../services/financial_calculator.dart';
 import '../../../services/currency_formatter.dart';
@@ -670,14 +671,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
-      child: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildMinimalHeader(context),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        floatingActionButton: FloatingActionButton(
+          backgroundColor: const Color(0xFF0A84FF),
+          child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ChatbotScreen()),
+            );
+          },
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildMinimalHeader(context),
               const SizedBox(height: 32),
               GestureDetector(
                 onTap: () => Navigator.push(
@@ -762,6 +775,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

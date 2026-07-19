@@ -83,18 +83,27 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
           .where('TeamId', isEqualTo: widget.teamId)
           .get();
 
-      final payments = querySnapshot.docs;
+      final rawDocs = querySnapshot.docs.map((doc) {
+        return {...doc.data(), 'id': doc.id};
+      }).toList();
 
-      if (payments.isEmpty) {
+      final expandedPayments = ExpenseExpansionHelper.expandExpenses(
+        rawDocs,
+        maxDate: DateTime.now(),
+      );
+
+      if (expandedPayments.isEmpty) {
         _showMessage("No expense history found for this team.");
         setState(() => _isDownloading = false);
         return;
       }
 
       // Sort payments by date (ascending for chronological order in PDF)
-      payments.sort((a, b) {
-        final Timestamp? dateA = a['Date'] as Timestamp?;
-        final Timestamp? dateB = b['Date'] as Timestamp?;
+      expandedPayments.sort((a, b) {
+        final rawA = a['Date'] ?? a['date'];
+        final rawB = b['Date'] ?? b['date'];
+        final Timestamp? dateA = rawA is Timestamp ? rawA : null;
+        final Timestamp? dateB = rawB is Timestamp ? rawB : null;
         if (dateA == null || dateB == null) return 0;
         return dateA.compareTo(dateB);
       });
@@ -104,13 +113,13 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
       double totalAmount = 0;
 
       // Map Firestore data to PDF table rows
-      final List<List<String>> tableData = payments
-          .map((doc) {
-            final data = doc.data();
+      final List<List<String>> tableData = expandedPayments
+          .map((data) {
             final amount = double.tryParse(data['Amount'].toString()) ?? 0.0;
             totalAmount += amount;
 
-            final date = (data['Date'] as Timestamp).toDate();
+            final rawDate = data['Date'] ?? data['date'];
+            final date = rawDate is Timestamp ? rawDate.toDate() : DateTime.now();
             final dateStr = "${date.day}/${date.month}/${date.year}";
 
             final title = data['Title']?.toString() ?? 'Unknown';
@@ -211,7 +220,7 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                   crossAxisAlignment: pw.CrossAxisAlignment.end,
                   children: [
                     pw.Text(
-                      "Total Expenses: ${payments.length}",
+                      "Total Expenses: ${expandedPayments.length}",
                       style: pw.TextStyle(
                         fontSize: 16,
                         fontWeight: pw.FontWeight.bold,

@@ -19,7 +19,7 @@ import '../../../services/currency_preference_service.dart';
 import 'set_password.dart'; 
 import 'add_funding_screen.dart';
 import 'category_settings_screen.dart';
-
+import 'manage_recurring_payments_screen.dart';
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -363,6 +363,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const ExpensesExportScreen(),
+                      ),
+                    );
+                  },
+                ),
+                _buildDivider(),
+                _buildTile(
+                  icon: Icons.autorenew,
+                  title: "Manage Recurring Payments",
+                  subtitle: "View and stop subscriptions or salaries",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ManageRecurringPaymentsScreen(),
                       ),
                     );
                   },
