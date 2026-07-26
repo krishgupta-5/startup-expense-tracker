@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../theme/app_theme.dart';
 
@@ -68,7 +67,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -164,7 +164,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                           const SizedBox(height: 32),
                           Text(
                             "We will send a secure link to your registered email address to set a password for your account.",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textSecondary,
                               fontSize: 14,
                               fontWeight: FontWeight.w400,
@@ -213,7 +214,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
           ),
           Text(
             "Set Password",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -230,7 +232,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text.toUpperCase(),
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.w600,
@@ -253,7 +256,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         textInputAction: TextInputAction.done,
         readOnly: true,
         canRequestFocus: false,
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textSecondary,
           fontSize: 15,
           fontWeight: FontWeight.w500,
@@ -261,7 +265,11 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
         cursorColor: context.textPrimary,
         decoration: InputDecoration(
           hintText: "name@company.com",
-          hintStyle: GoogleFonts.inter(color: context.textTertiary, fontSize: 15),
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textTertiary,
+            fontSize: 15,
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           isDense: true,
@@ -286,9 +294,7 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: context.appBackground,
-        border: Border(
-          top: BorderSide(color: context.borderColor),
-        ),
+        border: Border(top: BorderSide(color: context.borderColor)),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -317,7 +323,8 @@ class _SetPasswordScreenState extends State<SetPasswordScreen> {
                   _cooldownSeconds > 0
                       ? "Resend in ${_cooldownSeconds}s"
                       : "Send Secure Link",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: isButtonDisabled ? context.textSecondary : btnText,

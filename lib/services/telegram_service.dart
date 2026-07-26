@@ -38,9 +38,7 @@ class TelegramService {
 
     final token = await _getToken();
     final res = await http.get(
-      Uri.parse(
-        'https://api.telegram.org/bot$token/getFile?file_id=$fileId',
-      ),
+      Uri.parse('https://api.telegram.org/bot$token/getFile?file_id=$fileId'),
     );
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     final path = data['result']['file_path'] as String;

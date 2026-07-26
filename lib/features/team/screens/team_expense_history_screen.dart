@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -70,7 +69,10 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
     String getPdfCurrencySymbol(double amount) {
       final userCurrencyCode =
           CurrencyPreferenceService.getCurrencyPreferenceSync();
-      return CurrencyFormatter.formatCompactPdfSafe(amount, countryCode: userCurrencyCode);
+      return CurrencyFormatter.formatCompactPdfSafe(
+        amount,
+        countryCode: userCurrencyCode,
+      );
     }
 
     try {
@@ -120,13 +122,15 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
             totalAmount += amount;
 
             final rawDate = data['Date'] ?? data['date'];
-            final date = rawDate is Timestamp ? rawDate.toDate() : DateTime.now();
+            final date = rawDate is Timestamp
+                ? rawDate.toDate()
+                : DateTime.now();
             final dateStr = "${date.day}/${date.month}/${date.year}";
 
             final title = data['Title']?.toString() ?? 'Unknown';
             final memberName = data['TeamMemberName']?.toString();
             final category = data['Category']?.toString() ?? '';
-            
+
             String details = title;
             if (memberName != null && memberName.isNotEmpty) {
               details = "$title ($memberName)";
@@ -174,7 +178,8 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                         color: PdfColors.grey700,
                       ),
                     ),
-                    if (widget.monthlyBudget != null && widget.monthlyBudget! > 0)
+                    if (widget.monthlyBudget != null &&
+                        widget.monthlyBudget! > 0)
                       pw.Text(
                         "Monthly Budget: ${getPdfCurrencySymbol(widget.monthlyBudget!)}",
                         style: const pw.TextStyle(
@@ -260,7 +265,8 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
       SnackBar(
         content: Text(
           message,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.appBackground,
             fontWeight: FontWeight.w500,
           ),
@@ -313,7 +319,10 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                           return Center(
                             child: Text(
                               "Error loading expense history.",
-                              style: GoogleFonts.inter(color: Colors.redAccent),
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                color: Colors.redAccent,
+                              ),
                             ),
                           );
                         }
@@ -362,7 +371,9 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                             "amt": _formatCurrency(amt),
                             "status": "Completed",
                             "title": title,
-                            "subtitle": memberName.isNotEmpty ? memberName : null,
+                            "subtitle": memberName.isNotEmpty
+                                ? memberName
+                                : null,
                           });
                         }
 
@@ -398,7 +409,8 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                                     child: Text(
                                       "No team expenses yet.\nClick '+' to add an expense for this team.",
                                       textAlign: TextAlign.center,
-                                      style: GoogleFonts.inter(
+                                      style: TextStyle(
+                                        fontFamily: 'Satoshi',
                                         color: context.textSecondary,
                                         height: 1.5,
                                         fontSize: 14,
@@ -459,7 +471,8 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
 
           Text(
             "Expense History",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -498,7 +511,8 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
         children: [
           Text(
             "TOTAL SPENT (ALL TIME)",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -508,7 +522,8 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
           const SizedBox(height: 12),
           Text(
             _formatCurrency(totalSpent),
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 32,
               fontWeight: FontWeight.w600,
@@ -532,7 +547,8 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                   expenseCount == 0
                       ? "No expenses yet"
                       : "$expenseCount expense(s) logged",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: const Color(0xFF30D158),
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
@@ -584,9 +600,7 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                   decoration: BoxDecoration(
                     color: context.cardBackground,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: context.borderColor,
-                    ),
+                    border: Border.all(color: context.borderColor),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -596,7 +610,9 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: context.textPrimary.withValues(alpha: 0.05),
+                              color: context.textPrimary.withValues(
+                                alpha: 0.05,
+                              ),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Icon(
@@ -611,7 +627,8 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                             children: [
                               Text(
                                 expense['title'],
-                                style: GoogleFonts.inter(
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
                                   color: context.textPrimary,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -621,7 +638,8 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                               if (hasSubtitle) ...[
                                 Text(
                                   expense['subtitle'],
-                                  style: GoogleFonts.inter(
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
                                     color: context.textSecondary,
                                     fontSize: 11,
                                     fontStyle: FontStyle.italic,
@@ -631,7 +649,8 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                               ],
                               Text(
                                 expense['date'],
-                                style: GoogleFonts.inter(
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
                                   color: context.textSecondary,
                                   fontSize: 11,
                                 ),
@@ -645,7 +664,8 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                         children: [
                           Text(
                             expense['amt'],
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -669,7 +689,8 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
                             ),
                             child: Text(
                               expense['status'],
-                              style: GoogleFonts.inter(
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
                                 color: const Color(0xFF30D158),
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
@@ -694,7 +715,8 @@ class _TeamExpenseHistoryScreenState extends State<TeamExpenseHistoryScreen> {
       alignment: Alignment.centerLeft,
       child: Text(
         title.toUpperCase(),
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.bold,

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:startup_expense_tracker/features/auth/screen/login.dart';
 import '../../../shared/widgets/error_popup.dart';
@@ -86,7 +85,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         title: Text(
           'Google Account Detected',
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -94,7 +94,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         content: Text(
           'This email is linked to a Google account. You don\'t need a password — just use the "Google Sign-In" button on the login screen.',
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 14,
             height: 1.5,
@@ -105,7 +106,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
               'Cancel',
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textTertiary,
                 fontWeight: FontWeight.w500,
               ),
@@ -127,7 +129,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
             child: Text(
               'Go to Login',
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 fontWeight: FontWeight.w600,
                 color: context.appBackground,
               ),
@@ -313,7 +316,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                 Expanded(
                                   child: Text(
                                     "Check your inbox (and spam folder) for the reset link.",
-                                    style: GoogleFonts.inter(
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
                                       color: const Color(0xFF30D158),
                                       fontSize: 13,
                                       height: 1.4,
@@ -360,7 +364,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         const SizedBox(height: 20),
         Text(
           "Reset Password",
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textPrimary,
             fontSize: 32,
             fontWeight: FontWeight.w600,
@@ -370,7 +375,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         const SizedBox(height: 8),
         Text(
           "Enter the email associated with your account and we'll send you a reset link.",
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w400,
@@ -384,7 +390,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget _buildLabel(BuildContext context, String text) {
     return Text(
       text,
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 10,
         fontWeight: FontWeight.bold,
@@ -407,11 +414,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       keyboardType: keyboardType,
       validator: validator,
       onTapOutside: (_) => FocusScope.of(context).unfocus(),
-      style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+      style: TextStyle(
+        fontFamily: 'Satoshi',
+        color: context.textPrimary,
+        fontSize: 15,
+      ),
       cursorColor: context.textPrimary,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.inter(color: context.textTertiary),
+        hintStyle: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textTertiary,
+        ),
         filled: true,
         fillColor: context.cardBackground,
         contentPadding: const EdgeInsets.symmetric(
@@ -438,7 +452,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFFFF3B30)),
         ),
-        errorStyle: GoogleFonts.inter(color: const Color(0xFFFF3B30)),
+        errorStyle: TextStyle(
+          fontFamily: 'Satoshi',
+          color: const Color(0xFFFF3B30),
+        ),
       ),
     );
   }
@@ -466,17 +483,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 width: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(context.appBackground),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    context.appBackground,
+                  ),
                 ),
               )
             : Text(
                 _cooldownSeconds > 0
                     ? "Resend in ${_cooldownSeconds}s"
                     : (_emailSent ? "Send Again" : "Send Reset Link"),
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: isButtonDisabled ? context.appBackground.withValues(alpha: 0.6) : context.appBackground,
+                  color: isButtonDisabled
+                      ? context.appBackground.withValues(alpha: 0.6)
+                      : context.appBackground,
                 ),
               ),
       ),
@@ -489,7 +511,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       children: [
         Text(
           "Remembered your password? ",
-          style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
+          style: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textSecondary,
+            fontSize: 14,
+          ),
         ),
         GestureDetector(
           onTap: () {
@@ -502,7 +528,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
             child: Text(
               "Login",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 14,

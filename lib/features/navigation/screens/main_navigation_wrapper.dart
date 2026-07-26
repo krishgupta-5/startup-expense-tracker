@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:startup_expense_tracker/widgets/custom_bottom_nav.dart';
 import 'package:startup_expense_tracker/features/home/screens/home_screen.dart';
 import 'package:startup_expense_tracker/features/team/screens/team_screen.dart';
@@ -47,7 +46,7 @@ class _MainNavigationWrapperState extends State<MainNavigationWrapper> {
           ],
         ),
       ),
-      bottomNavigationBar: ModernDarkNavBar(
+      bottomNavigationBar: ModernNavBar(
         onTabSelected: _onTabSelected,
         selectedIndex: _selectedIndex,
       ),

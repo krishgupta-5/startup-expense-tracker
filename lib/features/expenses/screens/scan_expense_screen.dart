@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -137,7 +136,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 const SizedBox(height: 16),
                 Text(
                   "Camera Permission Required",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -147,7 +147,11 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 const SizedBox(height: 16),
                 Text(
                   "Please grant camera permission to scan receipts.",
-                  style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: context.textSecondary,
+                    fontSize: 14,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
@@ -162,9 +166,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(
-                              color: context.borderColor,
-                            ),
+                            side: BorderSide(color: context.borderColor),
                           ),
                         ),
                         child: const Text("Cancel"),
@@ -558,7 +560,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
             ),
             child: Text(
               _capturedImagePath != null ? "Review Image" : "Scan Expense",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: Colors.white,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -607,7 +610,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
           const SizedBox(height: 16),
           Text(
             "Initializing camera...",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: Colors.white38,
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -682,7 +686,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 const SizedBox(height: 16),
                 Text(
                   title,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -692,7 +697,11 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 const SizedBox(height: 16),
                 Text(
                   message,
-                  style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: context.textSecondary,
+                    fontSize: 14,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
@@ -710,7 +719,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                     ),
                     child: Text(
                       "OK",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -745,14 +755,13 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 decoration: BoxDecoration(
                   color: Colors.transparent,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: context.borderColor,
-                  ),
+                  border: Border.all(color: context.borderColor),
                 ),
                 child: Center(
                   child: Text(
                     "Retake",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
@@ -795,7 +804,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 child: Center(
                   child: Text(
                     "Use Photo",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.appBackground,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -838,7 +848,9 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 width: 80,
                 height: 80,
                 child: CircularProgressIndicator(
-                  color: context.textPrimary.withValues(alpha: 0.2), // Muted track
+                  color: context.textPrimary.withValues(
+                    alpha: 0.2,
+                  ), // Muted track
                   strokeWidth: 4,
                 ),
               ),
@@ -862,7 +874,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
             ),
             child: Text(
               _scanStatus,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -878,7 +891,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -899,9 +913,7 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
       decoration: BoxDecoration(
         color: context.cardBackground, // Match settings container color
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        border: Border(
-          top: BorderSide(color: context.borderColor),
-        ),
+        border: Border(top: BorderSide(color: context.borderColor)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -923,7 +935,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                   ),
                   child: Text(
                     "✓ Parsed",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: const Color(0xFF30D158),
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -941,13 +954,12 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                 decoration: BoxDecoration(
                   color: context.appBackground, // Deep background for text
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: context.borderColor,
-                  ),
+                  border: Border.all(color: context.borderColor),
                 ),
                 child: Text(
                   _scannedResult,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 14, // Slightly smaller for better fit
                     height: 1.6,
@@ -997,7 +1009,8 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                     child: Center(
                       child: Text(
                         hasData ? 'Proceed' : 'Retry Scan',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.appBackground,
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
@@ -1015,14 +1028,13 @@ class _ScanExpenseScreenState extends State<ScanExpenseScreen>
                     height: 52,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: context.borderColor,
-                      ),
+                      border: Border.all(color: context.borderColor),
                     ),
                     child: Center(
                       child: Text(
                         "Discard",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textSecondary,
                           fontSize: 15,
                           fontWeight: FontWeight.w500,

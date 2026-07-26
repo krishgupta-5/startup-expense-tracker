@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
 
 class DataAccessScreen extends StatefulWidget {
@@ -40,9 +39,7 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                   decoration: BoxDecoration(
                     color: context.cardBackground,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: context.borderColor,
-                    ),
+                    border: Border.all(color: context.borderColor),
                   ),
                   child: Row(
                     children: [
@@ -65,14 +62,16 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                           children: [
                             Text(
                               "Grant Support Access",
-                              style: GoogleFonts.inter(
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
                                 color: context.textPrimary,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                             Text(
                               "Allow support team to view data for 2h.",
-                              style: GoogleFonts.inter(
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
                                 color: context.textSecondary,
                                 fontSize: 12,
                               ),
@@ -110,9 +109,7 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                         decoration: BoxDecoration(
                           color: context.cardBackground,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: context.borderColor,
-                          ),
+                          border: Border.all(color: context.borderColor),
                         ),
                         child: Center(
                           child: CircularProgressIndicator(
@@ -129,13 +126,14 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                         decoration: BoxDecoration(
                           color: context.cardBackground,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: context.borderColor,
-                          ),
+                          border: Border.all(color: context.borderColor),
                         ),
                         child: Text(
                           "Failed to load team members.",
-                          style: GoogleFonts.inter(color: const Color(0xFFFF453A)),
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            color: const Color(0xFFFF453A),
+                          ),
                         ),
                       );
                     }
@@ -148,14 +146,13 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                         decoration: BoxDecoration(
                           color: context.cardBackground,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: context.borderColor,
-                          ),
+                          border: Border.all(color: context.borderColor),
                         ),
                         child: Center(
                           child: Text(
                             "No team members yet.",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textSecondary,
                               fontSize: 14,
                             ),
@@ -168,9 +165,7 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                       decoration: BoxDecoration(
                         color: context.cardBackground,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: context.borderColor,
-                        ),
+                        border: Border.all(color: context.borderColor),
                       ),
                       child: Column(
                         children: docs.asMap().entries.map((entry) {
@@ -180,8 +175,7 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
 
                           final String name =
                               data['fullName'] as String? ?? 'Unknown';
-                          final String email =
-                              data['email'] as String? ?? '—';
+                          final String email = data['email'] as String? ?? '—';
                           final String status =
                               data['status'] as String? ?? 'Active';
                           final String role =
@@ -211,7 +205,8 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                                 ),
                                 title: Text(
                                   name,
-                                  style: GoogleFonts.inter(
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
                                     color: context.textPrimary,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -222,7 +217,8 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                                     const SizedBox(height: 2),
                                     Text(
                                       email,
-                                      style: GoogleFonts.inter(
+                                      style: TextStyle(
+                                        fontFamily: 'Satoshi',
                                         color: context.textSecondary,
                                         fontSize: 12,
                                       ),
@@ -230,7 +226,8 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                                     const SizedBox(height: 4),
                                     Text(
                                       role,
-                                      style: GoogleFonts.inter(
+                                      style: TextStyle(
+                                        fontFamily: 'Satoshi',
                                         color: context.textTertiary,
                                         fontSize: 11,
                                       ),
@@ -246,12 +243,15 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
                                     color: statusColor.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                      color: statusColor.withValues(alpha: 0.25),
+                                      color: statusColor.withValues(
+                                        alpha: 0.25,
+                                      ),
                                     ),
                                   ),
                                   child: Text(
                                     status,
-                                    style: GoogleFonts.inter(
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
                                       color: statusColor,
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
@@ -301,7 +301,8 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
         const SizedBox(width: 16),
         Text(
           title,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -316,7 +317,8 @@ class _DataAccessScreenState extends State<DataAccessScreen> {
       padding: const EdgeInsets.only(bottom: 12, left: 4),
       child: Text(
         text,
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textTertiary,
           fontSize: 10,
           fontWeight: FontWeight.bold,

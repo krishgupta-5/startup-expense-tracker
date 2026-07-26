@@ -1,41 +1,42 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class AppTheme {
   // Colors (Preserved legacy dark constants)
-  static const Color background = Colors.black;
-  static const Color cardDark = Color(0xFF161616);
+  static const Color background = Color(0xFF09090B);
+  static const Color cardDark = Color(0xFF141416);
   static const Color accentWhite = Colors.white;
-  static const Color textGrey = Color(0xFF888888);
+  static const Color textGrey = Color(0xFFA1A1AA);
 
-  // Brand Colors
-  static const Color greenSafe = Color(0xFF00BFA5);
-  static const Color yellowWarning = Color(0xFFFFA000);
-  static const Color redCritical = Color(0xFFFF4081);
-  static const Color credBlue = Color(0xFF3A4B8A);
+  // Brand Colors (Neon Fintech Accents)
+  static const Color greenSafe = Color(0xFF10B981);
+  static const Color yellowWarning = Color(0xFFF59E0B);
+  static const Color redCritical = Color(0xFFFF375F);
+  static const Color credBlue = Color(0xFF3B82F6);
 
   // Fonts
-  static const String fontSerif =
-      'Times New Roman'; // Represents a Classy Serif
-  static const String fontSans = 'Roboto'; // Represents a Clean Sans-Serif
+  static const String fontSerif = 'Times New Roman';
+  static const String fontSans = 'Satoshi';
 
   // Text Styles
-  static TextStyle headerStyle = GoogleFonts.inter(
+  static TextStyle headerStyle = const TextStyle(
+    fontFamily: 'Satoshi',
     fontSize: 28,
     fontWeight: FontWeight.bold,
     color: accentWhite,
-    letterSpacing: 0.5,
+    letterSpacing: -1.0,
   );
 
-  static TextStyle sectionTitleStyle = GoogleFonts.inter(
+  static TextStyle sectionTitleStyle = const TextStyle(
+    fontFamily: 'Satoshi',
     fontSize: 11,
     fontWeight: FontWeight.w700,
     color: textGrey,
     letterSpacing: 1.5,
   );
 
-  static TextStyle bodyStyle = GoogleFonts.inter(
+  static TextStyle bodyStyle = const TextStyle(
+    fontFamily: 'Satoshi',
     fontSize: 14,
     color: accentWhite,
   );
@@ -45,13 +46,13 @@ class AppTheme {
   static ThemeData get darkTheme {
     return ThemeData(
       brightness: Brightness.dark,
+      fontFamily: 'Satoshi',
       scaffoldBackgroundColor: const Color(0xFF09090B),
       colorScheme: ColorScheme.fromSeed(
         seedColor: credBlue,
         brightness: Brightness.dark,
         surface: const Color(0xFF141416),
       ),
-      textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
       useMaterial3: true,
       iconTheme: const IconThemeData(color: Colors.white),
       dividerColor: Colors.white.withValues(alpha: 0.06),
@@ -62,16 +63,18 @@ class AppTheme {
   static ThemeData get lightTheme {
     return ThemeData(
       brightness: Brightness.light,
-      scaffoldBackgroundColor: const Color(0xFFFAF8F5), // Warm cream white
+      fontFamily: 'Satoshi',
+      scaffoldBackgroundColor: const Color(
+        0xFFF9FAFB,
+      ), // Crisp, modern cool-gray
       colorScheme: ColorScheme.fromSeed(
         seedColor: credBlue,
         brightness: Brightness.light,
         surface: Colors.white,
       ),
-      textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),
       useMaterial3: true,
-      iconTheme: const IconThemeData(color: Color(0xFF18181A)),
-      dividerColor: const Color(0xFFE6E1D8),
+      iconTheme: const IconThemeData(color: Color(0xFF09090B)),
+      dividerColor: Colors.black.withValues(alpha: 0.06),
       cardColor: Colors.white,
     );
   }
@@ -80,6 +83,7 @@ class AppTheme {
     return ShadThemeData(
       brightness: Brightness.dark,
       colorScheme: const ShadSlateColorScheme.dark(),
+      textTheme: ShadTextTheme(family: 'Satoshi'),
     );
   }
 
@@ -87,6 +91,7 @@ class AppTheme {
     return ShadThemeData(
       brightness: Brightness.light,
       colorScheme: const ShadSlateColorScheme.light(),
+      textTheme: ShadTextTheme(family: 'Satoshi'),
     );
   }
 }
@@ -97,63 +102,58 @@ extension AppThemeColors on BuildContext {
   bool get isDarkMode => Theme.of(this).brightness == Brightness.dark;
 
   // Backgrounds
-  Color get appBackground =>
-      isDarkMode ? const Color(0xFF09090B) : const Color(0xFFFAF8F5); // Warm cream white
+  Color get appBackground => isDarkMode
+      ? const Color(0xFF09090B)
+      : const Color(0xFFF9FAFB); // Crisp ultra-light gray
   Color get cardBackground =>
       isDarkMode ? const Color(0xFF141416) : Colors.white;
-  Color get cardSecondaryBackground =>
-      isDarkMode ? const Color(0xFF1C1C1E) : const Color(0xFFF2ECE6);
+  Color get cardSecondaryBackground => isDarkMode
+      ? const Color(0xFF1C1C1E)
+      : const Color(0xFFF4F4F5); // Zinc-100
 
   // Borders
-  Color get borderColor =>
-      isDarkMode
-          ? Colors.white.withValues(alpha: 0.08)
-          : const Color(0xFFE6E1D8);
-  Color get borderColorStrong =>
-      isDarkMode
-          ? Colors.white.withValues(alpha: 0.2)
-          : const Color(0xFFC9C3B9);
-  Color get borderSubtle =>
-      isDarkMode
-          ? Colors.white.withValues(alpha: 0.04)
-          : const Color(0xFFF5F0E8);
+  Color get borderColor => isDarkMode
+      ? Colors.white.withValues(alpha: 0.08)
+      : Colors.black.withValues(alpha: 0.06);
+  Color get borderColorStrong => isDarkMode
+      ? Colors.white.withValues(alpha: 0.15)
+      : Colors.black.withValues(alpha: 0.12);
+  Color get borderSubtle => isDarkMode
+      ? Colors.white.withValues(alpha: 0.04)
+      : Colors.black.withValues(alpha: 0.03);
 
   // Typography & Icons
-  Color get textPrimary =>
-      isDarkMode ? Colors.white : const Color(0xFF18181A); // Deep charcoal black
+  Color get textPrimary => isDarkMode
+      ? Colors.white
+      : const Color(0xFF09090B); // True Charcoal Black
   Color get textSecondary =>
-      isDarkMode ? Colors.white54 : const Color(0xFF5E5A54); // Sophisticated warm gray
+      isDarkMode ? Colors.white54 : const Color(0xFF71717A); // Zinc-500
   Color get textTertiary =>
-      isDarkMode ? Colors.white38 : const Color(0xFF969088);
+      isDarkMode ? Colors.white38 : const Color(0xFFA1A1AA); // Zinc-400
   Color get textSubtle =>
-      isDarkMode ? Colors.white24 : const Color(0xFFC7C1B7);
+      isDarkMode ? Colors.white24 : const Color(0xFFE4E4E7); // Zinc-200
 
-  Color get iconPrimary =>
-      isDarkMode ? Colors.white : const Color(0xFF18181A);
+  Color get iconPrimary => isDarkMode ? Colors.white : const Color(0xFF09090B);
   Color get iconSecondary =>
-      isDarkMode ? Colors.white70 : const Color(0xFF5E5A54);
+      isDarkMode ? Colors.white54 : const Color(0xFF71717A);
 
   // Glass & subtle fills
-  Color get glassBackground =>
-      isDarkMode
-          ? Colors.white.withValues(alpha: 0.05)
-          : Colors.black.withValues(alpha: 0.04);
-  Color get glassBackgroundStrong =>
-      isDarkMode
-          ? Colors.white.withValues(alpha: 0.1)
-          : Colors.black.withValues(alpha: 0.08);
+  Color get glassBackground => isDarkMode
+      ? Colors.white.withValues(alpha: 0.05)
+      : Colors.black.withValues(alpha: 0.04);
+  Color get glassBackgroundStrong => isDarkMode
+      ? Colors.white.withValues(alpha: 0.1)
+      : Colors.black.withValues(alpha: 0.08);
 
   // Inputs & Nav
   Color get inputBackground =>
       isDarkMode ? const Color(0xFF1C1C1E) : Colors.white;
   Color get navBackground =>
-      isDarkMode ? Colors.black : const Color(0xFFFAF8F5);
-  Color get navActiveTab =>
-      isDarkMode ? const Color(0xFF222222) : const Color(0xFFEBE6DD);
+      isDarkMode ? const Color(0xFF141416) : Colors.white;
+  Color get navActiveTab => isDarkMode ? Colors.white : const Color(0xFF09090B);
 
   // Accents & Brand
-  Color get primaryColor =>
-      isDarkMode ? Colors.white : const Color(0xFF18181A);
+  Color get primaryColor => isDarkMode ? Colors.white : const Color(0xFF09090B);
   Color get accentColor =>
-      isDarkMode ? const Color(0xFF00BFA5) : const Color(0xFF00BFA5);
+      const Color(0xFF3B82F6); // Punchy blue that works on both
 }

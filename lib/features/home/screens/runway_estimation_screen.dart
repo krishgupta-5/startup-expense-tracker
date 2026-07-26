@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../theme/app_theme.dart';
 import '../../../utils/expense_expansion_helper.dart';
+import '../../../shared/widgets/custom_back_button.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 class RunwayEstimationScreen extends StatefulWidget {
   const RunwayEstimationScreen({super.key});
@@ -33,11 +34,8 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   @override
   void initState() {
     super.initState();
-    // Get currency preference synchronously for instant display
     _userCountryCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
-    // Listen for currency changes
     CurrencyPreferenceService.currencyNotifier.addListener(_onCurrencyChanged);
-    // Load in background for more accurate result
     _loadUserCountryCode();
     _loadData();
   }
@@ -105,34 +103,25 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
       if (docSnapshot.exists && docSnapshot.data() != null) {
         final data = docSnapshot.data()!;
 
-        // Get runway from Firebase
         final runwayFromFirebase = data["Runway"]?.toString() ?? "0";
         final funding = data["Funding"] ?? data["funding"] ?? data["FUNDING"];
         final runwayAmount =
             double.tryParse(runwayFromFirebase.toString()) ?? 0;
         final fundingAmount = double.tryParse(funding?.toString() ?? "0") ?? 0;
-        // Compute available balance from REAL loaded expenses
-        // Compute available balance from REAL loaded expenses up to today
-        final now = DateTime.now();
-        final realTotalExpenses = allExpenses.fold<double>(
-          0.0,
-          (t, e) {
-            final dt = e['date'];
-            if (dt is Timestamp && dt.toDate().isAfter(now)) {
-              return t;
-            } else if (dt is DateTime && dt.isAfter(now)) {
-              return t;
-            }
-            return t + _toDouble(e['amount']);
-          },
-        );
 
+        final now = DateTime.now();
+        final realTotalExpenses = allExpenses.fold<double>(0.0, (t, e) {
+          final dt = e['date'];
+          if (dt is Timestamp && dt.toDate().isAfter(now)) {
+            return t;
+          } else if (dt is DateTime && dt.isAfter(now)) {
+            return t;
+          }
+          return t + _toDouble(e['amount']);
+        });
 
         final availableBalance = fundingAmount - realTotalExpenses;
 
-        // Calculate current month burn from the already-expanded allExpenses list,
-        // filtering to only occurrences that fall in the current calendar month.
-        // This matches exactly what the Expense History screen shows.
         double currentMonthBurnAmount = 0.0;
         for (final e in allExpenses) {
           final rawDate = e['date'];
@@ -153,15 +142,16 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
           actualMonthlyBurn = _calculateAverageMonthlyBurn();
         }
 
-        // --- NO DATA / NEW ACCOUNT GRACEFUL HANDLING ---
         if (actualMonthlyBurn == 0 || availableBalance <= 0) {
           setState(() {
             runwayMonths = availableBalance <= 0 ? 0.0 : runwayAmount;
             currentBalance = _formatCurrency(
               availableBalance < 0 ? 0 : availableBalance,
             );
-            monthlyBurn = '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0';
-            netBurn = '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0';
+            monthlyBurn =
+                '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0';
+            netBurn =
+                '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0';
             zeroCashDate = availableBalance <= 0
                 ? (fundingAmount == 0 ? 'Awaiting funding' : 'Funds depleted')
                 : 'Add expenses to track';
@@ -171,12 +161,9 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
           return;
         }
 
-        // Calculate zero cash date
         final calculatedZeroCashDate = _calculateZeroCashDate(
           availableBalance / actualMonthlyBurn,
         );
-
-        // Generate monthly projections
         final projections = _generateMonthlyProjections(
           availableBalance,
           actualMonthlyBurn,
@@ -213,7 +200,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     });
   }
 
-   Future<void> _fetchAllExpenses() async {
+  Future<void> _fetchAllExpenses() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
@@ -225,13 +212,9 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
 
       final mappedExpenses = expensesSnapshot.docs.map((doc) {
         final data = doc.data();
-        return {
-          ...data,
-          'id': doc.id,
-        };
+        return {...data, 'id': doc.id};
       }).toList();
 
-      // ── Expand recurring entries up to end of month so currentMonthBurn is accurate
       final now = DateTime.now();
       final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
       final expandedPast = ExpenseExpansionHelper.expandExpenses(
@@ -240,35 +223,33 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
         allowFuture: true,
       );
 
-      allExpenses = expandedPast
-          .where((data) {
-            if (data['isFunding'] == true) return false;
-            return true;
-          })
-          .map((data) {
-        final amountVal = data['Amount'] ?? data['amount'];
-        final amount = amountVal is num ? amountVal.toDouble() : double.tryParse(amountVal?.toString() ?? '0') ?? 0.0;
-        return {
-          'id': data['id'] ?? data['expenseId'] ?? '',
-          'title': data['Title'] ?? 'Unnamed Expense',
-          'amount': amount,
-          'category': data['Category'] ?? 'General',
-          'date': data['Date'] ?? data['date'],
-          'description': data['Description'] ?? '',
-          'type': data['Type'] ?? 'one_time',
-          'recurrenceFrequency': data['recurrenceFrequency'] ?? data['loanRateType'] ?? 'monthly',
-          'recurringTenureMonths': data['recurringTenureMonths'] ?? data['loanTenureMonths'],
-        };
-      }).toList();
-
-      // ── List 2: unused — burn is now computed from allExpenses ─────────────
-      // (removed rawExpensesForBurn; monthly burn is derived from the expanded
-      //  allExpenses list filtered to the current month, matching Expense History)
+      allExpenses = expandedPast.where((data) => data['isFunding'] != true).map(
+        (data) {
+          final amountVal = data['Amount'] ?? data['amount'];
+          final amount = amountVal is num
+              ? amountVal.toDouble()
+              : double.tryParse(amountVal?.toString() ?? '0') ?? 0.0;
+          return {
+            'id': data['id'] ?? data['expenseId'] ?? '',
+            'title': data['Title'] ?? 'Unnamed Expense',
+            'amount': amount,
+            'category': data['Category'] ?? 'General',
+            'date': data['Date'] ?? data['date'],
+            'description': data['Description'] ?? '',
+            'type': data['Type'] ?? 'one_time',
+            'recurrenceFrequency':
+                data['recurrenceFrequency'] ??
+                data['loanRateType'] ??
+                'monthly',
+            'recurringTenureMonths':
+                data['recurringTenureMonths'] ?? data['loanTenureMonths'],
+          };
+        },
+      ).toList();
     } catch (e) {
       debugPrint("Error fetching expenses: $e");
     }
   }
-
 
   double _calculateAverageMonthlyBurn() {
     if (allExpenses.isEmpty) return 0;
@@ -280,7 +261,6 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
         final expenseDateTime = expenseDate.toDate();
         final monthKey =
             "${expenseDateTime.year}-${expenseDateTime.month.toString().padLeft(2, '0')}";
-
         monthlyTotals[monthKey] =
             (monthlyTotals[monthKey] ?? 0) + _toDouble(expense['amount']);
       }
@@ -293,15 +273,12 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
 
   String _calculateZeroCashDate(double calculatedRunwayMonths) {
     if (calculatedRunwayMonths <= 0) return "Funds depleted";
-    if (calculatedRunwayMonths > 120) {
-      return "10+ Years"; // Cap to avoid massive dates
-    }
+    if (calculatedRunwayMonths > 120) return "10+ Years";
 
     final now = DateTime.now();
     final zeroCashDateTime = now.add(
       Duration(days: (calculatedRunwayMonths * 30.44).round()),
     );
-
     final months = [
       'Jan',
       'Feb',
@@ -316,8 +293,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
       'Nov',
       'Dec',
     ];
-
-    return "${months[zeroCashDateTime.month - 1]} ${zeroCashDateTime.day}, ${zeroCashDateTime.year}";
+    return "${months[zeroCashDateTime.month - 1]} ${zeroCashDateTime.year}";
   }
 
   List<Map<String, dynamic>> _generateMonthlyProjections(
@@ -326,37 +302,38 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   ) {
     final projections = <Map<String, dynamic>>[];
     final now = DateTime.now();
-
-    // Total runway in days (today → zero cash date)
     final double runwayDays = (balance / burn) * 30.44;
     if (runwayDays <= 0) return projections;
 
-    // 5 intermediate points + 1 cash-out point = 6 total rows
-    // Step size covers 1/6 of the total runway each time
     const int numIntermediate = 5;
     const int numTotal = 6;
     final double stepDays = runwayDays / numTotal;
-
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
 
     String formatDate(DateTime date) {
-      // Show day precision only for very short runway steps (< 2 months)
-      return stepDays < 60
-          ? "${months[date.month - 1]} ${date.day}, ${date.year}"
-          : "${months[date.month - 1]} ${date.year}";
+      return "${months[date.month - 1]} ${date.year}";
     }
 
-    // ── 5 intermediate rows ──────────────────────────────────────────────────
     for (int i = 1; i <= numIntermediate; i++) {
       final double offsetDays = stepDays * i;
       final DateTime futureDate = now.add(Duration(days: offsetDays.round()));
       final double offsetMonths = offsetDays / 30.44;
       final double projectedBalance = balance - (burn * offsetMonths);
 
-      if (projectedBalance <= 0) break; // Safety guard
+      if (projectedBalance <= 0) break;
 
       projections.add({
         'month': formatDate(futureDate),
@@ -366,7 +343,6 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
       });
     }
 
-    // ── Final row: zero-cash (cash-out) date ─────────────────────────────────
     final DateTime cashOutDate = now.add(Duration(days: runwayDays.round()));
     projections.add({
       'month': formatDate(cashOutDate),
@@ -381,9 +357,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   String _getHealthStatus() {
     if (isLoading) return "CALCULATING";
     final zeroStr = '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0';
-    if (monthlyBurn == zeroStr && currentBalance == zeroStr) {
-      return 'NO DATA';
-    }
+    if (monthlyBurn == zeroStr && currentBalance == zeroStr) return 'NO DATA';
     if (monthlyBurn == zeroStr) return 'NO EXPENSES';
     if (runwayMonths == null || runwayMonths! <= 0) return "DEPLETED";
 
@@ -397,76 +371,78 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     switch (status) {
       case "CRITICAL":
       case "DEPLETED":
-        return const Color(0xFFFF453A);
+        return const Color(0xFFEF4444); // Deep Red
       case "WARNING":
-        return const Color(0xFFFF9F0A);
+        return const Color(0xFFF59E0B); // Amber
       case "SAFE":
-        return const Color(0xFF30D158);
+        return const Color(0xFF10B981); // Emerald
       default:
         return context.textSecondary;
     }
   }
 
-  // --- PREMIUM SECTION LABEL HELPER ---
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: FontWeight.bold,
-        letterSpacing: 1.2,
+        letterSpacing: 1.5,
       ),
     );
   }
 
-  // --- MINIMAL EMPTY STATE COMPONENT ---
   Widget _buildEmptyState(String text) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
         child: Text(
           text,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textTertiary,
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
           textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
   }
 
-  // --- MINIMAL HINT TOAST INSTEAD OF DIALOG ---
   void _showProjectionHint() {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.info_outline, color: context.iconSecondary, size: 18),
+            HugeIcon(
+              icon: HugeIcons.strokeRoundedInformationCircle,
+              color: context.textPrimary,
+              size: 16,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 "Formula: Fund Left ÷ Monthly Expense",
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 13,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
           ],
         ),
-        backgroundColor: context.cardSecondaryBackground,
+        backgroundColor: context.cardBackground,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: context.borderSubtle),
+          side: BorderSide(color: context.borderColor),
         ),
         duration: const Duration(seconds: 4),
         elevation: 0,
@@ -476,30 +452,37 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       backgroundColor: context.appBackground,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: context.isDarkMode
-            ? SystemUiOverlayStyle.light
-            : SystemUiOverlayStyle.dark,
+        value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         child: SafeArea(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(context),
-                const SizedBox(height: 32),
-                _buildMainRunwayCard(),
-                const SizedBox(height: 32),
-                _buildFinancialMetricsGrid(),
-                const SizedBox(height: 32),
-                _buildMonthlyProjectionSection(),
-                const SizedBox(height: 32),
-                _buildRiskFactorsSection(),
-                const SizedBox(height: 40),
-              ],
+          child: RefreshIndicator(
+            onRefresh: _loadData,
+            color: context.textPrimary,
+            backgroundColor: context.cardBackground,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(context),
+                  const SizedBox(height: 32),
+                  _buildMainRunwayHero(isDark),
+                  const SizedBox(height: 40),
+                  _buildFinancialMetricsGrid(isDark),
+                  const SizedBox(height: 40),
+                  _buildMonthlyProjectionSection(isDark),
+                  const SizedBox(height: 40),
+                  _buildRiskFactorsSection(isDark),
+                  const SizedBox(height: 80),
+                ],
+              ),
             ),
           ),
         ),
@@ -511,37 +494,27 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: context.cardBackground,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: context.borderColor),
-            ),
-            child: Icon(Icons.arrow_back, color: context.iconPrimary, size: 20),
-          ),
-        ),
+        CustomBackButton(),
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
               "Runway Analysis",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textSecondary,
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
-              "Detailed Projection",
-              style: GoogleFonts.inter(
+              "Projections",
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 20,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 letterSpacing: -0.5,
               ),
             ),
@@ -551,157 +524,168 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     );
   }
 
-  Widget _buildMainRunwayCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: context.cardBackground,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: context.borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: _getHealthStatusColor().withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(
-                    color: _getHealthStatusColor().withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Flexible(
-                  child: Text(
-                    _getHealthStatus(),
-                    style: GoogleFonts.inter(
-                      color: _getHealthStatusColor(),
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.0,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
+  Widget _buildMainRunwayHero(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              "ESTIMATED RUNWAY",
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textSecondary,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.5,
               ),
-              const Spacer(),
-              Row(
-                children: [
-                  Text(
-                    "Last updated: Today",
-                    style: GoogleFonts.inter(
-                      color: context.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  GestureDetector(
-                    onTap: _loadData,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      child: isLoading
-                          ? SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: context.textTertiary,
-                              ),
-                            )
-                          : Icon(
-                              Icons.refresh,
-                              color: context.textTertiary,
-                              size: 16,
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Flexible(
-                // FIXED: FITTED BOX FOR LARGE NUMBERS
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    isLoading
-                        ? "--"
-                        : (runwayMonths?.toStringAsFixed(1) ?? "0.0"),
-                    style: GoogleFonts.inter(
-                      color: context.textPrimary,
-                      fontSize: 60, // Huge Hero text
-                      fontWeight: FontWeight.w600, // Thickened slightly
-                      height: 1.0,
-                      letterSpacing: -3,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  "months remaining",
-                  style: GoogleFonts.inter(
+            ),
+            Row(
+              children: [
+                Text(
+                  "Updated Today",
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
-                    fontSize: 14,
+                    fontSize: 10,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: context.cardSecondaryBackground,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: context.borderSubtle),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _loadData,
+                  child: isLoading
+                      ? SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: context.textSecondary,
+                          ),
+                        )
+                      : HugeIcon(
+                          icon: HugeIcons.strokeRoundedRefresh,
+                          color: context.textSecondary,
+                          size: 14,
+                        ),
+                ),
+              ],
             ),
-            child: Column(
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  isLoading
+                      ? "--"
+                      : (runwayMonths?.toStringAsFixed(1) ?? "0.0"),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: context.textPrimary,
+                    fontSize: 72, // Massive unboxed text
+                    fontWeight: FontWeight.w700,
+                    height: 1.1,
+                    letterSpacing: -3.0,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Text(
+                "months",
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: context.textSecondary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Zero Cash Date",
-                  style: GoogleFonts.inter(
+                  "PROJECTED ZERO CASH",
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 Text(
                   isLoading ? "--" : (zeroCashDate ?? "--"),
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
-                    fontSize: 20,
+                    fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  "RUNWAY HEALTH",
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: context.textSecondary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: _getHealthStatusColor(),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _getHealthStatus(),
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        color: _getHealthStatusColor(),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
     );
   }
 
-  Widget _buildFinancialMetricsGrid() {
+  Widget _buildFinancialMetricsGrid(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -714,9 +698,11 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                 "Current Balance",
                 isLoading
                     ? '--'
-                    : (currentBalance ?? '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0'),
-                Icons.account_balance_wallet_outlined,
-                const Color(0xFF30D158),
+                    : (currentBalance ??
+                          '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0'),
+                HugeIcons.strokeRoundedWallet01,
+                const Color(0xFF10B981),
+                isDark,
               ),
             ),
             const SizedBox(width: 16),
@@ -725,24 +711,11 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                 "Monthly Burn",
                 isLoading
                     ? '--'
-                    : (monthlyBurn ?? '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0'),
-                Icons.local_fire_department_outlined,
-                const Color(0xFFFF9F0A),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildMetricCard(
-                "Total Burn",
-                isLoading
-                    ? '--'
-                    : (netBurn ?? '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0'),
-                Icons.remove_circle_outline,
-                const Color(0xFFFF453A),
+                    : (monthlyBurn ??
+                          '${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0'),
+                HugeIcons.strokeRoundedFire,
+                const Color(0xFFF59E0B),
+                isDark,
               ),
             ),
           ],
@@ -754,31 +727,49 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   Widget _buildMetricCard(
     String label,
     String value,
-    IconData icon,
-    Color color,
+    dynamic icon,
+    Color iconColor,
+    bool isDark,
   ) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: context.cardBackground,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: context.borderColor),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color.withValues(alpha: 0.8), size: 20),
-          const SizedBox(height: 16),
-          // FIXED: FITTED BOX FOR LARGE NUMBERS
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: iconColor.withValues(alpha: 0.2)),
+            ),
+            child: HugeIcon(icon: icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(height: 20),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
               value,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
                 letterSpacing: -0.5,
               ),
             ),
@@ -786,10 +777,11 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -797,30 +789,44 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     );
   }
 
-  Widget _buildMonthlyProjectionSection() {
+  Widget _buildMonthlyProjectionSection(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildSectionLabel("MONTHLY PROJECTION"),
-            const SizedBox(width: 8),
             GestureDetector(
-              onTap: _showProjectionHint, // Triggers the sleek toast
+              onTap: _showProjectionHint,
               child: Container(
-                width: 20,
-                height: 20,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: context.cardSecondaryBackground,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: context.borderSubtle,
-                  ),
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(color: context.borderColor),
                 ),
-                child: Icon(
-                  Icons.info_outline,
-                  color: context.iconSecondary,
-                  size: 12,
+                child: Row(
+                  children: [
+                    HugeIcon(
+                      icon: HugeIcons.strokeRoundedInformationCircle,
+                      color: context.textPrimary,
+                      size: 12,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      "FORMULA",
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        color: context.textPrimary,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -829,11 +835,21 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
         const SizedBox(height: 16),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          clipBehavior: Clip
+              .antiAlias, // Ensures the zero cash background is clipped perfectly
           decoration: BoxDecoration(
             color: context.cardBackground,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(32),
             border: Border.all(color: context.borderColor),
+            boxShadow: isDark
+                ? []
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: isLoading
               ? _buildEmptyState("Loading projections...")
@@ -842,8 +858,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
               : Column(
                   children: [
                     ...monthlyProjections.map((projection) {
-                      final bool isCashOut =
-                          projection['isCashOut'] == true;
+                      final bool isCashOut = projection['isCashOut'] == true;
                       return Column(
                         children: [
                           _buildProjectionRow(
@@ -874,21 +889,16 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     String monthsLeft, {
     bool isCashOut = false,
   }) {
-    const cashOutRed = Color(0xFFFF453A);
+    const cashOutRed = Color(0xFFEF4444); // Standard Deep Red, not pink
 
     return Container(
-      // Subtle red tint background for the cash-out row
       decoration: isCashOut
-          ? BoxDecoration(
-              color: cashOutRed.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(12),
-            )
+          ? BoxDecoration(color: cashOutRed.withValues(alpha: 0.05))
           : null,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // ── Date label ────────────────────────────────────────────────────
           Expanded(
             flex: 2,
             child: Column(
@@ -896,42 +906,39 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
               children: [
                 Text(
                   month,
-                  style: GoogleFonts.inter(
-                    color: isCashOut ? cashOutRed.withValues(alpha: 0.9) : context.textSecondary,
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: isCashOut ? cashOutRed : context.textPrimary,
                     fontSize: 14,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                if (isCashOut) ...
-                  [
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: cashOutRed.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: cashOutRed.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Text(
-                        'CASH OUT',
-                        style: GoogleFonts.inter(
-                          color: cashOutRed,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.8,
-                        ),
+                if (isCashOut) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: cashOutRed.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'ZERO CASH',
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        color: cashOutRed,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                  ],
+                  ),
+                ],
               ],
             ),
           ),
-          // ── Balance ───────────────────────────────────────────────────────
           Expanded(
             flex: 3,
             child: FittedBox(
@@ -940,16 +947,16 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
               child: Text(
                 balance,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: isCashOut ? cashOutRed : context.textPrimary,
                   fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: [const FontFeature.tabularFigures()],
+                  fontWeight: FontWeight.w700,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
             ),
           ),
-          // ── Months left ───────────────────────────────────────────────────
           Expanded(
             flex: 2,
             child: Row(
@@ -957,8 +964,9 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
               children: [
                 Text(
                   monthsLeft,
-                  style: GoogleFonts.inter(
-                    color: isCashOut ? cashOutRed.withValues(alpha: 0.8) : context.textSecondary,
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: isCashOut ? cashOutRed : context.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -966,8 +974,11 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
                 const SizedBox(width: 4),
                 Text(
                   "mo",
-                  style: GoogleFonts.inter(
-                    color: isCashOut ? cashOutRed.withValues(alpha: 0.5) : context.textTertiary,
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: isCashOut
+                        ? cashOutRed.withValues(alpha: 0.6)
+                        : context.textTertiary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -980,7 +991,7 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     );
   }
 
-  Widget _buildRiskFactorsSection() {
+  Widget _buildRiskFactorsSection(bool isDark) {
     final List<Map<String, dynamic>> riskFactors = _calculateRiskFactors();
 
     return Column(
@@ -990,25 +1001,41 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
         const SizedBox(height: 16),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
             color: context.cardBackground,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(32),
             border: Border.all(color: context.borderColor),
+            boxShadow: isDark
+                ? []
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: isLoading
               ? _buildEmptyState("Analyzing data...")
               : riskFactors.isEmpty
-              ? _buildEmptyState("Not enough data to analyze risk factors")
+              ? _buildEmptyState("No critical risk factors identified")
               : Column(
-                  children: riskFactors.map((risk) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 24),
-                      child: _buildRiskItem(
-                        risk['title'],
-                        risk['description'],
-                        risk['color'],
-                      ),
+                  children: riskFactors.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final risk = entry.value;
+                    final isLast = index == riskFactors.length - 1;
+
+                    return Column(
+                      children: [
+                        _buildRiskItem(
+                          risk['title'],
+                          risk['description'],
+                          risk['color'],
+                        ),
+                        if (!isLast)
+                          Divider(color: context.borderColor, height: 32),
+                      ],
                     );
                   }).toList(),
                 ),
@@ -1033,28 +1060,30 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
     if ((categoryTotals['Marketing'] ?? 0) > 5000) {
       risks.add({
         'title': 'High Marketing Spend',
-        'description': 'Marketing costs increased significantly this quarter',
-        'color': const Color(0xFFFF9F0A),
+        'description':
+            'Marketing costs are consuming a significant portion of capital.',
+        'color': const Color(0xFFF59E0B),
       });
     }
 
     if (runwayMonths! < 6) {
       risks.add({
-        'title': 'Limited Runway',
-        'description': 'Current runway is less than 6 months',
-        'color': const Color(0xFFFF453A),
+        'title': 'Critical Runway',
+        'description':
+            'Capital will deplete in less than 6 months at current burn rate.',
+        'color': const Color(0xFFEF4444),
       });
     } else if (runwayMonths! >= 6 && runwayMonths! <= 12) {
       risks.add({
         'title': 'Moderate Runway',
-        'description': 'Current runway is between 6-12 months',
-        'color': const Color(0xFFFF9F0A),
+        'description': 'Current capital offers 6 to 12 months of operation.',
+        'color': const Color(0xFFF59E0B),
       });
     } else if (runwayMonths! > 12) {
       risks.add({
         'title': 'Healthy Runway',
-        'description': 'Current runway extends beyond 12 months',
-        'color': const Color(0xFF30D158),
+        'description': 'Sufficient capital for over a year of operations.',
+        'color': const Color(0xFF10B981),
       });
     }
 
@@ -1062,14 +1091,26 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
   }
 
   Widget _buildRiskItem(String title, String description, Color riskColor) {
+    // Dynamic icon based on healthy vs warning
+    dynamic iconData = HugeIcons.strokeRoundedAlert01;
+    if (riskColor == const Color(0xFF10B981)) {
+      iconData = HugeIcons.strokeRoundedTick01;
+    } else if (riskColor == const Color(0xFFEF4444)) {
+      iconData = HugeIcons.strokeRoundedAlert01;
+    }
+
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          width: 8,
-          height: 8,
-          margin: const EdgeInsets.only(top: 6),
-          decoration: BoxDecoration(color: riskColor, shape: BoxShape.circle),
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: riskColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: riskColor.withValues(alpha: 0.2)),
+          ),
+          child: HugeIcon(icon: iconData, color: riskColor, size: 20),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -1078,7 +1119,8 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
             children: [
               Text(
                 title,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
@@ -1087,10 +1129,11 @@ class RunwayEstimationScreenState extends State<RunwayEstimationScreen> {
               const SizedBox(height: 4),
               Text(
                 description,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textSecondary,
                   fontSize: 13,
-                  fontWeight: FontWeight.w400,
+                  fontWeight: FontWeight.w500,
                   height: 1.4,
                 ),
               ),

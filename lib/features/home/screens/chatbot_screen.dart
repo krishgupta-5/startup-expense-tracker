@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-import 'package:startup_expense_tracker/theme/app_theme.dart';
+import '../../../shared/widgets/custom_back_button.dart';
 
 class ChatbotScreen extends StatefulWidget {
   const ChatbotScreen({super.key});
@@ -21,7 +21,7 @@ Map<String, dynamic>? _globalCachedPayload;
 class _ChatbotScreenState extends State<ChatbotScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  
+
   bool _isTyping = false;
   bool _isDataLoaded = _globalCachedPayload != null;
 
@@ -31,10 +31,11 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     if (_globalChatMessages.isEmpty) {
       _globalChatMessages.add({
         'role': 'ai',
-        'text': 'Hello! I am your AI Startup Assistant. Ask me anything about your runway, burn rate, or expenses.',
+        'text':
+            'Hello. I am your AI Financial Copilot. Ask me about your runway, burn rate, or specific expenses.',
       });
     }
-    
+
     // Auto-scroll to bottom after rendering
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
@@ -109,12 +110,16 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       final companyData = companySnapshot.docs.isNotEmpty
           ? _cleanTimestamps(companySnapshot.docs.first.data())
           : {};
-      final teamsData = teamsSnapshot.docs.map((doc) => _cleanTimestamps(doc.data())).toList();
-      final membersData = membersSnapshot.docs.map((doc) => _cleanTimestamps(doc.data())).toList();
+      final teamsData = teamsSnapshot.docs
+          .map((doc) => _cleanTimestamps(doc.data()))
+          .toList();
+      final membersData = membersSnapshot.docs
+          .map((doc) => _cleanTimestamps(doc.data()))
+          .toList();
 
       _globalCachedPayload = {
         "expenses": cleanExpenses,
-        "revenue": [], 
+        "revenue": [],
         "company": companyData,
         "members": membersData,
         "teams": teamsData,
@@ -141,12 +146,16 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     _scrollToBottom();
 
     try {
-      String baseUrl = Platform.isIOS ? "http://127.0.0.1:8000" : "http://10.0.2.2:8000";
-      
+      String baseUrl = Platform.isIOS
+          ? "http://127.0.0.1:8000"
+          : "http://10.0.2.2:8000";
+
       final requestBody = {
         "question": text,
         "sectionData": _globalCachedPayload ?? {},
-        "history": _globalChatMessages.where((m) => m['role'] != 'error').toList(),
+        "history": _globalChatMessages
+            .where((m) => m['role'] != 'error')
+            .toList(),
       };
 
       final res = await http.post(
@@ -160,19 +169,25 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final responseText = data["response"] ?? "I couldn't process that.";
-        
+
         setState(() {
           _globalChatMessages.add({'role': 'ai', 'text': responseText});
         });
       } else {
         setState(() {
-          _globalChatMessages.add({'role': 'error', 'text': 'Server error: ${res.statusCode}'});
+          _globalChatMessages.add({
+            'role': 'error',
+            'text': 'Server error: ${res.statusCode}',
+          });
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _globalChatMessages.add({'role': 'error', 'text': 'Connection failed.'});
+          _globalChatMessages.add({
+            'role': 'error',
+            'text': 'Connection failed.',
+          });
         });
       }
     } finally {
@@ -199,248 +214,275 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Premium Solid Color Palette
+    final bgColor = isDark ? const Color(0xFF09090B) : const Color(0xFFF9FAFB);
+    final cardColor = isDark
+        ? const Color(0xFF141416)
+        : const Color(0xFFFFFFFF);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.05);
+    final shadowColor = isDark
+        ? Colors.transparent
+        : Colors.black.withValues(alpha: 0.04);
+
+    final textPrimary = isDark ? Colors.white : const Color(0xFF09090B);
+    final textSecondary = isDark ? Colors.white54 : const Color(0xFF71717A);
+    final accentColor = const Color(0xFF3B82F6); // Vibrant Blue
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: context.isDarkMode
-          ? SystemUiOverlayStyle.light
-          : SystemUiOverlayStyle.dark,
+      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: context.appBackground,
-        appBar: AppBar(
-          backgroundColor: context.appBackground,
-          elevation: 0,
-          leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: context.textPrimary),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0A84FF).withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.auto_awesome,
-                  color: Color(0xFF0A84FF),
-                  size: 16,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                "AI Assistant",
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
+        backgroundColor: bgColor,
         body: SafeArea(
           child: Column(
             children: [
+              // Ultra-Minimal Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    CustomBackButton(),
+                    Text(
+                      "Copilot",
+                      style: GoogleFonts.inter(
+                        color: textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(width: 44), // Balances the back button
+                  ],
+                ),
+              ),
+
               if (!_isDataLoaded)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    vertical: 8,
+                    vertical: 12,
                     horizontal: 16,
                   ),
-                  color: context.cardBackground,
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 8,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       SizedBox(
-                        width: 12,
-                        height: 12,
+                        width: 14,
+                        height: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: context.textSecondary,
+                          color: textSecondary,
                         ),
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        "Syncing your financial data...",
+                        "Syncing financial ledger...",
                         style: GoogleFonts.inter(
-                          color: context.textSecondary,
-                          fontSize: 12,
+                          color: textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
                 ),
+
               Expanded(
                 child: ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 24,
+                  ),
+                  physics: const BouncingScrollPhysics(),
                   itemCount: _globalChatMessages.length,
                   itemBuilder: (context, index) {
                     final msg = _globalChatMessages[index];
                     final isUser = msg['role'] == 'user';
                     final isError = msg['role'] == 'error';
 
-                    return Align(
-                      alignment:
-                          isUser ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              isUser
-                                  ? const Color(0xFF0A84FF)
-                                  : isError
-                                  ? const Color(
-                                    0xFFFF453A,
-                                  ).withValues(alpha: 0.1)
-                                  : context.cardBackground,
-                          borderRadius: BorderRadius.circular(16).copyWith(
-                            bottomRight:
-                                isUser
-                                    ? const Radius.circular(4)
-                                    : const Radius.circular(16),
-                            bottomLeft:
-                                !isUser
-                                    ? const Radius.circular(4)
-                                    : const Radius.circular(16),
+                    if (isUser) {
+                      // User Message: High-contrast solid pill aligned right
+                      return Align(
+                        alignment: Alignment.centerRight,
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 24),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 14,
                           ),
-                          border:
-                              isUser
-                                  ? null
-                                  : Border.all(
-                                    color:
-                                        isError
-                                            ? const Color(
-                                              0xFFFF453A,
-                                            ).withValues(alpha: 0.3)
-                                            : context.borderColor,
-                                  ),
-                        ),
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * 0.75,
-                        ),
-                        child: Text(
-                          msg['text'] ?? "",
-                          style: GoogleFonts.inter(
-                            color:
-                                isUser
-                                    ? Colors.white
-                                    : isError
-                                    ? const Color(0xFFFF453A)
-                                    : context.textPrimary,
-                            fontSize: 14,
-                            height: 1.5,
+                          decoration: BoxDecoration(
+                            color: textPrimary,
+                            borderRadius: BorderRadius.circular(
+                              24,
+                            ).copyWith(bottomRight: const Radius.circular(6)),
+                            boxShadow: isDark
+                                ? []
+                                : [
+                                    BoxShadow(
+                                      color: textPrimary.withValues(alpha: 0.1),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                          ),
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
+                          ),
+                          child: Text(
+                            msg['text'] ?? "",
+                            style: GoogleFonts.inter(
+                              color: bgColor, // Inverted for high contrast
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              height: 1.5,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              if (_isTyping)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: context.cardBackground,
-                          borderRadius: BorderRadius.circular(16).copyWith(
-                            bottomLeft: const Radius.circular(4),
-                          ),
-                          border: Border.all(color: context.borderColor),
-                        ),
+                      );
+                    } else {
+                      // AI Message: Printed text style, no bubble, left aligned
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 32),
                         child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0xFF0A84FF),
+                            Container(
+                              margin: const EdgeInsets.only(top: 2),
+                              child: Icon(
+                                isError
+                                    ? Icons.error_outline
+                                    : Icons.auto_awesome,
+                                color: isError
+                                    ? const Color(0xFFFF453A)
+                                    : accentColor,
+                                size: 18,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              "Thinking...",
-                              style: GoogleFonts.inter(
-                                color: context.textSecondary,
-                                fontSize: 12,
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Text(
+                                msg['text'] ?? "",
+                                style: GoogleFonts.inter(
+                                  color: isError
+                                      ? const Color(0xFFFF453A)
+                                      : textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                  height:
+                                      1.6, // High line-height for readability
+                                ),
                               ),
                             ),
                           ],
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
+
+              if (_isTyping)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 24,
+                    right: 24,
+                    bottom: 24,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(top: 2),
+                        child: Icon(
+                          Icons.auto_awesome,
+                          color: accentColor.withValues(alpha: 0.5),
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        "Analyzing...",
+                        style: GoogleFonts.inter(
+                          color: textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
                 ),
+
+              // Floating Command Line Input
               Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: context.appBackground,
-                  border: Border(top: BorderSide(color: context.borderColor)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: context.cardBackground,
-                          borderRadius: BorderRadius.circular(100),
-                          border: Border.all(color: context.borderColor),
-                        ),
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: borderColor),
+                    boxShadow: isDark
+                        ? []
+                        : [
+                            BoxShadow(
+                              color: shadowColor,
+                              blurRadius: 16,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
                         child: TextField(
                           controller: _messageController,
                           style: GoogleFonts.inter(
-                            color: context.textPrimary,
+                            color: textPrimary,
                             fontSize: 14,
+                            fontWeight: FontWeight.w500,
                           ),
                           decoration: InputDecoration(
-                            hintText: "Ask about your startup's finances...",
+                            hintText: "Ask about your finances...",
                             hintStyle: GoogleFonts.inter(
-                              color: context.textSecondary,
+                              color: textSecondary,
                               fontSize: 14,
+                              fontWeight: FontWeight.w500,
                             ),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 16,
+                              horizontal: 24,
+                              vertical: 18,
                             ),
                           ),
                           onSubmitted: (_) => _sendMessage(),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    GestureDetector(
-                      onTap: _sendMessage,
-                      child: Container(
-                        width: 52,
-                        height: 52,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF0A84FF),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.send_rounded,
-                          color: Colors.white,
-                          size: 20,
+                      GestureDetector(
+                        onTap: _sendMessage,
+                        child: Container(
+                          margin: const EdgeInsets.all(8),
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: textPrimary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.arrow_upward_rounded,
+                            color: bgColor,
+                            size: 20,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],

@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
 
 class CategorySettingsScreen extends StatefulWidget {
@@ -212,7 +211,8 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
                           children: [
                             Text(
                               "Manage the categories available when adding expenses.",
-                              style: GoogleFonts.inter(
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
                                 color: context.textSecondary,
                                 fontSize: 14,
                               ),
@@ -237,14 +237,16 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
                                     ),
                                     child: TextField(
                                       controller: _categoryController,
-                                      style: GoogleFonts.inter(
+                                      style: TextStyle(
+                                        fontFamily: 'Satoshi',
                                         color: context.textPrimary,
                                         fontSize: 15,
                                       ),
                                       cursorColor: context.textPrimary,
                                       decoration: InputDecoration(
                                         hintText: "New Category Name",
-                                        hintStyle: GoogleFonts.inter(
+                                        hintStyle: TextStyle(
+                                          fontFamily: 'Satoshi',
                                           color: context.textTertiary,
                                           fontSize: 15,
                                         ),
@@ -283,7 +285,8 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
                                 .isNotEmpty) ...[
                               Text(
                                 "AVAILABLE CATEGORIES",
-                                style: GoogleFonts.inter(
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
                                   color: context.textTertiary,
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
@@ -301,52 +304,58 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
                                           .contains(c.toLowerCase()),
                                     )
                                     .map((cat) {
-                                  return GestureDetector(
-                                    onTap: () => _addPredefinedCategory(cat),
-                                    child: AnimatedContainer(
-                                      duration: const Duration(
-                                        milliseconds: 200,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 10,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: context.cardBackground,
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                          color: context.borderColor,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.add,
-                                            color: context.textPrimary,
-                                            size: 14,
+                                      return GestureDetector(
+                                        onTap: () =>
+                                            _addPredefinedCategory(cat),
+                                        child: AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 200,
                                           ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            cat,
-                                            style: GoogleFonts.inter(
-                                              color: context.textPrimary,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w500,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 10,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: context.cardBackground,
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                            border: Border.all(
+                                              color: context.borderColor,
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                Icons.add,
+                                                color: context.textPrimary,
+                                                size: 14,
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                cat,
+                                                style: TextStyle(
+                                                  fontFamily: 'Satoshi',
+                                                  color: context.textPrimary,
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    })
+                                    .toList(),
                               ),
                               const SizedBox(height: 32),
                             ],
 
                             Text(
                               "YOUR CATEGORIES",
-                              style: GoogleFonts.inter(
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
                                 color: context.textTertiary,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -384,7 +393,8 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
                                           const SizedBox(width: 12),
                                           Text(
                                             cat,
-                                            style: GoogleFonts.inter(
+                                            style: TextStyle(
+                                              fontFamily: 'Satoshi',
                                               color: context.textPrimary,
                                               fontSize: 15,
                                             ),
@@ -439,7 +449,8 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
           ),
           Text(
             "Expense Categories",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,

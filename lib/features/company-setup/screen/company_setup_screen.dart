@@ -7,7 +7,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'dart:developer';
 import '../../../features/navigation/screens/main_navigation_wrapper.dart';
@@ -99,7 +98,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     {"name": "Marketing", "members": []},
   ];
   final TextEditingController _teamController = TextEditingController();
-  final TextEditingController _customCategoryController = TextEditingController();
+  final TextEditingController _customCategoryController =
+      TextEditingController();
 
   // --- METHODS ---
 
@@ -157,16 +157,25 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
 
   String _getCurrencySymbol(String dialCode) {
     switch (dialCode) {
-      case "+1": return "\$";
-      case "+91": return "₹";
-      case "+44": return "£";
-      case "+61": return "A\$";
-      case "+81": return "¥";
+      case "+1":
+        return "\$";
+      case "+91":
+        return "₹";
+      case "+44":
+        return "£";
+      case "+61":
+        return "A\$";
+      case "+81":
+        return "¥";
       case "+49":
-      case "+33": return "€";
-      case "+971": return "AED";
-      case "+65": return "S\$";
-      default: return "\$";
+      case "+33":
+        return "€";
+      case "+971":
+        return "AED";
+      case "+65":
+        return "S\$";
+      default:
+        return "\$";
     }
   }
 
@@ -197,7 +206,10 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     }
   }
 
-  Future<bool> _verifyPhoneNumber(String countryCode, String mobileNumber) async {
+  Future<bool> _verifyPhoneNumber(
+    String countryCode,
+    String mobileNumber,
+  ) async {
     try {
       final apiKey = dotenv.env['APILAYER_ACCESS_KEY'];
       if (apiKey == null || apiKey.isEmpty) {
@@ -206,17 +218,22 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       }
 
       // Remove any spaces or special characters
-      final cleanNumber = "$countryCode$mobileNumber".replaceAll(RegExp(r'\D'), '');
-      
+      final cleanNumber = "$countryCode$mobileNumber".replaceAll(
+        RegExp(r'\D'),
+        '',
+      );
+
       // FIXED ENDPOINT: Numverify uses /api/validate
-      final url = Uri.parse('https://apilayer.net/api/validate?access_key=$apiKey&number=$cleanNumber');
-      
+      final url = Uri.parse(
+        'https://apilayer.net/api/validate?access_key=$apiKey&number=$cleanNumber',
+      );
+
       log('Calling Numverify API: $url');
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data.containsKey('error')) {
           log('Numverify API Error Details: ${data['error']}');
           return true; // Bypass if API limit reached or error occurs so user isn't stuck
@@ -254,8 +271,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           _errors.add('work');
           if (isValid) {
             ErrorPopup.showValidation(
-              context: context, 
-              message: "Work description must be at least 15 characters."
+              context: context,
+              message: "Work description must be at least 15 characters.",
             );
           }
           isValid = false;
@@ -265,8 +282,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           _errors.add('address');
           if (isValid) {
             ErrorPopup.showValidation(
-              context: context, 
-              message: "Registered address must be at least 15 characters."
+              context: context,
+              message: "Registered address must be at least 15 characters.",
             );
           }
           isValid = false;
@@ -289,13 +306,15 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             _errors.add('bank_name_$i');
             isValid = false;
           }
-          final accountNumLength = _bankAccounts[i]["number"]!.text.trim().length;
+          final accountNumLength = _bankAccounts[i]["number"]!.text
+              .trim()
+              .length;
           if (accountNumLength < 8 || accountNumLength > 18) {
             _errors.add('bank_num_$i');
             if (isValid) {
               ErrorPopup.showValidation(
-                context: context, 
-                message: "Account Number must be between 8 and 18 digits."
+                context: context,
+                message: "Account Number must be between 8 and 18 digits.",
               );
             }
             isValid = false;
@@ -308,7 +327,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           _errors.add('categories');
           isValid = false;
           ErrorPopup.showValidation(
-              context: context, message: "Please select at least 3 categories.");
+            context: context,
+            message: "Please select at least 3 categories.",
+          );
         }
         break;
 
@@ -317,12 +338,17 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           _errors.add('teams');
           isValid = false;
           ErrorPopup.showValidation(
-              context: context, message: "You must have at least one team.");
+            context: context,
+            message: "You must have at least one team.",
+          );
         }
         break;
     }
 
-    if (!isValid && _currentPage < 4 && _currentPage != 1 && _currentPage != 3) {
+    if (!isValid &&
+        _currentPage < 4 &&
+        _currentPage != 1 &&
+        _currentPage != 3) {
       HapticFeedback.heavyImpact();
     } else if (!isValid) {
       HapticFeedback.heavyImpact();
@@ -354,7 +380,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           "uid": userId,
           "teamName": team["name"],
           "monthlyBudget": 0.0,
-          "budget": 0, 
+          "budget": 0,
           "color": "blue",
           "iconCodePoint": 0xe7fd,
           "iconFontFamily": "MaterialIcons",
@@ -362,7 +388,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           "updatedAt": FieldValue.serverTimestamp(),
         });
       }
-      
+
       await batch.commit();
       log("Teams created in teams collection successfully");
     } catch (e) {
@@ -501,7 +527,11 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               const SizedBox(height: 16),
               Text(
                 'Checking setup status...',
-                style: GoogleFonts.inter(color: Colors.white70, fontSize: 16),
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: Colors.white70,
+                  fontSize: 16,
+                ),
               ),
             ],
           ),
@@ -523,7 +553,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 Expanded(
                   child: PageView(
                     controller: _pageController,
-                    physics: const NeverScrollableScrollPhysics(), 
+                    physics: const NeverScrollableScrollPhysics(),
                     onPageChanged: (page) {
                       FocusScope.of(context).unfocus();
                       setState(() {
@@ -563,7 +593,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         ),
         title: Text(
           'Cancel Setup?',
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: Colors.white,
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -571,7 +602,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         ),
         content: Text(
           'Your progress will not be saved. You will be signed out and returned to the login screen.',
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: Colors.white70,
             fontSize: 14,
             height: 1.5,
@@ -582,7 +614,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(
               'Continue Setup',
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: Colors.white54,
                 fontWeight: FontWeight.w500,
               ),
@@ -599,7 +632,10 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             ),
             child: Text(
               'Sign Out',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -687,7 +723,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   ),
                   child: Text(
                     'Cancel',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: Colors.white54,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -717,7 +754,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             const SizedBox(height: 8),
             Text(
               title,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: Colors.white,
                 fontSize: 32,
                 fontWeight: FontWeight.w600,
@@ -727,7 +765,11 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             const SizedBox(height: 8),
             Text(
               subtitle,
-              style: GoogleFonts.inter(color: Colors.white70, fontSize: 16),
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: Colors.white70,
+                fontSize: 16,
+              ),
             ),
             const SizedBox(height: 24),
             ...children,
@@ -821,7 +863,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   _currentPage == _totalPages - 1
                       ? "Finish Setup"
                       : "Next Step",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: Colors.black,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
@@ -851,13 +894,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
         ),
         const SizedBox(height: 24),
         _buildLabel("MOBILE NUMBER"),
-        _buildPhoneInputField(
-          _mobileController, 
-          "98765 43210", 
-          "mobile"
-        ),
+        _buildPhoneInputField(_mobileController, "98765 43210", "mobile"),
         const SizedBox(height: 24),
-        
+
         _buildLabel("COUNTRY LOCATION"),
         ShakeWidget(
           shake: _errors.contains('country'),
@@ -866,7 +905,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             child: ShadSelect<String>(
               placeholder: Text(
                 'Select your country',
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: _errors.contains('country')
                       ? const Color(0xFFFF453A).withValues(alpha: 0.6)
                       : Colors.white60,
@@ -888,7 +928,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     value: country["name"]!,
                     child: Text(
                       "${country["flag"]}  ${country["name"]}",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: Colors.white,
                         fontSize: 14,
                       ),
@@ -897,10 +938,16 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 ),
               ],
               selectedOptionBuilder: (context, value) {
-                final country = _countryCodes.firstWhere((c) => c["name"] == value);
+                final country = _countryCodes.firstWhere(
+                  (c) => c["name"] == value,
+                );
                 return Text(
                   "${country["flag"]}  ${country["name"]}",
-                  style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: Colors.white,
+                    fontSize: 15,
+                  ),
                 );
               },
               onChanged: (value) {
@@ -939,7 +986,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
             child: ShadSelect<String>(
               placeholder: Text(
                 'Select company type',
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: _errors.contains('type')
                       ? const Color(0xFFFF453A).withValues(alpha: 0.6)
                       : Colors.white60,
@@ -961,7 +1009,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     value: e.key,
                     child: Text(
                       e.value,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: Colors.white,
                         fontSize: 14,
                       ),
@@ -971,7 +1020,11 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               ],
               selectedOptionBuilder: (context, value) => Text(
                 companyTypes[value]!,
-                style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: Colors.white,
+                  fontSize: 15,
+                ),
               ),
               onChanged: (value) {
                 setState(() {
@@ -1017,7 +1070,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               children: [
                 Text(
                   "TOTAL FUNDS LEFT",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: _errors.contains('funding')
                         ? const Color(0xFFFF453A)
                         : Colors.white70,
@@ -1033,11 +1087,12 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
                     inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly, 
-                      LengthLimitingTextInputFormatter(12), 
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(12),
                     ],
                     onChanged: (_) => _clearError('funding'),
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: _errors.contains('funding')
                           ? const Color(0xFFFF453A)
                           : Colors.white,
@@ -1045,15 +1100,18 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                     decoration: InputDecoration(
-                      prefixText: "${_getCurrencySymbol(_selectedCountryCode)} ", 
-                      prefixStyle: GoogleFonts.inter(
+                      prefixText:
+                          "${_getCurrencySymbol(_selectedCountryCode)} ",
+                      prefixStyle: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: _errors.contains('funding')
                             ? const Color(0xFFFF453A)
                             : Colors.white70,
-                        fontSize: 24, 
+                        fontSize: 24,
                       ),
                       hintText: "0",
-                      hintStyle: GoogleFonts.inter(
+                      hintStyle: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: _errors.contains('funding')
                             ? const Color(0xFFFF453A).withValues(alpha: 0.4)
                             : Colors.white60,
@@ -1076,8 +1134,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           isNumber: true,
           icon: Icons.timeline,
           inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly, 
-            LengthLimitingTextInputFormatter(3), 
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(3),
           ],
         ),
       ],
@@ -1100,7 +1158,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   children: [
                     Text(
                       "ACCOUNT 0${index + 1}",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: Colors.white70,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
@@ -1112,7 +1171,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                         onTap: () => _removeBankAccount(index),
                         child: Text(
                           "REMOVE",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: const Color(0xFFFF453A),
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -1129,8 +1189,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   icon: Icons.account_balance_outlined,
                   textCapitalization: TextCapitalization.words,
                   inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s\-]')), 
-                  ]
+                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s\-]')),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 _buildInputField(
@@ -1143,7 +1203,7 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
                     LengthLimitingTextInputFormatter(18),
-                  ]
+                  ],
                 ),
               ],
             ),
@@ -1164,7 +1224,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 const SizedBox(width: 8),
                 Text(
                   "Add Another Account",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1208,14 +1269,15 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   border: Border.all(
                     color: isSelected
                         ? Colors.white
-                        : _errors.contains('categories') 
-                            ? const Color(0xFFFF453A).withValues(alpha: 0.5) 
-                            : Colors.white.withValues(alpha: 0.1),
+                        : _errors.contains('categories')
+                        ? const Color(0xFFFF453A).withValues(alpha: 0.5)
+                        : Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
                 child: Text(
                   cat,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: isSelected ? Colors.black : Colors.white70,
                     fontWeight: FontWeight.w600,
                     fontSize: 13,
@@ -1243,10 +1305,17 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 if (_customCategoryController.text.trim().isNotEmpty) {
                   setState(() {
                     final newCat = _customCategoryController.text.trim();
-                    if (!_allCategories.map((c) => c.toLowerCase()).contains(newCat.toLowerCase())) {
+                    if (!_allCategories
+                        .map((c) => c.toLowerCase())
+                        .contains(newCat.toLowerCase())) {
                       _allCategories.add(newCat);
                     }
-                    _selectedCategories.add(_allCategories.firstWhere((c) => c.toLowerCase() == newCat.toLowerCase(), orElse: () => newCat));
+                    _selectedCategories.add(
+                      _allCategories.firstWhere(
+                        (c) => c.toLowerCase() == newCat.toLowerCase(),
+                        orElse: () => newCat,
+                      ),
+                    );
                     _customCategoryController.clear();
                     _clearError('categories');
                   });
@@ -1281,9 +1350,9 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 color: const Color(0xFF141416),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: _errors.contains('teams') 
-                    ? const Color(0xFFFF453A) 
-                    : Colors.white.withValues(alpha: 0.1)
+                  color: _errors.contains('teams')
+                      ? const Color(0xFFFF453A)
+                      : Colors.white.withValues(alpha: 0.1),
                 ),
               ),
               child: Row(
@@ -1295,7 +1364,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                       const SizedBox(width: 12),
                       Text(
                         team["name"],
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: Colors.white,
                           fontSize: 16,
                         ),
@@ -1335,7 +1405,10 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
               onTap: () {
                 if (_teamController.text.trim().isNotEmpty) {
                   setState(() {
-                    _teams.add({"name": _teamController.text.trim(), "members": []});
+                    _teams.add({
+                      "name": _teamController.text.trim(),
+                      "members": [],
+                    });
                     _teamController.clear();
                     _clearError('teams');
                   });
@@ -1363,7 +1436,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         text,
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: Colors.white70,
           fontSize: 11,
           fontWeight: FontWeight.bold,
@@ -1403,11 +1477,16 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           inputFormatters: inputFormatters,
           textCapitalization: textCapitalization,
           onChanged: (_) => _clearError(errorKey),
-          style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+          style: TextStyle(
+            fontFamily: 'Satoshi',
+            color: Colors.white,
+            fontSize: 15,
+          ),
           cursorColor: Colors.white,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.inter(
+            hintStyle: TextStyle(
+              fontFamily: 'Satoshi',
               color: hasError
                   ? const Color(0xFFFF453A).withValues(alpha: 0.6)
                   : Colors.white60,
@@ -1459,7 +1538,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                   children: [
                     Text(
                       "$_selectedFlag $_selectedCountryCode",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: Colors.white,
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
@@ -1486,15 +1566,20 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                 controller: controller,
                 keyboardType: TextInputType.phone,
                 inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly, 
-                  LengthLimitingTextInputFormatter(15), 
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(15),
                 ],
                 onChanged: (_) => _clearError(errorKey),
-                style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: Colors.white,
+                  fontSize: 15,
+                ),
                 cursorColor: Colors.white,
                 decoration: InputDecoration(
                   hintText: hint,
-                  hintStyle: GoogleFonts.inter(
+                  hintStyle: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: hasError
                         ? const Color(0xFFFF453A).withValues(alpha: 0.6)
                         : Colors.white60,
@@ -1534,7 +1619,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                     children: [
                       Text(
                         "Select Dial Code",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -1580,7 +1666,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                         ),
                         title: Text(
                           country["name"]!,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: isSelected ? Colors.white : Colors.white70,
                             fontSize: 14,
                             fontWeight: isSelected
@@ -1590,7 +1677,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
                         ),
                         trailing: Text(
                           country["code"]!,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: isSelected ? Colors.white : Colors.white38,
                             fontSize: 14,
                             fontWeight: isSelected
@@ -1637,11 +1725,16 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
           maxLines: 3,
           textCapitalization: textCapitalization,
           onChanged: (_) => _clearError(errorKey),
-          style: GoogleFonts.inter(color: Colors.white, fontSize: 15),
+          style: TextStyle(
+            fontFamily: 'Satoshi',
+            color: Colors.white,
+            fontSize: 15,
+          ),
           cursorColor: Colors.white,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.inter(
+            hintStyle: TextStyle(
+              fontFamily: 'Satoshi',
               color: hasError
                   ? const Color(0xFFFF453A).withValues(alpha: 0.6)
                   : Colors.white60,
@@ -1932,7 +2025,8 @@ class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
                   children: [
                     Text(
                       widget.title,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: _getStatusColor(),
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -1942,7 +2036,8 @@ class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
                     const SizedBox(height: 6),
                     Text(
                       widget.message,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: Colors.white70,
                         fontSize: 13,
                         fontWeight: FontWeight.w400,

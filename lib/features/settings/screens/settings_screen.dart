@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -22,6 +21,7 @@ import 'set_password.dart';
 import 'add_funding_screen.dart';
 import 'category_settings_screen.dart';
 import 'manage_recurring_payments_screen.dart';
+
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -191,7 +191,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Text(
                 'Select Theme Appearance',
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
@@ -241,7 +242,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               Expanded(
                                 child: Text(
                                   themeItem['name'] as String,
-                                  style: GoogleFonts.inter(
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
                                     color: context.textPrimary,
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
@@ -279,7 +281,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SnackBar(
             content: Text(
               'Theme updated to ${ThemeService.getThemeDisplayName(mode)}',
-              style: GoogleFonts.inter(color: Colors.white),
+              style: TextStyle(fontFamily: 'Satoshi', color: Colors.white),
             ),
             backgroundColor: const Color(0xFF00C851),
             duration: const Duration(seconds: 2),
@@ -290,7 +292,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SnackBar(
             content: Text(
               'Failed to update theme',
-              style: GoogleFonts.inter(color: Colors.white),
+              style: TextStyle(fontFamily: 'Satoshi', color: Colors.white),
             ),
             backgroundColor: const Color(0xFFFF453A),
             duration: const Duration(seconds: 2),
@@ -303,7 +305,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SnackBar(
             content: Text(
               'Error updating theme',
-              style: GoogleFonts.inter(color: Colors.white),
+              style: TextStyle(fontFamily: 'Satoshi', color: Colors.white),
             ),
             backgroundColor: const Color(0xFFFF453A),
             duration: const Duration(seconds: 2),
@@ -330,7 +332,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       isScrollControlled: true, // Allow proper height calculation
       builder: (bottomSheetContext) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom, // Handle keyboard
+          bottom: MediaQuery.of(
+            bottomSheetContext,
+          ).viewInsets.bottom, // Handle keyboard
         ),
         child: Container(
           constraints: BoxConstraints(
@@ -344,7 +348,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Text(
                 'Select Currency',
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
@@ -377,7 +382,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: isSelected
-                                    ? context.textPrimary.withValues(alpha: 0.25)
+                                    ? context.textPrimary.withValues(
+                                        alpha: 0.25,
+                                      )
                                     : context.borderColor,
                               ),
                             ),
@@ -385,7 +392,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               children: [
                                 Text(
                                   currency['symbol']!,
-                                  style: GoogleFonts.inter(
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
                                     color: context.textPrimary,
                                     fontSize: 18,
                                     fontWeight: FontWeight.w600,
@@ -395,7 +403,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 Expanded(
                                   child: Text(
                                     currency['name']!,
-                                    style: GoogleFonts.inter(
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
                                       color: context.textPrimary,
                                       fontSize: 15,
                                       fontWeight: FontWeight.w500,
@@ -444,7 +453,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SnackBar(
             content: Text(
               'Currency updated to ${CurrencyPreferenceService.getCurrencyDisplayName(currencyCode)}',
-              style: GoogleFonts.inter(color: Colors.white),
+              style: TextStyle(fontFamily: 'Satoshi', color: Colors.white),
             ),
             backgroundColor: const Color(0xFF00C851),
             duration: const Duration(seconds: 2),
@@ -455,7 +464,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SnackBar(
             content: Text(
               'Failed to update currency',
-              style: GoogleFonts.inter(color: Colors.white),
+              style: TextStyle(fontFamily: 'Satoshi', color: Colors.white),
             ),
             backgroundColor: const Color(0xFFFF453A),
             duration: const Duration(seconds: 2),
@@ -469,7 +478,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SnackBar(
             content: Text(
               'Error updating currency',
-              style: GoogleFonts.inter(color: Colors.white),
+              style: TextStyle(fontFamily: 'Satoshi', color: Colors.white),
             ),
             backgroundColor: const Color(0xFFFF453A),
             duration: const Duration(seconds: 2),
@@ -574,7 +583,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const ManageRecurringPaymentsScreen(),
+                        builder: (context) =>
+                            const ManageRecurringPaymentsScreen(),
                       ),
                     );
                   },
@@ -611,7 +621,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ThemeService.getThemeDisplayName(
                                 currentThemeMode,
                               ),
-                              style: GoogleFonts.inter(
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
                                 color: context.textSecondary,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
@@ -643,7 +654,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           CurrencyPreferenceService.getCurrencySymbol(
                             _selectedCurrency,
                           ),
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textSecondary,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -754,7 +766,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Center(
                 child: Text(
                   "Version 1.0.2 (Build 402)",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSubtle,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -774,7 +787,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildHeader(BuildContext context) {
     return Text(
       "Settings",
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textPrimary,
         fontSize: 28, // Scaled up to match Home/Overview screens
         fontWeight: FontWeight.w600,
@@ -788,7 +802,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.only(bottom: 12, left: 4),
       child: Text(
         text.toUpperCase(),
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
@@ -899,7 +914,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 16),
                 Text(
                   name,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
@@ -908,7 +924,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 4),
                 Text(
                   email,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 14,
                   ),
@@ -935,7 +952,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     child: Text(
                       "Edit Profile",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -1002,7 +1020,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     Text(
                       title,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -1012,7 +1031,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 2),
                       Text(
                         subtitle,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textSecondary,
                           fontSize: 12,
                         ),
@@ -1070,7 +1090,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           child: Text(
             "Log Out",
-            style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ),

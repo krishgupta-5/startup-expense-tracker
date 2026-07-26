@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:startup_expense_tracker/theme/app_theme.dart';
+import 'package:hugeicons/hugeicons.dart';
 
-class ModernDarkNavBar extends StatelessWidget {
+class ModernNavBar extends StatelessWidget {
   final Function(int) onTabSelected;
   final int selectedIndex;
 
-  const ModernDarkNavBar({
+  const ModernNavBar({
     super.key,
     required this.onTabSelected,
     required this.selectedIndex,
@@ -14,61 +13,73 @@ class ModernDarkNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.navBackground,
-        border: Border(top: BorderSide(color: context.borderColor, width: 1.5)),
-        boxShadow: context.isDarkMode
-            ? []
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, -4),
-                ),
-              ],
-      ),
-      child: SafeArea(
-        // Using vertical padding allows the widget to size itself naturally
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Premium Solid Color Palette
+    final backgroundColor = isDark
+        ? const Color(0xFF141416)
+        : const Color(0xFFFFFFFF);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.06);
+    final shadowColor = isDark
+        ? Colors.transparent
+        : Colors.black.withValues(alpha: 0.08);
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(left: 24, right: 24, bottom: 24),
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(color: borderColor, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: shadowColor,
+                blurRadius: 32,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildNavItem(
-                context,
                 0,
-                Icons.home_rounded,
-                Icons.home_outlined,
+                HugeIcons.strokeRoundedHome11,
+                HugeIcons.strokeRoundedHome11,
                 "Home",
+                isDark,
               ),
               _buildNavItem(
-                context,
                 1,
-                Icons.groups_rounded,
-                Icons.groups_outlined,
+                HugeIcons.strokeRoundedUserGroup,
+                HugeIcons.strokeRoundedUserGroup,
                 "Team",
+                isDark,
               ),
               _buildNavItem(
-                context,
                 2,
-                Icons.receipt_long_rounded,
-                Icons.receipt_long_outlined,
+                HugeIcons.strokeRoundedInvoice01,
+                HugeIcons.strokeRoundedInvoice01,
                 "Expenses",
+                isDark,
               ),
               _buildNavItem(
-                context,
                 3,
-                Icons.insights_rounded,
-                Icons.insights_outlined,
+                HugeIcons.strokeRoundedMagicWand01,
+                HugeIcons.strokeRoundedMagicWand01,
                 "AI",
+                isDark,
               ),
               _buildNavItem(
-                context,
                 4,
-                Icons.settings_rounded,
-                Icons.settings_outlined,
+                HugeIcons.strokeRoundedSettings01,
+                HugeIcons.strokeRoundedSettings01,
                 "Settings",
+                isDark,
               ),
             ],
           ),
@@ -78,43 +89,74 @@ class ModernDarkNavBar extends StatelessWidget {
   }
 
   Widget _buildNavItem(
-    BuildContext context,
     int index,
-    IconData activeIcon,
-    IconData inactiveIcon,
+    dynamic activeIcon,
+    dynamic inactiveIcon,
     String label,
+    bool isDark,
   ) {
-    bool isSelected = selectedIndex == index;
+    final bool isSelected = selectedIndex == index;
 
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => onTabSelected(index),
-        behavior: HitTestBehavior.opaque,
-        child: Column(
-          mainAxisSize: MainAxisSize.min, // Ensures it only takes needed space
+    // Dynamic high-contrast colors based on theme
+    final activeBgColor = isDark ? Colors.white : const Color(0xFF09090B);
+    final activeTextColor = isDark ? Colors.black : Colors.white;
+    final inactiveIconColor = isDark ? Colors.white54 : const Color(0xFFA1A1AA);
+
+    return GestureDetector(
+      onTap: () => onTabSelected(index),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.symmetric(
+          horizontal: isSelected ? 16 : 12,
+          vertical: 12,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected ? activeBgColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: isSelected ? context.navActiveTab : Colors.transparent,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(
-                isSelected ? activeIcon : inactiveIcon,
-                color: isSelected ? context.textPrimary : context.textSecondary,
-                size: 24, // Slightly adjusted for better fit
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              transitionBuilder: (child, animation) =>
+                  ScaleTransition(scale: animation, child: child),
+              child: HugeIcon(
+                icon: isSelected ? activeIcon : inactiveIcon,
+                key: ValueKey<bool>(isSelected),
+                color: isSelected ? activeTextColor : inactiveIconColor,
+                size: 20,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              maxLines: 1,
-              style: GoogleFonts.inter(
-                color: isSelected ? context.textPrimary : context.textSecondary,
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                letterSpacing: 0.3,
+            // Smoothly expands width and fades text to prevent layout jumps
+            ClipRect(
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeOutCubic,
+                child: SizedBox(
+                  width: isSelected ? null : 0,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 250),
+                    opacity: isSelected ? 1.0 : 0.0,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.clip,
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
+                          color: activeTextColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],

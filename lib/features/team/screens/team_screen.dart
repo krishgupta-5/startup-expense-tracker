@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/features/team/screens/create_team_screen.dart';
 import 'package:startup_expense_tracker/features/team/screens/member_detail_screen.dart';
 import 'team_detail_screen.dart';
@@ -39,10 +38,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
 
   /// Lightweight content fingerprint so sort cache invalidation detects
   /// field-level changes in addition to list-length changes.
-  String _teamsFingerprint(List<Map<String, dynamic>> teams) =>
-      teams
-          .map((t) => '${t['id']}:${t['teamName']}:${t['monthlyBudget']}')
-          .join('|');
+  String _teamsFingerprint(List<Map<String, dynamic>> teams) => teams
+      .map((t) => '${t['id']}:${t['teamName']}:${t['monthlyBudget']}')
+      .join('|');
 
   void _rebuildSortFuture(List<Map<String, dynamic>> teams) {
     _lastTeamsData = teams;
@@ -285,7 +283,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                 icon: const Icon(Icons.add, size: 20),
                 label: Text(
                   "New Team",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
@@ -474,7 +473,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
             const SizedBox(width: 8),
             Text(
               label,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: isSelected ? selectedText : context.textSecondary,
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -503,7 +503,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                   children: [
                     Text(
                       "Organization",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -512,7 +513,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                     const SizedBox(height: 6),
                     Text(
                       "Teams Overview",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 28,
                         fontWeight: FontWeight.w600,
@@ -562,14 +564,16 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
             child: TextField(
               controller: _searchController,
               autofocus: true,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 15,
               ),
               cursorColor: context.textPrimary,
               decoration: InputDecoration(
                 hintText: "Search teams...",
-                hintStyle: GoogleFonts.inter(
+                hintStyle: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textTertiary,
                   fontSize: 15,
                 ),
@@ -604,7 +608,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textTertiary,
         fontSize: 10,
         fontWeight: FontWeight.bold,
@@ -641,10 +646,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
             final int memberCount = membersDocs.length;
             final String memberCountStr =
                 membersSnapshot.connectionState == ConnectionState.waiting
-                    ? 'Loading...'
-                    : (memberCount == 1
-                        ? '1 Member'
-                        : '$memberCount Members');
+                ? 'Loading...'
+                : (memberCount == 1 ? '1 Member' : '$memberCount Members');
 
             final List<Map<String, dynamic>> avatarInfos = membersDocs
                 .take(3)
@@ -654,16 +657,17 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                   final String? url = data['avatarUrl'] as String?;
                   final String? legacyTgId =
                       (url != null &&
-                              url.isNotEmpty &&
-                              !url.startsWith('http') &&
-                              !url.contains('ui-avatars.com'))
-                          ? url
-                          : null;
+                          url.isNotEmpty &&
+                          !url.startsWith('http') &&
+                          !url.contains('ui-avatars.com'))
+                      ? url
+                      : null;
                   return <String, dynamic>{
                     'name': data['fullName'] ?? 'Unnamed',
                     'avatarUrl': url ?? '',
-                    'telegramFileId':
-                        (tgId != null && tgId.isNotEmpty) ? tgId : legacyTgId,
+                    'telegramFileId': (tgId != null && tgId.isNotEmpty)
+                        ? tgId
+                        : legacyTgId,
                     'memberId': doc.id,
                   };
                 })
@@ -706,7 +710,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                             children: [
                               Text(
                                 name,
-                                style: GoogleFonts.inter(
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
                                   color: context.textPrimary,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
@@ -715,7 +720,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                               const SizedBox(height: 4),
                               Text(
                                 memberCountStr,
-                                style: GoogleFonts.inter(
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
                                   color: context.textSecondary,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
@@ -750,8 +756,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                             final now = DateTime.now();
                             for (var doc in expenseSnap.data!.docs) {
                               final data = doc.data() as Map<String, dynamic>;
-                              final date =
-                                  (data['Date'] as Timestamp?)?.toDate();
+                              final date = (data['Date'] as Timestamp?)
+                                  ?.toDate();
                               if (date != null &&
                                   date.month == now.month &&
                                   date.year == now.year) {
@@ -761,8 +767,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                             }
                           }
 
-                          final budget =
-                              (teamData['monthlyBudget'] ?? 0).toDouble();
+                          final budget = (teamData['monthlyBudget'] ?? 0)
+                              .toDouble();
                           final isOverBudget =
                               actualSpent > budget && budget > 0;
 
@@ -777,8 +783,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                                 _userCountryCode,
                               );
 
-                          double progress =
-                              budget > 0 ? (actualSpent / budget) : 0.0;
+                          double progress = budget > 0
+                              ? (actualSpent / budget)
+                              : 0.0;
                           if (progress > 1.0) progress = 1.0;
 
                           return Column(
@@ -789,7 +796,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                                 children: [
                                   Text(
                                     spentStr,
-                                    style: GoogleFonts.inter(
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
                                       color: isOverBudget
                                           ? const Color(0xFFFF453A)
                                           : context.textPrimary,
@@ -799,7 +807,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
                                   ),
                                   Text(
                                     " / $budgetStr",
-                                    style: GoogleFonts.inter(
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
                                       color: context.textSecondary,
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
@@ -851,7 +860,11 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
     if (avatarInfos.isEmpty) {
       return Text(
         "No members yet",
-        style: GoogleFonts.inter(color: context.textSecondary, fontSize: 12),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textSecondary,
+          fontSize: 12,
+        ),
       );
     }
 
@@ -929,10 +942,9 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
       return AvatarWidget(
         name: name,
         size: size,
-        imageUrl:
-            avatarUrl.isNotEmpty && !avatarUrl.contains('ui-avatars.com')
-                ? avatarUrl
-                : null,
+        imageUrl: avatarUrl.isNotEmpty && !avatarUrl.contains('ui-avatars.com')
+            ? avatarUrl
+            : null,
         fontSize: size * 0.4,
       );
     }
@@ -961,7 +973,8 @@ class _TeamScreenState extends State<TeamScreen> with WidgetsBindingObserver {
             const SizedBox(height: 16),
             Text(
               message,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textSecondary,
                 fontSize: 14,
               ),

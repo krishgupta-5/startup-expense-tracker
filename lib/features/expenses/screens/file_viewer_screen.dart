@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
@@ -139,7 +138,8 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -182,7 +182,8 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
         ),
         title: Text(
           widget.fileName,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textPrimary,
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -222,7 +223,8 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
             const SizedBox(height: 16),
             Text(
               "Failed to load file",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -231,7 +233,11 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
             const SizedBox(height: 8),
             Text(
               _error!,
-              style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textSecondary,
+                fontSize: 14,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
@@ -261,7 +267,8 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
                     children: [
                       Text(
                         widget.fileName,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -275,7 +282,8 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
                             : _isWebPreviewSupported(widget.fileName)
                             ? 'Document preview'
                             : 'Preview not available in app',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textSecondary,
                           fontSize: 12,
                         ),
@@ -302,7 +310,8 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
                     ? Center(
                         child: Text(
                           'Unable to load text preview.',
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textSecondary,
                             fontSize: 14,
                           ),
@@ -311,7 +320,8 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
                     : SingleChildScrollView(
                         child: SelectableText(
                           _textPreview ?? 'Loading text preview...',
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textPrimary,
                             fontSize: 14,
                           ),
@@ -353,7 +363,8 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
                       const SizedBox(height: 16),
                       Text(
                         'File cannot be previewed',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -362,7 +373,8 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
                       const SizedBox(height: 8),
                       Text(
                         widget.fileName,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textSecondary,
                           fontSize: 14,
                         ),
@@ -384,7 +396,8 @@ class _FileViewerScreenState extends State<FileViewerScreen> {
                         icon: const Icon(Icons.open_in_browser),
                         label: Text(
                           'Open in Browser',
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.appBackground,
                             fontWeight: FontWeight.w600,
                           ),

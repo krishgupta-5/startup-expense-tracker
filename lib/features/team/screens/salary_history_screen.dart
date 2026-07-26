@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../../services/currency_formatter.dart';
 import '../../../../services/currency_preference_service.dart';
 import '../../../../theme/app_theme.dart';
@@ -27,7 +26,8 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
 
   // Helper to format currency
   String _formatCurrency(double amount) {
-    final userCurrencyCode = CurrencyPreferenceService.getCurrencyPreferenceSync();
+    final userCurrencyCode =
+        CurrencyPreferenceService.getCurrencyPreferenceSync();
     return CurrencyFormatter.formatByCountryCompact(amount, userCurrencyCode);
   }
 
@@ -36,7 +36,18 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
     if (timestamp == null) return "Unknown Date";
     final DateTime dt = timestamp.toDate();
     final List<String> months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return "${months[dt.month - 1]} ${dt.day.toString().padLeft(2, '0')}, ${dt.year}";
   }
@@ -49,14 +60,17 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
           children: [
             Icon(
               isError ? Icons.error_outline : Icons.check_circle_outline,
-              color: isError ? const Color(0xFFFF453A) : const Color(0xFF30D158),
+              color: isError
+                  ? const Color(0xFFFF453A)
+                  : const Color(0xFF30D158),
               size: 18,
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.appBackground,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -177,7 +191,8 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
           ),
           Text(
             "Appraisal History",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -194,7 +209,8 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
       alignment: Alignment.centerLeft,
       child: Text(
         title.toUpperCase(),
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
@@ -220,7 +236,8 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
           Text(
             message,
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
@@ -240,7 +257,10 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(
-            child: CircularProgressIndicator(color: context.textSecondary, strokeWidth: 2),
+            child: CircularProgressIndicator(
+              color: context.textSecondary,
+              strokeWidth: 2,
+            ),
           );
         }
         if (!snapshot.hasData || !snapshot.data!.exists) {
@@ -250,13 +270,19 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
         final data = snapshot.data!.data() as Map<String, dynamic>;
         final futureSalary = data['futureSalary'];
         final futureDate = data['futureSalaryDate'] as Timestamp?;
-        final reason = data['futureSalaryReason'] as String? ?? "No reason provided";
+        final reason =
+            data['futureSalaryReason'] as String? ?? "No reason provided";
 
         if (futureSalary == null || futureDate == null) {
-          return _buildEmptyState("No upcoming salary updates scheduled.", Icons.schedule_outlined);
+          return _buildEmptyState(
+            "No upcoming salary updates scheduled.",
+            Icons.schedule_outlined,
+          );
         }
 
-        final amountFormatted = _formatCurrency((futureSalary as num).toDouble());
+        final amountFormatted = _formatCurrency(
+          (futureSalary as num).toDouble(),
+        );
         final currentAmountFormatted = _formatCurrency(widget.currentSalary);
 
         return Container(
@@ -275,11 +301,16 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.schedule, color: context.textSecondary, size: 16),
+                      Icon(
+                        Icons.schedule,
+                        color: context.textSecondary,
+                        size: 16,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         "EFFECTIVE ${_formatDate(futureDate).toUpperCase()}",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textSecondary,
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
@@ -293,18 +324,25 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
                     child: ElevatedButton(
                       onPressed: _revokeFutureSalary,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF453A).withValues(alpha: 0.1),
+                        backgroundColor: const Color(
+                          0xFFFF453A,
+                        ).withValues(alpha: 0.1),
                         foregroundColor: const Color(0xFFFF453A),
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(color: const Color(0xFFFF453A).withValues(alpha: 0.2)),
+                          side: BorderSide(
+                            color: const Color(
+                              0xFFFF453A,
+                            ).withValues(alpha: 0.2),
+                          ),
                         ),
                       ),
                       child: Text(
                         "Cancel Update",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
@@ -313,16 +351,14 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
                   ),
                 ],
               ),
-              Divider(
-                color: context.borderColor,
-                height: 32,
-              ),
+              Divider(color: context.borderColor, height: 32),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
                     currentAmountFormatted,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textTertiary,
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -330,11 +366,16 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Icon(Icons.arrow_forward, color: context.textTertiary, size: 16),
+                  Icon(
+                    Icons.arrow_forward,
+                    color: context.textTertiary,
+                    size: 16,
+                  ),
                   const SizedBox(width: 12),
                   Text(
                     amountFormatted,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textPrimary,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -345,7 +386,8 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
               const SizedBox(height: 12),
               Text(
                 reason,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textSecondary,
                   fontSize: 13,
                   height: 1.4,
@@ -369,11 +411,17 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(
-            child: CircularProgressIndicator(color: context.textSecondary, strokeWidth: 2),
+            child: CircularProgressIndicator(
+              color: context.textSecondary,
+              strokeWidth: 2,
+            ),
           );
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _buildEmptyState("No past salary updates found.", Icons.history_outlined);
+          return _buildEmptyState(
+            "No past salary updates found.",
+            Icons.history_outlined,
+          );
         }
 
         final docs = snapshot.data!.docs;
@@ -383,14 +431,17 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
             final data = doc.data() as Map<String, dynamic>;
             final prev = (data['previousSalary'] as num?)?.toDouble() ?? 0.0;
             final current = (data['newSalary'] as num?)?.toDouble() ?? 0.0;
-            final delta = (data['delta'] as num?)?.toDouble() ?? (current - prev);
+            final delta =
+                (data['delta'] as num?)?.toDouble() ?? (current - prev);
             final reason = data['reason'] as String? ?? 'No reason provided';
             final date = data['effectiveDate'] as Timestamp?;
 
             bool isIncrease = delta > 0;
-            
+
             // Dynamic colors based on the data
-            Color deltaColor = isIncrease ? const Color(0xFF30D158) : const Color(0xFFFF453A);
+            Color deltaColor = isIncrease
+                ? const Color(0xFF30D158)
+                : const Color(0xFFFF453A);
             String deltaPrefix = isIncrease ? "+" : "";
 
             // Handle edge case where previous salary was 0 (e.g., initial setup)
@@ -415,7 +466,8 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
                     children: [
                       Text(
                         _formatDate(date).toUpperCase(),
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textSecondary,
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
@@ -423,32 +475,38 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: deltaColor.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: deltaColor.withValues(alpha: 0.2)),
+                          border: Border.all(
+                            color: deltaColor.withValues(alpha: 0.2),
+                          ),
                         ),
                         child: Text(
-                          prev == 0 ? "Initial" : "$deltaPrefix${_formatCurrency(delta)}",
-                          style: GoogleFonts.inter(
+                          prev == 0
+                              ? "Initial"
+                              : "$deltaPrefix${_formatCurrency(delta)}",
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: deltaColor,
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                      )
+                      ),
                     ],
                   ),
-                  Divider(
-                    color: context.borderColor,
-                    height: 32,
-                  ),
+                  Divider(color: context.borderColor, height: 32),
                   Row(
                     children: [
                       Text(
                         _formatCurrency(prev),
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textTertiary,
                           fontSize: 15,
                           decoration: TextDecoration.lineThrough,
@@ -456,11 +514,16 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Icon(Icons.arrow_forward, color: context.textTertiary, size: 16),
+                      Icon(
+                        Icons.arrow_forward,
+                        color: context.textTertiary,
+                        size: 16,
+                      ),
                       const SizedBox(width: 12),
                       Text(
                         _formatCurrency(current),
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -471,7 +534,8 @@ class _SalaryHistoryScreenState extends State<SalaryHistoryScreen> {
                   const SizedBox(height: 12),
                   Text(
                     reason,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textSecondary,
                       fontSize: 13,
                       height: 1.4,

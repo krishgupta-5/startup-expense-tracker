@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../../services/currency_formatter.dart';
@@ -78,7 +77,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.appBackground,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -108,7 +108,9 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
       return;
     }
 
-    final double? newSalary = CurrencyFormatter.parse(_salaryController.text.trim());
+    final double? newSalary = CurrencyFormatter.parse(
+      _salaryController.text.trim(),
+    );
 
     if (newSalary == null) {
       _showMinimalToast("Please enter a valid salary amount.", isError: true);
@@ -136,7 +138,11 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
 
     try {
       final now = DateTime.now();
-      final effectiveDateOnly = DateTime(_effectiveDate.year, _effectiveDate.month, _effectiveDate.day);
+      final effectiveDateOnly = DateTime(
+        _effectiveDate.year,
+        _effectiveDate.month,
+        _effectiveDate.day,
+      );
       final todayOnly = DateTime(now.year, now.month, now.day);
       final isFuture = effectiveDateOnly.isAfter(todayOnly);
 
@@ -198,7 +204,6 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
         setState(() => _isLoading = false);
       }
     }
-
   }
 
   @override
@@ -235,7 +240,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                         Center(
                           child: Text(
                             "NEW MONTHLY COST",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textSecondary,
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -250,11 +256,11 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                           child: IntrinsicWidth(
                             child: TextField(
                               controller: _salaryController,
-                              keyboardType:
-                                  TextInputType.text,
+                              keyboardType: TextInputType.text,
                               textAlign: TextAlign.center,
                               cursorColor: context.textPrimary,
-                              style: GoogleFonts.inter(
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
                                 color: context.textPrimary,
                                 fontSize: 56,
                                 fontWeight: FontWeight.w600, // Upgraded weight
@@ -264,7 +270,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                               decoration: InputDecoration(
                                 prefixText:
                                     "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
-                                prefixStyle: GoogleFonts.inter(
+                                prefixStyle: TextStyle(
+                                  fontFamily: 'Satoshi',
                                   color: context.textSecondary,
                                   fontSize: 56,
                                   fontWeight: FontWeight.w500,
@@ -331,7 +338,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
           ),
           Text(
             "Adjust Salary",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -364,7 +372,9 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF0A84FF),
             foregroundColor: Colors.white,
-            disabledBackgroundColor: const Color(0xFF0A84FF).withValues(alpha: 0.4),
+            disabledBackgroundColor: const Color(
+              0xFF0A84FF,
+            ).withValues(alpha: 0.4),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
@@ -381,7 +391,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                 )
               : Text(
                   "Save Compensation",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -415,7 +426,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                 const SizedBox(width: 12),
                 Text(
                   label,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -427,7 +439,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
               child: Text(
                 value,
                 textAlign: TextAlign.right,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -441,6 +454,7 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
       ),
     );
   }
+
   void _showDatePicker() {
     showDialog(
       context: context,
@@ -462,7 +476,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                     children: [
                       Text(
                         "Effective Date",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -510,14 +525,13 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(
-                            color: context.borderColor,
-                          ),
+                          side: BorderSide(color: context.borderColor),
                         ),
                       ),
                       child: Text(
                         "Set to Immediately",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -555,7 +569,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                     children: [
                       Text(
                         "Update Reason",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -581,21 +596,23 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                     decoration: BoxDecoration(
                       color: context.appBackground,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: context.borderColor,
-                      ),
+                      border: Border.all(color: context.borderColor),
                     ),
                     child: TextField(
                       controller: _reasonController,
                       autofocus: true,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 15,
                       ),
                       cursorColor: context.textPrimary,
                       decoration: InputDecoration(
                         hintText: "e.g. Annual Review, Promotion...",
-                        hintStyle: GoogleFonts.inter(color: context.textTertiary),
+                        hintStyle: TextStyle(
+                          fontFamily: 'Satoshi',
+                          color: context.textTertiary,
+                        ),
                         border: InputBorder.none,
                       ),
                     ),
@@ -619,7 +636,8 @@ class _AdjustSalaryScreenState extends State<AdjustSalaryScreen> {
                       ),
                       child: Text(
                         "Save Reason",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),

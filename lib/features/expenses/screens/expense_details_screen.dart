@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 import 'package:http/http.dart' as http;
@@ -30,7 +29,9 @@ class ExpenseDetailsScreen extends StatefulWidget {
 }
 
 class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
-  String get _originalId => widget.expenseId.contains('_') ? widget.expenseId.split('_').first : widget.expenseId;
+  String get _originalId => widget.expenseId.contains('_')
+      ? widget.expenseId.split('_').first
+      : widget.expenseId;
   String _userCountryCode = '+1'; // Default to USD
   bool _isLoadingCountry = true;
 
@@ -179,7 +180,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
           if (userDoc.exists && userDoc.data() != null) {
             final userData = userDoc.data()!;
-            final ownerName = userData['name'] as String? ??
+            final ownerName =
+                userData['name'] as String? ??
                 userData['displayName'] as String? ??
                 'Owner';
             final profileImageFileId =
@@ -214,7 +216,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         }
 
         // Check for linked member via TeamMemberId or memberId
-        final memberId = expenseData['TeamMemberId'] as String? ??
+        final memberId =
+            expenseData['TeamMemberId'] as String? ??
             expenseData['memberId'] as String?;
 
         if (memberId != null && memberId.isNotEmpty) {
@@ -249,8 +252,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           }
         } else {
           // Try TeamMemberName as fallback (stored inline)
-          final memberName =
-              expenseData['TeamMemberName'] as String?;
+          final memberName = expenseData['TeamMemberName'] as String?;
           if (memberName != null && memberName.isNotEmpty) {
             if (mounted) {
               setState(() => _linkedMemberName = memberName);
@@ -313,7 +315,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -348,7 +351,9 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             backgroundColor: context.appBackground,
             body: Center(
               child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(context.textSecondary),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  context.textSecondary,
+                ),
               ),
             ),
           );
@@ -360,7 +365,10 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             body: Center(
               child: Text(
                 'Error loading expense details',
-                style: GoogleFonts.inter(color: Colors.redAccent),
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: Colors.redAccent,
+                ),
               ),
             ),
           );
@@ -372,7 +380,10 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
             body: Center(
               child: Text(
                 'Expense not found',
-                style: GoogleFonts.inter(color: context.textSecondary),
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: context.textSecondary,
+                ),
               ),
             ),
           );
@@ -391,11 +402,15 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     BuildContext context,
     Map<String, dynamic> rawExpenseData,
   ) {
-    final Map<String, dynamic> expenseData = Map<String, dynamic>.from(rawExpenseData);
+    final Map<String, dynamic> expenseData = Map<String, dynamic>.from(
+      rawExpenseData,
+    );
     if (widget.expenseId.contains('_')) {
       final parts = widget.expenseId.split('_');
       final index = int.tryParse(parts.last) ?? 0;
-      final frequency = (expenseData['recurrenceFrequency'] ?? 'monthly').toString().toLowerCase();
+      final frequency = (expenseData['recurrenceFrequency'] ?? 'monthly')
+          .toString()
+          .toLowerCase();
       final dateVal = expenseData['Date'] ?? expenseData['date'];
       if (dateVal != null) {
         DateTime startDate;
@@ -406,15 +421,50 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         }
         DateTime occurrenceDate;
         if (frequency == 'daily') {
-          occurrenceDate = DateTime(startDate.year, startDate.month, startDate.day + index, startDate.hour, startDate.minute, startDate.second);
+          occurrenceDate = DateTime(
+            startDate.year,
+            startDate.month,
+            startDate.day + index,
+            startDate.hour,
+            startDate.minute,
+            startDate.second,
+          );
         } else if (frequency == 'weekly') {
-          occurrenceDate = DateTime(startDate.year, startDate.month, startDate.day + (index * 7), startDate.hour, startDate.minute, startDate.second);
+          occurrenceDate = DateTime(
+            startDate.year,
+            startDate.month,
+            startDate.day + (index * 7),
+            startDate.hour,
+            startDate.minute,
+            startDate.second,
+          );
         } else if (frequency == 'monthly') {
-          occurrenceDate = DateTime(startDate.year, startDate.month + index, startDate.day, startDate.hour, startDate.minute, startDate.second);
+          occurrenceDate = DateTime(
+            startDate.year,
+            startDate.month + index,
+            startDate.day,
+            startDate.hour,
+            startDate.minute,
+            startDate.second,
+          );
         } else if (frequency == 'yearly') {
-          occurrenceDate = DateTime(startDate.year + index, startDate.month, startDate.day, startDate.hour, startDate.minute, startDate.second);
+          occurrenceDate = DateTime(
+            startDate.year + index,
+            startDate.month,
+            startDate.day,
+            startDate.hour,
+            startDate.minute,
+            startDate.second,
+          );
         } else {
-          occurrenceDate = DateTime(startDate.year, startDate.month + index, startDate.day, startDate.hour, startDate.minute, startDate.second);
+          occurrenceDate = DateTime(
+            startDate.year,
+            startDate.month + index,
+            startDate.day,
+            startDate.hour,
+            startDate.minute,
+            startDate.second,
+          );
         }
         expenseData['Date'] = Timestamp.fromDate(occurrenceDate);
         expenseData['date'] = Timestamp.fromDate(occurrenceDate);
@@ -430,7 +480,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
     final type = _formatType(rawType);
     final notes = expenseData['Description'] ?? 'No notes provided.';
 
-    final isRecurringOrSub = rawType == 'recurring' || rawType == 'subscription';
+    final isRecurringOrSub =
+        rawType == 'recurring' || rawType == 'subscription';
     final frequency = expenseData['recurrenceFrequency']?.toString();
     final tenure = expenseData['recurringTenureMonths'] as int?;
     final frequencyStr = frequency != null ? _formatType(frequency) : 'Monthly';
@@ -481,14 +532,18 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                             // FIXED: FITTED BOX FOR LARGE NUMBERS
                             FittedBox(
                               fit: BoxFit.scaleDown,
-                                child: Text(
-                                  _isLoadingCountry
-                                      ? CurrencyFormatter.formatCompact(amount, countryCode: '+91')
-                                      : CurrencyFormatter.formatByCountryCompact(
-                                          amount,
-                                          _userCountryCode,
-                                        ),
-                                style: GoogleFonts.inter(
+                              child: Text(
+                                _isLoadingCountry
+                                    ? CurrencyFormatter.formatCompact(
+                                        amount,
+                                        countryCode: '+91',
+                                      )
+                                    : CurrencyFormatter.formatByCountryCompact(
+                                        amount,
+                                        _userCountryCode,
+                                      ),
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
                                   color: context.textPrimary,
                                   fontSize: 48,
                                   fontWeight: FontWeight.w600,
@@ -499,7 +554,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                             const SizedBox(height: 8),
                             Text(
                               title,
-                              style: GoogleFonts.inter(
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
                                 color: context.textSecondary,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
@@ -519,9 +575,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         decoration: BoxDecoration(
                           color: context.cardBackground,
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: context.borderColor,
-                          ),
+                          border: Border.all(color: context.borderColor),
                         ),
                         child: Column(
                           children: [
@@ -553,13 +607,12 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         decoration: BoxDecoration(
                           color: context.cardBackground,
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: context.borderColor,
-                          ),
+                          border: Border.all(color: context.borderColor),
                         ),
                         child: Text(
                           notes,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textPrimary,
                             fontSize: 15,
                             height: 1.5,
@@ -635,7 +688,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         if (memberDoc.exists) {
           final data = memberDoc.data() as Map<String, dynamic>;
           final salary = (data['salary'] as num?)?.toDouble() ?? 0.0;
-          final totalExpenses = (data['totalExpenses'] as num?)?.toDouble() ?? 0.0;
+          final totalExpenses =
+              (data['totalExpenses'] as num?)?.toDouble() ?? 0.0;
           if (totalExpenses + amount > salary) {
             if (context.mounted) {
               _showMinimalToast(
@@ -667,11 +721,15 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         "Time": FieldValue.serverTimestamp(),
         "ExpenseType": expenseType,
         "TeamId": teamId,
-        if (expenseData['TeamName'] != null) "TeamName": expenseData['TeamName'],
+        if (expenseData['TeamName'] != null)
+          "TeamName": expenseData['TeamName'],
         "TeamMemberId": teamMemberId,
-        if (expenseData['TeamMemberName'] != null) "TeamMemberName": expenseData['TeamMemberName'],
-        if (expenseData['BankAccount'] != null) "BankAccount": expenseData['BankAccount'],
-        if (expenseData['memberId'] != null) "memberId": expenseData['memberId'],
+        if (expenseData['TeamMemberName'] != null)
+          "TeamMemberName": expenseData['TeamMemberName'],
+        if (expenseData['BankAccount'] != null)
+          "BankAccount": expenseData['BankAccount'],
+        if (expenseData['memberId'] != null)
+          "memberId": expenseData['memberId'],
       });
 
       // Update totalExpenses atomically
@@ -682,10 +740,14 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
       // Update team budget or member salary atomically
       if (expenseType == 'team' && teamId != null) {
-        final teamRef = FirebaseFirestore.instance.collection('teams').doc(teamId);
+        final teamRef = FirebaseFirestore.instance
+            .collection('teams')
+            .doc(teamId);
         batch.update(teamRef, {"usedBudget": FieldValue.increment(amount)});
       } else if (expenseType == 'member' && teamMemberId != null) {
-        final memberRef = FirebaseFirestore.instance.collection('members').doc(teamMemberId);
+        final memberRef = FirebaseFirestore.instance
+            .collection('members')
+            .doc(teamMemberId);
         batch.update(memberRef, {
           "totalExpenses": FieldValue.increment(amount),
           "remainingSalary": FieldValue.increment(-amount),
@@ -709,7 +771,9 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
   Future<void> _deleteExpense() async {
     try {
-      final currentData = _currentExpenseData.isNotEmpty ? _currentExpenseData : widget.expenseData;
+      final currentData = _currentExpenseData.isNotEmpty
+          ? _currentExpenseData
+          : widget.expenseData;
       final expenseAmount = DataHelpers.safeParseDouble(currentData['Amount']);
       final expenseType = currentData['ExpenseType'] as String?;
       final teamId = currentData['TeamId'] as String?;
@@ -758,8 +822,9 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
 
       // Update team budget or member salary atomically
       if (expenseType == 'team' && teamId != null) {
-        final teamRef =
-            FirebaseFirestore.instance.collection('teams').doc(teamId);
+        final teamRef = FirebaseFirestore.instance
+            .collection('teams')
+            .doc(teamId);
         batch.update(teamRef, {
           'usedBudget': FieldValue.increment(-expenseAmount),
         });
@@ -834,7 +899,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                     Expanded(
                       child: Text(
                         "Delete Expense?",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -848,7 +914,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 // Warning Text
                 Text(
                   "This will permanently delete this expense record and reverse it from your total company expenses. This action cannot be undone.",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 14,
                     height: 1.5,
@@ -866,14 +933,13 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                           decoration: BoxDecoration(
                             color: context.appBackground,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: context.borderColor,
-                            ),
+                            border: Border.all(color: context.borderColor),
                           ),
                           alignment: Alignment.center,
                           child: Text(
                             "Cancel",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -898,7 +964,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                           alignment: Alignment.center,
                           child: Text(
                             "Delete",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: Colors.white,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -946,7 +1013,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 const SizedBox(height: 24),
                 Text(
                   "Manage Expense",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -975,7 +1043,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                     );
                   },
                 ),
-                 _buildActionOption(
+                _buildActionOption(
                   icon: Icons.copy_rounded,
                   label: "Duplicate",
                   onTap: () {
@@ -1034,7 +1102,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           ),
           Text(
             "Details",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -1077,7 +1146,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           const SizedBox(width: 6),
           Text(
             category,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -1094,7 +1164,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       padding: const EdgeInsets.only(left: 4),
       child: Text(
         text.toUpperCase(),
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
@@ -1110,7 +1181,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       children: [
         Text(
           label,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -1118,7 +1190,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         ),
         Text(
           value,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textPrimary,
             fontSize: 14,
             fontWeight: FontWeight.w600,
@@ -1160,10 +1233,7 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(
-            color: context.borderColor,
-            width: 1.5,
-          ),
+          border: Border.all(color: context.borderColor, width: 1.5),
           image: DecorationImage(
             image: NetworkImage(imageUrl),
             fit: BoxFit.cover,
@@ -1182,15 +1252,13 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color.withValues(alpha: 0.2),
-        border: Border.all(
-          color: color.withValues(alpha: 0.3),
-          width: 1.5,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
       ),
       child: Center(
         child: Text(
           initials,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: color,
             fontSize: size * 0.38,
             fontWeight: FontWeight.w700,
@@ -1207,7 +1275,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         children: [
           Text(
             "Linked Member",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -1259,7 +1328,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
         children: [
           Text(
             "Linked Member",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -1267,7 +1337,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           ),
           Text(
             "None",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary.withValues(alpha: 0.6),
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -1283,7 +1354,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
       children: [
         Text(
           displayLabel,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -1300,7 +1372,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
               children: [
                 Text(
                   displayName,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -1309,7 +1382,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 if (subtitle != null)
                   Text(
                     subtitle,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textSecondary,
                       fontSize: 11,
                       fontWeight: FontWeight.w400,
@@ -1364,7 +1438,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
               children: [
                 Text(
                   "No receipt attached",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -1373,7 +1448,11 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                 const SizedBox(height: 2),
                 Text(
                   "0 KB",
-                  style: GoogleFonts.inter(color: context.textSecondary, fontSize: 12),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: context.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -1421,7 +1500,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         children: [
                           Text(
                             "Loading receipt...",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: const Color(0xFF30D158),
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -1429,7 +1509,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                           ),
                           Text(
                             "Fetching from Telegram",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textSecondary,
                               fontSize: 11,
                             ),
@@ -1493,7 +1574,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         children: [
                           Text(
                             "Failed to load receipt",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: const Color(0xFFFF453A),
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
@@ -1501,7 +1583,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                           ),
                           Text(
                             "Could not fetch from Telegram",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textSecondary,
                               fontSize: 11,
                             ),
@@ -1521,7 +1604,10 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                   child: Center(
                     child: Text(
                       "Preview unavailable",
-                      style: TextStyle(color: context.textSecondary, fontSize: 12),
+                      style: TextStyle(
+                        color: context.textSecondary,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ),
@@ -1570,7 +1656,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                       children: [
                         Text(
                           "Receipt attached",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: const Color(0xFF30D158),
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -1578,7 +1665,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         ),
                         Text(
                           "${(fileSize / 1024).toStringAsFixed(1)} KB • Stored in Telegram",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textSecondary,
                             fontSize: 11,
                           ),
@@ -1705,7 +1793,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         const SizedBox(height: 8),
                         Text(
                           fileName,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textPrimary,
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -1715,7 +1804,8 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
                         const SizedBox(height: 4),
                         Text(
                           "Tap the download icon to view",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textSecondary,
                             fontSize: 12,
                           ),
@@ -1759,14 +1849,19 @@ class _ExpenseDetailsScreenState extends State<ExpenseDetailsScreen> {
           children: [
             Icon(
               icon,
-              color: isDestructive ? const Color(0xFFFF453A) : context.textPrimary,
+              color: isDestructive
+                  ? const Color(0xFFFF453A)
+                  : context.textPrimary,
               size: 20,
             ),
             const SizedBox(width: 16),
             Text(
               label,
-              style: GoogleFonts.inter(
-                color: isDestructive ? const Color(0xFFFF453A) : context.textPrimary,
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: isDestructive
+                    ? const Color(0xFFFF453A)
+                    : context.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),

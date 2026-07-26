@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -184,7 +183,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
           SnackBar(
             content: Text(
               "Member added successfully!",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: Colors.white,
                 fontWeight: FontWeight.w500,
               ),
@@ -213,7 +213,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
       SnackBar(
         content: Text(
           message,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: Colors.white,
             fontWeight: FontWeight.w500,
           ),
@@ -257,7 +258,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
             const SizedBox(height: 24),
             Text(
               "Upload Photo",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -311,7 +313,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
           const SizedBox(height: 8),
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -491,7 +494,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                                 children: [
                                   Text(
                                     "Member will be added to current team",
-                                    style: GoogleFonts.inter(
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
                                       color: context.textSecondary,
                                       fontSize: 12,
                                     ),
@@ -499,7 +503,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                                   const SizedBox(height: 2),
                                   Text(
                                     "Automatic team assignment",
-                                    style: GoogleFonts.inter(
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
                                       color: const Color(0xFF30D158),
                                       fontSize: 11,
                                       fontWeight: FontWeight.w500,
@@ -534,7 +539,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                       const SizedBox(height: 8),
                       Text(
                         "This amount will be added to your monthly burn rate.",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textSecondary,
                           fontSize: 12,
                         ),
@@ -577,7 +583,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
           ),
           Text(
             "Add Member",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -592,7 +599,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -687,7 +695,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
             _telegramFileId != null
                 ? "Photo uploaded to Telegram"
                 : "Upload Photo",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: _telegramFileId != null
                   ? const Color(0xFF30D158)
                   : context.textSecondary,
@@ -720,16 +729,24 @@ class _AddMemberScreenState extends State<AddMemberScreen>
         textInputAction: textInputAction,
         keyboardType: keyboardType,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
-        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textPrimary,
+          fontSize: 15,
+        ),
         decoration: InputDecoration(
           icon: Icon(icon, color: context.textSecondary, size: 20),
           hintText: placeholder,
           labelText: hint,
-          labelStyle: GoogleFonts.inter(
+          labelStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 13,
           ),
-          hintStyle: GoogleFonts.inter(color: context.textTertiary),
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textTertiary,
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
@@ -756,7 +773,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
             ),
             child: Text(
               CurrencyFormatter.getCurrencySymbol(_userCountryCode),
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: const Color(0xFF30D158),
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -770,7 +788,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
               children: [
                 Text(
                   "MONTHLY COST",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -782,14 +801,18 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                   textInputAction: TextInputAction.done,
                   onTapOutside: (event) => FocusScope.of(context).unfocus(),
                   keyboardType: TextInputType.text,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
                   ),
                   decoration: InputDecoration(
                     hintText: "0.00",
-                    hintStyle: GoogleFonts.inter(color: context.textTertiary),
+                    hintStyle: TextStyle(
+                      fontFamily: 'Satoshi',
+                      color: context.textTertiary,
+                    ),
                     border: InputBorder.none,
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(vertical: 4),
@@ -819,7 +842,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
           child: ShadSelect<String>(
             placeholder: Text(
               'Select $label',
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textTertiary,
                 fontSize: 14,
               ),
@@ -833,7 +857,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
             selectedOptionBuilder: (context, value) => Text(
               items[value]!,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -856,7 +881,11 @@ class _AddMemberScreenState extends State<AddMemberScreen>
       ),
       child: TextField(
         readOnly: true,
-        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textPrimary,
+          fontSize: 15,
+        ),
         decoration: InputDecoration(
           icon: Icon(
             Icons.calendar_today,
@@ -865,11 +894,15 @@ class _AddMemberScreenState extends State<AddMemberScreen>
           ),
           hintText: "Select joining date",
           labelText: "Joining Date",
-          labelStyle: GoogleFonts.inter(
+          labelStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 13,
           ),
-          hintStyle: GoogleFonts.inter(color: context.textTertiary),
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textTertiary,
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
@@ -911,7 +944,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                       children: [
                         Text(
                           "Select Joining Date",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -952,7 +986,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                         ),
                         child: Text(
                           "Done",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1001,7 +1036,8 @@ class _AddMemberScreenState extends State<AddMemberScreen>
                 )
               : Text(
                   "Add Member",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),

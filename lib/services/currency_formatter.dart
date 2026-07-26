@@ -3,6 +3,7 @@
 /// Ensures consistent currency formatting across all UI components
 /// and eliminates formatting inconsistencies that can cause confusion.
 library;
+
 import 'currency_preference_service.dart';
 
 class CurrencyFormatter {
@@ -312,22 +313,23 @@ class CurrencyFormatter {
       // Remove all non-numeric characters EXCEPT dots, minus signs, and known suffixes
       // First, let's normalize the string
       String clean = formattedString.trim().toUpperCase();
-      
+
       // Remove known currency symbols
-      clean = clean.replaceAll('₹', '')
-                   .replaceAll('\$', '')
-                   .replaceAll('£', '')
-                   .replaceAll('A\$', '')
-                   .replaceAll('JPY', '')
-                   .replaceAll('EUR', '')
-                   .replaceAll('€', '')
-                   .replaceAll('AED', '')
-                   .replaceAll('S\$', '')
-                   .replaceAll('د.إ', '')
-                   .replaceAll('RS.', '')
-                   .replaceAll('GBP', '')
-                   .replaceAll(',', '')
-                   .trim();
+      clean = clean
+          .replaceAll('₹', '')
+          .replaceAll('\$', '')
+          .replaceAll('£', '')
+          .replaceAll('A\$', '')
+          .replaceAll('JPY', '')
+          .replaceAll('EUR', '')
+          .replaceAll('€', '')
+          .replaceAll('AED', '')
+          .replaceAll('S\$', '')
+          .replaceAll('د.إ', '')
+          .replaceAll('RS.', '')
+          .replaceAll('GBP', '')
+          .replaceAll(',', '')
+          .trim();
 
       double multiplier = 1.0;
 

@@ -36,8 +36,7 @@ class CashflowService {
       for (final data in expenses) {
         if (data['isFunding'] == true) continue;
 
-        final amount =
-            double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
+        final amount = double.tryParse(data['Amount']?.toString() ?? '0') ?? 0;
         final category = data['Category']?.toString() ?? 'Other';
 
         categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
@@ -255,10 +254,7 @@ class CashflowService {
 
     final mappedExpenses = snapshot.docs.map((doc) {
       final data = doc.data();
-      return {
-        ...data,
-        'id': doc.id,
-      };
+      return {...data, 'id': doc.id};
     }).toList();
 
     final expanded = ExpenseExpansionHelper.expandExpenses(

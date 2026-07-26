@@ -1,7 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
@@ -66,7 +65,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -244,7 +244,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           ),
           Text(
             "Change Password",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -259,7 +260,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -287,11 +289,18 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         obscureText: obscureText,
         textInputAction: textInputAction,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
-        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textPrimary,
+          fontSize: 15,
+        ),
         cursorColor: context.textPrimary,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: GoogleFonts.inter(color: context.textTertiary),
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textTertiary,
+          ),
           prefixIcon: Icon(
             Icons.lock_outline,
             color: context.iconSecondary,
@@ -356,7 +365,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         const SizedBox(width: 12),
         AnimatedDefaultTextStyle(
           duration: const Duration(milliseconds: 300),
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: isMet ? context.textPrimary : context.textSecondary,
             fontSize: 13,
             fontWeight: isMet ? FontWeight.w500 : FontWeight.w400,
@@ -375,9 +385,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: context.appBackground,
-        border: Border(
-          top: BorderSide(color: context.borderColor),
-        ),
+        border: Border(top: BorderSide(color: context.borderColor)),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -404,7 +412,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 )
               : Text(
                   "Update Password",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),

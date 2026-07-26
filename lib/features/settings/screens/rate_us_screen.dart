@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../theme/app_theme.dart';
 
@@ -64,7 +63,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
 
                       Text(
                         "Startup Expense Tracker",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -73,7 +73,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
                       const SizedBox(height: 8),
                       Text(
                         "Version 1.0.2 (Build 402)",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textSecondary,
                           fontSize: 14,
                         ),
@@ -83,7 +84,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
 
                       Text(
                         "How would you rate our app?",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -92,7 +94,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
                       const SizedBox(height: 8),
                       Text(
                         _ratingDescriptions[_selectedRating],
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textSecondary,
                           fontSize: 14,
                         ),
@@ -152,7 +155,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
           ),
           Text(
             "Rate Us",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -202,7 +206,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
         children: [
           Text(
             "Help us improve",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -211,7 +216,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
           const SizedBox(height: 12),
           Text(
             "We're sorry to hear you're not completely satisfied. Your feedback helps us improve the app.",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 14,
             ),
@@ -231,7 +237,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
               ),
               child: Text(
                 "Send Feedback",
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -263,7 +270,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
             children: [
               Text(
                 "Thank you for your rating!",
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -272,7 +280,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
               const SizedBox(height: 12),
               Text(
                 "We're glad you're enjoying the app. Would you mind leaving a review on the Play Store?",
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textSecondary,
                   fontSize: 14,
                 ),
@@ -296,7 +305,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
                       ),
                       child: Text(
                         "Rate on Play Store",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -319,7 +329,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
                       ),
                       child: Text(
                         "Maybe Later",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -348,7 +359,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
         children: [
           Text(
             "Other ways to support",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -396,7 +408,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
                   children: [
                     Text(
                       title,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -404,7 +417,8 @@ class _RateUsScreenState extends State<RateUsScreen> {
                     ),
                     Text(
                       subtitle,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textSecondary,
                         fontSize: 12,
                       ),
@@ -433,7 +447,10 @@ class _RateUsScreenState extends State<RateUsScreen> {
           SnackBar(
             content: Text(
               'Could not open Play Store.',
-              style: GoogleFonts.inter(color: context.textPrimary),
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textPrimary,
+              ),
             ),
             backgroundColor: context.cardBackground,
             behavior: SnackBarBehavior.floating,

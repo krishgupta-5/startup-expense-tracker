@@ -69,7 +69,10 @@ class AuthWrapper extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     "Please sign in again",
-                    style: TextStyle(color: context.textSecondary, fontSize: 14),
+                    style: TextStyle(
+                      color: context.textSecondary,
+                      fontSize: 14,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
@@ -121,12 +124,18 @@ class AuthWrapper extends StatelessWidget {
                       const SizedBox(height: 16),
                       Text(
                         "Connection Error",
-                        style: TextStyle(color: context.textPrimary, fontSize: 18),
+                        style: TextStyle(
+                          color: context.textPrimary,
+                          fontSize: 18,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         "Please check your internet connection",
-                        style: TextStyle(color: context.textSecondary, fontSize: 14),
+                        style: TextStyle(
+                          color: context.textSecondary,
+                          fontSize: 14,
+                        ),
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton(
@@ -163,7 +172,8 @@ class AuthWrapper extends StatelessWidget {
 
             // If the snapshot is from local cache and the document is not yet in local cache (exists == false),
             // wait for Cloud Firestore to fetch the live document from the server instead of signing out.
-            if (!userSnapshot.data!.exists && userSnapshot.data!.metadata.isFromCache) {
+            if (!userSnapshot.data!.exists &&
+                userSnapshot.data!.metadata.isFromCache) {
               debugPrint(
                 '🔍 DEBUG: Document not found in local cache yet, waiting for server response...',
               );

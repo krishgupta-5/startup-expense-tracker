@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:startup_expense_tracker/services/user_country_service.dart';
@@ -93,7 +92,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
     _searchController.dispose();
     super.dispose();
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +208,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                         ),
                         child: Text(
                           label,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: isSelected
                                 ? context.appBackground
                                 : context.textSecondary,
@@ -268,7 +267,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                         ),
                         child: Text(
                           label,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: isSelected
                                 ? context.appBackground
                                 : context.textSecondary,
@@ -317,20 +317,36 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
       maxDateLimit = endOfDay.isBefore(now) ? endOfDay : now;
     } else if (_selectedMonthKey != 'all') {
       final monthMap = {
-        'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-        'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
+        'Jan': 1,
+        'Feb': 2,
+        'Mar': 3,
+        'Apr': 4,
+        'May': 5,
+        'Jun': 6,
+        'Jul': 7,
+        'Aug': 8,
+        'Sep': 9,
+        'Oct': 10,
+        'Nov': 11,
+        'Dec': 12,
       };
       final month = monthMap[_selectedMonthKey];
       if (month != null) {
         final year = int.tryParse(_selectedYear) ?? now.year;
-        final endOfMonth = DateTime(year, month + 1, 1)
-            .subtract(const Duration(milliseconds: 1));
+        final endOfMonth = DateTime(
+          year,
+          month + 1,
+          1,
+        ).subtract(const Duration(milliseconds: 1));
         maxDateLimit = endOfMonth.isBefore(now) ? endOfMonth : now;
       }
     } else {
       final year = int.tryParse(_selectedYear) ?? now.year;
-      final endOfYear = DateTime(year + 1, 1, 1)
-          .subtract(const Duration(milliseconds: 1));
+      final endOfYear = DateTime(
+        year + 1,
+        1,
+        1,
+      ).subtract(const Duration(milliseconds: 1));
       maxDateLimit = endOfYear.isBefore(now) ? endOfYear : now;
     }
 
@@ -360,10 +376,7 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
         // Map documents
         final mappedExpenses = snapshot.data!.docs.map((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          return {
-            ...data,
-            'id': doc.id,
-          };
+          return {...data, 'id': doc.id};
         }).toList();
 
         // Expand recurring expenses up to the filter's end date limit (capped at today).
@@ -387,26 +400,51 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
 
           // Apply Date Filters
           if (_exactDate != null) {
-            final startOfDay = DateTime(_exactDate!.year, _exactDate!.month, _exactDate!.day);
-            final endOfDay = startOfDay.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
-            return dt.isAfter(startOfDay.subtract(const Duration(seconds: 1))) && dt.isBefore(endOfDay);
+            final startOfDay = DateTime(
+              _exactDate!.year,
+              _exactDate!.month,
+              _exactDate!.day,
+            );
+            final endOfDay = startOfDay
+                .add(const Duration(days: 1))
+                .subtract(const Duration(milliseconds: 1));
+            return dt.isAfter(
+                  startOfDay.subtract(const Duration(seconds: 1)),
+                ) &&
+                dt.isBefore(endOfDay);
           } else if (_selectedMonthKey != 'all') {
             final monthMap = {
-              'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-              'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
+              'Jan': 1,
+              'Feb': 2,
+              'Mar': 3,
+              'Apr': 4,
+              'May': 5,
+              'Jun': 6,
+              'Jul': 7,
+              'Aug': 8,
+              'Sep': 9,
+              'Oct': 10,
+              'Nov': 11,
+              'Dec': 12,
             };
             final month = monthMap[_selectedMonthKey];
             if (month != null) {
               final year = int.tryParse(_selectedYear) ?? DateTime.now().year;
               final startOfMonth = DateTime(year, month);
               final endOfMonth = DateTime(year, month + 1, 0, 23, 59, 59);
-              return dt.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) && dt.isBefore(endOfMonth.add(const Duration(seconds: 1)));
+              return dt.isAfter(
+                    startOfMonth.subtract(const Duration(seconds: 1)),
+                  ) &&
+                  dt.isBefore(endOfMonth.add(const Duration(seconds: 1)));
             }
           } else {
             final year = int.tryParse(_selectedYear) ?? DateTime.now().year;
             final startOfYear = DateTime(year, 1, 1);
             final endOfYear = DateTime(year, 12, 31, 23, 59, 59);
-            return dt.isAfter(startOfYear.subtract(const Duration(seconds: 1))) && dt.isBefore(endOfYear.add(const Duration(seconds: 1)));
+            return dt.isAfter(
+                  startOfYear.subtract(const Duration(seconds: 1)),
+                ) &&
+                dt.isBefore(endOfYear.add(const Duration(seconds: 1)));
           }
           return true;
         }).toList();
@@ -451,7 +489,6 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
           }
         });
 
-
         return ListView.builder(
           padding: const EdgeInsets.all(24),
           physics: const BouncingScrollPhysics(),
@@ -475,7 +512,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
             children: [
               Text(
                 "Filter Expenses",
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
@@ -489,11 +527,13 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                   decoration: BoxDecoration(
                     color: context.cardBackground,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: context.borderColor,
-                    ),
+                    border: Border.all(color: context.borderColor),
                   ),
-                  child: Icon(Icons.close, color: context.textPrimary, size: 20),
+                  child: Icon(
+                    Icons.close,
+                    color: context.textPrimary,
+                    size: 20,
+                  ),
                 ),
               ),
             ],
@@ -509,11 +549,18 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
             child: TextField(
               controller: _searchController,
               onTapOutside: (event) => FocusScope.of(context).unfocus(),
-              style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textPrimary,
+                fontSize: 15,
+              ),
               cursorColor: context.textPrimary,
               decoration: InputDecoration(
                 hintText: "Search title...",
-                hintStyle: GoogleFonts.inter(color: context.textTertiary),
+                hintStyle: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: context.textTertiary,
+                ),
                 border: InputBorder.none,
                 prefixIcon: Icon(
                   Icons.search,
@@ -569,7 +616,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
           children: [
             Text(
               label,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -643,7 +691,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -654,7 +703,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                   const SizedBox(height: 2),
                   Text(
                     "$category • $dateStr",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textSecondary,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -670,8 +720,11 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
               alignment: Alignment.centerRight,
               child: Text(
                 "${isFunding ? '+' : ''}${_isLoadingCountry ? CurrencyFormatter.formatByCountryCompact(amount, '+91') : CurrencyFormatter.formatByCountryCompact(amount, _userCountryCode)}",
-                style: GoogleFonts.inter(
-                  color: isFunding ? const Color(0xFF30D158) : context.textPrimary,
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: isFunding
+                      ? const Color(0xFF30D158)
+                      : context.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                   fontFeatures: [const FontFeature.tabularFigures()],
@@ -719,7 +772,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
         padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
         child: Text(
           message,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 13,
             fontWeight: FontWeight.w500,
@@ -750,7 +804,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                   children: [
                     Text(
                       "Select Date",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -802,7 +857,10 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                       ),
                       child: Text(
                         "Clear Exact Date",
-                        style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
@@ -844,7 +902,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                   children: [
                     Text(
                       "Select Year",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -888,7 +947,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                         ),
                         child: Text(
                           year,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: _selectedYear == year
                                 ? context.appBackground
                                 : context.textSecondary,
@@ -931,7 +991,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                   children: [
                     Text(
                       "Sort Order",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -974,7 +1035,8 @@ class _SearchExpenseScreenState extends State<SearchExpenseScreen> {
                         ),
                         child: Text(
                           option,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: _sortOrder == option.toLowerCase()
                                 ? context.appBackground
                                 : context.textSecondary,

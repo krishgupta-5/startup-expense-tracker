@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:developer';
@@ -11,7 +10,42 @@ import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/bank_account_service.dart';
 import '../../../utils/expense_expansion_helper.dart';
-import '../../../theme/app_theme.dart';
+import '../../../shared/widgets/custom_back_button.dart';
+import 'package:hugeicons/hugeicons.dart';
+// --- CUSTOM DOTTED DIVIDER WIDGET ---
+class DottedDivider extends StatelessWidget {
+  final Color color;
+  final double height;
+  final double dashWidth;
+
+  const DottedDivider({
+    super.key,
+    required this.color,
+    this.height = 1.0,
+    this.dashWidth = 4.0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        final boxWidth = constraints.constrainWidth();
+        final dashCount = (boxWidth / (2 * dashWidth)).floor();
+        return Flex(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          direction: Axis.horizontal,
+          children: List.generate(dashCount, (_) {
+            return SizedBox(
+              width: dashWidth,
+              height: height,
+              child: DecoratedBox(decoration: BoxDecoration(color: color)),
+            );
+          }),
+        );
+      },
+    );
+  }
+}
 
 class FundsOverviewScreen extends StatefulWidget {
   const FundsOverviewScreen({super.key});
@@ -35,7 +69,6 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
   List<Map<String, dynamic>> allExpenses = [];
   List<Map<String, dynamic>> bankAccounts = [];
   List<Map<String, dynamic>> cashFlowBreakdown = [];
-  double _totalSalaries = 0.0;
 
   String _userCountryCode = '+1'; // Default to USD
 
@@ -86,7 +119,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
       await Future.wait([
         _fetchFundsData(),
         _fetchAllExpenses(),
-        _fetchSalaries(),
+
       ]);
 
       if (fundingAmount != null) {
@@ -155,38 +188,6 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     }
   }
 
-  Future<void> _fetchSalaries() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      final snapshot = await FirebaseFirestore.instance
-          .collection('members')
-          .where('uid', isEqualTo: user.uid)
-          .get();
-
-      double salariesTotal = 0.0;
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final salaryVal = data['salary'] ?? data['Salary'];
-        if (salaryVal is num) {
-          salariesTotal += salaryVal.toDouble();
-        } else if (salaryVal is String) {
-          salariesTotal +=
-              double.tryParse(salaryVal.replaceAll(RegExp(r'[^\d.-]'), '')) ??
-              0.0;
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _totalSalaries = salariesTotal;
-        });
-      }
-    } catch (e) {
-      log("Error fetching salaries: $e");
-    }
-  }
 
   Future<void> _fetchBankAccounts() async {
     try {
@@ -215,15 +216,17 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
 
       if (docSnapshot.exists && docSnapshot.data() != null) {
         final data = docSnapshot.data()!;
-        final totalFunding = double.tryParse(
+        final totalFunding =
+            double.tryParse(
               (data["Funding"] ?? data["funding"] ?? data["FUNDING"] ?? 0)
                   .toString(),
             ) ??
             0;
 
         final createdAt = data['createdAt'] as Timestamp?;
-        final companyDateStr =
-            createdAt != null ? _formatDate(createdAt) : 'Date unknown';
+        final companyDateStr = createdAt != null
+            ? _formatDate(createdAt)
+            : 'Date unknown';
 
         double additionalFundingTotal = 0;
         final List<Map<String, dynamic>> txnEntries = [];
@@ -249,8 +252,9 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             final amt = (txnData['amount'] as num?)?.toDouble() ?? 0;
             final source = txnData['source'] ?? 'Funding';
             final txnCreatedAt = txnData['createdAt'] as Timestamp?;
-            final txnDateStr =
-                txnCreatedAt != null ? _formatDate(txnCreatedAt) : 'Recent';
+            final txnDateStr = txnCreatedAt != null
+                ? _formatDate(txnCreatedAt)
+                : 'Recent';
 
             additionalFundingTotal += amt;
             txnEntries.add({
@@ -349,13 +353,13 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     final status = _getHealthStatus();
     switch (status) {
       case "SAFE":
-        return const Color(0xFF30D158);
+        return const Color(0xFF10B981); // Emerald Green
       case "WARNING":
-        return const Color(0xFFFF9F0A);
+        return const Color(0xFFF59E0B); // Amber
       case "CRITICAL":
-        return const Color(0xFFFF453A);
+        return const Color(0xFFEF4444); // Red
       default:
-        return context.textSecondary;
+        return const Color(0xFF71717A); // Gray
     }
   }
 
@@ -407,7 +411,9 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         if (amountVal is num) {
           amt = amountVal.toDouble();
         } else if (amountVal is String) {
-          amt = double.tryParse(amountVal.replaceAll(RegExp(r'[^\d.-]'), '')) ?? 0.0;
+          amt =
+              double.tryParse(amountVal.replaceAll(RegExp(r'[^\d.-]'), '')) ??
+              0.0;
         }
 
         final title = data['Title'] ?? data['title'] ?? 'Expense';
@@ -458,26 +464,30 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     }
   }
 
-  Widget _buildSectionLabel(String text) {
+  // --- UI RENDERING ---
+
+  Widget _buildSectionLabel(String text, Color textSecondary) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
-        color: context.textSecondary,
-        fontSize: 11,
+      style: TextStyle(
+        fontFamily: 'Satoshi',
+        color: textSecondary,
+        fontSize: 10,
         fontWeight: FontWeight.bold,
-        letterSpacing: 1.2,
+        letterSpacing: 1.5,
       ),
     );
   }
 
-  Widget _buildEmptyState(String text) {
+  Widget _buildEmptyState(String text, Color textTertiary) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
         child: Text(
           text,
-          style: GoogleFonts.inter(
-            color: context.textTertiary,
+          style: TextStyle(
+            fontFamily: 'Satoshi',
+            color: textTertiary,
             fontSize: 13,
             fontWeight: FontWeight.w500,
           ),
@@ -491,17 +501,33 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Premium Solid Color Palette
+    final bgColor = isDark ? const Color(0xFF09090B) : const Color(0xFFF9FAFB);
+    final cardColor = isDark
+        ? const Color(0xFF141416)
+        : const Color(0xFFFFFFFF);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.05);
+    final shadowColor = isDark
+        ? Colors.transparent
+        : Colors.black.withValues(alpha: 0.04);
+
+    final textPrimary = isDark ? Colors.white : const Color(0xFF09090B);
+    final textSecondary = isDark ? Colors.white54 : const Color(0xFF71717A);
+    final textTertiary = isDark ? Colors.white38 : const Color(0xFFA1A1AA);
+
     return Scaffold(
-      backgroundColor: context.appBackground,
+      backgroundColor: bgColor,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: context.isDarkMode
-            ? SystemUiOverlayStyle.light
-            : SystemUiOverlayStyle.dark,
+        value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: RefreshIndicator(
             onRefresh: _loadAllData,
-            color: context.textPrimary,
-            backgroundColor: context.cardBackground,
+            color: textPrimary,
+            backgroundColor: cardColor,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
@@ -510,49 +536,66 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(context),
+                  _buildHeader(
+                    context,
+                    textPrimary,
+                    textSecondary,
+                    cardColor,
+                    borderColor,
+                  ),
                   const SizedBox(height: 32),
 
-                  // Total Expenses Display
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      isLoading
-                          ? '--'
-                          : CurrencyFormatter.formatByCountryCompact(
-                              _totalExpensesAmount,
-                              _userCountryCode,
-                            ),
-                      style: GoogleFonts.inter(
-                        color: context.textPrimary,
-                        fontSize: 48,
-                        fontWeight: FontWeight.w600,
-                        height: 1.0,
-                        letterSpacing: -1.5,
-                      ),
-                    ),
+                  // Unified Bento Hero Section
+                  _buildHeroBento(
+                    cardColor,
+                    borderColor,
+                    shadowColor,
+                    textPrimary,
+                    textSecondary,
+                    isDark,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "Total Outflow",
-                    style: GoogleFonts.inter(
-                      color: context.textSecondary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  const SizedBox(height: 32),
 
+                  _buildFundingHistorySection(
+                    cardColor,
+                    borderColor,
+                    shadowColor,
+                    textPrimary,
+                    textSecondary,
+                    textTertiary,
+                  ),
                   const SizedBox(height: 32),
-                  _buildMainFundsCard(),
+
+                  _buildRecentExpensesSection(
+                    cardColor,
+                    borderColor,
+                    shadowColor,
+                    textPrimary,
+                    textSecondary,
+                    textTertiary,
+                    isDark,
+                  ),
                   const SizedBox(height: 32),
-                  _buildFundingHistorySection(),
+
+                  _buildCashFlowSection(
+                    cardColor,
+                    borderColor,
+                    shadowColor,
+                    textPrimary,
+                    textSecondary,
+                    textTertiary,
+                  ),
                   const SizedBox(height: 32),
-                  _buildRecentExpensesSection(),
-                  const SizedBox(height: 32),
-                  _buildCashFlowSection(),
-                  const SizedBox(height: 32),
-                  _buildBankAccountsSection(),
+
+                  _buildBankAccountsSection(
+                    cardColor,
+                    borderColor,
+                    shadowColor,
+                    textPrimary,
+                    textSecondary,
+                    textTertiary,
+                    isDark,
+                  ),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -563,64 +606,52 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(
+    BuildContext context,
+    Color textPrimary,
+    Color textSecondary,
+    Color cardColor,
+    Color borderColor,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: context.glassBackgroundStrong,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: context.borderColor),
-            ),
-            child: Icon(Icons.arrow_back, color: context.iconPrimary, size: 20),
+        CustomBackButton(),
+        Text(
+          "Capital Analysis",
+          style: TextStyle(
+            fontFamily: 'Satoshi',
+            color: textPrimary,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
           ),
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              "Funds Overview",
-              style: GoogleFonts.inter(
-                color: context.textSecondary,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              "Capital Analysis",
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-              ),
-            ),
-          ],
         ),
       ],
     );
   }
 
-  Widget _buildMainFundsCard() {
+  Widget _buildHeroBento(
+    Color cardColor,
+    Color borderColor,
+    Color shadowColor,
+    Color textPrimary,
+    Color textSecondary,
+    bool isDark,
+  ) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: context.cardBackground,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: context.borderColor),
-        boxShadow: context.isDarkMode
+        color: cardColor,
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: borderColor),
+        boxShadow: shadowColor == Colors.transparent
             ? []
             : [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 10,
+                  color: shadowColor,
+                  blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
               ],
@@ -629,76 +660,72 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+                  horizontal: 10,
+                  vertical: 4,
                 ),
                 decoration: BoxDecoration(
                   color: _getHealthStatusColor().withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(100),
                   border: Border.all(
-                    color: _getHealthStatusColor().withValues(alpha: 0.3),
+                    color: _getHealthStatusColor().withValues(alpha: 0.2),
                   ),
                 ),
                 child: Text(
                   _getHealthStatus(),
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: _getHealthStatusColor(),
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: 1.0,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
-              const Spacer(),
               Row(
                 children: [
                   Text(
                     "Updated: ${lastUpdated ?? '--'}",
-                    style: GoogleFonts.inter(
-                      color: context.textSecondary,
-                      fontSize: 11,
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      color: textSecondary,
+                      fontSize: 10,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(
                     onTap: _loadAllData,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      child: isLoading
-                          ? SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: context.iconSecondary,
-                              ),
-                            )
-                          : Icon(
-                              Icons.refresh,
-                              color: context.iconSecondary,
-                              size: 16,
+                    child: isLoading
+                        ? SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: textSecondary,
                             ),
-                    ),
+                          )
+                        : HugeIcon(icon: HugeIcons.strokeRoundedRefresh, color: textSecondary, size: 14),
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
           Text(
-            "AVAILABLE FOR OPERATIONS",
-            style: GoogleFonts.inter(
-              color: context.textSecondary,
+            "AVAILABLE FUNDS",
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: textSecondary,
               fontSize: 10,
               fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
+              letterSpacing: 1.5,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
@@ -709,60 +736,138 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                       _availableAmount,
                       _userCountryCode,
                     ),
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 32,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -1,
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: textPrimary,
+                fontSize: 48,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -2.0,
+                height: 1.1,
               ),
             ),
           ),
-          if (!isLoading &&
-              _dataLoaded &&
-              fundingAmount != null &&
-              fundingAmount! > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                '${((_availableAmount / fundingAmount!) * 100).toStringAsFixed(1)}% of total capital remaining',
-                style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 13,
+          const SizedBox(height: 32),
+          DottedDivider(color: borderColor), // Subtle Divider
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "LIFETIME OUTFLOW",
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        color: textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      isLoading
+                          ? '--'
+                          : CurrencyFormatter.formatByCountryCompact(
+                              _totalExpensesAmount,
+                              _userCountryCode,
+                            ),
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        color: textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-            ),
+              Container(
+                width: 1,
+                height: 40,
+                color: borderColor,
+              ), // Vertical separator
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      "TOTAL CAPITAL",
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        color: textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      isLoading
+                          ? '--'
+                          : CurrencyFormatter.formatByCountryCompact(
+                              fundingAmount ?? 0,
+                              _userCountryCode,
+                            ),
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        color: textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildFundingHistorySection() {
+  Widget _buildFundingHistorySection(
+    Color cardColor,
+    Color borderColor,
+    Color shadowColor,
+    Color textPrimary,
+    Color textSecondary,
+    Color textTertiary,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel("FUNDING HISTORY"),
-        const SizedBox(height: 16),
+        _buildSectionLabel("FUNDING HISTORY", textSecondary),
+        const SizedBox(height: 12),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
           decoration: BoxDecoration(
-            color: context.cardBackground,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: context.borderColor),
-            boxShadow: context.isDarkMode
+            color: cardColor,
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(color: borderColor),
+            boxShadow: shadowColor == Colors.transparent
                 ? []
                 : [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 10,
+                      color: shadowColor,
+                      blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
                   ],
           ),
           child: isLoading
-              ? _buildEmptyState("Loading history...")
+              ? _buildEmptyState("Loading history...", textTertiary)
               : fundingHistory.isEmpty
-              ? _buildEmptyState("No funding rounds recorded")
+              ? _buildEmptyState("No funding rounds recorded", textTertiary)
               : Column(
                   children: fundingHistory.asMap().entries.map((entry) {
                     final index = entry.key;
@@ -770,12 +875,8 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                     final isLast = index == fundingHistory.length - 1;
                     return Column(
                       children: [
-                        _buildFundingItem(item),
-                        if (!isLast) ...[
-                          const SizedBox(height: 16),
-                          Divider(color: context.borderColor, height: 1),
-                          const SizedBox(height: 16),
-                        ],
+                        _buildFundingItem(item, textPrimary, textSecondary),
+                        if (!isLast) Divider(color: borderColor, height: 32),
                       ],
                     );
                   }).toList(),
@@ -785,29 +886,32 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     );
   }
 
-  Widget _buildFundingItem(Map<String, dynamic> item) {
+  Widget _buildFundingItem(
+    Map<String, dynamic> item,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
     final amount = (item['amount'] as num?)?.toInt() ?? 0;
     final isActive =
         item['status'] == 'active' || item['status'] == 'completed';
-
+    final greenColor = const Color(0xFF10B981); // Emerald
     final formattedAmount =
         '+${CurrencyFormatter.formatByCountryCompact(amount.toDouble(), _userCountryCode)}';
 
     return Row(
       children: [
         Container(
-          width: 40,
-          height: 40,
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: const Color(0xFF30D158).withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: const Color(0xFF30D158).withValues(alpha: 0.3),
-            ),
+            color: greenColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: greenColor.withValues(alpha: 0.2)),
           ),
-          child: const Icon(
-            Icons.account_balance,
-            color: Color(0xFF30D158),
+          child: HugeIcon(
+            icon: HugeIcons.strokeRoundedBank,
+            color: greenColor,
             size: 20,
           ),
         ),
@@ -818,8 +922,9 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             children: [
               Text(
                 item['round'] as String,
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
@@ -827,9 +932,10 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               const SizedBox(height: 2),
               Text(
                 item['date'] as String,
-                style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 12,
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: textSecondary,
+                  fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -840,16 +946,13 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: Text(
-                formattedAmount,
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF30D158),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
+            Text(
+              formattedAmount,
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: greenColor,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
               ),
             ),
             if (isActive)
@@ -857,14 +960,15 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                 margin: const EdgeInsets.only(top: 4),
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF30D158).withValues(alpha: 0.1),
+                  color: greenColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   "COMPLETED",
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFF30D158),
-                    fontSize: 9,
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: greenColor,
+                    fontSize: 8,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.5,
                   ),
@@ -876,7 +980,15 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     );
   }
 
-  Widget _buildRecentExpensesSection() {
+  Widget _buildRecentExpensesSection(
+    Color cardColor,
+    Color borderColor,
+    Color shadowColor,
+    Color textPrimary,
+    Color textSecondary,
+    Color textTertiary,
+    bool isDark,
+  ) {
     final List<Map<String, dynamic>> expenseTransactions = allExpenses
         .take(5)
         .map(
@@ -896,44 +1008,47 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel("RECENT EXPENSES"),
-        const SizedBox(height: 16),
+        _buildSectionLabel("RECENT EXPENSES", textSecondary),
+        const SizedBox(height: 12),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
           decoration: BoxDecoration(
-            color: context.cardBackground,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: context.borderColor),
-            boxShadow: context.isDarkMode
+            color: cardColor,
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(color: borderColor),
+            boxShadow: shadowColor == Colors.transparent
                 ? []
                 : [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 10,
+                      color: shadowColor,
+                      blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
                   ],
           ),
           child: isLoading
-              ? _buildEmptyState("Loading expenses...")
+              ? _buildEmptyState("Loading expenses...", textTertiary)
               : expenseTransactions.isEmpty
-              ? _buildEmptyState("No recent expenses")
+              ? _buildEmptyState("No recent expenses", textTertiary)
               : Column(
                   children: expenseTransactions.asMap().entries.map((entry) {
                     final index = entry.key;
                     final transaction = entry.value;
                     final isLast = index == expenseTransactions.length - 1;
                     return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
                       onTap: () => _navigateToExpenseDetails(transaction),
                       child: Column(
                         children: [
-                          _buildTransactionItem(transaction),
-                          if (!isLast) ...[
-                            const SizedBox(height: 16),
-                            Divider(color: context.borderColor, height: 1),
-                            const SizedBox(height: 16),
-                          ],
+                          _buildTransactionItem(
+                            transaction,
+                            textPrimary,
+                            textSecondary,
+                            borderColor,
+                            isDark,
+                          ),
+                          if (!isLast) Divider(color: borderColor, height: 32),
                         ],
                       ),
                     );
@@ -944,11 +1059,20 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     );
   }
 
-  Widget _buildTransactionItem(Map<String, dynamic> transaction) {
+  Widget _buildTransactionItem(
+    Map<String, dynamic> transaction,
+    Color textPrimary,
+    Color textSecondary,
+    Color borderColor,
+    bool isDark,
+  ) {
     final isExpense = transaction['type'] == 'expense';
     final isActive = transaction['status'] == 'active';
     final amount = (transaction['amount'] as num?)?.toInt() ?? 0;
     final isNegative = amount < 0;
+
+    final redColor = const Color(0xFFEF4444);
+    final greenColor = const Color(0xFF10B981);
 
     String formattedAmount;
     Color amountColor;
@@ -960,39 +1084,48 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
 
     if (isNegative) {
       formattedAmount = '-$cleanAmount';
-      amountColor = const Color(0xFFFF453A);
+      amountColor = redColor;
     } else {
       formattedAmount = '+$cleanAmount';
-      amountColor = isActive ? const Color(0xFF30D158) : context.textPrimary;
+      amountColor = isActive ? greenColor : textPrimary;
     }
+
+    final iconBgColor = isExpense
+        ? redColor.withValues(alpha: 0.1)
+        : isActive
+        ? greenColor.withValues(alpha: 0.1)
+        : (isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.black.withValues(alpha: 0.05));
+
+    final iconBorderColor = isExpense
+        ? redColor.withValues(alpha: 0.2)
+        : isActive
+        ? greenColor.withValues(alpha: 0.2)
+        : borderColor;
+
+    final iconColor = isExpense
+        ? redColor
+        : (isActive ? greenColor : textSecondary);
 
     return Row(
       children: [
         Container(
-          width: 40,
-          height: 40,
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isExpense
-                ? const Color(0xFFFF453A).withValues(alpha: 0.1)
-                : isActive
-                ? const Color(0xFF30D158).withValues(alpha: 0.1)
-                : context.glassBackgroundStrong,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isExpense
-                  ? const Color(0xFFFF453A).withValues(alpha: 0.3)
-                  : isActive
-                  ? const Color(0xFF30D158).withValues(alpha: 0.3)
-                  : context.borderColor,
-            ),
+            color: iconBgColor,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: iconBorderColor),
           ),
-          child: Icon(
-            isExpense
-                ? Icons.receipt
-                : (isActive ? Icons.trending_up : Icons.account_balance),
-            color: isExpense
-                ? const Color(0xFFFF453A)
-                : (isActive ? const Color(0xFF30D158) : context.iconSecondary),
+          child: HugeIcon(
+            icon: isExpense
+                ? HugeIcons.strokeRoundedInvoice01
+                : (isActive
+                      ? HugeIcons.strokeRoundedArrowUpRight01
+                      : HugeIcons.strokeRoundedBank),
+            color: iconColor,
             size: 20,
           ),
         ),
@@ -1003,8 +1136,9 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             children: [
               Text(
                 transaction['round'],
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1016,9 +1150,10 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                 isExpense
                     ? '${transaction['category']} • ${transaction['date']}'
                     : transaction['date'],
-                style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 12,
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: textSecondary,
+                  fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
                 maxLines: 1,
@@ -1028,25 +1163,27 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerRight,
-            child: Text(
-              formattedAmount,
-              style: GoogleFonts.inter(
-                color: amountColor,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+        Text(
+          formattedAmount,
+          style: TextStyle(
+            fontFamily: 'Satoshi',
+            color: amountColor,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildCashFlowSection() {
+  Widget _buildCashFlowSection(
+    Color cardColor,
+    Color borderColor,
+    Color shadowColor,
+    Color textPrimary,
+    Color textSecondary,
+    Color textTertiary,
+  ) {
     final totalOutflow = cashFlowBreakdown
         .where((item) => item['amount'] < 0)
         .fold<int>(0, (total, item) => total + (item['amount'] as int));
@@ -1055,64 +1192,66 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
       totalOutflow.abs().toDouble(),
       _userCountryCode,
     );
+    final redColor = const Color(0xFFEF4444);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel("CASH FLOW BREAKDOWN"),
-        const SizedBox(height: 16),
+        _buildSectionLabel("CASH FLOW BREAKDOWN", textSecondary),
+        const SizedBox(height: 12),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
           decoration: BoxDecoration(
-            color: context.cardBackground,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: context.borderColor),
-            boxShadow: context.isDarkMode
+            color: cardColor,
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(color: borderColor),
+            boxShadow: shadowColor == Colors.transparent
                 ? []
                 : [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 10,
+                      color: shadowColor,
+                      blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
                   ],
           ),
           child: isLoading
-              ? _buildEmptyState("Loading cash flow...")
+              ? _buildEmptyState("Loading cash flow...", textTertiary)
               : cashFlowBreakdown.isEmpty
-              ? _buildEmptyState("No cash flow data")
+              ? _buildEmptyState("No cash flow data", textTertiary)
               : Column(
                   children: [
                     ...cashFlowBreakdown.map(
-                      (item) => _buildCashFlowItem(item),
+                      (item) => _buildCashFlowItem(
+                        item,
+                        textPrimary,
+                        textSecondary,
+                        redColor,
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    Divider(color: context.borderColor, height: 1),
+                    DottedDivider(color: borderColor),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           "Total Outflow",
-                          style: GoogleFonts.inter(
-                            color: context.textPrimary,
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            color: textPrimary,
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        Expanded(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              '-$formattedOutflow',
-                              style: GoogleFonts.inter(
-                                color: const Color(0xFFFF453A),
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                        Text(
+                          '-$formattedOutflow',
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            color: redColor,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -1124,38 +1263,42 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     );
   }
 
-  Widget _buildCashFlowItem(Map<String, dynamic> item) {
+  Widget _buildCashFlowItem(
+    Map<String, dynamic> item,
+    Color textPrimary,
+    Color textSecondary,
+    Color redColor,
+  ) {
     final amount = item['amount'] as int;
     final isPositive = amount >= 0;
+    final greenColor = const Color(0xFF10B981);
 
     final formattedAmount = CurrencyFormatter.formatByCountryCompact(
       amount.abs().toDouble(),
       _userCountryCode,
     );
-    final displayAmount =
-        isPositive ? '+$formattedAmount' : '-$formattedAmount';
+    final displayAmount = isPositive
+        ? '+$formattedAmount'
+        : '-$formattedAmount';
+    final dotColor = isPositive ? greenColor : redColor;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 20),
       child: Row(
         children: [
           Container(
             width: 8,
             height: 8,
-            decoration: BoxDecoration(
-              color: isPositive
-                  ? const Color(0xFF30D158)
-                  : const Color(0xFFFF453A),
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Text(
               item['category'],
-              style: GoogleFonts.inter(
-                color: context.textSecondary,
-                fontSize: 14,
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: textPrimary,
+                fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
               maxLines: 1,
@@ -1163,20 +1306,13 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          Expanded(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: Text(
-                displayAmount,
-                style: GoogleFonts.inter(
-                  color: isPositive
-                      ? const Color(0xFF30D158)
-                      : const Color(0xFFFF453A),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+          Text(
+            displayAmount,
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: dotColor,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -1184,51 +1320,48 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     );
   }
 
-  void _navigateToExpenseDetails(Map<String, dynamic> transaction) {
-    if (transaction['id'] != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ExpenseDetailsScreen(
-            expenseId: transaction['id'],
-            expenseData: transaction,
-          ),
-        ),
-      );
-    }
-  }
-
-  Widget _buildBankAccountsSection() {
+  Widget _buildBankAccountsSection(
+    Color cardColor,
+    Color borderColor,
+    Color shadowColor,
+    Color textPrimary,
+    Color textSecondary,
+    Color textTertiary,
+    bool isDark,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel("PAYMENT METHODS"),
-        const SizedBox(height: 16),
+        _buildSectionLabel("PAYMENT METHODS", textSecondary),
+        const SizedBox(height: 12),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
           decoration: BoxDecoration(
-            color: context.cardBackground,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: context.borderColor),
-            boxShadow: context.isDarkMode
+            color: cardColor,
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(color: borderColor),
+            boxShadow: shadowColor == Colors.transparent
                 ? []
                 : [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 10,
+                      color: shadowColor,
+                      blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
                   ],
           ),
           child: isLoading
-              ? _buildEmptyState("Loading accounts...")
+              ? _buildEmptyState("Loading accounts...", textTertiary)
               : bankAccounts.isEmpty
               ? Column(
                   children: [
-                    _buildEmptyState("No bank accounts connected"),
+                    _buildEmptyState(
+                      "No bank accounts connected",
+                      textTertiary,
+                    ),
                     const SizedBox(height: 16),
-                    _buildAddAccountButton(),
+                    _buildAddAccountButton(textPrimary, isDark),
                   ],
                 )
               : Column(
@@ -1239,17 +1372,19 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
                       final isLast = index == bankAccounts.length - 1;
                       return Column(
                         children: [
-                          _buildBankAccountItem(account),
-                          if (!isLast) ...[
-                            const SizedBox(height: 16),
-                            Divider(color: context.borderColor, height: 1),
-                            const SizedBox(height: 16),
-                          ],
+                          _buildBankAccountItem(
+                            account,
+                            textPrimary,
+                            textSecondary,
+                          ),
+                          if (!isLast) Divider(color: borderColor, height: 32),
                         ],
                       );
                     }),
+                    const SizedBox(height: 16),
+                    DottedDivider(color: borderColor),
                     const SizedBox(height: 24),
-                    _buildAddAccountButton(),
+                    _buildAddAccountButton(textPrimary, isDark),
                   ],
                 ),
         ),
@@ -1257,7 +1392,7 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     );
   }
 
-  Widget _buildAddAccountButton() {
+  Widget _buildAddAccountButton(Color textPrimary, bool isDark) {
     return GestureDetector(
       onTap: () async {
         final result = await Navigator.push(
@@ -1269,21 +1404,23 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         }
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: context.glassBackgroundStrong,
-          border: Border.all(color: context.borderColor),
-          borderRadius: BorderRadius.circular(12),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.05)
+              : Colors.black.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(16), // Soft filled button
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add, color: context.textPrimary, size: 16),
+            HugeIcon(icon: HugeIcons.strokeRoundedAdd01, color: textPrimary, size: 18),
             const SizedBox(width: 8),
             Text(
               "Add Bank Account",
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
@@ -1294,7 +1431,11 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     );
   }
 
-  Widget _buildBankAccountItem(Map<String, dynamic> account) {
+  Widget _buildBankAccountItem(
+    Map<String, dynamic> account,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
     final totalSpent = (account['totalSpent'] as num?)?.toDouble() ?? 0.0;
     final isCash = account['isCash'] == true;
 
@@ -1304,8 +1445,10 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         account['bank_name']?.toString() ??
         'Unknown Bank';
 
-    final accentColor =
-        isCash ? const Color(0xFFFF9F0A) : const Color(0xFF30D158);
+    final accentColor = isCash
+        ? const Color(0xFFF59E0B)
+        : const Color(0xFF3B82F6); // Amber or Blue
+    final redColor = const Color(0xFFEF4444);
 
     final cleanSpent = totalSpent
         .toStringAsFixed(0)
@@ -1320,17 +1463,16 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
     return Row(
       children: [
         Container(
-          width: 40,
-          height: 40,
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: accentColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: accentColor.withValues(alpha: 0.3),
-            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: accentColor.withValues(alpha: 0.2)),
           ),
-          child: Icon(
-            isCash ? Icons.payments_outlined : Icons.account_balance,
+          child: HugeIcon(
+            icon: isCash ? HugeIcons.strokeRoundedCoins01 : HugeIcons.strokeRoundedBank,
             color: accentColor,
             size: 20,
           ),
@@ -1342,8 +1484,9 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
             children: [
               Text(
                 bankName,
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1353,9 +1496,10 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
               const SizedBox(height: 2),
               Text(
                 account['maskedNumber']?.toString() ?? '****',
-                style: GoogleFonts.inter(
-                  color: context.textSecondary,
-                  fontSize: 12,
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: textSecondary,
+                  fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -1366,32 +1510,41 @@ class _FundsOverviewScreenState extends State<FundsOverviewScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: Text(
-                formattedAmount,
-                style: GoogleFonts.inter(
-                  color: totalSpent > 0
-                      ? const Color(0xFFFF453A)
-                      : context.textSecondary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
+            Text(
+              formattedAmount,
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: totalSpent > 0 ? redColor : textSecondary,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 2),
             Text(
-              "total transactions",
-              style: GoogleFonts.inter(
-                color: context.textSecondary,
+              "total outflow",
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: textSecondary,
                 fontSize: 10,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
         ),
       ],
     );
+  }
+  void _navigateToExpenseDetails(Map<String, dynamic> transaction) {
+    if (transaction['id'] != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ExpenseDetailsScreen(
+            expenseId: transaction['id'],
+            expenseData: transaction,
+          ),
+        ),
+      );
+    }
   }
 }

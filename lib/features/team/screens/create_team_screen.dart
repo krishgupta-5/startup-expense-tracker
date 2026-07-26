@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
@@ -159,7 +158,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
           SnackBar(
             content: Text(
               "Team created successfully!",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: Colors.white,
                 fontWeight: FontWeight.w500,
               ),
@@ -188,7 +188,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
       SnackBar(
         content: Text(
           message,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: Colors.white,
             fontWeight: FontWeight.w500,
           ),
@@ -233,7 +234,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
                         textInputAction: TextInputAction.next,
                         onTapOutside: (event) =>
                             FocusScope.of(context).unfocus(),
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 32,
                           fontWeight: FontWeight.w600,
@@ -242,7 +244,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
                         cursorColor: context.primaryColor,
                         decoration: InputDecoration(
                           hintText: "e.g. Engineering",
-                          hintStyle: GoogleFonts.inter(
+                          hintStyle: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textTertiary,
                             fontSize: 32,
                             fontWeight: FontWeight.w600,
@@ -348,7 +351,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
           ),
           Text(
             "New Team",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -385,12 +389,19 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
             textInputAction: textInputAction,
             onTapOutside: (event) => FocusScope.of(context).unfocus(),
             keyboardType: isNumber ? TextInputType.text : TextInputType.text,
-            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: context.textPrimary,
+              fontSize: 15,
+            ),
             maxLines: maxLines,
             minLines: maxLines > 1 ? 3 : 1,
             decoration: InputDecoration(
               hintText: placeholder,
-              hintStyle: GoogleFonts.inter(color: context.textTertiary),
+              hintStyle: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textTertiary,
+              ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
               prefixIcon: isNumber
@@ -403,7 +414,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
                             CurrencyFormatter.getCurrencySymbol(
                               _userCountryCode,
                             ),
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textSecondary,
                               fontSize: 18,
                               fontWeight: FontWeight.w500,
@@ -488,7 +500,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(), // Forcing uppercase just in case
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 11, // Bumped from 10 to 11 for better readability
         fontWeight: FontWeight.bold,
@@ -529,7 +542,8 @@ class _CreateTeamScreenState extends State<CreateTeamScreen>
                 )
               : Text(
                   "Create Team",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),

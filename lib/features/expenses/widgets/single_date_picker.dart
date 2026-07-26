@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../theme/app_theme.dart';
 
@@ -33,7 +32,8 @@ class _SingleDatePickerState extends State<SingleDatePicker> {
               children: [
                 Text(
                   "Select Date Range",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -86,7 +86,8 @@ class _SingleDatePickerState extends State<SingleDatePicker> {
                 ),
                 child: Text(
                   "Selected: ${_selectedRange != null ? '${_formatDate(_selectedRange!.start)} - ${_formatDate(_selectedRange!.end)}' : 'No range selected'}",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.accentColor,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -108,14 +109,13 @@ class _SingleDatePickerState extends State<SingleDatePicker> {
                       decoration: BoxDecoration(
                         color: context.appBackground,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: context.borderColor,
-                        ),
+                        border: Border.all(color: context.borderColor),
                       ),
                       child: Center(
                         child: Text(
                           "Cancel",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textSecondary,
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
@@ -142,7 +142,8 @@ class _SingleDatePickerState extends State<SingleDatePicker> {
                       child: Center(
                         child: Text(
                           "Apply",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.appBackground,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,

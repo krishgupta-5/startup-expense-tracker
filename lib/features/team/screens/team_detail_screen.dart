@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'edit_team_screen.dart';
 import 'add_member_screen.dart';
@@ -10,7 +9,7 @@ import 'member_detail_screen.dart';
 import '../../../widgets/avatar_widget.dart';
 import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
-import '../../../services/telegram_service.dart'; 
+import '../../../services/telegram_service.dart';
 import 'team_expense_history_screen.dart';
 import '../../../utils/expense_expansion_helper.dart';
 import '../../../theme/app_theme.dart';
@@ -58,7 +57,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   }
 
   Future<void> _loadUserCountryCode() async {
-    final currencyCode = await CurrencyPreferenceService.getCurrencyPreference();
+    final currencyCode =
+        await CurrencyPreferenceService.getCurrencyPreference();
     if (mounted && currencyCode != _userCountryCode) {
       setState(() {
         _userCountryCode = currencyCode;
@@ -70,7 +70,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.appBackground,
-      
+
       // --- THEMED FAB ---
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
@@ -84,13 +84,15 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         backgroundColor: context.textPrimary,
         foregroundColor: context.appBackground,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16), 
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         icon: const Icon(Icons.add, size: 20),
         label: Text(
           "Add Member",
-          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontFamily: 'Satoshi',
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
 
@@ -110,7 +112,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 return Center(
                   child: Text(
                     "Error loading team",
-                    style: GoogleFonts.inter(color: context.textSecondary),
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      color: context.textSecondary,
+                    ),
                   ),
                 );
               }
@@ -122,8 +127,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                   : widget.initialTeamData;
 
               final String teamName = teamData['teamName'] ?? "Team";
-              final double teamBudget =
-                  (teamData['monthlyBudget'] ?? 0.0).toDouble();
+              final double teamBudget = (teamData['monthlyBudget'] ?? 0.0)
+                  .toDouble();
 
               return Column(
                 children: [
@@ -149,13 +154,22 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                         }
 
                         final membersDocs = membersSnapshot.data?.docs ?? [];
-                        final String memberCount = "${membersDocs.length} Members";
+                        final String memberCount =
+                            "${membersDocs.length} Members";
 
                         // Sort members by cost (Highest to lowest)
                         final sortedMembers = membersDocs.toList();
                         sortedMembers.sort((a, b) {
-                          final costA = ((a.data() as Map<String, dynamic>)['monthlyCost'] as num?)?.toDouble() ?? 0.0;
-                          final costB = ((b.data() as Map<String, dynamic>)['monthlyCost'] as num?)?.toDouble() ?? 0.0;
+                          final costA =
+                              ((a.data() as Map<String, dynamic>)['monthlyCost']
+                                      as num?)
+                                  ?.toDouble() ??
+                              0.0;
+                          final costB =
+                              ((b.data() as Map<String, dynamic>)['monthlyCost']
+                                      as num?)
+                                  ?.toDouble() ??
+                              0.0;
                           return costB.compareTo(costA);
                         });
 
@@ -173,8 +187,13 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                               StreamBuilder<QuerySnapshot>(
                                 stream: FirebaseFirestore.instance
                                     .collection('expenses')
-                                    .where('uid', isEqualTo:
-                                        FirebaseAuth.instance.currentUser?.uid)
+                                    .where(
+                                      'uid',
+                                      isEqualTo: FirebaseAuth
+                                          .instance
+                                          .currentUser
+                                          ?.uid,
+                                    )
                                     .where('TeamId', isEqualTo: widget.teamId)
                                     .snapshots(),
                                 builder: (context, expenseSnapshot) {
@@ -183,28 +202,43 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                     final now = DateTime.now();
 
                                     // Build raw list from Firestore docs
-                                    final rawList = expenseSnapshot.data!.docs.map((doc) {
-                                      final data = doc.data() as Map<String, dynamic>;
-                                      return {...data, 'id': doc.id};
-                                    }).toList();
+                                    final rawList = expenseSnapshot.data!.docs
+                                        .map((doc) {
+                                          final data =
+                                              doc.data()
+                                                  as Map<String, dynamic>;
+                                          return {...data, 'id': doc.id};
+                                        })
+                                        .toList();
 
                                     // Expand recurring expenses into individual occurrences for the entire month
-                                    final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
-                                    final expanded = ExpenseExpansionHelper.expandExpenses(
-                                      rawList,
-                                      maxDate: endOfMonth,
-                                      allowFuture: true,
+                                    final endOfMonth = DateTime(
+                                      now.year,
+                                      now.month + 1,
+                                      0,
+                                      23,
+                                      59,
+                                      59,
                                     );
+                                    final expanded =
+                                        ExpenseExpansionHelper.expandExpenses(
+                                          rawList,
+                                          maxDate: endOfMonth,
+                                          allowFuture: true,
+                                        );
 
                                     // Sum only non-salary expense occurrences in the current month.
                                     // Salary expenses are counted below from the members collection
                                     // to avoid double-counting if a salary doc also exists.
                                     for (final data in expanded) {
                                       if (data['isFunding'] == true) continue;
-                                      final category = (data['Category'] ?? '').toString().toLowerCase();
+                                      final category = (data['Category'] ?? '')
+                                          .toString()
+                                          .toLowerCase();
                                       if (category == 'salary') continue;
 
-                                      final rawDate = data['Date'] ?? data['date'];
+                                      final rawDate =
+                                          data['Date'] ?? data['date'];
                                       DateTime? date;
                                       if (rawDate is Timestamp) {
                                         date = rawDate.toDate();
@@ -215,17 +249,25 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                           date.month == now.month &&
                                           date.year == now.year) {
                                         totalSpentThisMonth +=
-                                            (data['Amount'] as num?)?.toDouble() ?? 0.0;
+                                            (data['Amount'] as num?)
+                                                ?.toDouble() ??
+                                            0.0;
                                       }
                                     }
 
                                     // Add member salaries from already-fetched membersDocs
                                     for (var memberDoc in membersDocs) {
-                                      final md = memberDoc.data() as Map<String, dynamic>;
-                                      final status = md['status']?.toString() ?? 'Active';
+                                      final md =
+                                          memberDoc.data()
+                                              as Map<String, dynamic>;
+                                      final status =
+                                          md['status']?.toString() ?? 'Active';
                                       if (status != 'Active') continue;
-                                      final salary = double.tryParse(
-                                            (md['salary'] ?? md['Salary'])?.toString() ?? '0',
+                                      final salary =
+                                          double.tryParse(
+                                            (md['salary'] ?? md['Salary'])
+                                                    ?.toString() ??
+                                                '0',
                                           ) ??
                                           0.0;
                                       totalSpentThisMonth += salary;
@@ -246,9 +288,12 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
                               // --- MEMBERS LIST HEADER ---
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  _buildSectionTitle("TEAM MEMBERS ($memberCount)"),
+                                  _buildSectionTitle(
+                                    "TEAM MEMBERS ($memberCount)",
+                                  ),
                                   _buildSectionTitle("SORT BY COST"),
                                 ],
                               ),
@@ -263,7 +308,9 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                                   physics: const NeverScrollableScrollPhysics(),
                                   itemCount: sortedMembers.length,
                                   itemBuilder: (context, index) {
-                                    return _buildMemberRow(sortedMembers[index]);
+                                    return _buildMemberRow(
+                                      sortedMembers[index],
+                                    );
                                   },
                                 ),
 
@@ -285,7 +332,11 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
 
   // --- WIDGET BUILDERS ---
 
-  Widget _buildHeader(BuildContext context, String teamName, Map<String, dynamic> teamData) {
+  Widget _buildHeader(
+    BuildContext context,
+    String teamName,
+    Map<String, dynamic> teamData,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Row(
@@ -311,7 +362,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
             child: Text(
               teamName,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -326,10 +378,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => EditTeamScreen(
-                    teamId: widget.teamId,
-                    teamData: teamData,
-                  ),
+                  builder: (context) =>
+                      EditTeamScreen(teamId: widget.teamId, teamData: teamData),
                 ),
               );
             },
@@ -355,7 +405,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
   Widget _buildSectionTitle(String title) {
     return Text(
       title.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -364,9 +415,14 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
     );
   }
 
-  Widget _buildHeroStats(double totalCost, bool isWithinBudget, String teamName, Map<String, dynamic> teamData) {
+  Widget _buildHeroStats(
+    double totalCost,
+    bool isWithinBudget,
+    String teamName,
+    Map<String, dynamic> teamData,
+  ) {
     final budget = (teamData['monthlyBudget'] as num?)?.toDouble();
-    
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -382,7 +438,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               children: [
                 Text(
                   "TOTAL MONTHLY COST",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -393,8 +450,12 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
-                    CurrencyFormatter.formatByCountryCompact(totalCost, _userCountryCode),
-                    style: GoogleFonts.inter(
+                    CurrencyFormatter.formatByCountryCompact(
+                      totalCost,
+                      _userCountryCode,
+                    ),
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textPrimary,
                       fontSize: 48,
                       fontWeight: FontWeight.w600,
@@ -404,7 +465,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 ),
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: isWithinBudget
                         ? const Color(0xFF30D158).withValues(alpha: 0.1)
@@ -413,7 +477,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                   ),
                   child: Text(
                     isWithinBudget ? "Within Budget" : "Over Budget",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: isWithinBudget
                           ? const Color(0xFF30D158)
                           : const Color(0xFFFF453A),
@@ -425,7 +490,7 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
               ],
             ),
           ),
-          
+
           // --- SEAMLESS EXPENSES BUTTON ---
           GestureDetector(
             onTap: () {
@@ -447,10 +512,10 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 color: context.isDarkMode
                     ? Colors.white.withValues(alpha: 0.02)
                     : Colors.black.withValues(alpha: 0.02),
-                border: Border(
-                  top: BorderSide(color: context.borderColor),
+                border: Border(top: BorderSide(color: context.borderColor)),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(24),
                 ),
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -459,7 +524,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                   const SizedBox(width: 8),
                   Text(
                     "View Expense History",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -556,7 +622,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                   children: [
                     Text(
                       name,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -571,7 +638,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                     const SizedBox(height: 4),
                     Text(
                       role,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textSecondary,
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
@@ -588,8 +656,11 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 children: [
                   Text(
                     salary,
-                    style: GoogleFonts.inter(
-                      color: isPaused ? context.textSecondary : context.textPrimary,
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      color: isPaused
+                          ? context.textSecondary
+                          : context.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       fontFeatures: [const FontFeature.tabularFigures()],
@@ -625,7 +696,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
         child: Text(
           message,
           textAlign: TextAlign.center,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -668,7 +740,8 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
                 const SizedBox(height: 24),
                 Text(
                   "MANAGE $memberName".toUpperCase(),
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -735,19 +808,24 @@ class _TeamDetailScreenState extends State<TeamDetailScreen> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
-        color: Colors.transparent, 
+        color: Colors.transparent,
         child: Row(
           children: [
             Icon(
               icon,
-              color: isDestructive ? const Color(0xFFFF453A) : context.textPrimary,
+              color: isDestructive
+                  ? const Color(0xFFFF453A)
+                  : context.textPrimary,
               size: 22,
             ),
             const SizedBox(width: 16),
             Text(
               label,
-              style: GoogleFonts.inter(
-                color: isDestructive ? const Color(0xFFFF453A) : context.textPrimary,
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: isDestructive
+                    ? const Color(0xFFFF453A)
+                    : context.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),

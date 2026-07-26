@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'add_expense_screen.dart';
 import 'search_expense_screen.dart';
@@ -184,7 +183,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -330,7 +330,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                         children: [
                           Text(
                             "VIEW ALL",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textPrimary,
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
@@ -368,7 +369,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
       children: [
         Text(
           DataHelpers.formatDate(DateTime.now(), format: 'MMMM yyyy'),
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -377,7 +379,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         const SizedBox(height: 4),
         Text(
           "Expenses",
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textPrimary,
             fontSize: 32,
             fontWeight: FontWeight.w600,
@@ -421,7 +424,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
               Expanded(
                 child: Text(
                   label,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -449,7 +453,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                 alignment: Alignment.centerLeft,
                 child: Text(
                   value,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 24,
                     fontWeight: FontWeight.w600,
@@ -463,7 +468,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                 alignment: Alignment.centerLeft,
                 child: Text(
                   badge,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: accent,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -546,7 +552,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         const SizedBox(height: 10),
         Text(
           label,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 12,
             fontWeight: FontWeight.w500,
@@ -564,7 +571,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Text(
           "User not logged in.",
-          style: GoogleFonts.inter(color: context.textSecondary),
+          style: TextStyle(fontFamily: 'Satoshi', color: context.textSecondary),
         ),
       );
     }
@@ -592,7 +599,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
             padding: const EdgeInsets.symmetric(vertical: 20),
             child: Text(
               "Error loading transactions. Check console for Index Link.",
-              style: GoogleFonts.inter(color: Colors.redAccent),
+              style: TextStyle(fontFamily: 'Satoshi', color: Colors.redAccent),
             ),
           );
         }
@@ -603,7 +610,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
             child: Center(
               child: Text(
                 "No recent transactions found.",
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textTertiary,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -653,7 +661,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
             child: Center(
               child: Text(
                 "No recent transactions found.",
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textTertiary,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -681,8 +690,7 @@ class _ExpensesScreenState extends State<ExpensesScreen>
     final title = DataHelpers.safeParseString(tx['Title']);
     final amount = DataHelpers.safeParseDouble(tx['Amount']);
     final isFunding = tx['isFunding'] == true;
-    final formattedAmount =
-        "${isFunding ? '+' : ''}${_formatCurrency(amount)}";
+    final formattedAmount = "${isFunding ? '+' : ''}${_formatCurrency(amount)}";
     final String rawCategory = DataHelpers.safeParseString(tx['Category']);
     final category = rawCategory.isNotEmpty
         ? '${rawCategory[0].toUpperCase()}${rawCategory.substring(1)}'
@@ -732,7 +740,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                   children: [
                     Text(
                       title,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -745,7 +754,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                       children: [
                         Text(
                           category,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textSecondary,
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -754,7 +764,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                         if (dateStr.isNotEmpty) ...[
                           Text(
                             ' · $dateStr',
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textTertiary,
                               fontSize: 12,
                               fontWeight: FontWeight.w400,
@@ -773,7 +784,8 @@ class _ExpensesScreenState extends State<ExpensesScreen>
                 alignment: Alignment.centerRight,
                 child: Text(
                   formattedAmount,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: isFunding
                         ? const Color(0xFF30D158)
                         : context.textPrimary,
@@ -811,21 +823,11 @@ class _ExpensesScreenState extends State<ExpensesScreen>
               begin: Alignment(value - 1, 0),
               end: Alignment(value, 0),
               colors: [
-                context.textPrimary.withValues(
-                  alpha: baseAlpha,
-                ),
-                context.textPrimary.withValues(
-                  alpha: baseAlpha * 2,
-                ),
-                context.textPrimary.withValues(
-                  alpha: midAlpha,
-                ),
-                context.textPrimary.withValues(
-                  alpha: baseAlpha * 2,
-                ),
-                context.textPrimary.withValues(
-                  alpha: baseAlpha,
-                ),
+                context.textPrimary.withValues(alpha: baseAlpha),
+                context.textPrimary.withValues(alpha: baseAlpha * 2),
+                context.textPrimary.withValues(alpha: midAlpha),
+                context.textPrimary.withValues(alpha: baseAlpha * 2),
+                context.textPrimary.withValues(alpha: baseAlpha),
               ],
               stops: const [0.0, 0.3, 0.5, 0.7, 1.0],
             ),

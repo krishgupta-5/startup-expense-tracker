@@ -6,7 +6,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/features/auth/services/google_sign_in_service.dart';
 import 'package:startup_expense_tracker/features/company-setup/screen/company_setup_screen.dart';
 import 'package:startup_expense_tracker/services/ai_service.dart';
@@ -36,40 +35,43 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final apiKey = dotenv.env['APILAYER_EMAIL_ACCESS_KEY'];
       if (apiKey == null || apiKey.isEmpty) {
         debugPrint('Error: APILAYER_EMAIL_ACCESS_KEY is missing in .env.local');
-        return true; 
+        return true;
       }
 
       final encodedEmail = Uri.encodeComponent(email);
-      final url = Uri.parse('https://apilayer.net/api/check?access_key=$apiKey&email=$encodedEmail');
+      final url = Uri.parse(
+        'https://apilayer.net/api/check?access_key=$apiKey&email=$encodedEmail',
+      );
 
-      final response = await http.get(url, headers: {
-        'Accept': 'application/json',
-      });
+      final response = await http.get(
+        url,
+        headers: {'Accept': 'application/json'},
+      );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
 
         if (data.containsKey('error')) {
           debugPrint('APILayer Error: ${data['error']['info']}');
-          return true; 
+          return true;
         }
 
         final bool isFormatValid = data['format_valid'] == true;
         final bool isMxFound = data['mx_found'] == true;
         final bool isDisposable = data['disposable'] == true;
-        final bool isSmtpValid = data['smtp_check'] == true; 
+        final bool isSmtpValid = data['smtp_check'] == true;
         final double score = (data['score'] ?? 0.0).toDouble();
 
-        return isFormatValid && 
-               isMxFound && 
-               !isDisposable && 
-               isSmtpValid && 
-               score > 0.6;
+        return isFormatValid &&
+            isMxFound &&
+            !isDisposable &&
+            isSmtpValid &&
+            score > 0.6;
       }
       return false;
     } catch (e) {
       debugPrint('Email validation exception: $e');
-      return true; 
+      return true;
     }
   }
 
@@ -93,8 +95,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       message =
           'This email is already registered. Would you like to log in instead?';
     } else {
-      message =
-          'This email is already registered. Please log in instead.';
+      message = 'This email is already registered. Please log in instead.';
     }
 
     showDialog(
@@ -108,7 +109,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ),
         title: Text(
           'Email Already Registered',
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -116,7 +118,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ),
         content: Text(
           message,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 14,
             height: 1.5,
@@ -127,7 +130,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
               'Cancel',
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textTertiary,
                 fontWeight: FontWeight.w500,
               ),
@@ -153,7 +157,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
               child: Text(
                 'Go to Login',
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   fontWeight: FontWeight.w600,
                   color: context.appBackground,
                 ),
@@ -271,8 +276,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             message: 'Account created successfully! Welcome to our platform.',
           );
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-                builder: (context) => const CompanySetupScreen()),
+            MaterialPageRoute(builder: (context) => const CompanySetupScreen()),
           );
         }
       }
@@ -283,7 +287,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
         // Query Firestore to determine which provider owns this email
         final providers = await _getProvidersByEmail(email);
         if (mounted) {
-          _showEmailExistsDialog(email, providers.isEmpty ? ['password'] : providers);
+          _showEmailExistsDialog(
+            email,
+            providers.isEmpty ? ['password'] : providers,
+          );
         }
       } else {
         if (mounted) {
@@ -336,7 +343,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: MediaQuery.of(context).size.height -
+                  minHeight:
+                      MediaQuery.of(context).size.height -
                       MediaQuery.of(context).viewInsets.bottom -
                       MediaQuery.of(context).padding.top -
                       MediaQuery.of(context).padding.bottom,
@@ -398,9 +406,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             decoration: BoxDecoration(
               color: context.cardBackground,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: context.borderColor,
-              ), 
+              border: Border.all(color: context.borderColor),
             ),
             child: Icon(Icons.arrow_back, color: context.textPrimary, size: 20),
           ),
@@ -408,7 +414,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
         const SizedBox(height: 20),
         Text(
           "Create Account",
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textPrimary,
             fontSize: 32,
             fontWeight: FontWeight.w600,
@@ -418,8 +425,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         const SizedBox(height: 8),
         Text(
           "Join us to manage your startup finances.",
-          style: GoogleFonts.inter(
-            color: context.textSecondary, 
+          style: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w400,
           ),
@@ -431,8 +439,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildLabel(BuildContext context, String text) {
     return Text(
       text,
-      style: GoogleFonts.inter(
-        color: context.textSecondary, 
+      style: TextStyle(
+        fontFamily: 'Satoshi',
+        color: context.textSecondary,
         fontSize: 10,
         fontWeight: FontWeight.bold,
         letterSpacing: 1.5,
@@ -451,24 +460,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
       decoration: BoxDecoration(
         color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: context.borderColor,
-        ), 
+        border: Border.all(color: context.borderColor),
       ),
       child: TextField(
         controller: controller,
-        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textPrimary,
+          fontSize: 15,
+        ),
         cursorColor: context.textPrimary,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: GoogleFonts.inter(
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textTertiary,
-          ), 
-          icon: Icon(
-            icon,
-            color: context.iconSecondary,
-            size: 20,
-          ), 
+          ),
+          icon: Icon(icon, color: context.iconSecondary, size: 20),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 16),
         ),
@@ -482,31 +490,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
       decoration: BoxDecoration(
         color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: context.borderColor,
-        ), 
+        border: Border.all(color: context.borderColor),
       ),
       child: TextField(
         controller: _confirmPasswordController,
         obscureText: !_isConfirmPasswordVisible,
-        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textPrimary,
+          fontSize: 15,
+        ),
         cursorColor: context.textPrimary,
         decoration: InputDecoration(
           hintText: "Confirm your password",
-          hintStyle: GoogleFonts.inter(
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textTertiary,
-          ), 
+          ),
           icon: Icon(
             Icons.lock_outline,
             color: context.iconSecondary,
             size: 20,
-          ), 
+          ),
           suffixIcon: IconButton(
             icon: Icon(
               _isConfirmPasswordVisible
                   ? Icons.visibility
                   : Icons.visibility_off,
-              color: context.iconSecondary, 
+              color: context.iconSecondary,
               size: 20,
             ),
             onPressed: () {
@@ -528,29 +539,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
       decoration: BoxDecoration(
         color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: context.borderColor,
-        ), 
+        border: Border.all(color: context.borderColor),
       ),
       child: TextField(
         controller: _passwordController,
         obscureText: !_isPasswordVisible,
-        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textPrimary,
+          fontSize: 15,
+        ),
         cursorColor: context.textPrimary,
         decoration: InputDecoration(
           hintText: "Create a password",
-          hintStyle: GoogleFonts.inter(
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textTertiary,
-          ), 
+          ),
           icon: Icon(
             Icons.lock_outline,
             color: context.iconSecondary,
             size: 20,
-          ), 
+          ),
           suffixIcon: IconButton(
             icon: Icon(
               _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-              color: context.iconSecondary, 
+              color: context.iconSecondary,
               size: 20,
             ),
             onPressed: () {
@@ -579,7 +593,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: context.textPrimary,
           foregroundColor: context.appBackground,
-          disabledBackgroundColor: context.textTertiary, 
+          disabledBackgroundColor: context.textTertiary,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -587,19 +601,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ),
         child: _isLoading
             ? SizedBox(
-                height: 24, 
+                height: 24,
                 width: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(context.appBackground),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    context.appBackground,
+                  ),
                 ),
               )
             : Text(
                 "Sign Up",
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: context.appBackground, 
+                  color: context.appBackground,
                 ),
               ),
       ),
@@ -614,8 +631,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             "Or",
-            style: GoogleFonts.inter(
-              color: context.textSecondary, 
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: context.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -651,13 +669,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   .collection('users')
                   .doc(user.uid)
                   .set({
-                'uid': user.uid,
-                'email': user.email ?? '',
-                'provider': 'google',
-                'companySetup': false,
-                'createdAt': FieldValue.serverTimestamp(),
-                'updatedAt': FieldValue.serverTimestamp(),
-              }, SetOptions(merge: true));
+                    'uid': user.uid,
+                    'email': user.email ?? '',
+                    'provider': 'google',
+                    'companySetup': false,
+                    'createdAt': FieldValue.serverTimestamp(),
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  }, SetOptions(merge: true));
 
               AIService.syncAICollections().catchError((e) {
                 debugPrint('Failed to sync AI data after Google sign-up: $e');
@@ -670,7 +688,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 );
                 Navigator.of(context).pushReplacement(
                   MaterialPageRoute(
-                      builder: (context) => const CompanySetupScreen()),
+                    builder: (context) => const CompanySetupScreen(),
+                  ),
                 );
               }
             } else {
@@ -689,8 +708,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 // We must navigate explicitly because the signup screen replaced
                 // AuthWrapper in the stack, so it won't auto-navigate.
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(
-                      builder: (context) => const AuthWrapper()),
+                  MaterialPageRoute(builder: (context) => const AuthWrapper()),
                   (route) => false,
                 );
               }
@@ -717,9 +735,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         decoration: BoxDecoration(
           color: context.cardBackground,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: context.borderColor,
-          ), 
+          border: Border.all(color: context.borderColor),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -746,10 +762,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
       children: [
         Text(
           "Already have an account? ",
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 14,
-          ), 
+          ),
         ),
         GestureDetector(
           onTap: () {
@@ -760,7 +777,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
           },
           child: Text(
             "Login",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontWeight: FontWeight.bold,
               fontSize: 14,

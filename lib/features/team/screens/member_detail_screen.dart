@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -132,7 +131,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               if (snapshot.connectionState == ConnectionState.waiting &&
                   !snapshot.hasData) {
                 return Center(
-                  child: CircularProgressIndicator(color: context.textSecondary),
+                  child: CircularProgressIndicator(
+                    color: context.textSecondary,
+                  ),
                 );
               }
 
@@ -142,7 +143,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 return Center(
                   child: Text(
                     "Member not found.",
-                    style: GoogleFonts.inter(color: context.textSecondary),
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      color: context.textSecondary,
+                    ),
                   ),
                 );
               }
@@ -156,7 +160,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               final double cost = (memberData['monthlyCost'] ?? 0.0).toDouble();
               final String salary = _isLoadingCountry
                   ? CurrencyFormatter.formatByCountryCompact(cost, '+1')
-                  : CurrencyFormatter.formatByCountryCompact(cost, _userCountryCode);
+                  : CurrencyFormatter.formatByCountryCompact(
+                      cost,
+                      _userCountryCode,
+                    );
               final String empType = _formatEmploymentType(
                 memberData['employmentType'] ?? "",
               );
@@ -255,9 +262,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                             decoration: BoxDecoration(
                               color: context.cardBackground,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: context.borderColor,
-                              ),
+                              border: Border.all(color: context.borderColor),
                             ),
                             child: Column(
                               children: [
@@ -325,7 +330,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                   ),
                                   child: Text(
                                     "VIEW ALL",
-                                    style: GoogleFonts.inter(
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
                                       color: context.textPrimary,
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold,
@@ -388,7 +394,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             child: Text(
               "Member Profile",
               textAlign: TextAlign.center, // Centered title
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -457,7 +464,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         const SizedBox(height: 16),
         Text(
           name,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textPrimary,
             fontSize: 24,
             fontWeight: FontWeight.w600,
@@ -467,7 +475,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         const SizedBox(height: 4),
         Text(
           "$role • $team",
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -483,7 +492,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           ),
           child: Text(
             status.toUpperCase(),
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: statusColor,
               fontSize: 10,
               fontWeight: FontWeight.bold,
@@ -510,7 +520,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         children: [
           Text(
             "MONTHLY COST",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -522,7 +533,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             isPaused
                 ? "${CurrencyFormatter.getCurrencySymbol(_isLoadingCountry ? '+1' : _userCountryCode)}0.00"
                 : salary,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: isPaused ? context.textTertiary : context.textPrimary,
               fontSize: 42,
               fontWeight: FontWeight.w600,
@@ -537,14 +549,19 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             children: [
               Icon(
                 isPaused ? Icons.pause_circle_outline : Icons.trending_flat,
-                color: isPaused ? const Color(0xFFFF9F0A) : context.textSecondary,
+                color: isPaused
+                    ? const Color(0xFFFF9F0A)
+                    : context.textSecondary,
                 size: 16,
               ),
               const SizedBox(width: 6),
               Text(
                 isPaused ? "Payroll Suspended" : "No change from last month",
-                style: GoogleFonts.inter(
-                  color: isPaused ? const Color(0xFFFF9F0A) : context.textSecondary,
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: isPaused
+                      ? const Color(0xFFFF9F0A)
+                      : context.textSecondary,
                   fontSize: 12,
                 ),
               ),
@@ -590,10 +607,14 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         if (snapshot.hasData) {
           final now2 = DateTime.now();
           final salaryDocs = snapshot.data!.docs
-              .map((doc) => {...doc.data() as Map<String, dynamic>, 'id': doc.id})
+              .map(
+                (doc) => {...doc.data() as Map<String, dynamic>, 'id': doc.id},
+              )
               .where((data) {
-                final category = data['Category']?.toString().toLowerCase() ?? '';
-                return category == 'salary' && data['memberId'] == widget.memberId;
+                final category =
+                    data['Category']?.toString().toLowerCase() ?? '';
+                return category == 'salary' &&
+                    data['memberId'] == widget.memberId;
               })
               .toList();
 
@@ -655,7 +676,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   const SizedBox(width: 6),
                   Text(
                     "Next Due: $formattedDueDate",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textSecondary,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -670,9 +692,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 decoration: BoxDecoration(
                   color: context.cardBackground,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: context.borderColor,
-                  ),
+                  border: Border.all(color: context.borderColor),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -685,7 +705,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     const SizedBox(width: 8),
                     Text(
                       "Advance payment not available yet",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textSecondary,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -705,7 +726,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               children: [
                 Icon(
                   isAdvance ? Icons.info_outline : Icons.warning_amber_rounded,
-                  color: isAdvance ? context.textSecondary : const Color(0xFFFF9F0A),
+                  color: isAdvance
+                      ? context.textSecondary
+                      : const Color(0xFFFF9F0A),
                   size: 14,
                 ),
                 const SizedBox(width: 6),
@@ -713,8 +736,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   isAdvance
                       ? "Next Due: $formattedDueDate"
                       : "Due: $formattedDueDate",
-                  style: GoogleFonts.inter(
-                    color: isAdvance ? context.textSecondary : const Color(0xFFFF9F0A),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: isAdvance
+                        ? context.textSecondary
+                        : const Color(0xFFFF9F0A),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -745,20 +771,21 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   backgroundColor: isAdvance
                       ? context.cardBackground
                       : context.textPrimary,
-                  foregroundColor: isAdvance ? context.textPrimary : context.appBackground,
+                  foregroundColor: isAdvance
+                      ? context.textPrimary
+                      : context.appBackground,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                     side: isAdvance
-                        ? BorderSide(
-                            color: context.borderColor,
-                          )
+                        ? BorderSide(color: context.borderColor)
                         : BorderSide.none,
                   ),
                   elevation: 0,
                 ),
                 child: Text(
                   isAdvance ? "Advance Pay" : "Pay Salary",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
@@ -782,7 +809,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             children: [
               Text(
                 label,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textSecondary,
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
@@ -791,7 +819,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               const SizedBox(height: 2),
               Text(
                 value,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
@@ -856,7 +885,11 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             child: Center(
               child: Text(
                 "Error loading payment history.",
-                style: GoogleFonts.inter(color: Colors.redAccent, fontSize: 13),
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: Colors.redAccent,
+                  fontSize: 13,
+                ),
               ),
             ),
           );
@@ -890,7 +923,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             "date": _formatDate(ts),
             "amt": _isLoadingCountry
                 ? CurrencyFormatter.formatByCountryCompact(amt, '+1')
-                : CurrencyFormatter.formatByCountryCompact(amt, _userCountryCode),
+                : CurrencyFormatter.formatByCountryCompact(
+                    amt,
+                    _userCountryCode,
+                  ),
             "title": title.contains("Advance")
                 ? "Advance Payout"
                 : "Salary Payout",
@@ -920,7 +956,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               child: Text(
                 "No payouts processed yet.\nClick 'Pay Salary' to log the first payment.",
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textSecondary,
                   height: 1.5,
                   fontSize: 13,
@@ -959,9 +996,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                   decoration: BoxDecoration(
                     color: context.cardBackground,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: context.borderColor,
-                    ),
+                    border: Border.all(color: context.borderColor),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -988,7 +1023,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                             children: [
                               Text(
                                 p['title']!,
-                                style: GoogleFonts.inter(
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
                                   color: context.textPrimary,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
@@ -997,7 +1033,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                               const SizedBox(height: 2),
                               Text(
                                 p['date']!,
-                                style: GoogleFonts.inter(
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
                                   color: context.textSecondary,
                                   fontSize: 12,
                                 ),
@@ -1008,7 +1045,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                       ),
                       Text(
                         p['amt']!,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -1030,7 +1068,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       alignment: Alignment.centerLeft,
       child: Text(
         title.toUpperCase(),
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
@@ -1076,7 +1115,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 const SizedBox(height: 24),
                 Text(
                   "Manage $memberName",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -1152,7 +1192,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                               isPaused
                                   ? "Member resumed."
                                   : "Member paused. Payroll suspended.",
-                              style: GoogleFonts.inter(
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
                                 color: context.appBackground,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -1214,14 +1255,19 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
           children: [
             Icon(
               icon,
-              color: isDestructive ? const Color(0xFFFF453A) : context.textPrimary,
+              color: isDestructive
+                  ? const Color(0xFFFF453A)
+                  : context.textPrimary,
               size: 20,
             ),
             const SizedBox(width: 16),
             Text(
               label,
-              style: GoogleFonts.inter(
-                color: isDestructive ? const Color(0xFFFF453A) : context.textPrimary,
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: isDestructive
+                    ? const Color(0xFFFF453A)
+                    : context.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
@@ -1279,7 +1325,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     Expanded(
                       child: Text(
                         "Remove Member?",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -1293,7 +1340,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                 // Warning Text
                 Text(
                   "This will permanently remove $memberName from the team and archive all associated payment history.",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 14,
                     height: 1.5,
@@ -1311,14 +1359,13 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                           decoration: BoxDecoration(
                             color: context.appBackground,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: context.borderColor,
-                            ),
+                            border: Border.all(color: context.borderColor),
                           ),
                           alignment: Alignment.center,
                           child: Text(
                             "Cancel",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -1363,7 +1410,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                             final memberSalary = DataHelpers.safeParseDouble(
                               memberData['monthlyCost'] ?? 0,
                             );
-                            final memberName = memberData['fullName'] ?? 'Unknown';
+                            final memberName =
+                                memberData['fullName'] ?? 'Unknown';
 
                             // Use batch for atomic operations
                             final batch = FirebaseFirestore.instance.batch();
@@ -1426,7 +1474,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                 SnackBar(
                                   content: Text(
                                     "Member removed and payment history archived",
-                                    style: GoogleFonts.inter(color: context.appBackground),
+                                    style: TextStyle(
+                                      fontFamily: 'Satoshi',
+                                      color: context.appBackground,
+                                    ),
                                   ),
                                   backgroundColor: context.textPrimary,
                                 ),
@@ -1439,7 +1490,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                                 SnackBar(
                                   content: Text(
                                     "Failed to remove member",
-                                    style: GoogleFonts.inter(),
+                                    style: TextStyle(fontFamily: 'Satoshi'),
                                   ),
                                   backgroundColor: const Color(0xFFFF453A),
                                 ),
@@ -1456,7 +1507,8 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                           alignment: Alignment.center,
                           child: Text(
                             "Remove",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: Colors.white,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,

@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:uuid/uuid.dart';
 
@@ -91,20 +90,21 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
       for (final acc in accounts) {
         final String name = acc['name'] as String? ?? 'Unknown Bank';
         String last4 = acc['last4'] as String? ?? '';
-        
+
         // Fallback for newly added accounts if service doesn't parse it
         if (last4.isEmpty || last4 == '****') {
           final String rawNum = acc['number']?.toString() ?? '';
           if (rawNum.isNotEmpty) {
-            last4 = rawNum.length <= 4 ? rawNum : rawNum.substring(rawNum.length - 4);
+            last4 = rawNum.length <= 4
+                ? rawNum
+                : rawNum.substring(rawNum.length - 4);
           }
         }
-        
+
         final String key = "$name-$last4";
-        final String label =
-            last4.isNotEmpty && last4 != '****'
-                ? "$name (****$last4)"
-                : name;
+        final String label = last4.isNotEmpty && last4 != '****'
+            ? "$name (****$last4)"
+            : name;
         loadedBanks[key] = label;
       }
 
@@ -125,7 +125,9 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
   Future<void> _processPayment() async {
     FocusScope.of(context).unfocus();
 
-    final double? amount = CurrencyFormatter.parse(_amountController.text.trim());
+    final double? amount = CurrencyFormatter.parse(
+      _amountController.text.trim(),
+    );
 
     if (amount == null || amount <= 0) {
       _showErrorSnackBar("Please enter a valid amount.");
@@ -232,7 +234,8 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
               widget.isAdvance
                   ? "Advance recorded!"
                   : "Salary payment recorded!",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
               ),
@@ -255,7 +258,8 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
       SnackBar(
         content: Text(
           message,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: Colors.white,
             fontWeight: FontWeight.w500,
           ),
@@ -366,7 +370,8 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
           ),
           Text(
             widget.isAdvance ? "Advance Pay" : "Process Salary",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -381,7 +386,8 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -401,7 +407,8 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
         keyboardType: TextInputType.text,
         textAlign: TextAlign.center,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textPrimary,
           fontSize: 56,
           fontWeight: FontWeight.w600,
@@ -413,14 +420,16 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
         decoration: InputDecoration(
           prefixText:
               "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
-          prefixStyle: GoogleFonts.inter(
+          prefixStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 56,
             fontWeight: FontWeight.w500,
             letterSpacing: -2,
           ),
           hintText: "0.00",
-          hintStyle: GoogleFonts.inter(
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textTertiary,
             fontSize: 56,
             fontWeight: FontWeight.w600,
@@ -529,9 +538,12 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: isAvailable
-                          ? (isSelected ? context.textPrimary : context.textSecondary)
+                          ? (isSelected
+                                ? context.textPrimary
+                                : context.textSecondary)
                           : context.textTertiary,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -540,7 +552,8 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: isAvailable
                           ? context.textSecondary
                           : context.textTertiary,
@@ -558,7 +571,11 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
                   color: context.textPrimary,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.check, color: context.appBackground, size: 14),
+                child: Icon(
+                  Icons.check,
+                  color: context.appBackground,
+                  size: 14,
+                ),
               ),
           ],
         ),
@@ -583,7 +600,11 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
           child: ShadSelect<String>(
             placeholder: Text(
               'Select $label',
-              style: GoogleFonts.inter(color: context.textTertiary, fontSize: 14),
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textTertiary,
+                fontSize: 14,
+              ),
             ),
             initialValue: currentValue.isNotEmpty ? currentValue : null,
             options: [
@@ -593,7 +614,8 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
             ],
             selectedOptionBuilder: (context, value) => Text(
               items[value] ?? "Select",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -623,12 +645,19 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
             controller: _reasonController,
             onTapOutside: (event) => FocusScope.of(context).unfocus(),
             textInputAction: TextInputAction.done,
-            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: context.textPrimary,
+              fontSize: 15,
+            ),
             maxLines: 3,
             minLines: 3,
             decoration: InputDecoration(
               hintText: "Enter reason for advance payout...",
-              hintStyle: GoogleFonts.inter(color: context.textTertiary),
+              hintStyle: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textTertiary,
+              ),
               border: InputBorder.none,
             ),
           ),
@@ -642,9 +671,7 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: context.appBackground,
-        border: Border(
-          top: BorderSide(color: context.borderColor),
-        ),
+        border: Border(top: BorderSide(color: context.borderColor)),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -657,7 +684,9 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
                 : const Color(0xFF0A84FF), // Vibrant Blue for Salary Payment
             foregroundColor: Colors.white,
             disabledBackgroundColor:
-                (widget.isAdvance ? const Color(0xFF5E5CE6) : const Color(0xFF0A84FF))
+                (widget.isAdvance
+                        ? const Color(0xFF5E5CE6)
+                        : const Color(0xFF0A84FF))
                     .withValues(alpha: 0.5),
             elevation: 0,
             shape: RoundedRectangleBorder(
@@ -675,7 +704,8 @@ class _ProcessPaymentScreenState extends State<ProcessPaymentScreen>
                 )
               : Text(
                   widget.isAdvance ? "PROCESS ADVANCE" : "CONFIRM & PAY SALARY",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.0,

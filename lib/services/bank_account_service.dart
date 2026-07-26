@@ -315,7 +315,8 @@ class BankAccountService {
     final String rawLast4 = accountData['last4']?.toString() ?? '';
 
     // Handle account number - could be in various fields
-    String accountNumber = accountData['number']?.toString() ??
+    String accountNumber =
+        accountData['number']?.toString() ??
         accountData['accountNumber']?.toString() ??
         accountData['account_number']?.toString() ??
         accountData['account']?.toString() ??
@@ -325,8 +326,8 @@ class BankAccountService {
     }
 
     // Extract last 4 digits properly
-    final String last4 = rawLast4.isNotEmpty 
-        ? extractLast4(rawLast4) 
+    final String last4 = rawLast4.isNotEmpty
+        ? extractLast4(rawLast4)
         : (accountNumber.isNotEmpty ? extractLast4(accountNumber) : '****');
 
     debugPrint(
@@ -372,7 +373,8 @@ class BankAccountService {
 
     // Calculate actual spending for each bank account from expenses
     for (var expense in expenses) {
-      final amount = (expense['amount'] as num?)?.toDouble() ??
+      final amount =
+          (expense['amount'] as num?)?.toDouble() ??
           (expense['Amount'] as num?)?.toDouble() ??
           0.0;
       final expenseBankAccount = expense['bankAccount'] as String?;
@@ -445,8 +447,8 @@ class BankAccountService {
         '🔍 DEBUG: Adding virtual Cash account with total spending: $cashSpending',
       );
       result.add({
-        'id': null,                    // null = no delete button shown in UI
-        'isCash': true,                // flag for special Cash UI treatment
+        'id': null, // null = no delete button shown in UI
+        'isCash': true, // flag for special Cash UI treatment
         'name': 'Cash',
         'number': '',
         'last4': '',

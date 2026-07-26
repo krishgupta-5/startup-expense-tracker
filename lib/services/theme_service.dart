@@ -49,7 +49,9 @@ class ThemeService {
         final mode = _parseThemeMode(cachedStr);
         _themeModeNotifier.value = mode;
         if (kDebugMode) {
-          print('ThemeService: Preloaded cached theme from SharedPreferences: $mode');
+          print(
+            'ThemeService: Preloaded cached theme from SharedPreferences: $mode',
+          );
         }
       } else {
         // If not locally cached yet, try fetching silently
@@ -87,16 +89,17 @@ class ThemeService {
         if (_themeModeNotifier.value != ThemeMode.dark) {
           _themeModeNotifier.value = ThemeMode.dark;
           if (kDebugMode) {
-            print('ThemeService: First login after fresh install -> opening dark mode only');
+            print(
+              'ThemeService: First login after fresh install -> opening dark mode only',
+            );
           }
         }
         await prefs.setString(_prefsKey, 'dark');
         final user = FirebaseAuth.instance.currentUser;
         if (user != null) {
-          FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .set({'preferredTheme': 'dark'}, SetOptions(merge: true));
+          FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+            'preferredTheme': 'dark',
+          }, SetOptions(merge: true));
         }
         return;
       }
@@ -107,7 +110,9 @@ class ThemeService {
         if (_themeModeNotifier.value != mode) {
           _themeModeNotifier.value = mode;
           if (kDebugMode) {
-            print('ThemeService: Synced theme from user data without flash: $mode');
+            print(
+              'ThemeService: Synced theme from user data without flash: $mode',
+            );
           }
         }
         // Ensure local disk cache is up to date for next launch
@@ -118,16 +123,17 @@ class ThemeService {
         if (_themeModeNotifier.value != ThemeMode.dark) {
           _themeModeNotifier.value = ThemeMode.dark;
           if (kDebugMode) {
-            print('ThemeService: First login after auth -> opening dark mode only');
+            print(
+              'ThemeService: First login after auth -> opening dark mode only',
+            );
           }
         }
         await prefs.setString(_prefsKey, 'dark');
         final user = FirebaseAuth.instance.currentUser;
         if (user != null) {
-          FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .set({'preferredTheme': 'dark'}, SetOptions(merge: true));
+          FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+            'preferredTheme': 'dark',
+          }, SetOptions(merge: true));
         }
       }
     } catch (e) {
@@ -174,10 +180,9 @@ class ThemeService {
             _themeModeNotifier.value = mode;
           }
           await prefs.setString(_prefsKey, 'dark');
-          FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .set({'preferredTheme': 'dark'}, SetOptions(merge: true));
+          FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+            'preferredTheme': 'dark',
+          }, SetOptions(merge: true));
           return mode;
         }
 
@@ -196,10 +201,9 @@ class ThemeService {
             _themeModeNotifier.value = mode;
           }
           await prefs.setString(_prefsKey, 'dark');
-          FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .set({'preferredTheme': 'dark'}, SetOptions(merge: true));
+          FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+            'preferredTheme': 'dark',
+          }, SetOptions(merge: true));
           return mode;
         }
       }
@@ -211,10 +215,9 @@ class ThemeService {
       }
       await prefs.setString(_prefsKey, 'dark');
       try {
-        FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({'preferredTheme': 'dark'}, SetOptions(merge: true));
+        FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'preferredTheme': 'dark',
+        }, SetOptions(merge: true));
       } catch (_) {}
       return mode;
     } catch (e) {

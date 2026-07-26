@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
@@ -57,7 +56,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
               backgroundColor: const Color(0xFF30D158),
               content: Text(
                 'Verification email sent!',
-                style: GoogleFonts.inter(color: Colors.white),
+                style: TextStyle(fontFamily: 'Satoshi', color: Colors.white),
               ),
             ),
           );
@@ -70,7 +69,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
             backgroundColor: const Color(0xFFFF3B30),
             content: Text(
               'Failed to send verification email',
-              style: GoogleFonts.inter(color: Colors.white),
+              style: TextStyle(fontFamily: 'Satoshi', color: Colors.white),
             ),
           ),
         );
@@ -105,9 +104,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                   decoration: BoxDecoration(
                     color: context.cardBackground,
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: context.borderColor,
-                    ),
+                    border: Border.all(color: context.borderColor),
                   ),
                   child: Icon(
                     Icons.email_outlined,
@@ -120,7 +117,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 // Title
                 Text(
                   "Verify Your Email",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 28,
                     fontWeight: FontWeight.w600,
@@ -133,7 +131,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                 // Description
                 Text(
                   "We've sent a verification link to your email address. Please check your inbox and click the link to continue.",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 14,
                     height: 1.5,
@@ -171,7 +170,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                           )
                         : Text(
                             "Resend Email",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -211,7 +211,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                                 backgroundColor: const Color(0xFF30D158),
                                 content: Text(
                                   'Email verified! Redirecting...',
-                                  style: GoogleFonts.inter(color: Colors.white),
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    color: Colors.white,
+                                  ),
                                 ),
                                 duration: const Duration(seconds: 2),
                               ),
@@ -225,7 +228,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                                 backgroundColor: const Color(0xFFFF3B30),
                                 content: Text(
                                   'Email not verified yet. Please check your inbox (including spam folder) and try again.',
-                                  style: GoogleFonts.inter(color: Colors.white),
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    color: Colors.white,
+                                  ),
                                 ),
                                 duration: const Duration(seconds: 4),
                               ),
@@ -239,7 +245,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                               backgroundColor: const Color(0xFFFF3B30),
                               content: Text(
                                 'Error checking verification status. Please try again.',
-                                style: GoogleFonts.inter(color: Colors.white),
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           );
@@ -262,7 +271,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                     ),
                     child: Text(
                       "I've Verified",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -304,7 +314,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                                 backgroundColor: const Color(0xFF30D158),
                                 content: Text(
                                   'Please sign in again to refresh your verification status.',
-                                  style: GoogleFonts.inter(color: Colors.white),
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    color: Colors.white,
+                                  ),
                                 ),
                                 duration: const Duration(seconds: 3),
                               ),
@@ -318,7 +331,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                               backgroundColor: const Color(0xFFFF3B30),
                               content: Text(
                                 'Error refreshing session. Please try again.',
-                                style: GoogleFonts.inter(color: Colors.white),
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           );
@@ -341,7 +357,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                     ),
                     child: Text(
                       "Force Refresh",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -357,7 +374,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                   },
                   child: Text(
                     "Sign Out",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textSecondary,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,

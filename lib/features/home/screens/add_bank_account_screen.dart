@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../theme/app_theme.dart';
+import '../../../shared/widgets/custom_back_button.dart';
 
 class AddBankAccountScreen extends StatefulWidget {
   const AddBankAccountScreen({super.key});
@@ -27,47 +26,61 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
     super.dispose();
   }
 
-  void _showMinimalToast(String message, {bool isError = false}) {
+  void _showMinimalToast(
+    String message, {
+    bool isError = false,
+    required Color cardColor,
+    required Color borderColor,
+    required Color textPrimary,
+  }) {
+    final statusColor = isError
+        ? const Color(0xFFFF375F)
+        : const Color(0xFF10B981);
+
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
             Icon(
-              isError ? Icons.error_outline : Icons.check_circle_outline,
-              color: isError
-                  ? const Color(0xFFFF453A)
-                  : const Color(0xFF30D158),
-              size: 18,
+              isError
+                  ? Icons.error_outline_rounded
+                  : Icons.check_circle_outline_rounded,
+              color: statusColor,
+              size: 20,
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
           ],
         ),
-        backgroundColor: context.cardBackground,
+        backgroundColor: cardColor,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.all(24),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: context.borderColor),
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: borderColor),
         ),
         duration: const Duration(seconds: 3),
-        elevation: 0,
+        elevation: 16,
       ),
     );
   }
 
-  Future<void> _saveBankAccount() async {
-    // Dismiss keyboard on submit
+  Future<void> _saveBankAccount(
+    Color cardColor,
+    Color borderColor,
+    Color textPrimary,
+  ) async {
     FocusScope.of(context).unfocus();
 
     if (!_formKey.currentState!.validate()) return;
@@ -80,7 +93,6 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) throw Exception("User not authenticated");
 
-      // Add the new bank account to the 'Bank Accounts' array in Firestore
       await FirebaseFirestore.instance
           .collection("companies")
           .doc(user.uid)
@@ -94,8 +106,12 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
           });
 
       if (mounted) {
-        _showMinimalToast("Bank account added successfully");
-        // Return the bank account data for instant display in settings
+        _showMinimalToast(
+          "Bank account linked successfully",
+          cardColor: cardColor,
+          borderColor: borderColor,
+          textPrimary: textPrimary,
+        );
         Navigator.pop(context, {
           "bankName": _bankNameController.text.trim(),
           "last4": _accountNumberController.text.trim().length >= 4
@@ -107,7 +123,13 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showMinimalToast("Error adding bank account", isError: true);
+        _showMinimalToast(
+          "Error linking bank account",
+          isError: true,
+          cardColor: cardColor,
+          borderColor: borderColor,
+          textPrimary: textPrimary,
+        );
       }
     } finally {
       if (mounted) {
@@ -120,20 +142,40 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final bgColor = isDark ? const Color(0xFF09090B) : const Color(0xFFF9FAFB);
+    final cardColor = isDark
+        ? const Color(0xFF141416)
+        : const Color(0xFFFFFFFF);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.05);
+    final shadowColor = isDark
+        ? Colors.transparent
+        : Colors.black.withValues(alpha: 0.04);
+
+    final textPrimary = isDark ? Colors.white : const Color(0xFF09090B);
+    final textSecondary = isDark ? Colors.white54 : const Color(0xFF71717A);
+    final textTertiary = isDark ? Colors.white38 : const Color(0xFFA1A1AA);
+    final accentGreen = const Color(0xFF10B981);
+
     return Scaffold(
-      backgroundColor: context.appBackground,
+      backgroundColor: bgColor,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: context.isDarkMode
-            ? SystemUiOverlayStyle.light
-            : SystemUiOverlayStyle.dark,
+        value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         child: SafeArea(
           child: Column(
             children: [
-              // 1. Premium Header
-              _buildHeader(context),
+              _buildHeader(
+                context,
+                textPrimary,
+                textSecondary,
+                cardColor,
+                borderColor,
+              ),
 
-              // 2. Scrollable Form
               Expanded(
                 child: SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
@@ -141,94 +183,111 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
                     horizontal: 24,
                     vertical: 16,
                   ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 16),
-
-                        // Badge
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(28),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(32),
+                      border: Border.all(color: borderColor),
+                      boxShadow: shadowColor == Colors.transparent
+                          ? []
+                          : [
+                              BoxShadow(
+                                color: shadowColor,
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
                               ),
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFF30D158,
-                                ).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(100),
-                                border: Border.all(
-                                  color: const Color(
-                                    0xFF30D158,
-                                  ).withValues(alpha: 0.3),
+                            ],
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: accentGreen.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(100),
+                                  border: Border.all(
+                                    color: accentGreen.withValues(alpha: 0.2),
+                                  ),
+                                ),
+                                child: Text(
+                                  "NEW LINK",
+                                  style: TextStyle(
+                                    fontFamily: 'Satoshi',
+                                    color: accentGreen,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
                                 ),
                               ),
-                              child: Text(
-                                "NEW ACCOUNT",
-                                style: GoogleFonts.inter(
-                                  color: const Color(0xFF30D158),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                          const SizedBox(height: 32),
 
-                        const SizedBox(height: 32),
+                          _buildTextInput(
+                            controller: _bankNameController,
+                            label: "BANK NAME",
+                            hint: "e.g., HDFC Bank, Chase",
+                            icon: Icons.account_balance_rounded,
+                            textInputAction: TextInputAction.next,
+                            textPrimary: textPrimary,
+                            textSecondary: textSecondary,
+                            textTertiary: textTertiary,
+                            borderColor: borderColor,
+                            isDark: isDark,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Bank name is required';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 24),
 
-                        // Inputs
-                        _buildTextInput(
-                          controller: _bankNameController,
-                          label: "BANK NAME",
-                          hint: "e.g., HDFC Bank, Chase",
-                          icon: Icons.account_balance_outlined,
-                          textInputAction: TextInputAction.next,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Bank name is required';
-                            }
-                            return null;
-                          },
-                        ),
-
-                        const SizedBox(height: 24),
-
-                        _buildTextInput(
-                          controller: _accountNumberController,
-                          label: "ACCOUNT NUMBER",
-                          hint: "Enter account number",
-                          icon: Icons.numbers,
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.done,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Account number is required';
-                            }
-                            if (value.trim().length < 8) {
-                              return 'Account number must be at least 8 digits';
-                            }
-                            if (value.trim().length > 18) {
-                              return 'Account number must be at most 18 digits';
-                            }
-                            return null;
-                          },
-                        ),
-
-                        const SizedBox(height: 40),
-                      ],
+                          _buildTextInput(
+                            controller: _accountNumberController,
+                            label: "ACCOUNT NUMBER",
+                            hint: "Enter account number",
+                            icon: Icons.numbers_rounded,
+                            keyboardType: TextInputType.number,
+                            textInputAction: TextInputAction.done,
+                            textPrimary: textPrimary,
+                            textSecondary: textSecondary,
+                            textTertiary: textTertiary,
+                            borderColor: borderColor,
+                            isDark: isDark,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Account number is required';
+                              }
+                              if (value.trim().length < 8) {
+                                return 'Must be at least 8 digits';
+                              }
+                              if (value.trim().length > 18) {
+                                return 'Must be at most 18 digits';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
 
-              // 3. Bottom Sticky Action Button
-              _buildSubmitButton(),
+              _buildSubmitButton(textPrimary, bgColor, cardColor, borderColor),
             ],
           ),
         ),
@@ -236,52 +295,45 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
     );
   }
 
-  // --- WIDGET BUILDERS ---
-
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(
+    BuildContext context,
+    Color textPrimary,
+    Color textSecondary,
+    Color cardColor,
+    Color borderColor,
+  ) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: context.cardBackground,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: context.borderColor),
+          CustomBackButton(),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                "Payment Methods",
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-              child: Icon(
-                Icons.arrow_back,
-                color: context.textPrimary,
-                size: 20,
+              const SizedBox(height: 2),
+              Text(
+                "Link Account",
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: textPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                ),
               ),
-            ),
+            ],
           ),
-          Text(
-            "Add Bank Account",
-            style: GoogleFonts.inter(
-              color: context.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(width: 44), // Balances header alignment
         ],
-      ),
-    );
-  }
-
-  Widget _buildSectionLabel(String text) {
-    return Text(
-      text.toUpperCase(),
-      style: GoogleFonts.inter(
-        color: context.textSecondary,
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-        letterSpacing: 1.2,
       ),
     );
   }
@@ -291,6 +343,11 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
     required String label,
     required String hint,
     required IconData icon,
+    required Color textPrimary,
+    required Color textSecondary,
+    required Color textTertiary,
+    required Color borderColor,
+    required bool isDark,
     TextInputType keyboardType = TextInputType.text,
     TextInputAction textInputAction = TextInputAction.done,
     String? Function(String?)? validator,
@@ -298,32 +355,54 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel(label),
-        const SizedBox(height: 8),
+        Text(
+          label.toUpperCase(),
+          style: TextStyle(
+            fontFamily: 'Satoshi',
+            color: textSecondary,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            color: context.cardBackground,
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.03)
+                : Colors.black.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: context.borderColor),
+            border: Border.all(color: borderColor),
           ),
           child: TextFormField(
             controller: controller,
             keyboardType: keyboardType,
             textInputAction: textInputAction,
             onTapOutside: (event) => FocusScope.of(context).unfocus(),
-            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
-            cursorColor: context.textPrimary,
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+            cursorColor: textPrimary,
             decoration: InputDecoration(
-              icon: Icon(icon, color: context.iconSecondary, size: 20),
+              icon: Icon(icon, color: textSecondary, size: 20),
               hintText: hint,
-              hintStyle: GoogleFonts.inter(color: context.textTertiary),
+              hintStyle: TextStyle(
+                fontFamily: 'Satoshi',
+                color: textTertiary,
+                fontWeight: FontWeight.w500,
+              ),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-              errorStyle: GoogleFonts.inter(
-                color: const Color(0xFFFF453A),
+              contentPadding: const EdgeInsets.symmetric(vertical: 16),
+              errorStyle: const TextStyle(
+                fontFamily: 'Satoshi',
+                color: Color(0xFFFF375F),
                 fontSize: 12,
-                height: 0.8,
+                fontWeight: FontWeight.w500,
+                height: 1.0,
               ),
             ),
             validator: validator,
@@ -333,28 +412,29 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
     );
   }
 
-  Widget _buildSubmitButton() {
-    final btnBg = context.isDarkMode ? Colors.white : Colors.black;
-    final btnText = context.isDarkMode ? Colors.black : Colors.white;
-    final disabledBg = context.isDarkMode ? Colors.white54 : Colors.black38;
-
+  Widget _buildSubmitButton(
+    Color textPrimary,
+    Color bgColor,
+    Color cardColor,
+    Color borderColor,
+  ) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
       decoration: BoxDecoration(
-        color: context.appBackground,
-        border: Border(
-          top: BorderSide(color: context.borderColor),
-        ),
+        color: bgColor,
+        border: Border(top: BorderSide(color: borderColor)),
       ),
       child: SizedBox(
         width: double.infinity,
         height: 56,
         child: ElevatedButton(
-          onPressed: _isLoading ? null : _saveBankAccount,
+          onPressed: _isLoading
+              ? null
+              : () => _saveBankAccount(cardColor, borderColor, textPrimary),
           style: ElevatedButton.styleFrom(
-            backgroundColor: btnBg,
-            foregroundColor: btnText,
-            disabledBackgroundColor: disabledBg,
+            backgroundColor: textPrimary,
+            foregroundColor: bgColor,
+            disabledBackgroundColor: textPrimary.withValues(alpha: 0.5),
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -365,15 +445,17 @@ class _AddBankAccountScreenState extends State<AddBankAccountScreen> {
                   height: 24,
                   width: 24,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: btnText,
+                    strokeWidth: 2.5,
+                    color: bgColor,
                   ),
                 )
-              : Text(
+              : const Text(
                   "Link Bank Account",
-                  style: GoogleFonts.inter(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
                   ),
                 ),
         ),

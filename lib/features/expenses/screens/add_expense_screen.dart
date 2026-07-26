@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
@@ -67,10 +66,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     'legal': 'Legal',
   };
 
-  final types = {
-    'one_time': 'One-time',
-    'recurring': 'Recurring',
-  };
+  final types = {'one_time': 'One-time', 'recurring': 'Recurring'};
 
   Map<String, String> _bankAccounts = {};
   List<TeamMember> _teamMembers = [];
@@ -195,7 +191,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -358,7 +355,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     }
   }
 
-
   Future<void> _uploadExpense() async {
     FocusScope.of(context).unfocus(); // Dismiss keyboard
 
@@ -369,7 +365,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       );
       return;
     }
-    final double? amount = CurrencyFormatter.parse(_amountController.text.trim());
+    final double? amount = CurrencyFormatter.parse(
+      _amountController.text.trim(),
+    );
     if (amount == null || amount <= 0) {
       ErrorPopup.showValidation(
         context: context,
@@ -427,7 +425,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       }
       recurringTenure = int.tryParse(tenureText);
       if (recurringTenure == null || recurringTenure <= 0) {
-        ErrorPopup.showValidation(context: context, message: "Tenure must be a positive number.");
+        ErrorPopup.showValidation(
+          context: context,
+          message: "Tenure must be a positive number.",
+        );
         return;
       }
     }
@@ -453,7 +454,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     final companyId = userDoc.data()?['companyId'] as String?;
     if (companyId == null) {
       if (!mounted) return;
-      ErrorPopup.showError(context: context, title: 'System Error', message: 'Company not found');
+      ErrorPopup.showError(
+        context: context,
+        title: 'System Error',
+        message: 'Company not found',
+      );
       return;
     }
 
@@ -724,7 +729,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     children: [
                       Text(
                         'Budget Exceeded',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 17,
                           fontWeight: FontWeight.w700,
@@ -733,7 +739,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       const SizedBox(height: 2),
                       Text(
                         categoryLabel,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: const Color(0xFFFF9F0A),
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -760,10 +767,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 14),
-              child: Divider(
-                color: context.borderColor,
-                height: 1,
-              ),
+              child: Divider(color: context.borderColor, height: 1),
             ),
             _dialogRow(
               'Projected Total',
@@ -792,7 +796,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   const SizedBox(width: 4),
                   Text(
                     '${fmt(overBy)} over limit',
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: const Color(0xFFFF453A),
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -812,14 +817,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       decoration: BoxDecoration(
                         color: context.cardBackground,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: context.borderColor,
-                        ),
+                        border: Border.all(color: context.borderColor),
                       ),
                       child: Text(
                         'Cancel',
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textSecondary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -844,7 +848,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       child: Text(
                         'Add Anyway',
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: const Color(0xFFFF9F0A),
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -872,7 +877,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       children: [
         Text(
           label,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: isTotal ? context.textPrimary : context.textSecondary,
             fontSize: isTotal ? 14 : 13,
             fontWeight: isTotal ? FontWeight.w600 : FontWeight.w400,
@@ -880,7 +886,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         ),
         Text(
           value,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: valueColor,
             fontSize: isTotal ? 16 : 13,
             fontWeight: isTotal ? FontWeight.w700 : FontWeight.w500,
@@ -917,7 +924,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 ),
                 child: Text(
                   "Team Expense",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: _expenseType == "team"
                         ? const Color(0xFF30D158)
                         : context.textSecondary,
@@ -948,7 +956,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 ),
                 child: Text(
                   "Member Expense",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: _expenseType == "member"
                         ? const Color(0xFF0A84FF)
                         : context.textSecondary,
@@ -1031,7 +1040,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (_) => const CategorySettingsScreen(),
+                                        builder: (_) =>
+                                            const CategorySettingsScreen(),
                                       ),
                                     ).then((_) {
                                       _fetchCompanyCategories();
@@ -1065,8 +1075,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
                         AnimatedCrossFade(
                           duration: const Duration(milliseconds: 300),
-                          crossFadeState:
-                              (_selectedType == 'recurring')
+                          crossFadeState: (_selectedType == 'recurring')
                               ? CrossFadeState.showFirst
                               : CrossFadeState.showSecond,
                           firstChild: _buildRecurringDetailsCard(),
@@ -1141,7 +1150,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           Expanded(
             child: Text(
               "Fields pre-filled from scanned receipt. Review and edit if needed.",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: const Color(0xFF0A84FF),
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -1173,7 +1183,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           ),
           Text(
             "Add Expense",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -1188,7 +1199,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -1206,7 +1218,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         textAlign: TextAlign.center,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         textInputAction: TextInputAction.next,
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textPrimary,
           fontSize: 56,
           fontWeight: FontWeight.w600,
@@ -1215,7 +1228,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         cursorColor: const Color(0xFF30D158),
         decoration: InputDecoration(
           hintText: "0.00",
-          hintStyle: GoogleFonts.inter(
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary.withValues(alpha: 0.3),
             fontSize: 56,
             fontWeight: FontWeight.w600,
@@ -1225,7 +1239,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           prefixText: _isLoadingCountry
               ? '₹'
               : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
-          prefixStyle: GoogleFonts.inter(
+          prefixStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 32,
             fontWeight: FontWeight.w600,
@@ -1247,12 +1262,23 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         controller: _titleController,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         textInputAction: TextInputAction.next,
-        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textPrimary,
+          fontSize: 15,
+        ),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: GoogleFonts.inter(color: context.textSecondary, fontSize: 13),
+          labelStyle: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textSecondary,
+            fontSize: 13,
+          ),
           hintText: placeholder,
-          hintStyle: GoogleFonts.inter(color: context.textSecondary.withValues(alpha: 0.5)),
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textSecondary.withValues(alpha: 0.5),
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
@@ -1280,7 +1306,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             key: ValueKey('${currentValue}_$keySuffix'),
             placeholder: Text(
               'Select $label',
-              style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textSecondary,
+                fontSize: 14,
+              ),
             ),
             initialValue: currentValue.isNotEmpty ? currentValue : null,
             options: [
@@ -1290,7 +1320,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             ],
             selectedOptionBuilder: (context, value) => Text(
               items[value] ?? "Select",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1321,7 +1352,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           child: TextField(
             readOnly: true,
             controller: _dateController,
-            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: context.textPrimary,
+              fontSize: 15,
+            ),
             onTap: () {
               FocusScope.of(context).unfocus();
               _showShadCalendar();
@@ -1333,7 +1368,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 size: 20,
               ),
               hintText: "Select date",
-              hintStyle: GoogleFonts.inter(color: context.textSecondary.withValues(alpha: 0.5)),
+              hintStyle: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textSecondary.withValues(alpha: 0.5),
+              ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
               suffixIcon: Icon(
@@ -1371,7 +1409,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       children: [
                         Text(
                           "Select Date",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -1414,7 +1453,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         ),
                         child: Text(
                           "Done",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1448,12 +1488,19 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             controller: _descriptionController,
             onTapOutside: (event) => FocusScope.of(context).unfocus(),
             textInputAction: TextInputAction.done,
-            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: context.textPrimary,
+              fontSize: 15,
+            ),
             maxLines: 4,
             minLines: 3,
             decoration: InputDecoration(
               hintText: "Enter details...",
-              hintStyle: GoogleFonts.inter(color: context.textSecondary.withValues(alpha: 0.5)),
+              hintStyle: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textSecondary.withValues(alpha: 0.5),
+              ),
               border: InputBorder.none,
             ),
           ),
@@ -1478,7 +1525,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         child: Center(
           child: Text(
             isTeamExpense ? "No teams available" : "No team members available",
-            style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: context.textSecondary,
+              fontSize: 14,
+            ),
           ),
         ),
       );
@@ -1509,9 +1560,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       height: 52,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: context.borderColor,
-                        ),
+                        border: Border.all(color: context.borderColor),
                         color:
                             (isTeamExpense
                                 ? _selectedTeam == null
@@ -1535,7 +1584,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     const SizedBox(height: 8),
                     Text(
                       "None",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color:
                             (isTeamExpense
                                 ? _selectedTeam == null
@@ -1634,7 +1684,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFF30D158),
                       shape: BoxShape.circle,
-                      border: Border.all(color: context.appBackground, width: 2),
+                      border: Border.all(
+                        color: context.appBackground,
+                        width: 2,
+                      ),
                     ),
                     child: const Icon(
                       Icons.check,
@@ -1651,7 +1704,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           width: 70,
           child: Text(
             team.teamName,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: isSelected ? context.textPrimary : context.textSecondary,
               fontSize: 12,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -1749,7 +1803,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       decoration: BoxDecoration(
                         color: const Color(0xFF30D158),
                         shape: BoxShape.circle,
-                        border: Border.all(color: context.appBackground, width: 2),
+                        border: Border.all(
+                          color: context.appBackground,
+                          width: 2,
+                        ),
                       ),
                       child: const Icon(
                         Icons.check,
@@ -1764,7 +1821,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           const SizedBox(height: 8),
           Text(
             member.fullName,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: isSelected ? context.textPrimary : context.textSecondary,
               fontSize: 12,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -1799,9 +1857,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 decoration: BoxDecoration(
                   color: context.cardBackground,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: context.borderColor,
-                  ),
+                  border: Border.all(color: context.borderColor),
                 ),
                 child: Center(
                   child: SizedBox(
@@ -1926,7 +1982,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             children: [
               Text(
                 "Select Attachment",
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -1937,7 +1994,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 leading: Icon(Icons.camera_alt, color: context.textPrimary),
                 title: Text(
                   "Take Photo",
-                  style: GoogleFonts.inter(color: context.textPrimary),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: context.textPrimary,
+                  ),
                 ),
                 onTap: () async {
                   Navigator.pop(context);
@@ -1955,7 +2015,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 leading: Icon(Icons.photo_library, color: context.textPrimary),
                 title: Text(
                   "Choose Photo / Video",
-                  style: GoogleFonts.inter(color: context.textPrimary),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: context.textPrimary,
+                  ),
                 ),
                 onTap: () async {
                   Navigator.pop(context);
@@ -1973,11 +2036,18 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 ),
                 title: Text(
                   "Choose PDF / Document",
-                  style: GoogleFonts.inter(color: context.textPrimary),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: context.textPrimary,
+                  ),
                 ),
                 subtitle: Text(
                   "PDF, Word, Excel, and more",
-                  style: GoogleFonts.inter(color: context.textSecondary, fontSize: 12),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: context.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
                 onTap: () async {
                   Navigator.pop(context);
@@ -2006,11 +2076,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 leading: const Icon(Icons.folder_open, color: Colors.white),
                 title: Text(
                   "Any File",
-                  style: GoogleFonts.inter(color: Colors.white),
+                  style: TextStyle(fontFamily: 'Satoshi', color: Colors.white),
                 ),
                 subtitle: Text(
                   "Browse all file types",
-                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 12),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: Colors.white54,
+                    fontSize: 12,
+                  ),
                 ),
                 onTap: () async {
                   Navigator.pop(context);
@@ -2195,9 +2269,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: context.appBackground,
-        border: Border(
-          top: BorderSide(color: context.borderColor),
-        ),
+        border: Border(top: BorderSide(color: context.borderColor)),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -2207,7 +2279,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           style: ElevatedButton.styleFrom(
             backgroundColor: context.textPrimary,
             foregroundColor: context.appBackground,
-            disabledBackgroundColor: context.textSecondary.withValues(alpha: 0.3),
+            disabledBackgroundColor: context.textSecondary.withValues(
+              alpha: 0.3,
+            ),
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -2224,7 +2298,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 )
               : Text(
                   "Save Expense",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
@@ -2263,7 +2338,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               const SizedBox(width: 10),
               Text(
                 "RECURRENCE DETAILS",
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: const Color(0xFF0A84FF),
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -2286,7 +2362,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     ShadSelect<String>(
                       placeholder: Text(
                         'Select Frequency',
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textSecondary,
                           fontSize: 14,
                         ),
@@ -2299,7 +2376,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       ],
                       selectedOptionBuilder: (context, value) => Text(
                         frequencies[value] ?? "Monthly",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -2342,7 +2420,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         const SizedBox(width: 8),
                         Text(
                           _isOngoing ? "Ongoing" : "Fixed Term",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textSecondary,
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -2397,10 +2476,18 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           child: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: context.textPrimary,
+              fontSize: 15,
+            ),
             decoration: InputDecoration(
               hintText: placeholder,
-              hintStyle: GoogleFonts.inter(color: context.textSecondary.withValues(alpha: 0.5), fontSize: 14),
+              hintStyle: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textSecondary.withValues(alpha: 0.5),
+                fontSize: 14,
+              ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
             ),

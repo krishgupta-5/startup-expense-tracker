@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -91,7 +90,8 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -119,7 +119,10 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
     String getPdfCurrencySymbol(double amount) {
       final userCurrencyCode =
           CurrencyPreferenceService.getCurrencyPreferenceSync();
-      return CurrencyFormatter.formatCompactPdfSafe(amount, countryCode: userCurrencyCode);
+      return CurrencyFormatter.formatCompactPdfSafe(
+        amount,
+        countryCode: userCurrencyCode,
+      );
     }
 
     try {
@@ -161,10 +164,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
 
       final mappedExpenses = querySnapshot.docs.map((doc) {
         final data = doc.data();
-        return {
-          ...data,
-          'id': doc.id,
-        };
+        return {...data, 'id': doc.id};
       }).toList();
 
       final expanded = ExpenseExpansionHelper.expandExpenses(
@@ -188,8 +188,12 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
       expenses.sort((a, b) {
         final aDateVal = a['Date'] ?? a['date'];
         final bDateVal = b['Date'] ?? b['date'];
-        DateTime? aDt = aDateVal is Timestamp ? aDateVal.toDate() : aDateVal as DateTime?;
-        DateTime? bDt = bDateVal is Timestamp ? bDateVal.toDate() : bDateVal as DateTime?;
+        DateTime? aDt = aDateVal is Timestamp
+            ? aDateVal.toDate()
+            : aDateVal as DateTime?;
+        DateTime? bDt = bDateVal is Timestamp
+            ? bDateVal.toDate()
+            : bDateVal as DateTime?;
         if (aDt == null && bDt == null) return 0;
         if (aDt == null) return 1;
         if (bDt == null) return -1;
@@ -229,18 +233,20 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
       final List<pw.TableRow> tableRows = [
         pw.TableRow(
           decoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
-          children: [
-            'Date', 'Title', 'Category', 'Account', 'Amount',
-          ].asMap().entries.map((entry) {
-            return buildCell(
-              entry.value,
-              alignment: entry.key == 4
-                  ? pw.Alignment.centerRight
-                  : pw.Alignment.centerLeft,
-              textColor: PdfColors.white,
-              fontWeight: pw.FontWeight.bold,
-            );
-          }).toList(),
+          children: ['Date', 'Title', 'Category', 'Account', 'Amount']
+              .asMap()
+              .entries
+              .map((entry) {
+                return buildCell(
+                  entry.value,
+                  alignment: entry.key == 4
+                      ? pw.Alignment.centerRight
+                      : pw.Alignment.centerLeft,
+                  textColor: PdfColors.white,
+                  fontWeight: pw.FontWeight.bold,
+                );
+              })
+              .toList(),
         ),
         ...expenses.map((data) {
           final amount = double.tryParse(data['Amount'].toString()) ?? 0.0;
@@ -251,7 +257,9 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
           }
 
           final dateVal = data['Date'] ?? data['date'];
-          final DateTime date = dateVal is Timestamp ? dateVal.toDate() : dateVal as DateTime;
+          final DateTime date = dateVal is Timestamp
+              ? dateVal.toDate()
+              : dateVal as DateTime;
           final dateStr = "${date.day}/${date.month}/${date.year}";
           final amountStr = getPdfCurrencySymbol(amount);
           final displayAmount = isFunding ? '+$amountStr' : amountStr;
@@ -261,14 +269,9 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
 
           return pw.TableRow(
             decoration: pw.BoxDecoration(
-              color: isFunding
-                  ? const PdfColor(0.91, 0.98, 0.92)
-                  : null,
+              color: isFunding ? const PdfColor(0.91, 0.98, 0.92) : null,
               border: const pw.Border(
-                bottom: pw.BorderSide(
-                  color: PdfColors.grey300,
-                  width: 0.5,
-                ),
+                bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
               ),
             ),
             children: [
@@ -281,10 +284,7 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                 data['Category']?.toString().toUpperCase() ?? 'N/A',
                 textColor: rowColor,
               ),
-              buildCell(
-                _getBankAccountDisplay(data),
-                textColor: rowColor,
-              ),
+              buildCell(_getBankAccountDisplay(data), textColor: rowColor),
               buildCell(
                 displayAmount,
                 alignment: pw.Alignment.centerRight,
@@ -400,7 +400,8 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                           const SizedBox(height: 32),
                           Text(
                             "Expense Details",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textPrimary,
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
@@ -410,7 +411,8 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                           const SizedBox(height: 8),
                           Text(
                             "Download and manage your expense reports",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textSecondary,
                               fontSize: 14,
                             ),
@@ -494,7 +496,8 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
           ),
           Text(
             "Downloads",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -511,7 +514,8 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
       padding: const EdgeInsets.only(bottom: 16),
       child: Text(
         text.toUpperCase(),
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textTertiary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
@@ -562,7 +566,8 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                     children: [
                       Text(
                         title,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
@@ -571,7 +576,8 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
                       const SizedBox(height: 2),
                       Text(
                         period,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textTertiary,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -598,7 +604,8 @@ class _ExpensesExportScreenState extends State<ExpensesExportScreen> {
             const SizedBox(height: 16),
             Text(
               description,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textSecondary,
                 fontSize: 13,
               ),

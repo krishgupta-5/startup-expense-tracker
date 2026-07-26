@@ -292,8 +292,10 @@ class TeamMemberService {
               'effectiveDate': effectiveDate,
               'changedAt': FieldValue.serverTimestamp(),
             });
-            
-            debugPrint('✅ DEBUG: Applied future salary of $newSalary for member ${doc.id}');
+
+            debugPrint(
+              '✅ DEBUG: Applied future salary of $newSalary for member ${doc.id}',
+            );
           }
         }
       }

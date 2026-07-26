@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
 
 class PrivacyAssurancesScreen extends StatelessWidget {
@@ -31,7 +30,8 @@ class PrivacyAssurancesScreen extends StatelessWidget {
                       const SizedBox(height: 16),
                       Text(
                         "Your data belongs to you.",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 32,
                           fontWeight: FontWeight.w600,
@@ -41,7 +41,8 @@ class PrivacyAssurancesScreen extends StatelessWidget {
                       const SizedBox(height: 12),
                       Text(
                         "We believe financial privacy is a fundamental right. Here is exactly how we handle your information.",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textSecondary,
                           fontSize: 14,
                           height: 1.5,
@@ -109,7 +110,8 @@ class PrivacyAssurancesScreen extends StatelessWidget {
                               const SizedBox(width: 8),
                               Text(
                                 "SOC2 Compliant & ISO 27001 Certified",
-                                style: GoogleFonts.inter(
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
                                   color: const Color(0xFF30D158),
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
@@ -156,7 +158,8 @@ class PrivacyAssurancesScreen extends StatelessWidget {
           ),
           Text(
             title,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -171,7 +174,8 @@ class PrivacyAssurancesScreen extends StatelessWidget {
   Widget _buildSectionLabel(BuildContext context, String text) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textTertiary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -215,7 +219,8 @@ class PrivacyAssurancesScreen extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -224,7 +229,8 @@ class PrivacyAssurancesScreen extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   desc,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 13,
                     height: 1.5,

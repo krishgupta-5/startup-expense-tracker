@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../services/currency_formatter.dart';
@@ -214,7 +213,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -518,7 +518,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
           Expanded(
             child: Text(
               "Fields pre-filled from scanned receipt. Review and edit if needed.",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -545,12 +546,17 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: context.borderColor),
               ),
-              child: Icon(Icons.arrow_back, color: context.textPrimary, size: 20),
+              child: Icon(
+                Icons.arrow_back,
+                color: context.textPrimary,
+                size: 20,
+              ),
             ),
           ),
           Text(
             "Add Funding",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -567,7 +573,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         text.toUpperCase(),
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: hasError ? const Color(0xFFFF453A) : context.textTertiary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
@@ -581,7 +588,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
     final bool hasError = _errorFields.contains(text);
     return Text(
       text,
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: hasError ? const Color(0xFFFF453A) : context.textSecondary,
         fontSize: 10,
         fontWeight: FontWeight.bold,
@@ -600,7 +608,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
       children: [
         Text(
           label,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: highlight ? context.textPrimary : context.textSecondary,
             fontSize: 10,
             fontWeight: FontWeight.w600,
@@ -615,7 +624,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             color: context.cardBackground,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: highlight ? context.borderColorStrong : context.borderColor,
+              color: highlight
+                  ? context.borderColorStrong
+                  : context.borderColor,
             ),
           ),
           child: FittedBox(
@@ -623,10 +634,9 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             alignment: Alignment.centerLeft,
             child: Text(
               value,
-              style: GoogleFonts.inter(
-                color: highlight
-                    ? context.textPrimary
-                    : context.textSecondary,
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: highlight ? context.textPrimary : context.textSecondary,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -661,7 +671,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             children: [
               Text(
                 currencySymbol,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: hasError
                       ? const Color(0xFFFF453A)
                       : context.textSecondary,
@@ -681,7 +692,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                   onChanged: (_) {
                     if (hasError) setState(() => _errorFields.remove(label));
                   },
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 32,
                     fontWeight: FontWeight.w600,
@@ -690,7 +702,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                   cursorColor: context.textPrimary,
                   decoration: InputDecoration(
                     hintText: "0",
-                    hintStyle: GoogleFonts.inter(
+                    hintStyle: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: hasError
                           ? const Color(0xFFFF453A).withValues(alpha: 0.5)
                           : context.textTertiary,
@@ -763,7 +776,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                 const SizedBox(width: 8),
                 Text(
                   data['label'] as String,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: isSelected
                         ? context.textPrimary
                         : context.textSecondary,
@@ -802,7 +816,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                 const SizedBox(width: 10),
                 Text(
                   "LOAN DETAILS",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -889,7 +904,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                   ),
                   label: Text(
                     "Reset to calculated EMI",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textSecondary,
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
@@ -945,7 +961,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
               if (hasError) setState(() => _errorFields.remove(label));
               if (onChanged != null) onChanged(val);
             },
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -957,7 +974,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             ],
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: GoogleFonts.inter(
+              hintStyle: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textTertiary,
                 fontSize: 13,
               ),
@@ -1010,7 +1028,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: isSelected ? context.textPrimary : context.textSecondary,
             fontSize: 12,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -1050,7 +1069,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                     const SizedBox(width: 12),
                     Text(
                       formattedDate,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -1094,9 +1114,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                     onSurface: Colors.black,
                   ),
             textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: context.textPrimary,
-              ),
+              style: TextButton.styleFrom(foregroundColor: context.textPrimary),
             ),
           ),
           child: child!,
@@ -1140,7 +1158,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             onChanged: (_) {
               if (hasError) setState(() => _errorFields.remove(label));
             },
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
@@ -1148,7 +1167,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
             cursorColor: context.textPrimary,
             decoration: InputDecoration(
               hintText: hasError ? "This field is required" : hint,
-              hintStyle: GoogleFonts.inter(
+              hintStyle: TextStyle(
+                fontFamily: 'Satoshi',
                 color: hasError
                     ? const Color(0xFFFF453A).withValues(alpha: 0.5)
                     : context.textTertiary,
@@ -1194,7 +1214,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                   children: [
                     Text(
                       "Update Target Runway",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -1203,7 +1224,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                     const SizedBox(height: 4),
                     Text(
                       "Current Target: ${_currentTargetRunway.isNotEmpty ? '$_currentTargetRunway months' : 'Not set'}",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textSecondary,
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
@@ -1255,7 +1277,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                       keyboardType: TextInputType.number,
                       textInputAction: TextInputAction.done,
                       onTapOutside: (_) => FocusScope.of(context).unfocus(),
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
@@ -1264,7 +1287,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: InputDecoration(
                         hintText: "Enter months (e.g., 18)",
-                        hintStyle: GoogleFonts.inter(
+                        hintStyle: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textTertiary,
                           fontSize: 14,
                         ),
@@ -1277,7 +1301,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                   ),
                   Text(
                     "months",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textSecondary,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -1299,9 +1324,7 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: context.appBackground,
-        border: Border(
-          top: BorderSide(color: context.borderColor),
-        ),
+        border: Border(top: BorderSide(color: context.borderColor)),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -1328,7 +1351,8 @@ class _AddFundingScreenState extends State<AddFundingScreen> {
                 )
               : Text(
                   "Add Funding",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),

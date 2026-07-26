@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'dart:developer';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -83,7 +82,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -351,7 +351,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           ),
           Text(
             "Edit Profile",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -366,7 +367,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -389,10 +391,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             decoration: BoxDecoration(
               color: context.cardBackground,
               shape: BoxShape.circle,
-              border: Border.all(
-                color: context.borderColor,
-                width: 1,
-              ),
+              border: Border.all(color: context.borderColor, width: 1),
             ),
             child: Stack(
               alignment: Alignment.center,
@@ -416,11 +415,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               color: badgeIcon,
                             ),
                           )
-                        : Icon(
-                            Icons.camera_alt,
-                            color: badgeIcon,
-                            size: 16,
-                          ),
+                        : Icon(Icons.camera_alt, color: badgeIcon, size: 16),
                   ),
                 ),
               ],
@@ -429,7 +424,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           const SizedBox(height: 12),
           Text(
             "Update Photo",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -512,7 +508,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               children: [
                 Text(
                   "Profile Photo",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -588,7 +585,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           const SizedBox(height: 8),
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: effectiveColor,
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -684,7 +682,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         readOnly: readOnly,
         canRequestFocus: !readOnly,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: readOnly ? context.textTertiary : context.textPrimary,
           fontSize: 15,
           fontWeight: FontWeight.w500,
@@ -693,7 +692,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         decoration: InputDecoration(
           icon: Icon(icon, color: context.iconSecondary, size: 20),
           labelText: hint,
-          labelStyle: GoogleFonts.inter(color: context.textSecondary, fontSize: 13),
+          labelStyle: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textSecondary,
+            fontSize: 13,
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
@@ -724,7 +727,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 children: [
                   Text(
                     "$_selectedFlag $_selectedCountryCode",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
@@ -752,7 +756,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               keyboardType: TextInputType.phone,
               textInputAction: TextInputAction.next,
               onTapOutside: (event) => FocusScope.of(context).unfocus(),
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
@@ -760,7 +765,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               cursorColor: context.textPrimary,
               decoration: InputDecoration(
                 labelText: "Phone Number",
-                labelStyle: GoogleFonts.inter(
+                labelStyle: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textSecondary,
                   fontSize: 13,
                 ),
@@ -800,7 +806,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     children: [
                       Text(
                         "Country Code",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
@@ -847,7 +854,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                         title: Text(
                           country["name"]!,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: isSelected
                                 ? context.textPrimary
                                 : context.textSecondary,
@@ -859,7 +867,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ),
                         trailing: Text(
                           country["code"]!,
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: isSelected
                                 ? context.textPrimary
                                 : context.textTertiary,
@@ -889,9 +898,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: context.appBackground,
-        border: Border(
-          top: BorderSide(color: context.borderColor),
-        ),
+        border: Border(top: BorderSide(color: context.borderColor)),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -918,7 +925,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 )
               : Text(
                   "Save Changes",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),

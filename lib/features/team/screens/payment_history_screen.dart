@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -71,7 +70,10 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     String getPdfCurrencySymbol(double amount) {
       final userCurrencyCode =
           CurrencyPreferenceService.getCurrencyPreferenceSync();
-      return CurrencyFormatter.formatCompactPdfSafe(amount, countryCode: userCurrencyCode);
+      return CurrencyFormatter.formatCompactPdfSafe(
+        amount,
+        countryCode: userCurrencyCode,
+      );
     }
 
     try {
@@ -122,7 +124,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
             totalAmount += amount;
 
             final rawDate = data['Date'] ?? data['date'];
-            final date = rawDate is Timestamp ? rawDate.toDate() : DateTime.now();
+            final date = rawDate is Timestamp
+                ? rawDate.toDate()
+                : DateTime.now();
             final dateStr = "${date.day}/${date.month}/${date.year}";
 
             final title = data['Title']?.toString() ?? 'Unknown';
@@ -130,8 +134,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
             final paymentType = title.contains("Advance")
                 ? "Advance"
                 : category.toLowerCase() == 'salary'
-                    ? "Salary"
-                    : title;
+                ? "Salary"
+                : title;
 
             String paymentMethod = _getBankAccountDisplay(data);
 
@@ -257,7 +261,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
       SnackBar(
         content: Text(
           message,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.appBackground,
             fontWeight: FontWeight.w500,
           ),
@@ -311,7 +316,10 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                           return Center(
                             child: Text(
                               "Error loading payment history.",
-                              style: GoogleFonts.inter(color: Colors.redAccent),
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                color: Colors.redAccent,
+                              ),
                             ),
                           );
                         }
@@ -334,9 +342,12 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
 
                         for (var data in expanded) {
                           final String title = data['Title']?.toString() ?? '';
-                          final String category = data['Category']?.toString() ?? '';
+                          final String category =
+                              data['Category']?.toString() ?? '';
                           final rawDate = data['Date'] ?? data['date'];
-                          final Timestamp? ts = rawDate is Timestamp ? rawDate : null;
+                          final Timestamp? ts = rawDate is Timestamp
+                              ? rawDate
+                              : null;
 
                           final double amt =
                               (data['Amount'] as num?)?.toDouble() ?? 0.0;
@@ -352,8 +363,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                             "title": title.contains("Advance")
                                 ? "Advance Payout"
                                 : category.toLowerCase() == 'salary'
-                                    ? "Salary Payout"
-                                    : title,
+                                ? "Salary Payout"
+                                : title,
                           });
                         }
 
@@ -390,7 +401,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                                     child: Text(
                                       "No payments processed yet.\nClick 'Pay Salary' to log the first payment.",
                                       textAlign: TextAlign.center,
-                                      style: GoogleFonts.inter(
+                                      style: TextStyle(
+                                        fontFamily: 'Satoshi',
                                         color: context.textSecondary,
                                         height: 1.5,
                                         fontSize: 14,
@@ -451,7 +463,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
 
           Text(
             "Payment History",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -490,7 +503,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         children: [
           Text(
             "TOTAL PAID (ALL TIME)",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -500,7 +514,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
           const SizedBox(height: 12),
           Text(
             _formatCurrency(totalPaid),
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 32,
               fontWeight: FontWeight.w600,
@@ -525,7 +540,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                   paymentCount == 0
                       ? "No payments yet"
                       : "$paymentCount payment(s) completed",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: const Color(0xFF30D158),
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
@@ -578,9 +594,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                   decoration: BoxDecoration(
                     color: context.cardBackground,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: context.borderColor,
-                    ),
+                    border: Border.all(color: context.borderColor),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -591,7 +605,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: isAdvance
-                                  ? const Color(0xFF5E5CE6).withValues(alpha: 0.1)
+                                  ? const Color(
+                                      0xFF5E5CE6,
+                                    ).withValues(alpha: 0.1)
                                   : context.textPrimary.withValues(alpha: 0.05),
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -611,7 +627,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                             children: [
                               Text(
                                 payment['title'],
-                                style: GoogleFonts.inter(
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
                                   color: context.textPrimary,
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -620,7 +637,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                               const SizedBox(height: 2),
                               Text(
                                 payment['date'],
-                                style: GoogleFonts.inter(
+                                style: TextStyle(
+                                  fontFamily: 'Satoshi',
                                   color: context.textSecondary,
                                   fontSize: 11,
                                 ),
@@ -634,7 +652,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                         children: [
                           Text(
                             payment['amt'],
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -659,7 +678,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                             ),
                             child: Text(
                               payment['status'],
-                              style: GoogleFonts.inter(
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
                                 color: const Color(0xFF30D158),
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
@@ -684,7 +704,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
       alignment: Alignment.centerLeft,
       child: Text(
         title.toUpperCase(),
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.bold,

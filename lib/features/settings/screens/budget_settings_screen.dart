@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/currency_formatter.dart';
@@ -145,7 +144,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -303,7 +303,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
           ),
           Text(
             "Budget Settings",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -320,7 +321,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         text.toUpperCase(),
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textTertiary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
@@ -337,7 +339,11 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
         key: ValueKey('${_selectedCategory}_$_categoryRebuildKey'),
         placeholder: Text(
           'Select category',
-          style: GoogleFonts.inter(color: context.textTertiary, fontSize: 15),
+          style: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textTertiary,
+            fontSize: 15,
+          ),
         ),
         initialValue: _selectedCategory,
         onChanged: (value) {
@@ -366,7 +372,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
         selectedOptionBuilder: (context, value) {
           return Text(
             _allCategories[value] ?? 'Select category',
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
@@ -378,7 +385,11 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
             value: entry.key,
             child: Text(
               entry.value,
-              style: GoogleFonts.inter(color: context.textPrimary, fontSize: 14),
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textPrimary,
+                fontSize: 14,
+              ),
             ),
           );
         }).toList(),
@@ -396,7 +407,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       children: [
         Text(
           label,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: highlight ? const Color(0xFF30D158) : context.textSecondary,
             fontSize: 10,
             fontWeight: FontWeight.w600,
@@ -421,7 +433,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
             alignment: Alignment.centerLeft,
             child: Text(
               value,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: highlight
                     ? const Color(0xFF30D158)
                     : context.textPrimary,
@@ -448,7 +461,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
         children: [
           Text(
             currencySymbol,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -461,7 +475,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
               keyboardType: TextInputType.text,
               textInputAction: TextInputAction.done,
               onTapOutside: (event) => FocusScope.of(context).unfocus(),
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -469,14 +484,16 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
               cursorColor: context.textPrimary,
               decoration: InputDecoration(
                 hintText: "0.00",
-                hintStyle: GoogleFonts.inter(
+                hintStyle: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textTertiary,
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                 ),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                errorStyle: GoogleFonts.inter(
+                errorStyle: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: const Color(0xFFFF453A),
                   fontSize: 11,
                   height: 0.8,
@@ -507,9 +524,7 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: context.appBackground,
-        border: Border(
-          top: BorderSide(color: context.borderColor),
-        ),
+        border: Border(top: BorderSide(color: context.borderColor)),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -536,7 +551,8 @@ class _BudgetSettingsScreenState extends State<BudgetSettingsScreen> {
                 )
               : Text(
                   "Save Budget",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),

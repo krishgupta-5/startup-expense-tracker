@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -191,11 +190,11 @@ class _AiScreenState extends State<AiScreen>
           "Type": (e["Type"] ?? "unknown").toString(),
           "Description": (e["Description"] ?? e["Title"] ?? "").toString(),
           "ExpenseType": (e["ExpenseType"] ?? "unknown").toString(),
-          "TeamName":
-              (e["TeamName"] ?? e["linkedTeamName"] ?? "general").toString(),
+          "TeamName": (e["TeamName"] ?? e["linkedTeamName"] ?? "general")
+              .toString(),
           "TeamMemberName": (e["TeamMemberName"] ?? "none").toString(),
-          "PaymentMethod":
-              (e["BankAccount"] ?? e["PaymentMethod"] ?? "unknown").toString(),
+          "PaymentMethod": (e["BankAccount"] ?? e["PaymentMethod"] ?? "unknown")
+              .toString(),
           "Date": (e["Date"] is Timestamp)
               ? (e["Date"] as Timestamp).toDate().toIso8601String()
               : e["Date"]?.toString() ?? "",
@@ -222,10 +221,7 @@ class _AiScreenState extends State<AiScreen>
 
       _cachedPayload = sectionData;
 
-      final requestBody = {
-        "sectionName": "main",
-        "sectionData": sectionData,
-      };
+      final requestBody = {"sectionName": "main", "sectionData": sectionData};
 
       String baseUrl = Platform.isIOS
           ? "http://127.0.0.1:8000"
@@ -250,10 +246,7 @@ class _AiScreenState extends State<AiScreen>
       } else {
         setState(() {
           _parsedInsights = [
-            {
-              "title": "Error",
-              "content": "Server error: ${res.statusCode}",
-            },
+            {"title": "Error", "content": "Server error: ${res.statusCode}"},
           ];
         });
       }
@@ -274,8 +267,7 @@ class _AiScreenState extends State<AiScreen>
         _parsedInsights = [
           {
             "title": "Error",
-            "content":
-                "Could not load AI insights. Please try again later.",
+            "content": "Could not load AI insights. Please try again later.",
           },
         ];
       });
@@ -406,7 +398,8 @@ class _AiScreenState extends State<AiScreen>
               children: [
                 Text(
                   "•  ",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 15,
                     height: 1.5,
@@ -444,7 +437,8 @@ class _AiScreenState extends State<AiScreen>
         spans.add(
           TextSpan(
             text: parts[i],
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontWeight: FontWeight.w700,
               fontSize: 14,
@@ -456,7 +450,8 @@ class _AiScreenState extends State<AiScreen>
         spans.add(
           TextSpan(
             text: parts[i],
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontWeight: FontWeight.w400,
               fontSize: 14,
@@ -657,7 +652,8 @@ class _AiScreenState extends State<AiScreen>
               children: [
                 Text(
                   "AI Insights",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -668,7 +664,8 @@ class _AiScreenState extends State<AiScreen>
                   _isLoading || _isFetchingMore
                       ? "Analyzing Data..."
                       : "Financial Intelligence",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -771,7 +768,8 @@ class _AiScreenState extends State<AiScreen>
         children: [
           Text(
             "KEY METRICS",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textTertiary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -800,10 +798,7 @@ class _AiScreenState extends State<AiScreen>
               _userCountryCode,
             ),
           ),
-          _buildMetricRow(
-            "Risk Level",
-            "${aiMetrics!['risk'] ?? 'Unknown'}",
-          ),
+          _buildMetricRow("Risk Level", "${aiMetrics!['risk'] ?? 'Unknown'}"),
           if (aiMetrics!['funding'] != null)
             _buildMetricRow(
               "Total Funding",
@@ -827,7 +822,8 @@ class _AiScreenState extends State<AiScreen>
         children: [
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -835,7 +831,8 @@ class _AiScreenState extends State<AiScreen>
           ),
           Text(
             value,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -885,7 +882,8 @@ class _AiScreenState extends State<AiScreen>
             ),
             child: Text(
               badgeText,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: badgeColor,
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
@@ -896,7 +894,8 @@ class _AiScreenState extends State<AiScreen>
           const SizedBox(height: 20),
           Text(
             title,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -924,7 +923,8 @@ class _AiScreenState extends State<AiScreen>
             children: [
               Text(
                 title,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
@@ -941,7 +941,8 @@ class _AiScreenState extends State<AiScreen>
                 ),
                 child: Text(
                   "PENDING AI",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 9,
                     fontWeight: FontWeight.bold,
@@ -976,7 +977,8 @@ class _AiScreenState extends State<AiScreen>
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(
                     "EXAMPLE GENERATION:",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textTertiary,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -1017,7 +1019,8 @@ class _AiScreenState extends State<AiScreen>
               Expanded(
                 child: Text(
                   title,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -1033,7 +1036,8 @@ class _AiScreenState extends State<AiScreen>
                 ),
                 child: Text(
                   savings,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: color,
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
@@ -1046,7 +1050,8 @@ class _AiScreenState extends State<AiScreen>
           const SizedBox(height: 12),
           Text(
             desc,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 13,
               height: 1.5,

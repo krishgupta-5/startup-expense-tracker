@@ -3,12 +3,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:developer';
+import 'package:hugeicons/hugeicons.dart';
 
 import 'runway_estimation_screen.dart';
 import 'funds_overview_screen.dart';
@@ -20,7 +20,6 @@ import '../../../services/currency_formatter.dart';
 import '../../../services/currency_preference_service.dart';
 import '../../../services/team_member_service.dart';
 import '../../../utils/expense_expansion_helper.dart';
-import '../../../theme/app_theme.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(int)? onNavigateToTab;
@@ -44,7 +43,6 @@ class _HomeScreenState extends State<HomeScreen> {
   double _absoluteTotalExpenses = 0.0;
   double _currentMonthBurn = 0.0;
   double get _availableFunds => _fundingAmount - _absoluteTotalExpenses;
-  double _totalSalaries = 0.0;
 
   // Real-time calculated Pie Chart data
   Map<String, double> _realtimeCategoryBreakdown = {};
@@ -158,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Handled in auth layer
   }
 
-  // --- REAL-TIME LISTENER SETUP (Fixes Reload & Fetching Issues) ---
+  // --- REAL-TIME LISTENER SETUP ---
   void _handleRealtimeUpdate() {
     _realtimeDebounceTimer?.cancel();
     _realtimeDebounceTimer = Timer(const Duration(milliseconds: 100), () {
@@ -179,10 +177,9 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // Process any scheduled future salary updates (Lazy Cron pattern)
     TeamMemberService.checkAndApplyFutureSalaries();
 
-    // 1. Listen to Company Document (For Runway & Total Funding)
+    // 1. Listen to Company Document
     _companySubscription = FirebaseFirestore.instance
         .collection("companies")
         .doc(user.uid)
@@ -191,7 +188,6 @@ class _HomeScreenState extends State<HomeScreen> {
           (docSnapshot) {
             if (docSnapshot.exists && docSnapshot.data() != null) {
               final data = docSnapshot.data()!;
-
               final funding =
                   data["Funding"] ?? data["funding"] ?? data["FUNDING"];
 
@@ -199,7 +195,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() {
                   _fundingAmount = _toDouble(funding);
                   _updateRunwayValue();
-
                   isLoading = false;
                   _isFundsLoading = false;
                 });
@@ -226,123 +221,126 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         );
 
-    // 2. Listen to Expenses Collection (For Instant Burn, Funds & Pie Chart Updates)
+    // 2. Listen to Expenses Collection
     _expensesSubscription = FirebaseFirestore.instance
         .collection('expenses')
         .where('uid', isEqualTo: user.uid)
         .snapshots()
-        .listen((snapshot) {
-          if (mounted) {
-            final now = DateTime.now();
-            double currentMonthTotal = 0.0;
-            double absoluteTotal = 0.0;
-            Map<String, double> localCategoryBreakdown = {};
+        .listen(
+          (snapshot) {
+            if (mounted) {
+              final now = DateTime.now();
+              double currentMonthTotal = 0.0;
+              double absoluteTotal = 0.0;
+              Map<String, double> localCategoryBreakdown = {};
 
-            // Convert Firestore docs to maps first
-            final rawExpenses = snapshot.docs.map((doc) {
-              final data = doc.data();
-              return {...data, 'id': doc.id};
-            }).toList();
+              final rawExpenses = snapshot.docs.map((doc) {
+                final data = doc.data();
+                return {...data, 'id': doc.id};
+              }).toList();
 
-            // 1) currentMonthBurn = projected burn this month → expand to end of month.
-            final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
-            final expandedProjected = ExpenseExpansionHelper.expandExpenses(
-              rawExpenses,
-              maxDate: endOfMonth,
-              allowFuture: true,
-            );
+              final endOfMonth = DateTime(
+                now.year,
+                now.month + 1,
+                0,
+                23,
+                59,
+                59,
+              );
+              final expandedProjected = ExpenseExpansionHelper.expandExpenses(
+                rawExpenses,
+                maxDate: endOfMonth,
+                allowFuture: true,
+              );
 
-            final expensesList = <Map<String, dynamic>>[];
-            for (final data in expandedProjected) {
-              if (data['isFunding'] == true) continue;
+              final expensesList = <Map<String, dynamic>>[];
+              for (final data in expandedProjected) {
+                if (data['isFunding'] == true) continue;
 
-              final amount = _toDouble(data['Amount'] ?? data['amount']);
-              final dateVal = data['Date'] ?? data['date'];
-              DateTime? dt;
-              if (dateVal is Timestamp) {
-                dt = dateVal.toDate();
-              } else if (dateVal is DateTime) {
-                dt = dateVal;
+                final amount = _toDouble(data['Amount'] ?? data['amount']);
+                final dateVal = data['Date'] ?? data['date'];
+                DateTime? dt;
+                if (dateVal is Timestamp) {
+                  dt = dateVal.toDate();
+                } else if (dateVal is DateTime) {
+                  dt = dateVal;
+                }
+                final category =
+                    (data['Category'] ?? data['category'] ?? 'others')
+                        .toString()
+                        .toLowerCase();
+
+                if (dt != null &&
+                    dt.month == now.month &&
+                    dt.year == now.year) {
+                  currentMonthTotal += amount;
+                  localCategoryBreakdown[category] =
+                      (localCategoryBreakdown[category] ?? 0.0) + amount;
+                }
+
+                expensesList.add({
+                  'id': data['id'] ?? data['expenseId'] ?? '',
+                  'amount': amount,
+                  'date': dateVal is Timestamp
+                      ? dateVal
+                      : (dt != null ? Timestamp.fromDate(dt) : null),
+                  'category': category,
+                  'type': data['Type'] ?? data['type'] ?? 'one_time',
+                  'recurrenceFrequency':
+                      data['recurrenceFrequency'] ??
+                      data['loanRateType'] ??
+                      'monthly',
+                  'recurringTenureMonths':
+                      data['recurringTenureMonths'] ?? data['loanTenureMonths'],
+                });
               }
-              final category = (data['Category'] ??
-                      data['category'] ??
-                      'others')
-                  .toString()
-                  .toLowerCase();
 
-              if (dt != null && dt.month == now.month && dt.year == now.year) {
-                currentMonthTotal += amount;
-                localCategoryBreakdown[category] =
-                    (localCategoryBreakdown[category] ?? 0.0) + amount;
+              for (final e in expensesList) {
+                final dt = e['date'];
+                if (dt is Timestamp && dt.toDate().isAfter(now)) {
+                  continue;
+                } else if (dt is DateTime && dt.isAfter(now)) {
+                  continue;
+                }
+                absoluteTotal += _toDouble(e['amount']);
               }
 
-              expensesList.add({
-                'id': data['id'] ?? data['expenseId'] ?? '',
-                'amount': amount,
-                'date': dateVal is Timestamp
-                    ? dateVal
-                    : (dt != null ? Timestamp.fromDate(dt) : null),
-                'category': category,
-                'type': data['Type'] ?? data['type'] ?? 'one_time',
-                'recurrenceFrequency':
-                    data['recurrenceFrequency'] ?? data['loanRateType'] ?? 'monthly',
-                'recurringTenureMonths':
-                    data['recurringTenureMonths'] ?? data['loanTenureMonths'],
+              expensesList.sort((a, b) {
+                final aDate = a['date'] as Timestamp?;
+                final bDate = b['date'] as Timestamp?;
+                if (aDate == null) return 1;
+                if (bDate == null) return -1;
+                return bDate.compareTo(aDate);
               });
+
+              setState(() {
+                allExpenses = expensesList;
+                _absoluteTotalExpenses = absoluteTotal;
+                _currentMonthBurn = currentMonthTotal;
+                _realtimeCategoryBreakdown = localCategoryBreakdown;
+                _updateRunwayValue();
+
+                _isMonthlyBurnLoading = false;
+                _isPieChartLoading = false;
+              });
+
+              _handleRealtimeUpdate();
             }
+          },
+          onError: (e) {
+            log("Error fetching expenses: $e");
+            if (mounted) setState(() => _isMonthlyBurnLoading = false);
+          },
+        );
 
-            // --- Compute absoluteTotal from the expensesList by filtering future dates ---
-            for (final e in expensesList) {
-              final dt = e['date'];
-              if (dt is Timestamp && dt.toDate().isAfter(now)) {
-                continue;
-              } else if (dt is DateTime && dt.isAfter(now)) {
-                continue;
-              }
-              absoluteTotal += _toDouble(e['amount']);
-            }
-
-            // Sort in memory to keep newest first
-            expensesList.sort((a, b) {
-              final aDate = a['date'] as Timestamp?;
-              final bDate = b['date'] as Timestamp?;
-              if (aDate == null) return 1;
-              if (bDate == null) return -1;
-              return bDate.compareTo(aDate);
-            });
-
-            setState(() {
-              allExpenses = expensesList;
-              _absoluteTotalExpenses = absoluteTotal;
-              _currentMonthBurn = currentMonthTotal;
-              _realtimeCategoryBreakdown = localCategoryBreakdown;
-              _updateRunwayValue();
-
-              _isMonthlyBurnLoading = false;
-              _isPieChartLoading = false;
-            });
-
-            _handleRealtimeUpdate();
-          }
-        }, onError: (e) {
-          log("Error fetching expenses: $e");
-          if (mounted) setState(() => _isMonthlyBurnLoading = false);
-        });
-
-    // 3. Listen to Team Members Collection (For Salary Burn Updates in Trend Chart)
+    // 3. Listen to Team Members Collection
     _teamMembersSubscription = FirebaseFirestore.instance
         .collection('members')
         .where('uid', isEqualTo: user.uid)
         .snapshots()
         .listen((snapshot) {
-          double salariesTotal = 0.0;
-          for (var doc in snapshot.docs) {
-            final data = doc.data();
-            salariesTotal += _toDouble(data['salary'] ?? data['Salary']);
-          }
           if (mounted) {
             setState(() {
-              _totalSalaries = salariesTotal;
               _updateRunwayValue();
             });
             _handleRealtimeUpdate();
@@ -414,85 +412,102 @@ class _HomeScreenState extends State<HomeScreen> {
         final expenseDateTime = expenseDate.toDate();
         final monthKey =
             "${expenseDateTime.year}-${expenseDateTime.month.toString().padLeft(2, '0')}";
-
         monthlyTotals[monthKey] =
             (monthlyTotals[monthKey] ?? 0.0) + _toDouble(expense['amount']);
       }
     }
 
     if (monthlyTotals.isEmpty) return 0.0;
-    double total = monthlyTotals.values.fold(0.0, (totalSum, item) => totalSum + item);
+    double total = monthlyTotals.values.fold(
+      0.0,
+      (totalSum, item) => totalSum + item,
+    );
     return total / monthlyTotals.length;
   }
 
-  // --- PREMIUM SECTION LABEL HELPER ---
-  Widget _buildSectionLabel(String text) {
+  // --- UI HELPERS ---
+
+  Widget _buildSectionLabel(String text, bool isDark) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
-        color: context.textSecondary,
-        fontSize: 11,
+      style: TextStyle(
+        fontFamily: 'Satoshi',
+        color: isDark ? Colors.white54 : Colors.black54,
+        fontSize: 10,
         fontWeight: FontWeight.bold,
-        letterSpacing: 1.2,
+        letterSpacing: 1.5,
       ),
     );
   }
 
-  // --- PROFILE AVATAR METHODS ---
-  Widget _buildProfileAvatar(String? profileImageFileId) {
+  Widget _buildProfileAvatar(String? profileImageFileId, bool isDark) {
     if (profileImageFileId != null && profileImageFileId.isNotEmpty) {
       return FutureBuilder<String>(
         future: getTelegramImageUrl(profileImageFileId),
         builder: (context, snapshot) {
           return Container(
-            width: 44,
-            height: 44,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: context.borderColor, width: 1),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : Colors.black.withValues(alpha: 0.1),
+                width: 1.0,
+              ),
             ),
             child: ClipOval(
               child: snapshot.hasData
                   ? Image.network(
                       snapshot.data!,
-                      width: 44,
-                      height: 44,
+                      width: 48,
+                      height: 48,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return _buildDefaultAvatar();
-                      },
+                      errorBuilder: (context, error, stackTrace) =>
+                          _buildDefaultAvatar(isDark),
                     )
-                  : _buildDefaultAvatar(),
+                  : _buildDefaultAvatar(isDark),
             ),
           );
         },
       );
     }
-    return _buildDefaultAvatar();
+    return _buildDefaultAvatar(isDark);
   }
 
-  Widget _buildDefaultAvatar() {
+  Widget _buildDefaultAvatar(bool isDark) {
     return Container(
-      width: 44,
-      height: 44,
+      width: 48,
+      height: 48,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: context.borderColor, width: 1),
-        color: context.cardSecondaryBackground,
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.1),
+          width: 1.0,
+        ),
+        color: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF3F4F6),
       ),
-      child: Icon(Icons.person, size: 20, color: context.iconPrimary),
+      child: Icon(
+        Icons.person,
+        size: 24,
+        color: isDark ? Colors.white : Colors.black,
+      ),
     );
   }
 
-  Widget _buildEmptyState(String text) {
+  Widget _buildEmptyState(String text, bool isDark) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
         child: Text(
           text,
-          style: GoogleFonts.inter(
-            color: context.textTertiary,
-            fontSize: 13,
+          style: TextStyle(
+            fontFamily: 'Satoshi',
+            color: isDark ? Colors.white38 : Colors.black38,
+            fontSize: 12,
             fontWeight: FontWeight.w500,
           ),
           textAlign: TextAlign.center,
@@ -503,132 +518,36 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildRunwayDisplay(String runwayValue) {
+  String _getRunwayString(String runwayValue) {
     final runway = double.tryParse(runwayValue) ?? 0;
+    if (runway <= 0) return "--";
 
-    if (runway <= 0) {
-      return Text(
-        "--",
-        style: GoogleFonts.inter(
-          color: context.textPrimary,
-          fontSize: 56,
-          fontWeight: FontWeight.w600,
-          height: 1.0,
-          letterSpacing: -2,
-        ),
-      );
+    if (runway > 120) {
+      return ">10Y";
+    }
+
+    if (runway >= 12) {
+      final years = (runway / 12).floor();
+      final months = (runway % 12).floor();
+      if (months == 0) {
+        return "${years}Y";
+      } else {
+        return "${years}Y ${months}M";
+      }
     }
 
     final wholeMonths = runway.floor();
     final remainingDays = ((runway - wholeMonths) * 30).round();
 
-    if (remainingDays == 0) {
-      return Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: "$wholeMonths",
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 56,
-                fontWeight: FontWeight.w600,
-                height: 1.0,
-                letterSpacing: -2,
-              ),
-            ),
-            TextSpan(
-              text: " months",
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 32,
-                fontWeight: FontWeight.w600,
-                height: 1.0,
-                letterSpacing: -1,
-              ),
-            ),
-          ],
-        ),
-      );
-    } else {
-      return Text.rich(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: "$wholeMonths",
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 56,
-                fontWeight: FontWeight.w600,
-                height: 1.0,
-                letterSpacing: -2,
-              ),
-            ),
-            TextSpan(
-              text: " M ",
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 32,
-                fontWeight: FontWeight.w600,
-                height: 1.0,
-                letterSpacing: -1,
-              ),
-            ),
-            TextSpan(
-              text: "$remainingDays",
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 56,
-                fontWeight: FontWeight.w600,
-                height: 1.0,
-                letterSpacing: -2,
-              ),
-            ),
-            TextSpan(
-              text: " D",
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 32,
-                fontWeight: FontWeight.w600,
-                height: 1.0,
-                letterSpacing: -1,
-              ),
-            ),
-          ],
-        ),
-      );
+    if (wholeMonths == 0) {
+      return "${remainingDays}D";
     }
-  }
 
-  String _getRunwaySubtitle(String runwayValue) {
-    if (double.tryParse(runwayValue) == 0 || runwayValue == "0") {
-      return "Add expenses to calculate";
+    if (remainingDays == 0 || remainingDays >= 30) {
+      return "${wholeMonths}M";
     }
-    return "remaining";
-  }
 
-  double _calculateRunwayProgress() {
-    if (runwayValue == null || errorMessage != null) return 0.0;
-    final runway = double.tryParse(runwayValue!) ?? 0;
-    if (runway == 0) return 0.0;
-
-    const double criticalThreshold = 3;
-    const double warningThreshold = 6;
-    const double safeThreshold = 12;
-
-    if (runway <= criticalThreshold) {
-      return (runway / criticalThreshold) * 0.33;
-    } else if (runway <= warningThreshold) {
-      return 0.33 +
-          ((runway - criticalThreshold) /
-                  (warningThreshold - criticalThreshold)) *
-              0.33;
-    } else if (runway <= safeThreshold) {
-      return 0.66 +
-          ((runway - warningThreshold) / (safeThreshold - warningThreshold)) *
-              0.34;
-    } else {
-      return 1.0;
-    }
+    return "${wholeMonths}M ${remainingDays}D";
   }
 
   HealthStatus _calculateHealthStatus() {
@@ -644,28 +563,42 @@ class _HomeScreenState extends State<HomeScreen> {
     return HealthStatus.safe;
   }
 
+  // --- HIGH CONTRAST, DISTINCT COLOR PALETTE (CRED/SLICE VIBE) ---
   Color _getCategoryColor(String category) {
     switch (category.toLowerCase()) {
       case 'salaries':
       case 'salary':
-        return const Color(0xFF30D158);
+        return const Color(0xFF10B981); // Emerald Green
       case 'servers':
       case 'infrastructure':
       case 'servers & infrastructure':
-        return const Color(0xFF3A4B8A);
+        return const Color(0xFF3B82F6); // Bright Blue
       case 'marketing':
-        return const Color(0xFFFF9F0A);
+      case 'ads':
+        return const Color(0xFFBF5AF2); // Neon Purple
       case 'office':
       case 'operations':
       case 'office & operations':
-        return const Color(0xFF00BFA5);
+        return const Color(0xFF00BFA5); // Teal
+      case 'software':
+      case 'tools':
+        return const Color(0xFFFF375F); // Vibrant Pink
+      case 'legal':
+        return const Color(0xFFFFD60A); // Vivid Yellow
+      case 'meals':
+      case 'food':
+        return const Color(0xFFF59E0B); // Bold Orange
+      case 'travel':
+      case 'transport':
+        return const Color(0xFF32ADE6); // Cyan
       default:
-        // Expanded dynamic colors for unmapped categories
+        // Expanded fallback to ensure colors never collide
         final colors = [
-          const Color(0xFF5E5CE6),
-          const Color(0xFFFF375F),
+          const Color(0xFF3B82F6),
+          const Color(0xFF10B981),
           const Color(0xFFBF5AF2),
-          const Color(0xFFFFD60A),
+          const Color(0xFFFF375F),
+          const Color(0xFFF59E0B),
           const Color(0xFF32ADE6),
         ];
         return colors[category.hashCode % colors.length];
@@ -680,16 +613,32 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     HealthStatus currentHealth = _calculateHealthStatus();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Premium Solid Color Palette
+    final bgColor = isDark ? const Color(0xFF09090B) : const Color(0xFFF9FAFB);
+    // Use slightly lighter surface for cards to contrast against true black bg
+    final cardColor = isDark
+        ? const Color(0xFF1A1A1C)
+        : const Color(0xFFFFFFFF);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.05);
+    final shadowColor = isDark
+        ? Colors.transparent
+        : Colors.black.withValues(alpha: 0.04);
+
+    final textPrimary = isDark ? Colors.white : const Color(0xFF09090B);
+    final textSecondary = isDark ? Colors.white54 : const Color(0xFF71717A);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: context.isDarkMode
-          ? SystemUiOverlayStyle.light
-          : SystemUiOverlayStyle.dark,
+      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       child: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor: bgColor,
         floatingActionButton: FloatingActionButton(
-          backgroundColor: context.textPrimary,
-          child: Icon(Icons.chat_bubble_outline, color: context.appBackground),
+          backgroundColor: textPrimary,
+          elevation: 2,
+          child: HugeIcon(icon: HugeIcons.strokeRoundedMessage02, color: bgColor, size: 24),
           onPressed: () {
             Navigator.push(
               context,
@@ -700,226 +649,263 @@ class _HomeScreenState extends State<HomeScreen> {
         body: SafeArea(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildMinimalHeader(context),
-              const SizedBox(height: 32),
-              GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const RunwayEstimationScreen(),
-                  ),
-                ),
-                child: _buildFlatRunwayCard(currentHealth),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const FundsOverviewScreen(),
+                _buildHeaderAndHero(isDark, textPrimary, textSecondary),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // RUNWAY AND BURN PILLS
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const RunwayEstimationScreen(),
+                                ),
+                              ),
+                              child: _buildRunwayPill(
+                                currentHealth,
+                                cardColor,
+                                borderColor,
+                                shadowColor,
+                                textPrimary,
+                                textSecondary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const MonthlyBurnScreen(),
+                                ),
+                              ),
+                              child: _buildBurnPill(
+                                cardColor,
+                                borderColor,
+                                shadowColor,
+                                textPrimary,
+                                textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 32),
+
+                      // BURN TREND
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildSectionLabel("BURN TREND", isDark),
+                          _buildViewAllButton(
+                            context,
+                            isDark,
+                            textPrimary,
+                            borderColor,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MonthlyBurnScreen(),
+                          ),
+                        ),
+                        child: _buildTrendChart(
+                          cardColor,
+                          borderColor,
+                          shadowColor,
+                          textPrimary,
+                          textSecondary,
+                          isDark,
                         ),
                       ),
-                      child: _buildFlatMetricCard(
-                        label: "Available Funds",
-                        value: _isFundsLoading
-                            ? null
-                            : _formatCurrency(_availableFunds),
-                        icon: Icons.account_balance_wallet_outlined,
-                        isLoading: _isFundsLoading,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const MonthlyBurnScreen(),
+                      const SizedBox(height: 32),
+
+                      // EXPENSE BREAKDOWN
+                      _buildSectionLabel("EXPENSE BREAKDOWN", isDark),
+                      const SizedBox(height: 12),
+                      GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const MonthlyBurnScreen(),
+                          ),
+                        ),
+                        child: _buildDonutChartBreakdown(
+                          cardColor,
+                          borderColor,
+                          shadowColor,
+                          textPrimary,
+                          textSecondary,
+                          isDark,
                         ),
                       ),
-                      child: _buildFlatMetricCard(
-                        label: "Monthly Burn",
-                        value:
-                            _isMonthlyBurnLoading || _currentMonthBurn <= 0
-                                ? '--'
-                                : _formatCurrency(_currentMonthBurn),
-                        icon: Icons.local_fire_department_outlined,
-                        isBurn: true,
-                        isLoading: _isMonthlyBurnLoading,
-                        emptyLabel: _isLoadingCountry
-                            ? "₹0"
-                            : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0",
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildSectionLabel("BURN TREND"),
-                  _buildViewAllButton(context),
-                ],
-              ),
-              const SizedBox(height: 20),
-              GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const MonthlyBurnScreen()),
-                ),
-                child: _buildTrendChart(),
-              ),
-              const SizedBox(height: 40),
-              _buildSectionLabel("EXPENSE BREAKDOWN"),
-              const SizedBox(height: 20),
-              GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const MonthlyBurnScreen()),
-                ),
-                child: _buildPieChartBreakdown(),
-              ),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
-      ),
-      ),
-    );
-  }
-
-  Widget _buildMinimalHeader(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Overview",
-                style: GoogleFonts.inter(
-                  color: context.textTertiary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                "Startup Health",
-                style: GoogleFonts.inter(
-                  color: context.textPrimary,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -1,
-                ),
-              ),
-            ],
-          ),
-          GestureDetector(
-            onTap: () => widget.onNavigateToTab?.call(4),
-            child: _buildDefaultAvatar(),
-          ),
-        ],
-      );
-    }
-
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection("users")
-          .doc(user.uid)
-          .snapshots(),
-      builder: (context, userSnapshot) {
-        String? profileImageFileId;
-        if (userSnapshot.hasData && userSnapshot.data!.exists) {
-          final userData = userSnapshot.data!.data() as Map<String, dynamic>;
-          profileImageFileId = userData['profileImageFileId'];
-        }
-
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Overview",
-                  style: GoogleFonts.inter(
-                    color: context.textTertiary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  "Startup Health",
-                  style: GoogleFonts.inter(
-                    color: context.textPrimary,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -1,
+                      const SizedBox(
+                        height: 80,
+                      ), // Reduced bottom padding, just enough for nav bar
+                    ],
                   ),
                 ),
               ],
             ),
-            GestureDetector(
-              onTap: () => widget.onNavigateToTab?.call(4),
-              child: _buildProfileAvatar(profileImageFileId),
-            ),
-          ],
-        );
-      },
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildFlatRunwayCard(HealthStatus status) {
+  // Integrates the Header and the "Available Funds"
+  Widget _buildHeaderAndHero(
+    bool isDark,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
+    final user = FirebaseAuth.instance.currentUser;
+    final fundsText = _isFundsLoading ? "--" : _formatCurrency(_availableFunds);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Overview",
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
+                  color: textPrimary,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              if (user != null)
+                StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection("users")
+                      .doc(user.uid)
+                      .snapshots(),
+                  builder: (context, userSnapshot) {
+                    String? profileImageFileId;
+                    if (userSnapshot.hasData && userSnapshot.data!.exists) {
+                      final userData =
+                          userSnapshot.data!.data() as Map<String, dynamic>;
+                      profileImageFileId = userData['profileImageFileId'];
+                    }
+                    return GestureDetector(
+                      onTap: () => widget.onNavigateToTab?.call(4),
+                      child: _buildProfileAvatar(profileImageFileId, isDark),
+                    );
+                  },
+                )
+              else
+                GestureDetector(
+                  onTap: () => widget.onNavigateToTab?.call(4),
+                  child: _buildDefaultAvatar(isDark),
+                ),
+            ],
+          ),
+          const SizedBox(height: 40),
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const FundsOverviewScreen()),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "AVAILABLE FUNDS",
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: textSecondary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    fundsText,
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      color: textPrimary,
+                      fontSize:
+                          40, // Scaled down from 64 to fix "FONT SIZE IS TOO BIG"
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -1.5,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Pill-shaped Runway widget
+  Widget _buildRunwayPill(
+    HealthStatus status,
+    Color cardColor,
+    Color borderColor,
+    Color shadowColor,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
     Color statusColor;
     String statusText;
     switch (status) {
       case HealthStatus.safe:
-        statusColor = const Color(0xFF30D158);
+        statusColor = const Color(0xFF10B981);
         statusText = "SAFE";
         break;
       case HealthStatus.warning:
-        statusColor = const Color(0xFFFF9F0A);
-        statusText = "WARNING";
+        statusColor = const Color(0xFFF59E0B);
+        statusText = "WARN";
         break;
       case HealthStatus.critical:
-        statusColor = const Color(0xFFFF453A);
-        statusText = "CRITICAL";
+        statusColor = const Color(0xFFEF4444);
+        statusText = "CRIT";
         break;
       case HealthStatus.unknown:
-        statusColor = context.textSecondary;
-        statusText = "NO DATA";
+        statusColor = textSecondary;
+        statusText = "N/A";
         break;
     }
 
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: context.cardBackground,
+        color: cardColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: context.borderColor),
-        boxShadow: context.isDarkMode
+        border: Border.all(color: borderColor),
+        boxShadow: shadowColor == Colors.transparent
             ? []
             : [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 10,
+                  color: shadowColor,
+                  blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
               ],
@@ -930,95 +916,51 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildSectionLabel("EST. RUNWAY"),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(
-                        color: statusColor.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          statusText,
-                          style: GoogleFonts.inter(
-                            color: statusColor,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
+              Icon(
+                Icons.flight_takeoff_rounded,
+                color: textSecondary,
+                size: 20,
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(100),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.2)),
+                ),
+                child: Text(
+                  statusText,
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: statusColor,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
                   ),
-                ],
+                ),
               ),
             ],
           ),
           const SizedBox(height: 24),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (isLoading)
-                Text(
-                  "--",
-                  style: GoogleFonts.inter(
-                    color: context.textPrimary,
-                    fontSize: 56,
-                    fontWeight: FontWeight.w600,
-                    height: 1.0,
-                    letterSpacing: -2,
-                  ),
-                )
-              else
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: _buildRunwayDisplay(runwayValue ?? "0"),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _getRunwaySubtitle(runwayValue ?? "0"),
-                        style: GoogleFonts.inter(
-                          color: context.textTertiary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
+          Text(
+            isLoading ? "--" : _getRunwayString(runwayValue ?? "0"),
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: textPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+            ),
           ),
-          const SizedBox(height: 24),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: _calculateRunwayProgress(),
-              minHeight: 4,
-              backgroundColor: context.glassBackground,
-              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+          const SizedBox(height: 4),
+          Text(
+            "EST. RUNWAY",
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: textSecondary,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.0,
             ),
           ),
         ],
@@ -1026,76 +968,75 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFlatMetricCard({
-    required String label,
-    String? value,
-    required IconData icon,
-    bool isBurn = false,
-    bool isLoading = false,
-    String? emptyLabel,
-  }) {
+  // Pill-shaped Burn widget
+  Widget _buildBurnPill(
+    Color cardColor,
+    Color borderColor,
+    Color shadowColor,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
+    final value = _isMonthlyBurnLoading || _currentMonthBurn <= 0
+        ? '--'
+        : _formatCurrency(_currentMonthBurn);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: context.cardBackground,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: context.borderColor),
-        boxShadow: context.isDarkMode
+        color: cardColor,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderColor),
+        boxShadow: shadowColor == Colors.transparent
             ? []
             : [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  color: shadowColor,
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
                 ),
               ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: context.iconSecondary, size: 20),
-          const SizedBox(height: 20),
-          if (isLoading)
-            AnimatedOpacity(
-              opacity: 0.3,
-              duration: const Duration(milliseconds: 600),
-              child: Container(
-                width: 80,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: context.glassBackgroundStrong,
-                  borderRadius: BorderRadius.circular(4),
-                ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(
+                Icons.local_fire_department_rounded,
+                color: const Color(0xFFF59E0B),
+                size: 20,
               ),
-            )
-          else
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value ??
-                    emptyLabel ??
-                    (_isLoadingCountry
+            ],
+          ),
+          const SizedBox(height: 24),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value == '--' && !_isMonthlyBurnLoading
+                  ? (_isLoadingCountry
                         ? "₹0"
-                        : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0"),
-                style: GoogleFonts.inter(
-                  color: value != null
-                      ? context.textPrimary
-                      : context.textSecondary,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.5,
-                ),
+                        : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)}0")
+                  : value,
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: textPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
               ),
             ),
+          ),
           const SizedBox(height: 4),
           Text(
-            label,
-            style: GoogleFonts.inter(
-              color: context.textSecondary,
-              fontSize: 11,
+            "MONTHLY BURN",
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: textSecondary,
+              fontSize: 10,
               fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
+              letterSpacing: 1.0,
             ),
           ),
         ],
@@ -1103,20 +1044,27 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildTrendChart() {
+  Widget _buildTrendChart(
+    Color cardColor,
+    Color borderColor,
+    Color shadowColor,
+    Color textPrimary,
+    Color textSecondary,
+    bool isDark,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: context.cardBackground,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: context.borderColor),
-        boxShadow: context.isDarkMode
+        color: cardColor,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: borderColor),
+        boxShadow: shadowColor == Colors.transparent
             ? []
             : [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 10,
+                  color: shadowColor,
+                  blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
               ],
@@ -1127,12 +1075,18 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Center(
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: context.iconSecondary,
+                  color: textSecondary,
                 ),
               ),
             )
           : _trendData.isEmpty
-          ? _buildEmptyState("Not enough data for trend analysis")
+          ? SizedBox(
+              height: 160,
+              child: _buildEmptyState(
+                "Not enough data for trend analysis",
+                isDark,
+              ),
+            )
           : SizedBox(
               height: 160,
               child: Builder(
@@ -1153,8 +1107,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   final maxAmount = display.isEmpty
                       ? 1.0
                       : display
-                          .map((d) => _toDouble(d['amount']))
-                          .reduce((a, b) => a > b ? a : b);
+                            .map((d) => _toDouble(d['amount']))
+                            .reduce((a, b) => a > b ? a : b);
 
                   return Row(
                     mainAxisAlignment: display.length <= 3
@@ -1164,10 +1118,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: display.map((data) {
                       final amount = _toDouble(data['amount']);
                       final pct = maxAmount > 0 ? amount / maxAmount : 0.0;
-                      return _buildFlatBar(
+                      return _buildCapsuleBar(
                         data['month'] as String,
                         pct,
                         amount,
+                        textPrimary,
+                        textSecondary,
+                        isDark,
                         isActive: data['isCurrentMonth'] as bool? ?? false,
                       );
                     }).toList(),
@@ -1178,13 +1135,21 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFlatBar(
+  // Elegant capsule bars
+  Widget _buildCapsuleBar(
     String label,
     double pct,
-    double amount, {
+    double amount,
+    Color textPrimary,
+    Color textSecondary,
+    bool isDark, {
     bool isActive = false,
   }) {
     final safePct = pct == 0.0 ? 0.02 : pct.clamp(0.0, 1.0);
+    // Subtle background for inactive bars
+    final inactiveBarColor = isDark
+        ? Colors.white.withValues(alpha: 0.04)
+        : Colors.black.withValues(alpha: 0.04);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
@@ -1192,9 +1157,10 @@ class _HomeScreenState extends State<HomeScreen> {
         Flexible(
           child: Text(
             _formatCurrency(amount),
-            style: GoogleFonts.inter(
-              color: isActive ? context.textPrimary : context.textSecondary,
-              fontSize: 9,
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: isActive ? textPrimary : textSecondary,
+              fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,
@@ -1202,31 +1168,32 @@ class _HomeScreenState extends State<HomeScreen> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         Expanded(
           child: Align(
             alignment: Alignment.bottomCenter,
             child: FractionallySizedBox(
               heightFactor: safePct,
               child: Container(
-                width: 36,
+                width: 32,
                 decoration: BoxDecoration(
-                  color: isActive
-                      ? context.textPrimary
-                      : context.cardSecondaryBackground,
-                  borderRadius: BorderRadius.circular(6),
+                  color: isActive ? const Color(0xFF3B82F6) : inactiveBarColor,
+                  borderRadius: BorderRadius.circular(
+                    8,
+                  ), // Modern rounded rectangle
                 ),
               ),
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Text(
           label,
-          style: GoogleFonts.inter(
-            color: isActive ? context.textPrimary : context.textTertiary,
+          style: TextStyle(
+            fontFamily: 'Satoshi',
+            color: isActive ? textPrimary : textSecondary,
             fontSize: 11,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -1235,20 +1202,28 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPieChartBreakdown() {
+  // --- CRED-STYLE DONUT CHART ---
+  Widget _buildDonutChartBreakdown(
+    Color cardColor,
+    Color borderColor,
+    Color shadowColor,
+    Color textPrimary,
+    Color textSecondary,
+    bool isDark,
+  ) {
     if (_isPieChartLoading) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: context.cardBackground,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: context.borderColor),
+          color: cardColor,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: borderColor),
         ),
         child: Center(
           child: CircularProgressIndicator(
             strokeWidth: 2,
-            color: context.iconSecondary,
+            color: textSecondary,
           ),
         ),
       );
@@ -1262,11 +1237,11 @@ class _HomeScreenState extends State<HomeScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: context.cardBackground,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: context.borderColor),
+          color: cardColor,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: borderColor),
         ),
-        child: _buildEmptyState("No expense data available"),
+        child: _buildEmptyState("No expense data available", isDark),
       );
     }
 
@@ -1290,173 +1265,127 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList();
 
     expenseData.sort(
-      (a, b) => ((b['percentage'] as num?)?.toInt() ?? 0)
-          .compareTo((a['percentage'] as num?)?.toInt() ?? 0),
+      (a, b) => ((b['percentage'] as num?)?.toInt() ?? 0).compareTo(
+        (a['percentage'] as num?)?.toInt() ?? 0,
+      ),
     );
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
       decoration: BoxDecoration(
-        color: context.cardBackground,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: context.borderColor),
-        boxShadow: context.isDarkMode
+        color: cardColor,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: borderColor),
+        boxShadow: shadowColor == Colors.transparent
             ? []
             : [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 10,
+                  color: shadowColor,
+                  blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
               ],
       ),
       child: Column(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 5,
-                child: SizedBox(
-                  height: 140,
-                  child: PieChart(
-                    PieChartData(
-                      sectionsSpace: 4,
-                      centerSpaceRadius: 40,
-                      centerSpaceColor: Colors.transparent,
-                      sections: expenseData.map((data) {
-                        return PieChartSectionData(
-                          color: data['color'] as Color,
-                          value: _toDouble(data['percentage']),
-                          title: '',
-                          radius: 16,
-                          showTitle: false,
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ),
+          SizedBox(
+            height: 200, // Slightly reduced to make it look tighter
+            child: PieChart(
+              PieChartData(
+                sectionsSpace: 2, // Very tight gaps like CRED
+                centerSpaceRadius: 75, // Massive hollow center
+                startDegreeOffset: -90, // Start from the top
+                sections: expenseData.map((data) {
+                  return PieChartSectionData(
+                    color: data['color'] as Color,
+                    value: _toDouble(data['percentage']),
+                    title: '',
+                    radius: 16, // Thin modern ring
+                    showTitle: false,
+                  );
+                }).toList(),
               ),
-              const SizedBox(width: 32),
-              Expanded(
-                flex: 6,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: expenseData.map((data) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: data['color'] as Color,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              data['category'] as String,
-                              style: GoogleFonts.inter(
-                                color: context.textSecondary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${data['percentage']}%',
-                            style: GoogleFonts.inter(
-                              color: context.textPrimary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              fontFeatures: [
-                                const FontFeature.tabularFigures(),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: context.glassBackground,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: context.borderColor),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total Monthly Expenses',
-                  style: GoogleFonts.inter(
-                    color: context.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Expanded(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      _formatCurrency(totalExpenses),
-                      style: GoogleFonts.inter(
-                        color: context.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        fontFeatures: [const FontFeature.tabularFigures()],
-                      ),
+          const SizedBox(height: 40),
+
+          // Horizontal Legend Below Chart
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 24,
+            runSpacing: 16,
+            children: expenseData.map((data) {
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: data['color'] as Color,
+                      shape: BoxShape.circle,
                     ),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 8),
+                  Text(
+                    data['category'] as String,
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
+                      color: textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildViewAllButton(BuildContext context) {
+  Widget _buildViewAllButton(
+    BuildContext context,
+    bool isDark,
+    Color textPrimary,
+    Color borderColor,
+  ) {
     return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const MonthlyBurnScreen()),
       ),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 6,
+        ), // Much tighter padding
         decoration: BoxDecoration(
-          color: context.glassBackgroundStrong,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: context.borderColor),
+          color:
+              Colors.transparent, // Removed background color for cleaner look
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(color: borderColor),
         ),
         child: Row(
           children: [
             Text(
               "VIEW ALL",
-              style: GoogleFonts.inter(
-                color: context.textPrimary,
-                fontSize: 10,
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: textPrimary,
+                fontSize: 9, // Smaller font
                 fontWeight: FontWeight.bold,
-                letterSpacing: 1.0,
+                letterSpacing: 0.5,
               ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.arrow_forward, color: context.textPrimary, size: 12),
+            Icon(
+              Icons.arrow_forward,
+              color: textPrimary,
+              size: 10,
+            ), // Smaller icon
           ],
         ),
       ),

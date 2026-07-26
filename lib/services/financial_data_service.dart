@@ -77,10 +77,7 @@ class FinancialDataService {
       // Map Firestore docs to dynamic maps, adding doc.id as 'id'
       final allExpensesMapped = allExpensesSnapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        return {
-          ...data,
-          'id': doc.id,
-        };
+        return {...data, 'id': doc.id};
       }).toList();
 
       // Expand recurring/subscription templates dynamically
@@ -106,14 +103,34 @@ class FinancialDataService {
             dt.isBefore(endOfMonth.add(const Duration(seconds: 1)));
       }).toList();
 
-      final currentMonthRevenue = allRevenue.where((doc) {
-        final date = (doc.data() as Map<String, dynamic>)['Date'] as Timestamp?;
-        return date != null &&
-            date.toDate().isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
-            date.toDate().isBefore(endOfMonth.add(const Duration(seconds: 1)));
-      }).fold(0.0, (total, doc) => total + (double.tryParse((doc.data() as Map<String, dynamic>)['Amount']?.toString() ?? '0') ?? 0));
+      final currentMonthRevenue = allRevenue
+          .where((doc) {
+            final date =
+                (doc.data() as Map<String, dynamic>)['Date'] as Timestamp?;
+            return date != null &&
+                date.toDate().isAfter(
+                  startOfMonth.subtract(const Duration(seconds: 1)),
+                ) &&
+                date.toDate().isBefore(
+                  endOfMonth.add(const Duration(seconds: 1)),
+                );
+          })
+          .fold(
+            0.0,
+            (total, doc) =>
+                total +
+                (double.tryParse(
+                      (doc.data() as Map<String, dynamic>)['Amount']
+                              ?.toString() ??
+                          '0',
+                    ) ??
+                    0),
+          );
 
-      final trendData = _calculateSixMonthTrend(expandedExpenses, teamMembersSnapshot.docs);
+      final trendData = _calculateSixMonthTrend(
+        expandedExpenses,
+        teamMembersSnapshot.docs,
+      );
 
       double totalExpenses = 0;
       double salariesTotal = 0;
@@ -133,7 +150,11 @@ class FinancialDataService {
 
       for (var doc in teamMembersSnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        salariesTotal += double.tryParse((data['salary'] ?? data['Salary'])?.toString() ?? '0') ?? 0;
+        salariesTotal +=
+            double.tryParse(
+              (data['salary'] ?? data['Salary'])?.toString() ?? '0',
+            ) ??
+            0;
       }
 
       final result = {
@@ -185,7 +206,6 @@ class FinancialDataService {
     for (int i = 5; i >= 0; i--) {
       final monthStart = DateTime(now.year, now.month - i, 1);
       final monthEnd = DateTime(now.year, now.month - i + 1, 1);
-
 
       double expensesTotal = 0;
       for (var data in allExpenses) {
@@ -239,8 +259,8 @@ class FinancialDataService {
         final monthlyBudget = rawBudget is double
             ? rawBudget
             : rawBudget is int
-                ? rawBudget.toDouble()
-                : double.tryParse(rawBudget?.toString() ?? '0') ?? 0.0;
+            ? rawBudget.toDouble()
+            : double.tryParse(rawBudget?.toString() ?? '0') ?? 0.0;
 
         if (monthlyBudget > 0) {
           budgetData[teamName] = monthlyBudget;
@@ -517,7 +537,10 @@ class FinancialDataService {
         // Get all teams to map team names
         _firestore.collection('teams').where('uid', isEqualTo: user.uid).get(),
         // Get all members to aggregate salaries per team
-        _firestore.collection('members').where('uid', isEqualTo: user.uid).get(),
+        _firestore
+            .collection('members')
+            .where('uid', isEqualTo: user.uid)
+            .get(),
       ]);
 
       final expensesSnapshot = futures[0] as QuerySnapshot;
@@ -547,7 +570,8 @@ class FinancialDataService {
         final teamName = teamIdToName[memberTeamId];
         if (teamName == null) continue; // team not owned by this user
 
-        final salary = double.tryParse(
+        final salary =
+            double.tryParse(
               (memberData['salary'] ?? memberData['Salary'])?.toString() ?? '0',
             ) ??
             0.0;
@@ -556,10 +580,7 @@ class FinancialDataService {
 
       final mappedExpenses = expensesSnapshot.docs.map((doc) {
         final data = doc.data() as Map<String, dynamic>;
-        return {
-          ...data,
-          'id': doc.id,
-        };
+        return {...data, 'id': doc.id};
       }).toList();
 
       final expandedExpenses = ExpenseExpansionHelper.expandExpenses(
@@ -681,10 +702,7 @@ class FinancialDataService {
 
       final mappedExpenses = expensesSnapshot.docs.map((doc) {
         final data = doc.data();
-        return {
-          ...data,
-          'id': doc.id,
-        };
+        return {...data, 'id': doc.id};
       }).toList();
 
       final expandedExpenses = ExpenseExpansionHelper.expandExpenses(
@@ -708,9 +726,7 @@ class FinancialDataService {
         }
 
         // Filter by date range in Dart
-        if (dt == null ||
-            dt.isBefore(startOfMonth) ||
-            dt.isAfter(endOfMonth)) {
+        if (dt == null || dt.isBefore(startOfMonth) || dt.isAfter(endOfMonth)) {
           continue;
         }
 

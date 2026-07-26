@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -132,7 +131,7 @@ class _TelegramImagePickerState extends State<TelegramImagePicker> {
           SnackBar(
             content: Text(
               'Failed to upload receipt: $e',
-              style: GoogleFonts.inter(color: Colors.white),
+              style: TextStyle(fontFamily: 'Satoshi', color: Colors.white),
             ),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
@@ -181,7 +180,7 @@ class _TelegramImagePickerState extends State<TelegramImagePicker> {
           SnackBar(
             content: Text(
               'Failed to upload receipt: $e',
-              style: GoogleFonts.inter(color: Colors.white),
+              style: TextStyle(fontFamily: 'Satoshi', color: Colors.white),
             ),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
@@ -237,7 +236,8 @@ class _TelegramImagePickerState extends State<TelegramImagePicker> {
                     children: [
                       Text(
                         "Receipt uploaded to Telegram",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: const Color(0xFF30D158),
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -245,7 +245,8 @@ class _TelegramImagePickerState extends State<TelegramImagePicker> {
                       ),
                       Text(
                         _fileName ?? "receipt.jpg",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: Colors.white38,
                           fontSize: 11,
                         ),
@@ -294,7 +295,8 @@ class _TelegramImagePickerState extends State<TelegramImagePicker> {
                     child: Center(
                       child: Text(
                         "Failed to load image",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: Colors.white38,
                           fontSize: 12,
                         ),
@@ -320,7 +322,8 @@ class _TelegramImagePickerState extends State<TelegramImagePicker> {
                         child: Center(
                           child: Text(
                             "Failed to load image",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: Colors.white38,
                               fontSize: 12,
                             ),
@@ -366,7 +369,8 @@ class _TelegramImagePickerState extends State<TelegramImagePicker> {
                   const SizedBox(height: 12),
                   Text(
                     "Uploading to Telegram...",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: const Color(0xFF0A84FF),
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -384,7 +388,8 @@ class _TelegramImagePickerState extends State<TelegramImagePicker> {
                   const SizedBox(height: 12),
                   Text(
                     "Tap to upload receipt",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: Colors.white38,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -393,7 +398,8 @@ class _TelegramImagePickerState extends State<TelegramImagePicker> {
                   const SizedBox(height: 4),
                   Text(
                     "Stored securely in Telegram",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: Colors.white24,
                       fontSize: 10,
                     ),

@@ -95,7 +95,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
 
           if (userDoc.exists && userDoc.data() != null) {
             final userData = userDoc.data()!;
-            final ownerName = userData['name'] as String? ??
+            final ownerName =
+                userData['name'] as String? ??
                 userData['displayName'] as String? ??
                 'Owner';
             final profileImageFileId =
@@ -122,7 +123,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
         }
       } else {
         // Check for linked member via memberId or TeamMemberId
-        final memberId = widget.transactionData['memberId'] as String? ??
+        final memberId =
+            widget.transactionData['memberId'] as String? ??
             widget.transactionData['TeamMemberId'] as String?;
 
         if (memberId != null && memberId.isNotEmpty) {
@@ -260,7 +262,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                       // Clean Big Amount
                       Text(
                         widget.formattedAmount,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 48,
                           fontWeight: FontWeight.w600,
@@ -282,7 +285,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                         ),
                         child: Text(
                           "Completed",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: const Color(0xFF30D158),
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -299,9 +303,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                         decoration: BoxDecoration(
                           color: context.cardBackground,
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: context.borderColor,
-                          ),
+                          border: Border.all(color: context.borderColor),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -383,7 +385,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
           ),
           Text(
             "Transaction Details",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -406,7 +409,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
           children: [
             Text(
               "Linked Member",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textSecondary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -429,9 +433,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
     final displayName = _isFundingTransaction
         ? 'Owner'
         : (_linkedMemberName ?? 'None');
-    final subtitle = _isFundingTransaction
-        ? _linkedMemberName
-        : null;
+    final subtitle = _isFundingTransaction ? _linkedMemberName : null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -441,7 +443,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
         children: [
           Text(
             "Linked Member",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
@@ -454,7 +457,9 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
               children: [
                 // Profile image or initials avatar
                 _buildMemberAvatar(
-                  _isFundingTransaction ? (_linkedMemberName ?? 'O') : _linkedMemberName!,
+                  _isFundingTransaction
+                      ? (_linkedMemberName ?? 'O')
+                      : _linkedMemberName!,
                   _linkedMemberImageUrl,
                 ),
                 const SizedBox(width: 10),
@@ -464,7 +469,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                   children: [
                     Text(
                       displayName,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -473,7 +479,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                     if (subtitle != null)
                       Text(
                         subtitle,
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textSecondary,
                           fontSize: 11,
                           fontWeight: FontWeight.w400,
@@ -486,7 +493,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
           else
             Text(
               "None",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textSecondary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -506,10 +514,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(
-            color: context.borderColor,
-            width: 1.5,
-          ),
+          border: Border.all(color: context.borderColor, width: 1.5),
           image: DecorationImage(
             image: NetworkImage(imageUrl),
             fit: BoxFit.cover,
@@ -528,15 +533,13 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color.withValues(alpha: 0.2),
-        border: Border.all(
-          color: color.withValues(alpha: 0.3),
-          width: 1.5,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
       ),
       child: Center(
         child: Text(
           initials,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: color,
             fontSize: 12,
             fontWeight: FontWeight.w700,
@@ -555,7 +558,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
         children: [
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
@@ -572,7 +576,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                       fontSize: 13,
                       fontWeight: FontWeight.w400,
                     )
-                  : GoogleFonts.inter(
+                  : TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,

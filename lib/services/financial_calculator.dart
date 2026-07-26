@@ -149,13 +149,18 @@ class FinancialCalculator {
 
       if (type == 'recurring' || type == 'subscription') {
         final startDate = ts?.toDate();
-        final frequency = expense['recurrenceFrequency'] as String? ?? 'monthly';
+        final frequency =
+            expense['recurrenceFrequency'] as String? ?? 'monthly';
         final tenureMonths = expense['recurringTenureMonths'] as int?;
 
         if (startDate != null &&
             (startDate.isBefore(now) || startDate.isAtSameMomentAs(now))) {
           if (tenureMonths != null) {
-            final endDate = DateTime(startDate.year, startDate.month + tenureMonths, startDate.day);
+            final endDate = DateTime(
+              startDate.year,
+              startDate.month + tenureMonths,
+              startDate.day,
+            );
             if (now.isAfter(endDate)) {
               continue;
             }
@@ -261,7 +266,8 @@ class FinancialCalculator {
     int tenureMonths,
   ) {
     if (tenureMonths <= 0 || principal <= 0) return 0.0;
-    final totalInterest = principal * (annualRatePercent / 100) * (tenureMonths / 12);
+    final totalInterest =
+        principal * (annualRatePercent / 100) * (tenureMonths / 12);
     return (principal + totalInterest) / tenureMonths;
   }
 

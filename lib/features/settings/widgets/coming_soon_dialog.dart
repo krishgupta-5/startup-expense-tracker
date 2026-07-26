@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
 
 class ComingSoonDialog extends StatelessWidget {
@@ -34,7 +33,8 @@ class ComingSoonDialog extends StatelessWidget {
             const SizedBox(height: 20),
             Text(
               "Coming Soon!",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
@@ -44,7 +44,8 @@ class ComingSoonDialog extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               "This feature is currently under development and will be available in a future update.",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textSecondary,
                 fontSize: 14,
               ),
@@ -66,7 +67,8 @@ class ComingSoonDialog extends StatelessWidget {
                 ),
                 child: Text(
                   "Got it",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 enum ErrorType {
   validation,
@@ -240,7 +239,7 @@ class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
                   vertical: 16,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF141416), 
+                  color: const Color(0xFF141416),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: Colors.white.withValues(alpha: 0.08),
@@ -260,8 +259,9 @@ class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
                   children: [
                     Text(
                       widget.title,
-                      style: GoogleFonts.inter(
-                        color: _getStatusColor(), 
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
+                        color: _getStatusColor(),
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.5,
@@ -270,7 +270,8 @@ class _ErrorPopupWidgetState extends State<_ErrorPopupWidget>
                     const SizedBox(height: 6),
                     Text(
                       widget.message,
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: Colors.white70,
                         fontSize: 13,
                         fontWeight: FontWeight.w400,

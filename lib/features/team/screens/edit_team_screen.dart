@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../shared/widgets/error_popup.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../services/currency_formatter.dart';
@@ -284,7 +283,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                     Expanded(
                       child: Text(
                         "Delete Team?",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -298,7 +298,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                 // Warning Text
                 Text(
                   "This action cannot be undone. The team and all associated members will be permanently removed from your organization.",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 14,
                     height: 1.5,
@@ -321,7 +322,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                           alignment: Alignment.center,
                           child: Text(
                             "Cancel",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -346,7 +348,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                           alignment: Alignment.center,
                           child: Text(
                             "Delete",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: Colors.white,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -398,7 +401,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                         textInputAction: TextInputAction.next,
                         onTapOutside: (event) =>
                             FocusScope.of(context).unfocus(),
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 32,
                           fontWeight: FontWeight.w600,
@@ -407,7 +411,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                         cursorColor: context.primaryColor,
                         decoration: InputDecoration(
                           hintText: "Team Name",
-                          hintStyle: GoogleFonts.inter(
+                          hintStyle: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textTertiary,
                             fontSize: 32,
                             fontWeight: FontWeight.w600,
@@ -493,7 +498,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
           ),
           Text(
             "Edit Team",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -520,10 +526,17 @@ class _EditTeamScreenState extends State<EditTeamScreen>
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         keyboardType: TextInputType.text,
         cursorColor: context.primaryColor,
-        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textPrimary,
+          fontSize: 15,
+        ),
         decoration: InputDecoration(
           hintText: "0.00",
-          hintStyle: GoogleFonts.inter(color: context.textTertiary),
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textTertiary,
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           prefixIcon: Column(
@@ -533,7 +546,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                 padding: const EdgeInsets.only(right: 8),
                 child: Text(
                   CurrencyFormatter.getCurrencySymbol(_userCountryCode),
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 18,
                     fontWeight: FontWeight.w500,
@@ -571,13 +585,20 @@ class _EditTeamScreenState extends State<EditTeamScreen>
             controller: controller,
             textInputAction: TextInputAction.done,
             onTapOutside: (event) => FocusScope.of(context).unfocus(),
-            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: context.textPrimary,
+              fontSize: 15,
+            ),
             cursorColor: context.primaryColor,
             maxLines: 3,
             minLines: 3,
             decoration: InputDecoration(
               hintText: "Enter details...",
-              hintStyle: GoogleFonts.inter(color: context.textTertiary),
+              hintStyle: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textTertiary,
+              ),
               border: InputBorder.none,
             ),
           ),
@@ -655,7 +676,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                   children: [
                     Text(
                       "Delete Team",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: const Color(0xFFFF453A),
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -664,7 +686,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                     const SizedBox(height: 2),
                     Text(
                       "Permanently remove team and all members",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: const Color(0xFFFF453A).withValues(alpha: 0.6),
                         fontSize: 12,
                       ),
@@ -691,7 +714,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                       },
                       child: Text(
                         "DELETE",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: const Color(0xFFFF453A),
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -708,7 +732,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -749,7 +774,8 @@ class _EditTeamScreenState extends State<EditTeamScreen>
                 )
               : Text(
                   "Save Changes",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),

@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/features/auth/screen/signup.dart';
 import 'package:startup_expense_tracker/features/auth/screen/forget_password.dart';
 import 'package:startup_expense_tracker/features/auth/services/google_sign_in_service.dart';
@@ -153,7 +152,8 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         title: Text(
           'Different Sign-In Method',
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -163,7 +163,8 @@ class _LoginScreenState extends State<LoginScreen> {
           hasGoogle
               ? 'This email is registered with Google Sign-In. Please use the "Google Sign-In" button below to continue.'
               : 'This email is registered with a different sign-in method. Please use the appropriate method to log in.',
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 14,
             height: 1.5,
@@ -174,7 +175,8 @@ class _LoginScreenState extends State<LoginScreen> {
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
               'OK',
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontWeight: FontWeight.w600,
               ),
@@ -195,7 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: context.appBackground, 
+      backgroundColor: context.appBackground,
       resizeToAvoidBottomInset: true,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: context.isDarkMode
@@ -209,7 +211,8 @@ class _LoginScreenState extends State<LoginScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: MediaQuery.of(context).size.height -
+                  minHeight:
+                      MediaQuery.of(context).size.height -
                       MediaQuery.of(context).viewInsets.bottom -
                       MediaQuery.of(context).padding.top -
                       MediaQuery.of(context).padding.bottom,
@@ -250,7 +253,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           },
                           child: Text(
                             "Forgot Password?",
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textSecondary,
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
@@ -285,7 +289,8 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 20),
         Text(
           "Welcome Back",
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textPrimary,
             fontSize: 32,
             fontWeight: FontWeight.w600,
@@ -295,7 +300,8 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 8),
         Text(
           "Sign in to access your dashboard.",
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w400,
@@ -308,7 +314,8 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildLabel(BuildContext context, String text) {
     return Text(
       text,
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 10,
         fontWeight: FontWeight.bold,
@@ -330,27 +337,26 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: BoxDecoration(
         color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: context.borderColor,
-        ),
+        border: Border.all(color: context.borderColor),
       ),
       child: TextField(
         controller: controller,
         textInputAction: action,
         keyboardType: keyboardType,
         onTapOutside: (_) => FocusScope.of(context).unfocus(),
-        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textPrimary,
+          fontSize: 15,
+        ),
         cursorColor: context.textPrimary,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: GoogleFonts.inter(
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textTertiary,
           ),
-          icon: Icon(
-            icon,
-            color: context.iconSecondary,
-            size: 20,
-          ),
+          icon: Icon(icon, color: context.iconSecondary, size: 20),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 16),
         ),
@@ -364,20 +370,23 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: BoxDecoration(
         color: context.cardBackground,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: context.borderColor,
-        ),
+        border: Border.all(color: context.borderColor),
       ),
       child: TextField(
         controller: _passwordController,
         obscureText: !_isPasswordVisible,
         textInputAction: TextInputAction.done,
         onTapOutside: (_) => FocusScope.of(context).unfocus(),
-        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textPrimary,
+          fontSize: 15,
+        ),
         cursorColor: context.textPrimary,
         decoration: InputDecoration(
           hintText: "Enter your password",
-          hintStyle: GoogleFonts.inter(
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textTertiary,
           ),
           icon: Icon(
@@ -430,7 +439,8 @@ class _LoginScreenState extends State<LoginScreen> {
               )
             : Text(
                 "Login",
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: context.appBackground,
@@ -448,7 +458,8 @@ class _LoginScreenState extends State<LoginScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             "Or",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -484,13 +495,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   .collection('users')
                   .doc(user.uid)
                   .set({
-                'uid': user.uid,
-                'email': user.email ?? '',
-                'provider': 'google',
-                'companySetup': false,
-                'createdAt': FieldValue.serverTimestamp(),
-                'updatedAt': FieldValue.serverTimestamp(),
-              }, SetOptions(merge: true));
+                    'uid': user.uid,
+                    'email': user.email ?? '',
+                    'provider': 'google',
+                    'companySetup': false,
+                    'createdAt': FieldValue.serverTimestamp(),
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  }, SetOptions(merge: true));
 
               AIService.syncAICollections().catchError((e) {
                 debugPrint('Failed to sync AI data after Google sign-up: $e');
@@ -503,7 +514,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 );
                 Navigator.of(context).pushReplacement(
                   MaterialPageRoute(
-                      builder: (context) => const CompanySetupScreen()),
+                    builder: (context) => const CompanySetupScreen(),
+                  ),
                 );
               }
             } else {
@@ -565,7 +577,8 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Text(
           "Don't have an account? ",
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 14,
           ),
@@ -581,7 +594,8 @@ class _LoginScreenState extends State<LoginScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
             child: Text(
               "Sign Up",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 14,

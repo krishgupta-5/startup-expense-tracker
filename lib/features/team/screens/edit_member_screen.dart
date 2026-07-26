@@ -2,7 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -190,7 +189,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
           SnackBar(
             content: Text(
               "Profile updated successfully",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: Colors.white,
                 fontWeight: FontWeight.w500,
               ),
@@ -217,7 +217,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
       SnackBar(
         content: Text(
           message,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: Colors.white,
             fontWeight: FontWeight.w500,
           ),
@@ -328,7 +329,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
             const SizedBox(height: 24),
             Text(
               "Update Photo",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -382,7 +384,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
           const SizedBox(height: 8),
           Text(
             label,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -577,7 +580,10 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
                           : _teams.isEmpty
                           ? Text(
                               "No teams found.",
-                              style: GoogleFonts.inter(color: Colors.redAccent),
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                color: Colors.redAccent,
+                              ),
                             )
                           : _buildSelectField(
                               label: "Team",
@@ -638,7 +644,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
           ),
           Text(
             "Edit Profile",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -653,7 +660,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -710,7 +718,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
           const SizedBox(height: 12),
           Text(
             "Update Photo",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w500,
@@ -792,16 +801,24 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
         textInputAction: textInputAction,
         keyboardType: keyboardType,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
-        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textPrimary,
+          fontSize: 15,
+        ),
         decoration: InputDecoration(
           icon: Icon(icon, color: context.textSecondary, size: 20),
           hintText: placeholder,
           labelText: hint,
-          labelStyle: GoogleFonts.inter(
+          labelStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 13,
           ),
-          hintStyle: GoogleFonts.inter(color: context.textTertiary),
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textTertiary,
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
@@ -820,7 +837,11 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
       ),
       child: TextField(
         readOnly: true,
-        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textPrimary,
+          fontSize: 15,
+        ),
         decoration: InputDecoration(
           icon: Icon(
             Icons.calendar_today,
@@ -829,11 +850,15 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
           ),
           hintText: "Select joining date",
           labelText: "Joining Date",
-          labelStyle: GoogleFonts.inter(
+          labelStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 13,
           ),
-          hintStyle: GoogleFonts.inter(color: context.textTertiary),
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textTertiary,
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
@@ -875,7 +900,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
                       children: [
                         Text(
                           "Select Joining Date",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -916,7 +942,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
                         ),
                         child: Text(
                           "Done",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
@@ -947,7 +974,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
           child: ShadSelect<String>(
             placeholder: Text(
               'Select $label',
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textTertiary,
                 fontSize: 14,
               ),
@@ -961,7 +989,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
             selectedOptionBuilder: (context, value) => Text(
               items[value]!,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1006,7 +1035,8 @@ class _EditMemberScreenState extends State<EditMemberScreen> {
                 )
               : Text(
                   "Save Changes",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),

@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -141,7 +140,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -189,7 +189,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                   children: [
                     Text(
                       isStart ? "Select Start Date" : "Select End Date",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color: context.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -245,7 +246,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                     ),
                     child: Text(
                       "Done",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -351,10 +353,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
 
       final mappedExpenses = querySnapshot.docs.map((doc) {
         final data = doc.data();
-        return {
-          ...data,
-          'id': doc.id,
-        };
+        return {...data, 'id': doc.id};
       }).toList();
 
       final expanded = ExpenseExpansionHelper.expandExpenses(
@@ -401,8 +400,12 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
       expanded.sort((a, b) {
         final aDateVal = a['Date'] ?? a['date'];
         final bDateVal = b['Date'] ?? b['date'];
-        DateTime? aDt = aDateVal is Timestamp ? aDateVal.toDate() : aDateVal as DateTime?;
-        DateTime? bDt = bDateVal is Timestamp ? bDateVal.toDate() : bDateVal as DateTime?;
+        DateTime? aDt = aDateVal is Timestamp
+            ? aDateVal.toDate()
+            : aDateVal as DateTime?;
+        DateTime? bDt = bDateVal is Timestamp
+            ? bDateVal.toDate()
+            : bDateVal as DateTime?;
         if (aDt == null && bDt == null) return 0;
         if (aDt == null) return 1;
         if (bDt == null) return -1;
@@ -504,12 +507,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
       // Prepare Trend Table Data (Filter out 0 values to keep it clean)
       final List<List<String>> trendTableData = trendData.entries
           .where((e) => e.value > 0)
-          .map(
-            (e) => [
-              e.key,
-              getPdfCurrencySymbol(e.value),
-            ],
-          )
+          .map((e) => [e.key, getPdfCurrencySymbol(e.value)])
           .toList();
 
       // Build transactions table manually for per-row funding color support
@@ -541,22 +539,25 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
         // Header row
         pw.TableRow(
           decoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
-          children: [
-            'Date', 'Title', 'Category', 'Bank Account', 'Amount',
-          ].asMap().entries.map((entry) {
-            return buildCell(
-              entry.value,
-              alignment: entry.key == 4
-                  ? pw.Alignment.centerRight
-                  : pw.Alignment.centerLeft,
-              textColor: PdfColors.white,
-              fontWeight: pw.FontWeight.bold,
-            );
-          }).toList(),
+          children: ['Date', 'Title', 'Category', 'Bank Account', 'Amount']
+              .asMap()
+              .entries
+              .map((entry) {
+                return buildCell(
+                  entry.value,
+                  alignment: entry.key == 4
+                      ? pw.Alignment.centerRight
+                      : pw.Alignment.centerLeft,
+                  textColor: PdfColors.white,
+                  fontWeight: pw.FontWeight.bold,
+                );
+              })
+              .toList(),
         ),
         // Data rows
         ...filteredData.map((data) {
-          final isFunding = data['isFunding'] == true ||
+          final isFunding =
+              data['isFunding'] == true ||
               (data['Category']?.toString().toLowerCase() == 'funding');
           final amount = DataHelpers.safeParseDouble(data['Amount']);
           final amountStr = getPdfCurrencySymbol(amount);
@@ -573,10 +574,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                   ? const PdfColor(0.91, 0.98, 0.92) // light green tint
                   : null,
               border: const pw.Border(
-                bottom: pw.BorderSide(
-                  color: PdfColors.grey300,
-                  width: 0.5,
-                ),
+                bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5),
               ),
             ),
             children: [
@@ -821,8 +819,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
     }
 
     startDate = DateTime(startDate.year, startDate.month, startDate.day);
-    endDate =
-        DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+    endDate = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
 
     return FirebaseFirestore.instance
         .collection('expenses')
@@ -834,7 +831,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -877,7 +875,10 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                           return Center(
                             child: Text(
                               "Failed to load reports.",
-                              style: GoogleFonts.inter(color: Colors.redAccent),
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
+                                color: Colors.redAccent,
+                              ),
                             ),
                           );
                         }
@@ -975,16 +976,14 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                             final docs = snapshot.data?.docs ?? [];
                             final rawList = docs.map((doc) {
                               final data = doc.data() as Map<String, dynamic>;
-                              return {
-                                ...data,
-                                'id': doc.id,
-                              };
+                              return {...data, 'id': doc.id};
                             }).toList();
 
-                            final expanded = ExpenseExpansionHelper.expandExpenses(
-                              rawList,
-                              maxDate: endDate,
-                            );
+                            final expanded =
+                                ExpenseExpansionHelper.expandExpenses(
+                                  rawList,
+                                  maxDate: endDate,
+                                );
 
                             for (final data in expanded) {
                               if (data['isFunding'] == true) continue;
@@ -1122,7 +1121,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
           ),
           Text(
             "Expense Report",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -1180,19 +1180,16 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected
-              ? context.textPrimary
-              : context.cardBackground,
+          color: isSelected ? context.textPrimary : context.cardBackground,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected
-                ? context.textPrimary
-                : context.borderColor,
+            color: isSelected ? context.textPrimary : context.borderColor,
           ),
         ),
         child: Text(
           label,
-          style: GoogleFonts.inter(
+          style: TextStyle(
+            fontFamily: 'Satoshi',
             color: isSelected ? context.appBackground : context.textSecondary,
             fontSize: 14,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -1221,9 +1218,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                   decoration: BoxDecoration(
                     color: context.cardBackground,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: context.borderColor,
-                    ),
+                    border: Border.all(color: context.borderColor),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1232,7 +1227,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                         _customStartDate != null
                             ? _formatDate(_customStartDate!)
                             : "Start Date",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: _customStartDate != null
                               ? context.textPrimary
                               : context.textSecondary,
@@ -1261,9 +1257,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                   decoration: BoxDecoration(
                     color: context.cardBackground,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: context.borderColor,
-                    ),
+                    border: Border.all(color: context.borderColor),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1272,7 +1266,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                         _customEndDate != null
                             ? _formatDate(_customEndDate!)
                             : "End Date",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: _customEndDate != null
                               ? context.textPrimary
                               : context.textSecondary,
@@ -1347,8 +1342,11 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                         ),
                         child: Text(
                           category,
-                          style: GoogleFonts.inter(
-                            color: isSelected ? context.appBackground : context.textSecondary,
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
+                            color: isSelected
+                                ? context.appBackground
+                                : context.textSecondary,
                             fontSize: 13,
                             fontWeight: isSelected
                                 ? FontWeight.w600
@@ -1421,7 +1419,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
               Expanded(
                 child: Text(
                   title,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
@@ -1439,7 +1438,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             alignment: Alignment.centerLeft,
             child: Text(
               value,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 22,
                 fontWeight: FontWeight.w600,
@@ -1490,7 +1490,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                 const SizedBox(height: 16),
                 Text(
                   'No expenses for this period',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -1499,7 +1500,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                 const SizedBox(height: 4),
                 Text(
                   'Try selecting a different date range or category',
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textSecondary.withValues(alpha: 0.6),
                     fontSize: 12,
                   ),
@@ -1558,10 +1560,11 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                             fit: BoxFit.scaleDown,
                             child: Text(
                               CurrencyFormatter.formatByCountryCompact(
-                                  data[index],
-                                  _isLoadingCountry ? '+1' : _userCountryCode,
-                                ),
-                              style: GoogleFonts.inter(
+                                data[index],
+                                _isLoadingCountry ? '+1' : _userCountryCode,
+                              ),
+                              style: TextStyle(
+                                fontFamily: 'Satoshi',
                                 color: context.textSecondary,
                                 fontSize: 9,
                               ),
@@ -1593,7 +1596,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                         fit: BoxFit.scaleDown,
                         child: Text(
                           labelParts[0],
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textPrimary,
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -1605,7 +1609,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                           fit: BoxFit.scaleDown,
                           child: Text(
                             labelParts[1],
-                            style: GoogleFonts.inter(
+                            style: TextStyle(
+                              fontFamily: 'Satoshi',
                               color: context.textSecondary,
                               fontSize: 9,
                             ),
@@ -1659,10 +1664,7 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                     percentage,
                   ),
                   if (index != sortedEntries.length - 1)
-                    Divider(
-                      color: context.borderColor,
-                      height: 1,
-                    ),
+                    Divider(color: context.borderColor, height: 1),
                 ],
               );
             }).toList(),
@@ -1681,7 +1683,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
           Expanded(
             child: Text(
               category,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -1694,7 +1697,8 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
             children: [
               Text(
                 amount,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -1706,14 +1710,13 @@ class _ReportExpenseScreenState extends State<ReportExpenseScreen> {
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: context.textPrimary.withValues(
-                    alpha: 0.1,
-                  ),
+                  color: context.textPrimary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   "${(percentage * 100).toStringAsFixed(1)}%",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 10,
                     fontWeight: FontWeight.w600,

@@ -13,10 +13,14 @@ class ExpenseExpansionHelper {
     final List<Map<String, dynamic>> expanded = [];
     final now = DateTime.now();
     final limitDate = maxDate ?? now;
-    final actualLimit = allowFuture ? limitDate : (limitDate.isAfter(now) ? now : limitDate);
+    final actualLimit = allowFuture
+        ? limitDate
+        : (limitDate.isAfter(now) ? now : limitDate);
 
     for (final expense in rawExpenses) {
-      final typeVal = (expense['Type'] ?? expense['type'] ?? 'one_time').toString().toLowerCase();
+      final typeVal = (expense['Type'] ?? expense['type'] ?? 'one_time')
+          .toString()
+          .toLowerCase();
       final isRecurring = typeVal == 'recurring' || typeVal == 'subscription';
 
       if (!isRecurring) {
@@ -46,7 +50,9 @@ class ExpenseExpansionHelper {
         continue;
       }
 
-      final frequency = (expense['recurrenceFrequency'] ?? 'monthly').toString().toLowerCase();
+      final frequency = (expense['recurrenceFrequency'] ?? 'monthly')
+          .toString()
+          .toLowerCase();
       final tenureMonths = expense['recurringTenureMonths'] as int?;
 
       DateTime? endDate;
@@ -63,7 +69,9 @@ class ExpenseExpansionHelper {
         );
       }
 
-      final upperLimit = (endDate != null && endDate.isBefore(actualLimit)) ? endDate : actualLimit;
+      final upperLimit = (endDate != null && endDate.isBefore(actualLimit))
+          ? endDate
+          : actualLimit;
 
       final originalId = expense['id'] ?? expense['expenseId'] ?? '';
 

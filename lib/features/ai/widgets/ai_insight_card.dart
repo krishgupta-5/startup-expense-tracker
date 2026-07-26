@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:startup_expense_tracker/theme/app_theme.dart';
 
 class AiInsightCard extends StatelessWidget {
@@ -37,7 +36,8 @@ class AiInsightCard extends StatelessWidget {
               const SizedBox(width: 12),
               Text(
                 insightType,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: insightColor,
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
@@ -64,7 +64,8 @@ class AiInsightCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   item.title,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: context.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -86,7 +87,8 @@ class AiInsightCard extends StatelessWidget {
                   ),
                   child: Text(
                     item.savings!,
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: item.color,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -99,7 +101,8 @@ class AiInsightCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             item.description,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textSecondary,
               fontSize: 12,
               height: 1.4,

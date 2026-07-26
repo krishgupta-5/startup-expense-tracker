@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
@@ -63,16 +62,13 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     'legal': 'Legal',
     'others': 'Others',
   };
-  
-  final types = {
-    'one_time': 'One-time',
-    'recurring': 'Recurring',
-  };
+
+  final types = {'one_time': 'One-time', 'recurring': 'Recurring'};
 
   Map<String, String> _bankAccounts = {};
   List<TeamMember> _teamMembers = [];
   List<Team> _teams = [];
-  
+
   TeamMember? _selectedTeamMember;
   Team? _selectedTeam;
   String _expenseType = "team"; // "team" or "member"
@@ -115,7 +111,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         widget.expenseData['Type']?.toString().toLowerCase() ?? 'one_time';
     _selectedType = types.containsKey(fetchedType) ? fetchedType : 'one_time';
 
-    _recurrenceFrequency = widget.expenseData['recurrenceFrequency']?.toString() ?? 'monthly';
+    _recurrenceFrequency =
+        widget.expenseData['recurrenceFrequency']?.toString() ?? 'monthly';
     final dynamic fetchedTenure = widget.expenseData['recurringTenureMonths'];
     _isOngoing = fetchedTenure == null;
     _tenureController = TextEditingController(
@@ -234,12 +231,14 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       if (mounted) {
         setState(() {
           _teamMembers = members;
-          
+
           // Pre-fill member if exists
           String? savedMemberId = widget.expenseData['TeamMemberId'];
           if (savedMemberId != null) {
             try {
-              _selectedTeamMember = members.firstWhere((m) => m.id == savedMemberId);
+              _selectedTeamMember = members.firstWhere(
+                (m) => m.id == savedMemberId,
+              );
             } catch (e) {
               _selectedTeamMember = null;
             }
@@ -373,7 +372,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             children: [
               Text(
                 "Select Attachment",
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -384,7 +384,10 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 leading: Icon(Icons.camera_alt, color: context.textPrimary),
                 title: Text(
                   "Take Photo",
-                  style: GoogleFonts.inter(color: context.textPrimary),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: context.textPrimary,
+                  ),
                 ),
                 onTap: () async {
                   Navigator.pop(context);
@@ -402,7 +405,10 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 leading: Icon(Icons.photo_library, color: context.textPrimary),
                 title: Text(
                   "Choose Photo / Video",
-                  style: GoogleFonts.inter(color: context.textPrimary),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: context.textPrimary,
+                  ),
                 ),
                 onTap: () async {
                   Navigator.pop(context);
@@ -420,14 +426,23 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 ),
                 title: Text(
                   "Choose PDF / Document",
-                  style: GoogleFonts.inter(color: context.textPrimary),
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
+                    color: context.textPrimary,
+                  ),
                 ),
                 onTap: () async {
                   Navigator.pop(context);
                   final result = await FilePicker.platform.pickFiles(
                     type: FileType.custom,
                     allowedExtensions: [
-                      'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'csv',
+                      'pdf',
+                      'doc',
+                      'docx',
+                      'xls',
+                      'xlsx',
+                      'txt',
+                      'csv',
                     ],
                     allowMultiple: false,
                   );
@@ -455,12 +470,25 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     if (filePath == null) return Icons.insert_drive_file;
     final extension = filePath.toLowerCase().split('.').last;
     switch (extension) {
-      case 'pdf': return Icons.picture_as_pdf;
-      case 'doc': case 'docx': return Icons.description;
-      case 'xls': case 'xlsx': return Icons.table_chart;
-      case 'jpg': case 'jpeg': case 'png': case 'gif': return Icons.image;
-      case 'mp4': case 'avi': case 'mov': return Icons.video_file;
-      default: return Icons.insert_drive_file;
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+        return Icons.image;
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+        return Icons.video_file;
+      default:
+        return Icons.insert_drive_file;
     }
   }
 
@@ -482,7 +510,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             Expanded(
               child: Text(
                 message,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: context.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -508,7 +537,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   Future<void> _updateExpense() async {
     FocusScope.of(context).unfocus();
 
-    final double? amount = CurrencyFormatter.parse(_amountController.text.trim());
+    final double? amount = CurrencyFormatter.parse(
+      _amountController.text.trim(),
+    );
     if (amount == null || amount <= 0) {
       _showMinimalToast("Please enter a valid amount.", isError: true);
       return;
@@ -517,7 +548,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       _showMinimalToast("Please enter a title.", isError: true);
       return;
     }
-    final isRecurringOrSub = _selectedType == "recurring" || _selectedType == "subscription";
+    final isRecurringOrSub =
+        _selectedType == "recurring" || _selectedType == "subscription";
     if (!isRecurringOrSub && _selectedDate.isAfter(DateTime.now())) {
       _showMinimalToast("Date cannot be in the future.", isError: true);
       return;
@@ -527,7 +559,10 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     if (isRecurringOrSub && !_isOngoing) {
       final tenureText = _tenureController.text.trim();
       if (tenureText.isEmpty) {
-        _showMinimalToast("Please enter a tenure for the recurring expense.", isError: true);
+        _showMinimalToast(
+          "Please enter a tenure for the recurring expense.",
+          isError: true,
+        );
         return;
       }
       recurringTenure = int.tryParse(tenureText);
@@ -556,7 +591,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       final companyId = userDoc.data()?['companyId'];
       if (companyId == null) throw Exception('Company not found');
 
-      final double newAmount = CurrencyFormatter.parse(_amountController.text.trim())!;
+      final double newAmount = CurrencyFormatter.parse(
+        _amountController.text.trim(),
+      )!;
       final double oldAmount = DataHelpers.safeParseDouble(
         widget.expenseData['Amount'],
       );
@@ -574,7 +611,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         if (memberDoc.exists) {
           final data = memberDoc.data() as Map<String, dynamic>;
           final salary = (data['salary'] as num?)?.toDouble() ?? 0.0;
-          final currentExpenses = (data['totalExpenses'] as num?)?.toDouble() ?? 0.0;
+          final currentExpenses =
+              (data['totalExpenses'] as num?)?.toDouble() ?? 0.0;
           final newMemberExpenses = currentExpenses + diff;
           if (newMemberExpenses > salary) {
             if (mounted) {
@@ -594,7 +632,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       final expenseRef = FirebaseFirestore.instance
           .collection('expenses')
           .doc(widget.expenseId);
-          
+
       batch.update(expenseRef, {
         "Amount": newAmount,
         "Title": _titleController.text.trim(),
@@ -616,7 +654,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         } else ...{
           'recurrenceFrequency': FieldValue.delete(),
           'recurringTenureMonths': FieldValue.delete(),
-        }
+        },
       });
 
       if (diff != 0) {
@@ -626,7 +664,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             .get();
         double currentTotal = 0.0;
         if (companyDoc.exists) {
-          currentTotal = DataHelpers.safeParseDouble(companyDoc.data()?['totalExpenses']);
+          currentTotal = DataHelpers.safeParseDouble(
+            companyDoc.data()?['totalExpenses'],
+          );
         }
         double newTotal = currentTotal + diff;
         if (newTotal < 0) newTotal = 0.0;
@@ -637,10 +677,14 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         batch.update(companyRef, {"totalExpenses": newTotal});
 
         if (expenseType == 'team' && teamId != null) {
-          final teamRef = FirebaseFirestore.instance.collection('teams').doc(teamId);
+          final teamRef = FirebaseFirestore.instance
+              .collection('teams')
+              .doc(teamId);
           batch.update(teamRef, {"usedBudget": FieldValue.increment(diff)});
         } else if (expenseType == 'member' && teamMemberId != null) {
-          final memberRef = FirebaseFirestore.instance.collection('members').doc(teamMemberId);
+          final memberRef = FirebaseFirestore.instance
+              .collection('members')
+              .doc(teamMemberId);
           batch.update(memberRef, {
             "totalExpenses": FieldValue.increment(diff),
             "remainingSalary": FieldValue.increment(-diff),
@@ -745,7 +789,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
                         AnimatedCrossFade(
                           duration: const Duration(milliseconds: 300),
-                          crossFadeState: (_selectedType == 'recurring' || _selectedType == 'subscription')
+                          crossFadeState:
+                              (_selectedType == 'recurring' ||
+                                  _selectedType == 'subscription')
                               ? CrossFadeState.showFirst
                               : CrossFadeState.showSecond,
                           firstChild: _buildRecurringDetailsCard(),
@@ -775,7 +821,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                         const SizedBox(height: 8),
                         _buildExpenseTypeSelector(),
                         const SizedBox(height: 24),
-                        
+
                         _buildSectionLabel("LINK MEMBER (OPTIONAL)"),
                         const SizedBox(height: 16),
                         if (_expenseType == "member") ...[
@@ -785,7 +831,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                           _buildTeamSelector(),
                           const SizedBox(height: 32),
                         ],
-
 
                         _buildSectionLabel("ATTACHMENT"),
                         const SizedBox(height: 16),
@@ -828,7 +873,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           ),
           Text(
             "Edit Expense",
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: context.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -843,7 +889,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
   Widget _buildSectionLabel(String text) {
     return Text(
       text.toUpperCase(),
-      style: GoogleFonts.inter(
+      style: TextStyle(
+        fontFamily: 'Satoshi',
         color: context.textSecondary,
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -861,7 +908,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         textAlign: TextAlign.center,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         textInputAction: TextInputAction.next,
-        style: GoogleFonts.inter(
+        style: TextStyle(
+          fontFamily: 'Satoshi',
           color: context.textPrimary,
           fontSize: 56,
           fontWeight: FontWeight.w600,
@@ -870,7 +918,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         cursorColor: const Color(0xFF30D158),
         decoration: InputDecoration(
           hintText: "0.00",
-          hintStyle: GoogleFonts.inter(
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary.withValues(alpha: 0.3),
             fontSize: 56,
             fontWeight: FontWeight.w600,
@@ -880,7 +929,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           prefixText: _isLoadingCountry
               ? '₹'
               : "${CurrencyFormatter.getCurrencySymbol(_userCountryCode)} ",
-          prefixStyle: GoogleFonts.inter(
+          prefixStyle: TextStyle(
+            fontFamily: 'Satoshi',
             color: context.textSecondary,
             fontSize: 32,
             fontWeight: FontWeight.w600,
@@ -906,12 +956,23 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         controller: controller,
         onTapOutside: (event) => FocusScope.of(context).unfocus(),
         textInputAction: TextInputAction.next,
-        style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+        style: TextStyle(
+          fontFamily: 'Satoshi',
+          color: context.textPrimary,
+          fontSize: 15,
+        ),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: GoogleFonts.inter(color: context.textSecondary, fontSize: 13),
+          labelStyle: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textSecondary,
+            fontSize: 13,
+          ),
           hintText: placeholder,
-          hintStyle: GoogleFonts.inter(color: context.textSecondary.withValues(alpha: 0.5)),
+          hintStyle: TextStyle(
+            fontFamily: 'Satoshi',
+            color: context.textSecondary.withValues(alpha: 0.5),
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
           floatingLabelBehavior: FloatingLabelBehavior.auto,
@@ -937,7 +998,11 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           child: ShadSelect<String>(
             placeholder: Text(
               'Select $label',
-              style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
+              style: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textSecondary,
+                fontSize: 14,
+              ),
             ),
             initialValue: currentValue.isNotEmpty ? currentValue : null,
             options: [
@@ -947,7 +1012,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             ],
             selectedOptionBuilder: (context, value) => Text(
               items[value] ?? "Select",
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
@@ -977,7 +1043,11 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           ),
           child: TextField(
             readOnly: true,
-            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: context.textPrimary,
+              fontSize: 15,
+            ),
             decoration: InputDecoration(
               icon: Icon(
                 Icons.calendar_today,
@@ -986,11 +1056,15 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
               ),
               hintText: 'Select date',
               labelText: 'Date',
-              labelStyle: GoogleFonts.inter(
+              labelStyle: TextStyle(
+                fontFamily: 'Satoshi',
                 color: context.textSecondary,
                 fontSize: 13,
               ),
-              hintStyle: GoogleFonts.inter(color: context.textSecondary.withValues(alpha: 0.5)),
+              hintStyle: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textSecondary.withValues(alpha: 0.5),
+              ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
               suffixIcon: Icon(
@@ -1035,7 +1109,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                       children: [
                         Text(
                           "Select Date",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -1081,7 +1156,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                         ),
                         child: Text(
                           "Done",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1115,12 +1191,19 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
             controller: controller,
             onTapOutside: (event) => FocusScope.of(context).unfocus(),
             textInputAction: TextInputAction.done,
-            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: context.textPrimary,
+              fontSize: 15,
+            ),
             maxLines: 4,
             minLines: 3,
             decoration: InputDecoration(
               hintText: "Enter details...",
-              hintStyle: GoogleFonts.inter(color: context.textSecondary.withValues(alpha: 0.5)),
+              hintStyle: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textSecondary.withValues(alpha: 0.5),
+              ),
               border: InputBorder.none,
             ),
           ),
@@ -1156,7 +1239,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 ),
                 child: Text(
                   "Team Expense",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: _expenseType == "team"
                         ? const Color(0xFF30D158)
                         : context.textSecondary,
@@ -1187,7 +1271,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 ),
                 child: Text(
                   "Member Expense",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: _expenseType == "member"
                         ? const Color(0xFF0A84FF)
                         : context.textSecondary,
@@ -1206,7 +1291,6 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
     );
   }
 
-
   // 🔥 CLEANED UP UI: Shows ONLY avatar and name (Matches Add Expenses)
   Widget _buildTeamSelector() {
     final isTeamExpense = _expenseType == "team";
@@ -1223,7 +1307,11 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
         child: Center(
           child: Text(
             isTeamExpense ? "No teams available" : "No team members available",
-            style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: context.textSecondary,
+              fontSize: 14,
+            ),
           ),
         ),
       );
@@ -1254,9 +1342,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                       height: 52,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: context.borderColor,
-                        ),
+                        border: Border.all(color: context.borderColor),
                         color:
                             (isTeamExpense
                                 ? _selectedTeam == null
@@ -1280,7 +1366,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                     const SizedBox(height: 8),
                     Text(
                       "None",
-                      style: GoogleFonts.inter(
+                      style: TextStyle(
+                        fontFamily: 'Satoshi',
                         color:
                             (isTeamExpense
                                 ? _selectedTeam == null
@@ -1377,7 +1464,10 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFF30D158),
                       shape: BoxShape.circle,
-                      border: Border.all(color: context.appBackground, width: 2),
+                      border: Border.all(
+                        color: context.appBackground,
+                        width: 2,
+                      ),
                     ),
                     child: const Icon(
                       Icons.check,
@@ -1394,7 +1484,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           width: 70,
           child: Text(
             team.teamName,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: isSelected ? context.textPrimary : context.textSecondary,
               fontSize: 12,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -1410,29 +1501,46 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
   Color _getTeamColor(String? colorName) {
     switch (colorName?.toLowerCase()) {
-      case 'blue': return const Color(0xFF0A84FF);
-      case 'orange': return const Color(0xFFFF9F0A);
-      case 'purple': return const Color(0xFFA259FF);
-      case 'green': return const Color(0xFF30D158);
-      case 'red': return const Color(0xFFFF453A);
-      default: return const Color(0xFF0A84FF);
+      case 'blue':
+        return const Color(0xFF0A84FF);
+      case 'orange':
+        return const Color(0xFFFF9F0A);
+      case 'purple':
+        return const Color(0xFFA259FF);
+      case 'green':
+        return const Color(0xFF30D158);
+      case 'red':
+        return const Color(0xFFFF453A);
+      default:
+        return const Color(0xFF0A84FF);
     }
   }
 
   IconData _getTeamIcon(Team team) {
     if (team.iconCodePoint != null && team.iconFontFamily != null) {
       switch (int.tryParse(team.iconCodePoint!)) {
-        case 0xe3af: return Icons.work;
-        case 0xe0af: return Icons.business;
-        case 0xe7fd: return Icons.group;
-        case 0xe226: return Icons.code;
-        case 0xe86c: return Icons.design_services;
-        case 0xe85d: return Icons.computer;
-        case 0xe53b: return Icons.build;
-        case 0xe251: return Icons.lightbulb;
-        case 0xe7f1: return Icons.trending_up;
-        case 0xe8b6: return Icons.people;
-        default: return Icons.group;
+        case 0xe3af:
+          return Icons.work;
+        case 0xe0af:
+          return Icons.business;
+        case 0xe7fd:
+          return Icons.group;
+        case 0xe226:
+          return Icons.code;
+        case 0xe86c:
+          return Icons.design_services;
+        case 0xe85d:
+          return Icons.computer;
+        case 0xe53b:
+          return Icons.build;
+        case 0xe251:
+          return Icons.lightbulb;
+        case 0xe7f1:
+          return Icons.trending_up;
+        case 0xe8b6:
+          return Icons.people;
+        default:
+          return Icons.group;
       }
     }
     return Icons.group;
@@ -1474,7 +1582,10 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                       decoration: BoxDecoration(
                         color: const Color(0xFF30D158),
                         shape: BoxShape.circle,
-                        border: Border.all(color: context.appBackground, width: 2),
+                        border: Border.all(
+                          color: context.appBackground,
+                          width: 2,
+                        ),
                       ),
                       child: const Icon(
                         Icons.check,
@@ -1489,7 +1600,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           const SizedBox(height: 8),
           Text(
             member.fullName,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: isSelected ? context.textPrimary : context.textSecondary,
               fontSize: 12,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
@@ -1521,9 +1633,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 decoration: BoxDecoration(
                   color: context.cardBackground,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: context.borderColor,
-                  ),
+                  border: Border.all(color: context.borderColor),
                 ),
                 child: Center(
                   child: SizedBox(
@@ -1568,7 +1678,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
 
   // --- ATTACHMENT ZONE (Matches Add Expense exactly) ---
   Widget _buildAttachmentZone() {
-    if (_attachmentFileId != null && _attachmentFileId!.isNotEmpty && _fileName == null) {
+    if (_attachmentFileId != null &&
+        _attachmentFileId!.isNotEmpty &&
+        _fileName == null) {
       // Existing attachment from firebase without a new file picked yet
       return Container(
         width: double.infinity,
@@ -1602,7 +1714,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 children: [
                   Text(
                     "Receipt attached",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: const Color(0xFF30D158),
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -1610,7 +1723,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                   ),
                   Text(
                     "Stored in Telegram",
-                    style: GoogleFonts.inter(
+                    style: TextStyle(
+                      fontFamily: 'Satoshi',
                       color: context.textSecondary,
                       fontSize: 11,
                     ),
@@ -1634,7 +1748,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                         final expenseRef = FirebaseFirestore.instance
                             .collection('expenses')
                             .doc(widget.expenseId);
-                            
+
                         batch.update(expenseRef, {
                           "AttachmentFileId": FieldValue.delete(),
                         });
@@ -1733,9 +1847,7 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: context.appBackground,
-        border: Border(
-          top: BorderSide(color: context.borderColor),
-        ),
+        border: Border(top: BorderSide(color: context.borderColor)),
       ),
       child: SizedBox(
         width: double.infinity,
@@ -1745,7 +1857,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           style: ElevatedButton.styleFrom(
             backgroundColor: context.textPrimary,
             foregroundColor: context.appBackground,
-            disabledBackgroundColor: context.textSecondary.withValues(alpha: 0.3),
+            disabledBackgroundColor: context.textSecondary.withValues(
+              alpha: 0.3,
+            ),
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -1762,7 +1876,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                 )
               : Text(
                   "Update Expense",
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1801,7 +1916,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
               const SizedBox(width: 10),
               Text(
                 "RECURRENCE DETAILS",
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   color: const Color(0xFF0A84FF),
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -1824,7 +1940,11 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                     ShadSelect<String>(
                       placeholder: Text(
                         'Select Frequency',
-                        style: GoogleFonts.inter(color: context.textSecondary, fontSize: 14),
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
+                          color: context.textSecondary,
+                          fontSize: 14,
+                        ),
                       ),
                       initialValue: _recurrenceFrequency,
                       options: [
@@ -1834,7 +1954,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                       ],
                       selectedOptionBuilder: (context, value) => Text(
                         frequencies[value] ?? "Monthly",
-                        style: GoogleFonts.inter(
+                        style: TextStyle(
+                          fontFamily: 'Satoshi',
                           color: context.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -1863,7 +1984,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                         Switch(
                           value: _isOngoing,
                           activeThumbColor: const Color(0xFF30D158),
-                          activeTrackColor: const Color(0xFF30D158).withValues(alpha: 0.2),
+                          activeTrackColor: const Color(
+                            0xFF30D158,
+                          ).withValues(alpha: 0.2),
                           inactiveThumbColor: context.textSecondary,
                           inactiveTrackColor: context.borderColor,
                           onChanged: (val) {
@@ -1875,7 +1998,8 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
                         const SizedBox(width: 8),
                         Text(
                           _isOngoing ? "Ongoing" : "Fixed Term",
-                          style: GoogleFonts.inter(
+                          style: TextStyle(
+                            fontFamily: 'Satoshi',
                             color: context.textSecondary,
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -1892,7 +2016,9 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           // If not ongoing, show tenure field
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 250),
-            crossFadeState: !_isOngoing ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+            crossFadeState: !_isOngoing
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
             firstChild: Padding(
               padding: const EdgeInsets.only(top: 20),
               child: _buildRecurringInputField(
@@ -1928,10 +2054,18 @@ class _EditExpenseScreenState extends State<EditExpenseScreen> {
           child: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            style: GoogleFonts.inter(color: context.textPrimary, fontSize: 15),
+            style: TextStyle(
+              fontFamily: 'Satoshi',
+              color: context.textPrimary,
+              fontSize: 15,
+            ),
             decoration: InputDecoration(
               hintText: placeholder,
-              hintStyle: GoogleFonts.inter(color: context.textSecondary.withValues(alpha: 0.5), fontSize: 14),
+              hintStyle: TextStyle(
+                fontFamily: 'Satoshi',
+                color: context.textSecondary.withValues(alpha: 0.5),
+                fontSize: 14,
+              ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
             ),

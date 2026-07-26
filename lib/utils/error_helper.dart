@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../utils/data_helpers.dart';
 
 /// Standardized error handling for consistent UX across the app
@@ -10,7 +9,10 @@ class ErrorHelper {
   static void showErrorSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
+        content: Text(
+          message,
+          style: TextStyle(fontFamily: 'Satoshi', color: Colors.white),
+        ),
         backgroundColor: Colors.redAccent,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 4),
@@ -22,7 +24,10 @@ class ErrorHelper {
   static void showSuccessSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.black)),
+        content: Text(
+          message,
+          style: TextStyle(fontFamily: 'Satoshi', color: Colors.black),
+        ),
         backgroundColor: const Color(0xFF30D158),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
@@ -34,7 +39,10 @@ class ErrorHelper {
   static void showInfoSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.white)),
+        content: Text(
+          message,
+          style: TextStyle(fontFamily: 'Satoshi', color: Colors.white),
+        ),
         backgroundColor: const Color(0xFF0A84FF),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
@@ -46,7 +54,10 @@ class ErrorHelper {
   static void showWarningSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.inter(color: Colors.black)),
+        content: Text(
+          message,
+          style: TextStyle(fontFamily: 'Satoshi', color: Colors.black),
+        ),
         backgroundColor: const Color(0xFF9B59B6),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
@@ -74,7 +85,8 @@ class ErrorHelper {
           const SizedBox(height: 16),
           Text(
             message,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: Colors.white,
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -95,7 +107,8 @@ class ErrorHelper {
               ),
               child: Text(
                 retryText ?? 'Retry',
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -123,7 +136,8 @@ class ErrorHelper {
           const SizedBox(height: 20),
           Text(
             message,
-            style: GoogleFonts.inter(
+            style: TextStyle(
+              fontFamily: 'Satoshi',
               color: Colors.white54,
               fontSize: 16,
               fontWeight: FontWeight.w500,
@@ -144,7 +158,8 @@ class ErrorHelper {
               ),
               child: Text(
                 actionText,
-                style: GoogleFonts.inter(
+                style: TextStyle(
+                  fontFamily: 'Satoshi',
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
@@ -170,7 +185,8 @@ class ErrorHelper {
             const SizedBox(height: 16),
             Text(
               message,
-              style: GoogleFonts.inter(
+              style: TextStyle(
+                fontFamily: 'Satoshi',
                 color: Colors.white38,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,

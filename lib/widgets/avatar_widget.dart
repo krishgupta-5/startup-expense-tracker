@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AvatarWidget extends StatelessWidget {
   final String name;
@@ -80,7 +79,8 @@ class AvatarWidget extends StatelessWidget {
                 child: Text(
                   initials,
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
+                  style: TextStyle(
+                    fontFamily: 'Satoshi',
                     color: textColor ?? Colors.white,
                     fontSize: fontSize,
                     fontWeight: fontWeight,
